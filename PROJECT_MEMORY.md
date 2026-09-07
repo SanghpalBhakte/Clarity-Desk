@@ -1,6 +1,6 @@
 # 🧠 CLARITY DESK — PROJECT MEMORY & ARCHITECTURAL KNOWLEDGE BASE
 
-> **Version:** 3.0 Production-Ready (Post Timetable/Attendance OCR Overhaul, Plum Rebrand, and UX Consistency Pass)
+> **Version:** 3.1 Production-Ready (Post Timetable/Attendance OCR Overhaul, Plum Rebrand, UX Consistency Pass, and Background Push Notifications)
 > **Repository Root:** `D:\Clarity Desk`
 > **Philosophy:** Offline-first, privacy-first, deterministic academic operating desk for college students.
 
@@ -31,6 +31,9 @@ D:\Clarity Desk\
 ├── favicon.svg / favicon.ico / favicon-*.png / icon-*.png / apple-touch-icon.png / badge-96.png
 │                        # App icon set — must stay color-matched to style.css's --raw-brand-1 / --raw-ink-inverse (see §7)
 ├── 404.html             # Static fallback page — carries its own copy of the <head> theme/icon bootstrap; keep in sync with index.html
+├── firestore.rules      # Firestore security rules — default-deny, then strict /users/{uid}/** per-owner access (covers fcmTokens/notifState too, see §10)
+├── scripts/push-notifications/  # Background push evaluation job — send-notifications.js, package.json, package-lock.json (see §10)
+├── .github/workflows/push-notifications.yml  # Free GitHub Actions cron that runs the job above — no Cloud Functions/Blaze plan (see §10)
 ├── tests/               # Automated regression + smoke test suites
 │   ├── verify_master.mjs                          # 14-scenario core regression suite (Node ESM, no browser needed)
 │   ├── verify_gap_fixes.mjs                        # 5-unit Gap Fix Board suite
@@ -40,6 +43,7 @@ D:\Clarity Desk\
 │   ├── verify_residue_and_monday_recovery.mjs / verify_subject_code_and_faculty_legend.mjs
 │   ├── verify_timetable_recess_count.mjs / verify_timetable_structure.mjs / verify_task_category_cleanup.mjs
 │   ├── clarity-visual-verification.spec.ts / pwa-smoke.spec.ts / post-deploy-smoke.spec.ts   # Playwright (see §9)
+│   ├── verify_push_notifications.mjs               # Static checks for the background-push feature (see §10)
 │   └── release-check.mjs / clear-pwa-cache.mjs / serve.mjs
 └── PROJECT_MEMORY.md    # Permanent memory & architecture archive
 ```
@@ -144,7 +148,9 @@ D:\Clarity Desk\
 | `KEY_CUSTOM_LINKS` | `cos_custom_links` | Subject vault items `{ subject, code, color, resources: [...] }` |
 | `KEY_BACKUP_SNAPSHOTS` | `cos_backup_snapshots` | Array of rollback snapshots for instant undo/restore |
 | `KEY_THEME` | `cos_theme` | Current theme key (`paper-slate` or `midnight-ink` — legacy names alias into these, see §7) |
-| `KEY_NOTIF_PREFS` | (see `loadNotifPrefs`) | Per-category notification preferences — foreground-only, see §9 |
+| `KEY_NOTIF_PREFS` | (see `loadNotifPrefs`) | Per-category notification preferences — also drives the server-side push job, see §10 |
+| `KEY_PUSH_REGISTERED` | `cos_push_registered` | Local flag: has this device registered an FCM token for background push? See §10 |
+| `KEY_ATT_TARGET` | `cos_att_target` | Attendance target %; now also synced to Firestore as `attTarget` so the background-push job can read it, see §10 |
 
 ---
 
@@ -162,7 +168,10 @@ node tests/verify_gap_fixes.mjs
 # Run Subject Normalization Suite (11 Scenarios)
 node tests/verify_subject_normalization.mjs
 
-# Or all three together:
+# Run Background Push Notifications Suite (12 Scenarios)
+node tests/verify_push_notifications.mjs
+
+# Or all four together:
 npm test
 ```
 
@@ -205,10 +214,40 @@ Earlier iterations shipped up to 6 named themes (Paper Slate, Midnight Ink, Espr
 
 These are real, currently-accepted limitations, not oversights waiting to be silently "fixed":
 
-- **Notifications are foreground-only.** `Notification.requestPermission()` plus a 60-second `setInterval` (`checkScheduledNotifications()`/`checkNoticeNotifications()`) only fire while the Clarity Desk tab is open. `sw.js` has a fully-built `push` event handler ready to show a system notification, but nothing in the app ever calls `pushManager.subscribe()` — there is no VAPID key and no backend that could send a push in the first place. Building true background push requires Firebase Cloud Messaging (or an equivalent), a stored per-device subscription/token, and a server-side trigger (e.g. a scheduled Cloud Function) — a deliberate feature addition with real infrastructure and cost implications, not a bug fix.
+- **Foreground notifications and background push now coexist.** The original 60-second `setInterval` (`checkScheduledNotifications()`/`checkNoticeNotifications()`) still covers the tab-open case. As of this version, background (app-closed) push is also implemented — see §10 for the full architecture. The one category NOT covered server-side is "new notice" alerts (`checkNoticeNotifications()`/`triggerNoticeNotification()`); that stays foreground-only by design, see §10.
 - **The Playwright suites (`test:visual`, `test:pwa-smoke`, `test:smoke`, and therefore `release:check`) cannot run through a cross-OS automation bridge to this Windows machine.** The `node_modules/.bin/playwright` shim's OS-detection falls through to `node.exe` on Linux (a shim-generation quirk, not a Windows-vs-Linux distinction that matters otherwise) — bypass it with `node node_modules/@playwright/test/cli.js test ...` directly. Even with that bypass, this device's bridged Linux side has no Linux Chromium cached under `~/.cache/ms-playwright/`, and downloading one is blocked by the network egress allowlist (`cdn.playwright.dev` is not allow-listed) — that part is a genuine environment restriction, not something fixable from inside a session. These suites run fine natively in a normal Windows terminal on this machine (assuming `npx playwright install` has been run there at least once); they just cannot be executed by an agent working through this particular bridge.
-- **There is no CI.** No `.github/workflows` exist, so nothing runs any test tier automatically on push or PR — the deterministic `npm test` suite (30 scenarios) run manually before each merge is the only gate today.
+- **There is still no CI in the test-on-push/PR sense.** `.github/workflows/push-notifications.yml` now exists, but it's a scheduled notification job, not a test runner — nothing runs `npm test` automatically on push or PR. The deterministic `npm test` suite (42 scenarios as of this version) run manually before each merge is still the only gate.
 
 ---
 
-*This document is the definitive source of truth for the Clarity Desk codebase. All future enhancements should respect the local-first, zero-silent-write, and calm UX foundations established here. Keep §7's rebrand-trap note and §9's known-gaps list current — the whole point of this file is that the next person (or agent) doesn't have to re-discover them from scratch.*
+---
+
+## 10. Background Push Notifications (Firebase Cloud Messaging + GitHub Actions, no Cloud Functions)
+
+### Why not Firebase Cloud Functions
+Cloud Functions requires the Blaze (pay-as-you-go) billing plan — a card on file, even though actual usage here would stay $0 given the free-tier quotas. To avoid requiring the project owner to enable billing at all, the scheduled server-side evaluation job runs as a **free GitHub Actions cron** in this repo instead of a Cloud Function. FCM itself (sending/receiving pushes) is free on any Firebase plan, including Spark — only the *Cloud-Functions-as-the-scheduler* piece needed Blaze, and Actions replaces that piece for $0.
+
+### Architecture
+- **Client (`app.js`)**: `registerBackgroundPush()` (Settings → Notifications & Study Alerts → "Enable Background Push") requests browser notification permission via the existing `requestNotificationPermission()` flow, gets an FCM token (`firebase.messaging().getToken({ vapidKey })`), and stores it at `/users/{uid}/fcmTokens/{token}`. Foreground messages are routed through the existing `dispatchNotification()` via `initForegroundPushListener()`'s `onMessage` handler, so foreground and background pushes look identical to the user.
+- **VAPID key**: a public Web Push key pair generated once in Firebase Console → Project Settings → Cloud Messaging → Web Push certificates. The public key lives in `firebase-config.js` as `window.CAMPUS_OS_FCM_VAPID_KEY` (safe to expose client-side, same trust level as `apiKey`).
+- **Firestore**: `/users/{uid}/fcmTokens/{token}` (registered devices) and `/users/{uid}/notifState/scheduled` (server-side dedupe state, mirrors the client's `cos_notified_history` idea) are both already covered by the existing `match /users/{uid}/{document=**}` rule — **no `firestore.rules` change was needed**.
+- **Server-side job (`scripts/push-notifications/send-notifications.js`)**: run every 15 minutes by `.github/workflows/push-notifications.yml` (`workflow_dispatch` also allows an on-demand run). For every user doc in `/users`, it mirrors the same 5 rules `checkScheduledNotifications()` runs client-side — task upcoming/overdue, class starting soon, low attendance, daily summary — against that user's already-synced Firestore fields, and sends via `admin.messaging().sendEachForMulticast()` to their registered tokens. Dead tokens (Firebase reports `messaging/registration-token-not-registered`) are pruned automatically.
+- **`data.js` reuse, not duplication**: the job needs `TIMETABLE`/`ASSIGNMENTS`, which live in `data.js` as ES module exports (`export const ...`) — but the repo's `package.json` declares `"type": "commonjs"`, so a plain `require()`/`import()` of `data.js` from this CommonJS script would throw. Rather than hand-copy those datasets into `scripts/push-notifications/` (a second copy that could silently drift from `data.js`, the same class of bug documented in §7's rebrand-trap note), the job's `loadDataJs()` reads `data.js`'s source text and executes it in an isolated `vm` context at run time — genuinely reading the same single source of truth the live app imports, every run, with nothing to keep in sync by hand.
+- **Timezone**: all date/time comparisons use a hardcoded `Asia/Kolkata` timezone (`scripts/push-notifications/send-notifications.js`'s `TIMEZONE` constant). This whole app targets one specific Indian college's timetable with no per-user timezone field synced anywhere — a single fixed zone is a deliberate simplification, not a general multi-timezone design. If this app is ever used across timezones, this is the first thing that needs revisiting.
+- **Service worker (`sw.js`)**: `importScripts` loads `firebase-app-compat.js` + `firebase-messaging-compat.js` (same 10.8.0 version as the rest of the app), `firebase.initializeApp()` uses the same public config as `firebase-config.js`'s default (hardcoded here since a service worker has no `window` to read that file's override logic from, and this static site has no build-time env substitution anyway). `messaging.onBackgroundMessage()` shows the notification manually (data-only messages, full control over icon/badge/tag, consistent with the rest of the app). The **pre-existing** generic `self.addEventListener('push', ...)` handler (previously dead code — nothing ever called `pushManager.subscribe()`) is still there for any future non-FCM push sender, now guarded to skip payloads shaped like an FCM envelope so a real push never produces two notifications.
+
+### Deliberately out of scope for v1
+- **"New notice" pushes.** `NOTICES` is static content in `data.js`, baked in at deploy time and identical for every user — there's no per-user Firestore data to key a dedupe check off without duplicating that content server-side too. This category stays foreground-only (`checkNoticeNotifications()`), same as before this feature.
+- **Preset `ASSIGNMENTS` with real entries.** The job *does* merge `ASSIGNMENTS` + `assignmentStatuses` the same way the client's `allTasks()` does, for parity — but `ASSIGNMENTS` is empty in the current `data.js`, so in practice every pushed task reminder today comes from `customTasks`. If `ASSIGNMENTS` is ever populated with real preset entries again, this path already works, but hasn't been exercised.
+- **Arbitrary scale.** `db.collection('users').get()` reads every user doc every run — fine at this app's actual size (one class), not something to scale up without pagination/collection-group changes.
+
+### One-time setup still required (see also the note in `.github/workflows/push-notifications.yml`)
+1. **VAPID key** — Firebase Console → Project Settings → Cloud Messaging → Web Push certificates → generate, paste the public key into `firebase-config.js`'s `CAMPUS_OS_FCM_VAPID_KEY` (already done for the first key at the time this section was written — regenerate and replace there if it's ever rotated).
+2. **`FIREBASE_SERVICE_ACCOUNT` GitHub secret** — Firebase Console → Project Settings → Service Accounts → Generate new private key (downloads a JSON file) → paste its full, unmodified contents as a repository secret named `FIREBASE_SERVICE_ACCOUNT` (GitHub repo → Settings → Secrets and variables → Actions). Until this secret exists, the scheduled job runs, logs a friendly "nothing to do" message, and exits 0 — it does not fail loudly, so don't mistake a quiet green Actions run for confirmation that push notifications are actually being evaluated.
+3. Deploy hosting as usual (`firebase deploy --only hosting`) so the client-side changes (FCM SDK, VAPID key, service worker) go live. The GitHub Actions workflow itself needs no `firebase deploy` step — it runs directly from the repo.
+
+If a rule inside `checkScheduledNotifications()` in `app.js` ever changes, mirror the change in `evaluateUser()` inside `scripts/push-notifications/send-notifications.js` — the two are hand-kept in sync, there's no shared module between client and job for this logic.
+
+---
+
+*This document is the definitive source of truth for the Clarity Desk codebase. All future enhancements should respect the local-first, zero-silent-write, and calm UX foundations established here. Keep §7's rebrand-trap note, §9's known-gaps list, and §10's setup/scope notes current — the whole point of this file is that the next person (or agent) doesn't have to re-discover them from scratch.*

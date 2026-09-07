@@ -36,6 +36,7 @@
   const envAppId         = getEnvVal('FIREBASE_APP_ID');
   const envGeminiKey     = getEnvVal('GEMINI_API_KEY');
   const envGroqKey       = getEnvVal('GROQ_API_KEY');
+  const envVapidKey      = getEnvVal('FIREBASE_VAPID_KEY');
 
   // Preconfigured AI Keys (strictly from secure env config)
   window.CAMPUS_OS_GEMINI_KEY = envGeminiKey || null;
@@ -62,4 +63,10 @@
       appId:             "1:248625780152:web:555bfb8bdf0b42ba776b4d"
     };
   }
+
+  // Web Push (VAPID) public key for Firebase Cloud Messaging getToken() calls.
+  // Public by design (safe to ship client-side) - generated in Firebase Console:
+  // Project Settings -> Cloud Messaging -> Web Push certificates.
+  window.CAMPUS_OS_FCM_VAPID_KEY = envVapidKey || window.CAMPUS_OS_FCM_VAPID_KEY ||
+    'BFh99iQmMc5kSqEN4c8atQw00GeOOCEgX4tZjbeoezjNMo5qHnBolVVjnwiaLaplldhpa-6h2djV0ibZPinMXXU';
 })();
