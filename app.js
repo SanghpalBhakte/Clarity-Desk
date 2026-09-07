@@ -3903,6 +3903,14 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
     }
   });
 
+  // The Tasks & Deadlines page already has its own persistent "+ Add Task"
+  // header button doing the exact same thing, so the floating quick-add FAB
+  // is pure redundant clutter there (and visibly collides with that page's
+  // own empty-state CTA). Hide it only on that page; every other page keeps
+  // the FAB since none of them have an equivalent always-visible control.
+  const fabEl = document.querySelector('.fab');
+  if (fabEl) fabEl.style.display = (page === 'assignments') ? 'none' : '';
+
   updateBackButtonUI();
   renderPage(page);
 }
