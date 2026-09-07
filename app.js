@@ -3801,7 +3801,7 @@ function initTheme() {
   
   document.documentElement.setAttribute('data-theme', theme);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#2F4A3D');
+  if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
   updateThemeSelector(theme);
 }
 
@@ -3818,7 +3818,7 @@ function setTheme(theme) {
   if (!ALL_THEMES.includes(theme)) return;
   document.documentElement.setAttribute('data-theme', theme);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#2F4A3D');
+  if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
   localStorage.setItem(KEY_THEME, theme);
   updateThemeSelector(theme);
   renderPage(state.currentPage);
@@ -10378,7 +10378,7 @@ function renderSettings() {
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#F6F1E8"></div>
               <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#2F4A3D"></div>
+              <div class="swatch-accent" style="background:#7A2E3D"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Paper Slate</span>
@@ -10389,7 +10389,7 @@ function renderSettings() {
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#171412"></div>
               <div class="swatch-surface" style="background:#221D19"></div>
-              <div class="swatch-accent" style="background:#7E9C8D"></div>
+              <div class="swatch-accent" style="background:#C97E8C"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
