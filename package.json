@@ -7,7 +7,7 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node tests/verify_master.mjs && node tests/verify_gap_fixes.mjs && node tests/verify_subject_normalization.mjs",
+    "test": "node tests/verify_master.mjs && node tests/verify_gap_fixes.mjs && node tests/verify_subject_normalization.mjs && node tests/verify_push_notifications.mjs",
     "test:visual": "playwright test tests/clarity-visual-verification.spec.ts",
     "test:visual:update": "playwright test tests/clarity-visual-verification.spec.ts --update-snapshots",
     "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts --project=chromium-desktop",

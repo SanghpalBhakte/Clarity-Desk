@@ -21,6 +21,7 @@ const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
+const KEY_PUSH_REGISTERED     = 'cos_push_registered';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
@@ -3243,6 +3244,9 @@ function applyCloudDataToLocalState(data) {
   if (data.noticeChannels && typeof data.noticeChannels === 'object') {
     safeSetStorage(KEY_NOTICE_CHANNELS, data.noticeChannels);
   }
+  if (typeof data.attTarget === 'number' && data.attTarget >= 50 && data.attTarget <= 100) {
+    safeSetStorage(KEY_ATT_TARGET, data.attTarget);
+  }
   updateTopbarProfile();
   setupFABDrag();
   updateNavBadges();
@@ -3269,6 +3273,7 @@ function pushLocalDataToCloud(uid) {
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
+    attTarget:          getAttendanceTarget(),
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
   db.collection('users').doc(uid).set(payload, { merge: true }).catch(err => {
@@ -3486,6 +3491,92 @@ async function requestNotificationPermission() {
     console.warn("Notification permission error:", err);
     return false;
   }
+}
+
+
+// ── Background Push Notifications (Firebase Cloud Messaging) ──
+// Lets alerts arrive even when the app/tab is fully closed. A scheduled
+// GitHub Actions job (.github/workflows/push-notifications.yml) evaluates
+// the same rules as checkScheduledNotifications() below, server-side,
+// against each signed-in user's already-synced Firestore data, and sends
+// via FCM to the tokens registered here. No Cloud Functions/Blaze plan
+// involved — see PROJECT_MEMORY.md for the full architecture.
+let fcmMessaging = null;
+
+function getMessaging() {
+  if (typeof firebase === 'undefined' || !firebase.messaging || typeof firebase.messaging.isSupported !== 'function') return null;
+  try {
+    if (!firebase.messaging.isSupported()) return null;
+    if (!fcmMessaging) fcmMessaging = firebase.messaging();
+    return fcmMessaging;
+  } catch (e) {
+    console.warn("FCM init error:", e);
+    return null;
+  }
+}
+
+function isPushRegistered() {
+  return !!safeGetStorage(KEY_PUSH_REGISTERED, false);
+}
+
+async function registerBackgroundPush() {
+  if (!currentUser || !db) {
+    showToast('Sign in with Google first to enable background push notifications.', 'info');
+    return false;
+  }
+  if (typeof Notification === 'undefined') {
+    showToast('Notifications not supported by your browser.', 'error');
+    return false;
+  }
+  if (Notification.permission !== 'granted') {
+    const granted = await requestNotificationPermission();
+    if (!granted) return false;
+  }
+  const msg = getMessaging();
+  if (!msg) {
+    showToast('Background push is not supported in this browser.', 'error');
+    return false;
+  }
+  const vapidKey = window.CAMPUS_OS_FCM_VAPID_KEY;
+  if (!vapidKey || vapidKey.includes('REPLACE')) {
+    showToast('Push notifications are not configured yet.', 'error');
+    return false;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const token = await msg.getToken({ vapidKey, serviceWorkerRegistration: reg });
+    if (!token) {
+      showToast('Could not get a push token. Please try again.', 'error');
+      return false;
+    }
+    await db.collection('users').doc(currentUser.uid).collection('fcmTokens').doc(token).set({
+      token,
+      platform: (navigator.platform || 'web').slice(0, 60),
+      userAgent: (navigator.userAgent || '').slice(0, 200),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    safeSetStorage(KEY_PUSH_REGISTERED, true);
+    showToast('Background push notifications enabled ✓', 'success');
+    if (state.currentPage === 'settings') renderSettings();
+    return true;
+  } catch (err) {
+    console.warn("FCM token registration error:", err);
+    showToast('Could not enable background push notifications.', 'error');
+    return false;
+  }
+}
+
+// Foreground messages (tab open & focused) arrive here instead of showing
+// natively — route them through the same dispatchNotification() used by
+// the in-app scheduler so the UX is identical either way.
+function initForegroundPushListener() {
+  const msg = getMessaging();
+  if (!msg || typeof msg.onMessage !== 'function') return;
+  msg.onMessage(payload => {
+    const d = (payload && payload.data) || {};
+    if (!d.title) return;
+    dispatchNotification(d.title, { body: d.body || '', tag: d.tag || undefined, data: { url: d.url || './#dashboard' } });
+  });
 }
 
 const NOTIF_DEFAULT_ICON = './icon-192.png';
@@ -10432,6 +10523,26 @@ function renderSettings() {
         </div>
       </div>` : ''}
 
+      ${currentUser ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary)">Background Push (works when app is closed)</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">
+            Status: <strong style="color:${isPushRegistered() ? 'var(--green)' : 'var(--text-muted)'}">
+              ${isPushRegistered() ? 'Enabled on this device ✓' : 'Not enabled on this device'}
+            </strong>
+          </div>
+        </div>
+        <button class="btn btn-sm ${isPushRegistered() ? 'btn-secondary' : 'btn-primary'}" onclick="registerBackgroundPush()">
+          ${isPushRegistered() ? 'Re-register This Device' : 'Enable Background Push'}
+        </button>
+      </div>
+      ` : `
+      <div style="margin-bottom:16px;font-size:0.78rem;color:var(--text-muted);background:var(--surface-2);padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid var(--border);line-height:1.5">
+        Sign in with Google (above) to enable background push notifications that arrive even when this app is closed.
+      </div>
+      `}
+
       <div style="display:flex;flex-direction:column;gap:14px">
         <div style="font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Task Deadlines</div>
         
@@ -12351,6 +12462,7 @@ function updateNavBadges() {
 window.updateNavBadges = updateNavBadges;
 
 window.requestNotificationPermission = requestNotificationPermission;
+window.registerBackgroundPush = registerBackgroundPush;
 
 // ── Init ──────────────────────────────────────────────────────
 function init() {
@@ -12400,6 +12512,7 @@ function init() {
 
   // Initialize Firebase Auth & Firestore sync
   initFirebase();
+  initForegroundPushListener();
 
   // Register PWA Service Worker for offline support
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

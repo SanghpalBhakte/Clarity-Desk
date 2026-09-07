@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clarity-desk-v111';
+const CACHE_NAME = 'clarity-desk-v112';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -116,6 +116,16 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 self.addEventListener('push', (event) => {
+  // FCM-delivered pushes are already displayed via messaging.onBackgroundMessage()
+  // below (registered by the Firebase Messaging SW integration); skip them here so
+  // the same push doesn't produce two notifications. Only a genuinely custom,
+  // non-FCM Web Push payload (no top-level "data" object) reaches the code below.
+  if (event.data) {
+    try {
+      const peek = event.data.json();
+      if (peek && typeof peek === 'object' && peek.data && typeof peek.data === 'object') return;
+    } catch (_) { /* not JSON — handle as legacy/plain push below */ }
+  }
   let data = { title: 'Clarity Desk', body: 'You have a new update.' };
   if (event.data) {
     try { data = event.data.json(); } catch(err) { data.body = event.data.text() || data.body; }
@@ -135,5 +145,38 @@ self.addEventListener('push', (event) => {
   );
 });
 
+// ── Firebase Cloud Messaging — background (app closed) push ───
+// Public config only (safe client-side, same values as firebase-config.js's
+// default). Hardcoded here because this is a static site with no build step,
+// so there is no env-substitution mechanism, and service workers have no
+// `window` to read firebase-config.js's override logic from anyway.
+importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
+try {
+  firebase.initializeApp({
+    apiKey:            "AIzaSyD1st-UB9NbBme9z-8M0upwJ0ndQrr8J2E",
+    authDomain:        "campusos-83365.firebaseapp.com",
+    projectId:         "campusos-83365",
+    storageBucket:     "campusos-83365.appspot.com",
+    messagingSenderId: "248625780152",
+    appId:             "1:248625780152:web:555bfb8bdf0b42ba776b4d"
+  });
+
+  const messaging = firebase.messaging();
+  messaging.onBackgroundMessage((payload) => {
+    const d = payload.data || {};
+    if (!d.title) return;
+    self.registration.showNotification(d.title, {
+      body:      d.body || '',
+      icon:      NOTIF_DEFAULT_ICON,
+      badge:     NOTIF_DEFAULT_BADGE,
+      tag:       d.tag || 'cd-push-scheduled',
+      renotify:  true,
+      data:      { url: d.url || './#dashboard' }
+    });
+  });
+} catch (err) {
+  console.warn('FCM background messaging init skipped:', err);
+}
 

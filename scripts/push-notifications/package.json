@@ -1,0 +1,13 @@
+{
+  "name": "clarity-desk-push-notifications",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scheduled job (run by .github/workflows/push-notifications.yml) that evaluates due reminders for each signed-in user and sends them via Firebase Cloud Messaging. No Cloud Functions / Blaze plan required.",
+  "main": "send-notifications.js",
+  "scripts": {
+    "start": "node send-notifications.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
