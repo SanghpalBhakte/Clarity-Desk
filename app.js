@@ -6588,13 +6588,66 @@ function preprocessAttendanceImageForOCR(base64Data, mimeType) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      let width = img.width;
-      let height = img.height;
+      const origWidth = img.width;
+      const origHeight = img.height;
 
-      // 1. Upscale low-res screenshots for crisp digit recognition
+      const rawCanvas = document.createElement('canvas');
+      rawCanvas.width = origWidth;
+      rawCanvas.height = origHeight;
+      const rawCtx = rawCanvas.getContext('2d');
+      rawCtx.drawImage(img, 0, 0, origWidth, origHeight);
+
+      // 1. Find the real table's content box FIRST, on the untouched
+      // pixels -- a tall phone screenshot (portal chrome above, a table
+      // in the middle, blank space below) wastes most of its height on
+      // margins. Cropping to content before deciding how much to scale
+      // means the resize budget goes to the table itself, not to
+      // whitespace around it.
+      const origData = rawCtx.getImageData(0, 0, origWidth, origHeight);
+      const od = origData.data;
+      const darkThreshold = 180;
+
+      const rowHasContent = (y) => {
+        let darks = 0;
+        for (let x = 0; x < origWidth; x += 2) {
+          const i = (y * origWidth + x) * 4;
+          const gray = 0.299 * od[i] + 0.587 * od[i + 1] + 0.114 * od[i + 2];
+          if (gray < darkThreshold) darks++;
+        }
+        return darks > origWidth * 0.01;
+      };
+      const colHasContent = (x, top, bottom) => {
+        let darks = 0;
+        for (let y = top; y <= bottom; y += 2) {
+          const i = (y * origWidth + x) * 4;
+          const gray = 0.299 * od[i] + 0.587 * od[i + 1] + 0.114 * od[i + 2];
+          if (gray < darkThreshold) darks++;
+        }
+        return darks > (bottom - top) * 0.01;
+      };
+
+      let top = 0, bottom = origHeight - 1, left = 0, right = origWidth - 1;
+      for (let y = 0; y < origHeight; y++) { if (rowHasContent(y)) { top = y; break; } }
+      for (let y = origHeight - 1; y >= top; y--) { if (rowHasContent(y)) { bottom = y; break; } }
+      for (let x = 0; x < origWidth; x++) { if (colHasContent(x, top, bottom)) { left = x; break; } }
+      for (let x = origWidth - 1; x >= left; x--) { if (colHasContent(x, top, bottom)) { right = x; break; } }
+
+      const pad = 20;
+      top = Math.max(0, top - pad);
+      bottom = Math.min(origHeight - 1, bottom + pad);
+      left = Math.max(0, left - pad);
+      right = Math.min(origWidth - 1, right + pad);
+
+      const cropW = Math.max(10, right - left + 1);
+      const cropH = Math.max(10, bottom - top + 1);
+
+      // 2. Decide target size from the CROPPED content's own dimensions,
+      // not the full (often mostly-blank) screenshot -- this is what
+      // stops a tall portrait screenshot's table from being needlessly
+      // shrunk just because the overall image is tall.
+      let width = cropW;
+      let height = cropH;
+
       const TARGET_MIN_WIDTH = 1300;
       if (width < TARGET_MIN_WIDTH) {
         const scale = Math.min(2.0, TARGET_MIN_WIDTH / width);
@@ -6602,21 +6655,34 @@ function preprocessAttendanceImageForOCR(base64Data, mimeType) {
         height = Math.round(height * scale);
       }
 
-      // Cap at reasonable max to keep memory low and local OCR responsive
-      const MAX_DIM = 1800;
+      // Raised from the timetable pipeline's 1800px cap: a dense ERP
+      // attendance table packs 6-9 narrow numeric columns into the same
+      // width a day/time timetable grid gives just a handful of cells,
+      // so those columns need more pixels per character to stay legible.
+      const MAX_DIM = 2600;
       if (width > MAX_DIM || height > MAX_DIM) {
         const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
         width = Math.round(width * ratio);
         height = Math.round(height * ratio);
       }
 
+      const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
+      const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, width, height);
+      ctx.drawImage(rawCanvas, left, top, cropW, cropH, 0, 0, width, height);
 
-      // 2. Grayscale & contrast enhancement with dynamic range expansion
+      rawCanvas.width = 1;
+      rawCanvas.height = 1;
+
+      // 3. Grayscale & contrast. A clean digital screenshot (ERP portal,
+      // not a photo of a printed sheet) already has near-black text on a
+      // near-white background -- the aggressive S-curve boost tuned for
+      // washed-out real photos was measurably corrupting that already-
+      // crisp anti-aliasing instead of helping it, so it's applied only
+      // when the source doesn't already have strong native contrast.
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
 
@@ -6630,77 +6696,30 @@ function preprocessAttendanceImageForOCR(base64Data, mimeType) {
         if (gray > maxL) maxL = gray;
       }
 
-      const range = Math.max(1, maxL - minL);
+      const nativeRange = maxL - minL;
+      const range = Math.max(1, nativeRange);
+      const isAlreadyHighContrast = nativeRange > 200;
+
       for (let i = 0, j = 0; i < data.length; i += 4, j++) {
         const normalized = Math.min(255, Math.max(0, Math.round(((grayValues[j] - minL) / range) * 255)));
-        // Soft S-curve boost to keep font edges anti-aliased while whitening light backgrounds
-        const boosted = normalized < 130 
-          ? Math.round(Math.pow(normalized / 130, 1.35) * 115) 
-          : Math.min(255, Math.round(115 + Math.pow((normalized - 130) / 125, 0.75) * 140));
-        data[i] = boosted;
-        data[i + 1] = boosted;
-        data[i + 2] = boosted;
+        let out;
+        if (isAlreadyHighContrast) {
+          out = normalized;
+        } else {
+          out = normalized < 130
+            ? Math.round(Math.pow(normalized / 130, 1.35) * 115)
+            : Math.min(255, Math.round(115 + Math.pow((normalized - 130) / 125, 0.75) * 140));
+        }
+        data[i] = out;
+        data[i + 1] = out;
+        data[i + 2] = out;
       }
 
       ctx.putImageData(imageData, 0, 0);
 
-      // 3. Margin & noise trimming (remove outer borders / OS status bars)
-      let top = 0, bottom = height - 1, left = 0, right = width - 1;
-      const darkPixelThreshold = 100;
-
-      for (let y = 0; y < height; y++) {
-        let darks = 0;
-        for (let x = 0; x < width; x++) {
-          if (data[(y * width + x) * 4] < darkPixelThreshold) darks++;
-        }
-        if (darks > width * 0.015) { top = y; break; }
-      }
-
-      for (let y = height - 1; y >= top; y--) {
-        let darks = 0;
-        for (let x = 0; x < width; x++) {
-          if (data[(y * width + x) * 4] < darkPixelThreshold) darks++;
-        }
-        if (darks > width * 0.015) { bottom = y; break; }
-      }
-
-      for (let x = 0; x < width; x++) {
-        let darks = 0;
-        for (let y = top; y <= bottom; y++) {
-          if (data[(y * width + x) * 4] < darkPixelThreshold) darks++;
-        }
-        if (darks > (bottom - top) * 0.015) { left = x; break; }
-      }
-
-      for (let x = width - 1; x >= left; x--) {
-        let darks = 0;
-        for (let y = top; y <= bottom; y++) {
-          if (data[(y * width + x) * 4] < darkPixelThreshold) darks++;
-        }
-        if (darks > (bottom - top) * 0.015) { right = x; break; }
-      }
-
-      const pad = 16;
-      top = Math.max(0, top - pad);
-      bottom = Math.min(height - 1, bottom + pad);
-      left = Math.max(0, left - pad);
-      right = Math.min(width - 1, right + pad);
-
-      const trimW = Math.max(10, right - left + 1);
-      const trimH = Math.max(10, bottom - top + 1);
-
-      const trimmedCanvas = document.createElement('canvas');
-      trimmedCanvas.width = trimW;
-      trimmedCanvas.height = trimH;
-      const trimmedCtx = trimmedCanvas.getContext('2d');
-      trimmedCtx.drawImage(canvas, left, top, trimW, trimH, 0, 0, trimW, trimH);
-
-      const resultDataUrl = trimmedCanvas.toDataURL(mimeType, 0.92);
-
+      const resultDataUrl = canvas.toDataURL(mimeType, 0.92);
       canvas.width = 1;
       canvas.height = 1;
-      trimmedCanvas.width = 1;
-      trimmedCanvas.height = 1;
 
       resolve(resultDataUrl);
     };
@@ -6849,12 +6868,37 @@ Rules:
   return textRows.length > 0 ? textRows : geometricResult;
 }
 
-function reconstructAttendanceTableFromGrid(ocrData, existingSubjects = []) {
-  if (!ocrData || !Array.isArray(ocrData.words) || ocrData.words.length === 0) {
-    return [];
-  }
+function extractNumericZoneTokens(words) {
+  const numTokens = [];
+  let pctVal = null;
+  words.forEach(w => {
+    const cleanedRaw = (w.text || '').trim();
+    const isPctSign = cleanedRaw.includes('%');
+    const numCandidate = cleanedRaw
+      .replace(/[%]/g, '')
+      .replace(/^[OoQD]$/, '0')
+      .replace(/^[lI|i]$/, '1')
+      .replace(/^[Ss]$/, '5')
+      .replace(/^[Bb]$/, '8');
+    if (/^\d+(\.\d+)?$/.test(numCandidate)) {
+      const val = parseFloat(numCandidate);
+      numTokens.push(val);
+      // An exact-two-decimal value (12.34) is this portal's percentage-column
+      // format far more reliably than a literal '%' sign, which OCR commonly
+      // drops (or, worse, hallucinates onto an unrelated garbled digit --
+      // seen for real on one row where "25" the Total-Sessions count OCR'd
+      // as "2%"). Prefer that signal; fall back to a literal '%' hit only if
+      // no X.XX-shaped token exists at all.
+      if (/^\d{1,3}\.\d{2}$/.test(numCandidate)) pctVal = val;
+      else if (isPctSign && pctVal == null) pctVal = val;
+    }
+  });
+  return { numTokens, pctVal };
+}
 
-  // 1. Sanitize OCR words and attach coordinate centers
+function reconstructAttendanceTableFromGrid(ocrData, existingSubjects = []) {
+  if (!ocrData || !Array.isArray(ocrData.words) || ocrData.words.length === 0) return [];
+
   const words = ocrData.words.map(w => ({
     text: (w.text || '').trim(),
     bbox: w.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 },
@@ -6863,90 +6907,238 @@ function reconstructAttendanceTableFromGrid(ocrData, existingSubjects = []) {
     cy: ((w.bbox?.y0 || 0) + (w.bbox?.y1 || 0)) / 2
   })).filter(w => w.text.length > 0);
 
-  // 2. Group into visual rows based on Y vertical overlap
-  words.sort((a, b) => a.bbox.y0 - b.bbox.y0);
-  const visualRows = [];
+  const lines = groupWordsIntoLines(words, 0.42);
 
-  for (const word of words) {
-    let added = false;
-    for (const row of visualRows) {
-      const avgY0 = row.reduce((sum, w) => sum + w.bbox.y0, 0) / row.length;
-      const avgY1 = row.reduce((sum, w) => sum + w.bbox.y1, 0) / row.length;
-      const wordH = word.bbox.y1 - word.bbox.y0;
-
-      const overlap = Math.max(0, Math.min(word.bbox.y1, avgY1) - Math.max(word.bbox.y0, avgY0));
-      if (wordH > 0 && (overlap / wordH) > 0.38) {
-        row.push(word);
-        added = true;
-        break;
-      }
-    }
-    if (!added) {
-      visualRows.push([word]);
-    }
-  }
-
-  // Sort words inside each row horizontally (left to right)
-  visualRows.forEach(r => r.sort((a, b) => a.bbox.x0 - b.bbox.x0));
-
-  // 3. Identify header row and compute column boundary intervals
+  // Find the header's START line. A single physical line's keyword count
+  // isn't always enough on its own -- a badly-OCR'd header can lose all
+  // but 2 of its column labels to the same wrapping/garbling that affects
+  // body cells, so also credit keywords from the next couple of lines.
+  // The first line itself must still carry at least 2 matches so a nav
+  // bar/tab strip ("Courses Schedule Marks...") a line or two above the
+  // real header can't be mistaken for it just because the real header
+  // happens to fall inside its lookahead window.
   const headerKeywords = ['course', 'subject', 'present', 'absent', 'leave', 'attended', 'total', 'percent', '%', 'entered', 'status', 'sessions', 'faculty', 'code', 'sr.'];
-  let headerRowIndex = -1;
-  let intervals = null;
+  let headerLineIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const firstLineText = lines[i].map(w => w.text.toLowerCase()).join(' ');
+    const firstLineMatches = headerKeywords.filter(kw => firstLineText.includes(kw)).length;
+    if (firstLineMatches < 2) continue;
+    const windowText = lines.slice(i, i + 3).map(l => l.map(w => w.text.toLowerCase()).join(' ')).join(' ');
+    const windowMatches = headerKeywords.filter(kw => windowText.includes(kw)).length;
+    if (windowMatches >= 3) { headerLineIndex = i; break; }
+  }
+  if (headerLineIndex === -1) return [];
 
-  for (let i = 0; i < visualRows.length; i++) {
-    const rowText = visualRows[i].map(w => w.text.toLowerCase()).join(' ');
-    const matchCount = headerKeywords.filter(kw => rowText.includes(kw)).length;
-    if (matchCount >= 3) {
-      headerRowIndex = i;
-      intervals = extractColumnIntervalsFromHeader(visualRows[i]);
-      break;
-    }
+  // The header itself commonly wraps across 2-3 physical lines, exactly
+  // like a body cell does ("Total" / "Sessions", "Attendance" / "Not" /
+  // "Entered") -- absorb those continuation lines into the header word
+  // pool too. A continuation line is recognisable because it consists
+  // entirely of short, purely-alphabetic generic column words; a real
+  // data row never looks like that (it always carries a code, a number,
+  // or a proper name).
+  const CONTINUATION_VOCAB = new Set(['count', 'applied', 'entered', 'sessions', 'percentage', 'status', 'not', 'name']);
+  let headerEndIndex = headerLineIndex;
+  for (let i = headerLineIndex + 1; i < Math.min(lines.length, headerLineIndex + 3); i++) {
+    const line = lines[i];
+    const hasDigits = line.some(w => /\d/.test(w.text));
+    const allShort = line.every(w => w.text.replace(/[^a-zA-Z]/g, '').length <= 14);
+    const vocabHits = line.filter(w => CONTINUATION_VOCAB.has(w.text.toLowerCase().replace(/[^a-z]/g, ''))).length;
+    const isContinuation = !hasDigits && allShort && vocabHits >= Math.ceil(line.length / 2);
+    if (isContinuation) { headerEndIndex = i; } else { break; }
   }
 
-  // 4. Parse candidate data rows
+  // Merge all header-region words and re-sort purely by X position
+  // (ignoring which physical line each came from) -- a phrase like
+  // "Total" / "Sessions" that wraps across lines shares nearly the same
+  // x-range, so pure-X order reconstructs it as adjacent tokens the same
+  // way extractColumnIntervalsFromHeader already expects for a single
+  // physical header line.
+  const headerWords = [];
+  for (let i = headerLineIndex; i <= headerEndIndex; i++) headerWords.push(...lines[i]);
+  headerWords.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+
+  const intervals = extractColumnIntervalsFromHeader(headerWords);
+  if (!intervals || intervals.length < 3) return [];
+
+  const bodyLines = lines.slice(headerEndIndex + 1);
+
+  const isSummaryLine = (line) => {
+    const fullText = line.map(w => w.text).join(' ');
+    return /^(total|overall|aggregate|grand\s*total)\b/i.test(fullText) ||
+      (line.length <= 7 && line.every(w => /^\d+(\.\d+)?%?$/.test(w.text)));
+  };
+
+  const ANCHOR_TYPES = new Set(['present', 'absent', 'leave', 'notEntered', 'total', 'percentage']);
+  const anchorIntervals = intervals.filter(iv => ANCHOR_TYPES.has(iv.type));
+  const looksNumericish = (text) => /\d/.test(text) || /^[OoQDlI|iZz?EeAhSs$§Gb\/Bb&gq.,%]+$/.test(text);
+
+  // Fallback for when the header's numeric-column labels ("Present
+  // Count", "Absent Count", ...) OCR'd too poorly to identify even one of
+  // them individually (common: these are the smallest, most tightly
+  // packed header cells). Rather than give up, treat everything to the
+  // right of the last column we COULD identify (name/faculty/sessions)
+  // as "the numeric zone" -- a line with several numeric-looking tokens
+  // out there is still a reliable row anchor even without knowing which
+  // specific column each number belongs to (parseRowUsingMathematicalSolver
+  // resolves that ambiguity itself via arithmetic balance, not position).
+  const numericZoneStartX = anchorIntervals.length
+    ? null
+    : Math.max(...intervals.map(iv => iv.x1));
+
+  const isAnchorLine = (line) => {
+    if (anchorIntervals.length) {
+      return line.some(w => {
+        const inAnchorCol = anchorIntervals.some(iv => w.cx >= iv.minX && w.cx < iv.maxX);
+        return inAnchorCol && looksNumericish(w.text);
+      });
+    }
+    if (numericZoneStartX == null) return false;
+    const numericZoneWords = line.filter(w => w.cx > numericZoneStartX && looksNumericish(w.text));
+    return numericZoneWords.length >= 3;
+  };
+
+  const summaryFlags = bodyLines.map(isSummaryLine);
+  const anchorIdx = [];
+  bodyLines.forEach((line, i) => { if (!summaryFlags[i] && isAnchorLine(line)) anchorIdx.push(i); });
+  if (anchorIdx.length === 0) return [];
+
+  const lineCenterY = (line) => line.reduce((s, w) => s + w.cy, 0) / line.length;
+  const rawCenters = anchorIdx.map(i => lineCenterY(bodyLines[i]));
+  const gaps = [];
+  for (let k = 1; k < rawCenters.length; k++) gaps.push(rawCenters[k] - rawCenters[k - 1]);
+  const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 0;
+
+  const mergedAnchorIdx = [];
+  anchorIdx.forEach((idx, k) => {
+    if (k > 0 && medianGap > 0 && (rawCenters[k] - rawCenters[k - 1]) < medianGap * 0.4) return;
+    mergedAnchorIdx.push(idx);
+  });
+
+  const anchorCenters = mergedAnchorIdx.map(i => lineCenterY(bodyLines[i]));
+  const rowBands = mergedAnchorIdx.map((_, k) => ({
+    top: k > 0 ? (anchorCenters[k - 1] + anchorCenters[k]) / 2 : -Infinity,
+    bottom: k < mergedAnchorIdx.length - 1 ? (anchorCenters[k] + anchorCenters[k + 1]) / 2 : Infinity,
+    words: []
+  }));
+
+  const findBand = (cy) => {
+    for (const band of rowBands) if (cy >= band.top && cy < band.bottom) return band;
+    let best = rowBands[0], bestDist = Infinity;
+    rowBands.forEach((band, k) => { const d = Math.abs(cy - anchorCenters[k]); if (d < bestDist) { bestDist = d; best = band; } });
+    return best;
+  };
+
+  bodyLines.forEach((line, i) => {
+    if (summaryFlags[i]) return;
+    line.forEach(w => findBand(w.cy).words.push(w));
+  });
+
+  // When no anchor-type column could be identified at all (the header's
+  // numeric labels OCR'd too poorly to recognise even one), the solver
+  // must not be handed the WHOLE row -- that would include the Total
+  // Sessions value and any leftover code/faculty fragments as candidate
+  // numbers, giving the arithmetic balance search too much noise to
+  // reliably land on the right combination. Excluding words that fall
+  // inside a column we DID manage to identify (name/code/sessions/
+  // faculty) leaves just the genuine attendance-count zone.
+  // Use each identified column's own header-label extent (x1), not its
+  // bucketing maxX -- the rightmost identified column's maxX is
+  // Infinity (nothing detected further right to bound it against), which
+  // would otherwise swallow the entire, unidentified numeric zone as if
+  // it were still part of that last column.
+  const isInKnownColumn = (w) => intervals.some(iv => w.cx >= iv.minX && w.cx <= iv.x1 + 30);
+
   const candidateRows = [];
-  const startIdx = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
-
-  for (let i = startIdx; i < visualRows.length; i++) {
-    const rowWords = visualRows[i];
-    const fullRowText = rowWords.map(w => w.text).join(' ');
-
-    // Check if this is a summary / footer row (e.g. Total, Overall, or all-numeric summary)
-    const isSummaryRow = /^(total|overall|aggregate|grand\s*total)\b/i.test(fullRowText) ||
-      (rowWords.length <= 7 && rowWords.every(w => /^\d+(\.\d+)?%?$/.test(w.text)));
-    if (isSummaryRow) {
-      continue;
-    }
-
-    let parsedRow = null;
-    if (intervals && intervals.length >= 3) {
-      parsedRow = parseRowWithIntervals(rowWords, intervals);
-    }
+  rowBands.forEach(band => {
+    const rowWords = [...band.words].sort((a, b) => a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0);
+    let parsedRow = parseRowWithIntervals(rowWords, intervals);
+    const hasNumericData = parsedRow && (parsedRow.present > 0 || parsedRow.absent > 0 || parsedRow.leave > 0 || parsedRow.notEntered > 0);
+    const solverInputWords = anchorIntervals.length ? rowWords : rowWords.filter(w => !isInKnownColumn(w));
 
     if (!parsedRow || !parsedRow.subject) {
-      parsedRow = parseRowUsingMathematicalSolver(rowWords);
+      parsedRow = parseRowUsingMathematicalSolver(solverInputWords);
+    } else if (!hasNumericData) {
+      // The interval-based parse found a subject/code fine but its
+      // present/absent/leave/notEntered buckets came back empty -- this
+      // happens when the header's numeric-column labels themselves OCR'd
+      // too poorly to identify (garbled "Present Count"/"Absent Count"/
+      // etc). Fall back to the arithmetic balance solver, which doesn't
+      // need column identity at all: it just finds which of the row's
+      // numbers add up to Present+Absent+Leave+NotEntered=Total.
+      //
+      // The two cases below need genuinely different treatment, because
+      // solverInputWords means something different in each:
+      if (anchorIntervals.length) {
+        // At least one anchor-type column (e.g. percentage) WAS identified,
+        // so solverInputWords is the row's FULL, unfiltered word list --
+        // name/faculty text plus, commonly, the row's own Total-Sessions
+        // count sitting BEFORE Present/Absent/Leave/NotEntered (verified
+        // against real rows: "PCL202 Data Structures 60 Jayeshkumar 12 9 0
+        // 0 ... 57.14" -- the "60" is Total Sessions, not part of the
+        // attendance tally). That's exactly the pattern
+        // parseRowUsingMathematicalSolver's own "skip a serial number /
+        // skip a 30-45-60-90 planned-session-count" heuristic exists for,
+        // and it's verified correct here (its guessed Present/Absent
+        // matched an independent Present/(Present+Absent)=Percentage
+        // cross-check on real data) -- so keep using it unchanged.
+        const solved = parseRowUsingMathematicalSolver(solverInputWords);
+        if (solved) {
+          parsedRow = { ...parsedRow, present: solved.present, absent: solved.absent, leave: solved.leave, notEntered: solved.notEntered, isUncertain: parsedRow.isUncertain && solved.isUncertain };
+        }
+      } else {
+        // NO anchor-type column was identified at all, so solverInputWords
+        // has already had name/sessions/faculty excluded (isInKnownColumn,
+        // above) -- there is no leading serial-number or sessions-count
+        // prefix left to skip. Here parseRowUsingMathematicalSolver's
+        // offset-guessing fallback tier instead misreads the row's OWN
+        // Total/Percentage values as Leave/NotEntered (verified against 3
+        // real garbled rows in a Sem I screenshot: it confidently -- at
+        // confidence exactly 75 -- returned the Total-Sessions and
+        // Percentage numbers as if they belonged in those slots).
+        //
+        // Call solveAttendanceCounts directly instead, bypassing
+        // parseRowUsingMathematicalSolver's `textTokens.length === 0`
+        // guard (which exists for subject-extraction, irrelevant here
+        // since solverInputWords is deliberately numeric-only and we
+        // already have a subject) -- and only trust a genuine arithmetic-
+        // balance match:
+        //  1. confidence >= 92 excludes the 2-term tier (90) and the
+        //     offset-guess tier (75, 60) that produced the wrong values
+        //     above.
+        //  2. At least two of present/absent/leave/notEntered must be
+        //     non-zero. Two equal-but-zero slots (leave=notEntered=0 is
+        //     the overwhelmingly common real case) are harmless to
+        //     mis-swap -- both display as 0 either way. But when only ONE
+        //     slot is non-zero (verified against a real row whose true
+        //     values were Present=1/Absent=0/Leave=0/NotEntered=0), that
+        //     lone value could validly sit in any of the four positions
+        //     and still balance the same sum -- arithmetically "valid" but
+        //     an arbitrary slot assignment. Two or more distinct non-zero
+        //     values pins it down: verified empirically that the solver's
+        //     ascending-index preference then lands on each value's true
+        //     left-to-right reading-order slot.
+        const { numTokens, pctVal } = extractNumericZoneTokens(solverInputWords);
+        const solved = numTokens.length >= 2 ? solveAttendanceCounts(numTokens, pctVal) : null;
+        const nonZeroCount = solved ? [solved.present, solved.absent, solved.leave, solved.notEntered].filter(v => v > 0).length : 0;
+        if (solved && solved.confidence >= 92 && nonZeroCount >= 2) {
+          parsedRow = { ...parsedRow, present: solved.present, absent: solved.absent, leave: solved.leave, notEntered: solved.notEntered, isUncertain: false };
+        }
+      }
     }
-
     if (parsedRow && (parsedRow.subject || parsedRow.code)) {
-      const matched = matchScannedRowToSubjects(parsedRow, existingSubjects);
-      candidateRows.push(matched);
+      candidateRows.push(matchScannedRowToSubjects(parsedRow, existingSubjects));
     }
-  }
+  });
 
-  // Deduplicate matched rows by subject code/name
   const seen = new Set();
   const deduped = [];
   for (const r of candidateRows) {
     const key = (r.code || r.subject).toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      deduped.push(r);
-    }
+    if (key && !seen.has(key)) { seen.add(key); deduped.push(r); }
   }
-
   return deduped;
 }
+
 
 function extractColumnIntervalsFromHeader(headerWords) {
   const colKeywords = [
@@ -7204,13 +7396,21 @@ function parseRowWithIntervals(rowWords, intervals) {
 
   const rawCode = (buckets.code || []).join('').trim();
   
-  // Gather course name words from name bucket + any overflow text words in sessions before faculty column
+  // Gather course name words from name bucket + any overflow text words in sessions before faculty column.
+  // Overflow only ever means a wrapped course-name FRAGMENT ("Studio", "Lab") that
+  // spilled rightward into the sessions column's x-range -- it must contain a letter.
+  // A pure Total-Sessions digit with trailing OCR punctuation (e.g. "25;") is not text
+  // overflow and must NOT be pulled into the name: doing so lets it sit adjacent to a
+  // genuine "Lab" name-fragment and false-match ROOM_PATTERN's "Lab<number>" rule,
+  // silently deleting both from the subject (e.g. "Python Programming Lab" -> "Python
+  // Programming").
   const nameWords = [...(buckets.name || [])];
   (buckets.sessions || []).forEach(w => {
-    if (!/^\d+$/.test(w) && !/^(dr\.|mr\.|ms\.|mrs\.|prof\.)/i.test(w)) {
+    if (/[a-zA-Z]/.test(w) && !/^(dr\.|mr\.|ms\.|mrs\.|prof\.)/i.test(w)) {
       nameWords.push(w);
     }
   });
+
 
   let rawName = nameWords.join(' ').trim();
   if (!rawName && rawCode) rawName = rawCode;
