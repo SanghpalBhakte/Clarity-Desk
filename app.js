@@ -5795,7 +5795,17 @@ function renderDashboard() {
               }).join('')}
             </div>
           ` : `
-            <div style="padding:20px 0;color:var(--text-muted);font-size:0.85rem">${!isCustomTimetableActive() ? 'No timetable set up yet. <button class="setup-inline-link" onclick="navigateTo(\'timetable\')">Add your schedule →</button>' : 'No classes today — a free day on your desk.'}</div>
+            <div class="empty-state-card">
+              <span class="empty-state-icon">${icons.sun()}</span>
+              ${!isCustomTimetableActive() ? `
+                <div class="empty-state-title">No timetable set up yet</div>
+                <div class="empty-state-desc">Add your class schedule to see today's lineup here.</div>
+                <button class="setup-inline-link" onclick="navigateTo('timetable')">Add your schedule →</button>
+              ` : `
+                <div class="empty-state-title">No classes today</div>
+                <div class="empty-state-desc">A free day on your desk — good time to get ahead on tasks.</div>
+              `}
+            </div>
           `}
         </div>
 

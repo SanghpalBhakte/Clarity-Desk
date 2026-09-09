@@ -4449,24 +4449,16 @@ body::before {
   --sheen-bottom: rgba(0, 0, 0, 0.4);
 }
 
-/* ── 2. Masthead — quiet ambient glow + a settle-in on load,
-   and the greeting now genuinely uses Fraunces' optical-size
-   axis (auto-sizing the letterforms for its display size,
-   which is the entire point of a variable optical-size face). ── */
+/* ── 2. Masthead — a settle-in on load, and the greeting now
+   genuinely uses Fraunces' optical-size axis (auto-sizing the
+   letterforms for its display size, which is the entire point
+   of a variable optical-size face). The earlier ambient glow
+   behind the greeting was cut: it read as a stray light-leak,
+   not a considered feature, and the Chrono Beacon is already
+   this page's one signature moment. ── */
 .desk-masthead {
   position: relative;
   animation: deskSettleIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.desk-masthead::before {
-  content: '';
-  position: absolute;
-  left: -40px;
-  top: -60px;
-  width: 320px;
-  height: 220px;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
-  pointer-events: none;
-  z-index: -1;
 }
 @keyframes deskSettleIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -4560,6 +4552,14 @@ body::before {
 @media (max-width: 560px) {
   .chrono-beacon::before { transform: rotate(-0.25deg) translate(-2px, 3px); }
   .chrono-beacon::after  { transform: rotate(0.18deg) translate(3px, 4px); }
+
+  /* The rest-day empty state sits right above the floating Add
+     Task button on short mobile viewports — trim its padding so
+     the two never touch. */
+  #page-dashboard .empty-state-card {
+    padding: 22px 16px;
+    margin-bottom: 4px;
+  }
 }
 
 /* ── 4. Small quiet details elsewhere — one lift each, nothing
@@ -4586,8 +4586,38 @@ body::before {
   box-shadow: var(--shadow-paper-sm);
 }
 
+/* ── Sidebar: paper-tab nav treatment ─────────────────────── */
+.sidebar {
+  box-shadow: 1px 0 0 var(--border), 4px 0 16px -12px rgba(58, 33, 23, 0.18);
+}
+:root[data-theme="midnight-ink"] .sidebar,
+:root[data-theme="espresso-desk"] .sidebar,
+:root[data-theme="quiet-dark"] .sidebar,
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="cafe-night"] .sidebar {
+  box-shadow: 1px 0 0 var(--border), 4px 0 16px -12px rgba(0, 0, 0, 0.4);
+}
+
+.nav-item {
+  position: relative;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease, box-shadow 0.16s ease;
+}
+.nav-item:hover {
+  box-shadow: var(--shadow-paper-sm);
+}
 .nav-item.active {
-  box-shadow: inset 2px 0 0 var(--accent);
+  border-left-color: transparent;
+  box-shadow: inset 0 1px 0 var(--sheen-top);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .topbar {
