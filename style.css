@@ -809,6 +809,11 @@ img { display: block; max-width: 100%; }
 .main-wrapper {
   display: flex;
   min-height: calc(100vh - var(--topbar-h));
+  min-width: 0; /* .main-wrapper is itself a CSS Grid item (row 2 of
+     .app-shell); without this, its default auto min-width let long
+     unbreakable content deep inside .content-area (e.g. the Monday
+     timetable's class rows) push the whole row wider than the
+     viewport, causing horizontal overflow/clipping on desktop. */
 }
 
 .content-area {
@@ -4416,8 +4421,18 @@ body::before {
   mix-blend-mode: overlay;
   opacity: 0.35;
 }
-.app-shell, .topbar, .sidebar, .content-area, .bottom-nav, #assistant-panel {
+.app-shell, .topbar, .content-area, .bottom-nav, #assistant-panel {
   position: relative;
+  z-index: 1;
+}
+/* .sidebar is excluded above: it relies on position:sticky (set in its
+   base rule) to fill the viewport height and stay pinned on tall pages.
+   It's already a positioned element (sticky counts), so it needs only
+   the z-index bump to sit above the grain layer. Setting position here
+   too silently downgraded it to `relative`, which broke the sticky
+   fill/pin behavior and left a gap below the sidebar on any page taller
+   than one viewport. */
+.sidebar {
   z-index: 1;
 }
 
