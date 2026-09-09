@@ -5644,7 +5644,7 @@ function renderDashboard() {
       <div class="chrono-beacon" role="region" aria-label="Next upcoming class">
         <div style="flex:1;min-width:180px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--accent-warm) 15%, transparent);color:var(--accent-warm)">⏳ Next Up</span>
+            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--accent-warm) 15%, transparent);color:var(--accent-warm)">${icons.clock()} Next Up</span>
             <span class="chrono-beacon-time">${formatDisplayTimeRange(nextClass.time, nextClass.end)}</span>
           </div>
           <div class="chrono-beacon-title" onclick="openSubjectHub('${nextClass.subject}')" style="cursor:pointer" title="Open Subject Hub">
@@ -5665,7 +5665,7 @@ function renderDashboard() {
       <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
         <div style="flex:1;min-width:180px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 12%, transparent);color:var(--status-success)">✓ Day Complete</span>
+            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 12%, transparent);color:var(--status-success)">${icons.check()} Day Complete</span>
             <span style="font-size:0.78rem;color:var(--text-muted)">All ${dayClasses.length} classes finished today</span>
           </div>
           <div class="chrono-beacon-title">Classes Done for Today</div>
