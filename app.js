@@ -6056,17 +6056,17 @@ function renderTimetable() {
         <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:7px 14px">
           ${icons.plus()} Add Class
         </button>
-        <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:7px 14px">
+        <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px">
           📷 Scan Timetable
         </button>
-        <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:7px 14px" title="Declutter duplicate or other-batch sessions">
+        <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px" title="Declutter duplicate or other-batch sessions">
           🧹 Declutter Schedule
         </button>
-        <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:7px 14px" title="Load sample schedule template">
+        <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px" title="Load sample schedule template">
           📋 Sample Schedule
         </button>
         ${isCustom ? `
-          <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:0.8rem;padding:7px 12px;color:var(--text-muted)">
+          <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:0.72rem;padding:4px 10px;color:var(--text-muted)">
             Clear Schedule
           </button>` : ''}
       </div>
@@ -8890,10 +8890,10 @@ function renderSubjectsOverview(el, subjects) {
         <div class="page-subtitle">Course schedules, attendance baselines, tasks &amp; study resources organized per subject</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px" title="Declutter duplicate or other-batch subject cards">
+        <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px" title="Declutter duplicate or other-batch subject cards">
           🧹 Declutter my desk
         </button>
-        <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px">
+        <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px">
           📷 Scan from Photo
         </button>
         <button class="btn btn-primary" onclick="showBaselineModal(null, 'manual')" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px">
@@ -9488,9 +9488,9 @@ function renderAssignments() {
       </div>
       <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
     </div>
-    <div class="filter-bar">${statusBar}</div>
-    <div class="filter-bar">${typeBar}</div>
-    <div class="filter-bar">${subjectBar}</div>
+    ${visibleStatusFilters.length > 1 ? `<div class="filter-bar">${statusBar}</div>` : ''}
+    ${visibleTypeFilters.length > 1 ? `<div class="filter-bar">${typeBar}</div>` : ''}
+    ${subjects.length > 1 ? `<div class="filter-bar">${subjectBar}</div>` : ''}
     ${cards}
   `;
 }
