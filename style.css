@@ -4446,17 +4446,27 @@ body::before {
   mix-blend-mode: overlay;
   opacity: 0.35;
 }
-.app-shell, .topbar, .content-area, .bottom-nav, #assistant-panel {
+.app-shell, .content-area, #assistant-panel {
   position: relative;
   z-index: 1;
 }
-/* .sidebar is excluded above: it relies on position:sticky (set in its
-   base rule) to fill the viewport height and stay pinned on tall pages.
-   It's already a positioned element (sticky counts), so it needs only
-   the z-index bump to sit above the grain layer. Setting position here
-   too silently downgraded it to `relative`, which broke the sticky
-   fill/pin behavior and left a gap below the sidebar on any page taller
-   than one viewport. */
+/* .sidebar, .topbar and .bottom-nav are excluded above for the same
+   reason: each already sets its own position in its own base rule
+   (sidebar/topbar: sticky, bottom-nav: fixed). topbar and bottom-nav
+   also already carry z-index:100 there, well above the grain layer, so
+   they need nothing further from this rule -- only .sidebar's base rule
+   sets a position with no z-index, so only it needs the bump below.
+   Including all three in the combined rule above had silently
+   downgraded topbar/sidebar to `relative` and bottom-nav to `relative`
+   too, and dropped topbar/bottom-nav's z-index from 100 to 1: on any
+   page taller than one viewport that broke the sidebar's fill/pin
+   behavior, made the topbar scroll away instead of staying put, and
+   knocked bottom-nav out of fixed positioning entirely so it rendered
+   in normal document flow at the very end of the page instead of
+   docked to the screen -- which on a real account with enough content
+   to scroll made the bottom nav bar disappear off-screen completely
+   (only reproduces with content long enough to reveal it; a short/empty
+   test page can look fine by coincidence). */
 .sidebar {
   z-index: 1;
 }
