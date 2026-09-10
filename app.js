@@ -8815,67 +8815,20 @@ function renderSubjectsOverview(el, subjects) {
     const pendingTasks = tasks.filter(t => t.status === 'pending');
 
     const attStatusClass = att.pct === null ? 'muted' : att.isSafe ? 'green' : 'red';
-    const attLabel = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : 'Attendance not set yet';
+    const attLabel = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : '—';
 
     return `
-      <div class="card attendance-subject-card" style="padding:18px;border-left:4px solid ${s.color || 'var(--accent)'}">
-        <!-- Subject Header -->
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">
-          <div style="cursor:pointer" onclick="openSubjectHub('${s.name}')">
-            <div style="font-weight:700;font-size:1.02rem;color:var(--text-primary)">${s.name}</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">${s.code} ${s.teacher ? '· Prof. ' + s.teacher : ''} ${s.room ? '· ' + s.room : ''}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
-            <span class="type-badge" style="font-size:0.75rem;padding:3px 9px;background:${attStatusClass==='green'?'color-mix(in srgb, var(--status-success) 14%, transparent)':attStatusClass==='red'?'color-mix(in srgb, var(--status-error) 14%, transparent)':'var(--surface-2)'};color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-muted)'}">
-              ${attLabel}
-            </span>
-            <span style="font-size:0.68rem;font-weight:600;color:${att.pct===null?'var(--text-muted)':att.isSafe?'var(--status-success)':'var(--status-error)'}">
-              ${att.statusLine}
-            </span>
-          </div>
+      <div class="card attendance-subject-card" style="padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
+        <div style="font-weight:700;font-size:1.02rem;color:var(--text-primary)">${s.name}</div>
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· Prof. ' + s.teacher : ''} ${s.room ? '· ' + s.room : ''}</div>
+
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0">
+          <span style="font-family:var(--font-mono);font-weight:700;font-size:1.15rem;color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
+          <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600">${att.pct !== null ? (att.isSafe ? 'Attendance · Safe' : 'Attendance · At risk') : 'Attendance · Not set'}</span>
         </div>
-
-        <!-- Attendance Summary Pill -->
-        <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--surface-2);padding:6px 10px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
-          <div>
-            ${att.total > 0 ? `<strong>${att.present}</strong> Present · <strong>${att.absent}</strong> Missed${att.leave > 0 ? ` · <strong>${att.leave}</strong> Leave` : ''}` : 'No attendance recorded yet'}
-          </div>
-          <div style="color:var(--text-muted);font-size:0.74rem">
-            ${att.total > 0 ? `Total: <strong>${att.total}</strong>` : 'Starting point not set'}
-          </div>
-        </div>
-
-        <!-- Insight Row -->
-        ${att.pct !== null ? `
-          <div style="font-size:0.76rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.4">
-            💡 ${att.insightMessage}
-          </div>
-        ` : `
-          <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:12px">
-            Add your current counts once so future attendance stays accurate.
-          </div>
-        `}
-
-        <!-- Workload Metadata -->
-        <div style="display:flex;gap:12px;font-size:0.76rem;color:var(--text-secondary);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">
-          <div>📅 <strong>${s.slots.length}</strong> slot${s.slots.length!==1?'s':''}/wk</div>
-          <div>📝 <strong>${pendingTasks.length}</strong> pending task${pendingTasks.length!==1?'s':''}</div>
-        </div>
-
-        <!-- Action Buttons: Present, Missed, Leave, Edit baseline -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="event.stopPropagation(); logSubjectAttendanceAction('${s.code || s.name}', 'present')" title="Log 1 class attended" style="color:var(--status-success);border-color:color-mix(in srgb, var(--status-success) 30%, transparent)">
-            Present
-          </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="event.stopPropagation(); logSubjectAttendanceAction('${s.code || s.name}', 'missed')" title="Log 1 class missed" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent)">
-            Missed
-          </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="event.stopPropagation(); logSubjectAttendanceAction('${s.code || s.name}', 'leave')" title="Log 1 leave applied" style="color:var(--status-warning);border-color:color-mix(in srgb, var(--status-warning) 30%, transparent)">
-            Leave
-          </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="event.stopPropagation(); showBaselineModal('${s.code || s.name}')" style="margin-left:auto;font-size:0.74rem">
-            Edit Baseline
-          </button>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-top:1px solid var(--border-light, var(--border))">
+          <span style="font-family:var(--font-mono);font-weight:700;font-size:1.15rem;color:var(--text-primary)">${pendingTasks.length}</span>
+          <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600">Pending task${pendingTasks.length!==1?'s':''}</span>
         </div>
       </div>
     `;
@@ -8914,9 +8867,7 @@ function renderSubjectsOverview(el, subjects) {
           🧹 Clean Up Desk →
         </button>
       </div>
-    ` : ''}
-
-    ${anyMissingBaseline ? `
+    ` : anyMissingBaseline ? `
       <div class="card" style="padding:14px 18px;margin-bottom:18px;background:var(--surface-2);border-left:3px solid var(--accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">Set your current attendance</div>
