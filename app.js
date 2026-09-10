@@ -3907,13 +3907,33 @@ function toggleTheme() {
 function setTheme(theme) {
   if (LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
   if (!ALL_THEMES.includes(theme)) return;
+
+  // Make every element recolor together instead of at its own hover/press
+  // transition speed (see .theme-transitioning in style.css). Skipped for
+  // reduced-motion users, who get an instant swap either way.
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduceMotion) {
+    document.documentElement.classList.add('theme-transitioning');
+    clearTimeout(window._themeTransitionTimer);
+    window._themeTransitionTimer = setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning');
+    }, 240);
+  }
+
   document.documentElement.setAttribute('data-theme', theme);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
   localStorage.setItem(KEY_THEME, theme);
   updateThemeSelector(theme);
-  renderPage(state.currentPage);
-  
+  // No renderPage() here: every themed value in the page already flows
+  // from CSS custom properties, so the DOM needs no rebuild on a theme
+  // switch. Rebuilding used to tear down and instantly repaint the main
+  // content in the new theme's final colors while the surrounding chrome
+  // (topbar/sidebar, untouched by the rebuild) was still mid-transition -
+  // that two-speed mismatch was the visible "flash". The one place JS
+  // reads the theme for rendering (Settings' theme swatches) is already
+  // kept in sync by updateThemeSelector() above.
+
   // Instant cloud persistence (no 2.5s delay)
   if (currentUser && db) {
     db.collection('users').doc(currentUser.uid).set({
@@ -4655,7 +4675,7 @@ function renderReview() {
       <div style="display:flex;align-items:center;gap:10px">
         <button class="btn btn-sm btn-secondary" onclick="navigateTo('dashboard')">← Back to Today</button>
         <div>
-          <div style="font-size:1.3rem;font-weight:800;color:var(--text-primary)">Weekly Reflection &amp; Reset</div>
+          <div style="font-size:1.3rem;font-weight:700;color:var(--text-primary)">Weekly Reflection &amp; Reset</div>
           <div style="font-size:0.8rem;color:var(--text-muted)">Review last week's coursework and plan your next 7 days</div>
         </div>
       </div>
@@ -8515,19 +8535,19 @@ function renderDeclutterPreviewModal(plan, userBatch) {
       <!-- Overview Stats Grid -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:14px">
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:800;color:var(--accent)">${plan.survivingSubjects.length}</div>
+          <div style="font-size:1.15rem;font-weight:700;color:var(--accent)">${plan.survivingSubjects.length}</div>
           <div style="font-size:0.72rem;color:var(--text-muted)">Canonical Hubs</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:800;color:var(--yellow)">${plan.archivedSlots.length}</div>
+          <div style="font-size:1.15rem;font-weight:700;color:var(--yellow)">${plan.archivedSlots.length}</div>
           <div style="font-size:0.72rem;color:var(--text-muted)">Other Batches Removed</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:800;color:var(--green)">${plan.remappedDailyLogs.length}</div>
+          <div style="font-size:1.15rem;font-weight:700;color:var(--green)">${plan.remappedDailyLogs.length}</div>
           <div style="font-size:0.72rem;color:var(--text-muted)">Daily Logs Remapped</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:800;color:var(--text-primary)">${plan.remappedBaselines.length}</div>
+          <div style="font-size:1.15rem;font-weight:700;color:var(--text-primary)">${plan.remappedBaselines.length}</div>
           <div style="font-size:0.72rem;color:var(--text-muted)">Baselines Merged</div>
         </div>
       </div>
@@ -8975,7 +8995,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
       <div class="card" style="padding:20px;border-left:4px solid ${subj.color || 'var(--accent)'}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            <div style="font-size:1.35rem;font-weight:800;color:var(--text-primary)">${subj.name}</div>
+            <div style="font-size:1.35rem;font-weight:700;color:var(--text-primary)">${subj.name}</div>
             <div style="font-size:0.85rem;color:var(--text-muted);margin-top:2px">
               ${subj.code ? 'Course Code: <strong>' + subj.code + '</strong> · ' : ''}
               ${subj.teacher ? 'Faculty: <strong>Prof. ' + subj.teacher + '</strong> · ' : ''}

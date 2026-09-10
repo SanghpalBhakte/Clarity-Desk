@@ -2,9 +2,14 @@
    Clarity Desk — Canonical 2-Theme Semantic Design System
    1. Paper Slate     (Warm Daylight Desk)
    2. Midnight Ink    (Focused Night Study)
+   ============================================================
+   Fonts (Fredoka, Nunito, JetBrains Mono) load via a <link> in
+   index.html/404.html <head>, not a CSS @import — @import can't be
+   discovered until the browser has already fetched and started
+   parsing this file, so it starts the font request late and makes
+   the swap-in more visible on a cold load. A <link> is discovered
+   immediately during HTML parsing and fetches in parallel instead.
    ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ── 1) Paper Slate — Canonical Daylight Theme ─────────────── */
 :root,
@@ -356,6 +361,34 @@ html {
   scroll-behavior: smooth;
   /* Smooth palette swap — applied only to surface-level tokens */
   transition: background-color 0.26s ease, color 0.26s ease;
+}
+
+/* Theme switch: every themed element recolors in lockstep for ~220ms.
+   Without this, each component's own hover/interaction transition
+   (durations scattered from 0.12s to 0.3s across the stylesheet) finishes
+   at a different moment, so parts of the screen visibly lag or lead the
+   rest during a theme change — that stagger is what reads as a "flash".
+   The class is added just before data-theme flips and removed right
+   after, so normal hover/press transitions are unaffected the rest of
+   the time. */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 0.22s ease,
+              color 0.22s ease,
+              border-color 0.22s ease,
+              box-shadow 0.22s ease,
+              fill 0.22s ease,
+              stroke 0.22s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-transitioning,
+  .theme-transitioning *,
+  .theme-transitioning *::before,
+  .theme-transitioning *::after {
+    transition: none !important;
+  }
 }
 
 body {
@@ -965,7 +998,7 @@ a.card:hover,
 .desk-greeting {
   font-family: var(--font-editorial);
   font-size: 2.4rem;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
   line-height: 1.08;
@@ -974,7 +1007,7 @@ a.card:hover,
 /* Name portion of greeting gets a stronger weight marker */
 .desk-greeting .desk-greeting-name {
   color: var(--accent);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .desk-greeting-sub {
