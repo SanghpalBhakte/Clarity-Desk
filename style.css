@@ -736,6 +736,11 @@ img { display: block; max-width: 100%; }
   transform: translateX(2px);
 }
 
+.nav-item:active {
+  background: var(--bg-hover, var(--surface-2));
+  transform: translateX(2px) scale(0.98);
+}
+
 .nav-item.active {
   background: var(--accent-dim);
   color: var(--accent);
@@ -1389,6 +1394,19 @@ a.card:hover,
   background: var(--green);
   border-color: var(--green);
   color: white;
+  animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Same bouncy curve already used for bottom-nav taps -- keeps the app's
+   one confirmed "satisfying" motion instead of inventing a new one. */
+@keyframes checkPop {
+  0%   { transform: scale(0.75); }
+  55%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-checkbox.checked { animation: none; }
 }
 
 /* ── Desk Command Dock ───────────────────────────────────── */
@@ -1504,6 +1522,7 @@ a.card:hover,
 }
 
 .panel-action:hover { color: var(--accent); }
+.panel-action:active { color: var(--accent); opacity: 0.7; }
 
 /* ── Timeline Rows ──────────────────────────────────────────── */
 .timeline-row {
@@ -2308,6 +2327,12 @@ a.card:hover,
 .setup-guide-step:focus-visible {
   box-shadow: 0 0 0 2px var(--accent);
   color: var(--text-primary);
+}
+
+.setup-guide-step:active {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  transform: scale(0.98);
 }
 
 .setup-step-icon {

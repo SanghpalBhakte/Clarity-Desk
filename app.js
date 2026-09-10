@@ -3994,16 +3994,24 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
     }
   });
 
+  updateBackButtonUI();
+  renderPage(page);
+
   // The Tasks & Deadlines page already has its own persistent "+ Add Task"
   // header button doing the exact same thing, so the floating quick-add FAB
   // is pure redundant clutter there (and visibly collides with that page's
-  // own empty-state CTA). Hide it only on that page; every other page keeps
-  // the FAB since none of them have an equivalent always-visible control.
+  // own empty-state CTA). Same story on the dashboard while the setup
+  // checklist is still showing: on a short dashboard the FAB's fixed
+  // bottom-right position can land directly on top of a checklist step's
+  // "Start" link, hiding a real onboarding CTA behind it. The dashboard's
+  // own Tasks panel keeps its "+ Add" button either way, so nothing is
+  // lost by hiding the floating one here. Checked after renderPage() so
+  // the checklist markup (or its absence) actually reflects this page.
   const fabEl = document.querySelector('.fab');
-  if (fabEl) fabEl.style.display = (page === 'assignments') ? 'none' : '';
-
-  updateBackButtonUI();
-  renderPage(page);
+  if (fabEl) {
+    const onboardingShowing = page === 'dashboard' && !!document.querySelector('.desk-setup-guide');
+    fabEl.style.display = (page === 'assignments' || onboardingShowing) ? 'none' : '';
+  }
 }
 
 // Immediately attach to window so inline onclick handlers work without waiting for full script load
@@ -9396,8 +9404,28 @@ function renderAssignments() {
     return (a.dueDate || '').localeCompare(b.dueDate || '');
   });
 
-  const statusBar  = statusFilters.map(f => `<button class="filter-chip ${(f.key===state.assignFilter || (f.key==='ongoing' && state.assignFilter==='missions'))?'active':''}" onclick="setAssignFilter('${f.key}')">${f.label}</button>`).join('');
-  const typeBar    = typeFilters.map(f => `<button class="filter-chip ${f.key===state.assignTypeFilter?'active':''}" onclick="setAssignTypeFilter('${f.key}')">${f.label}</button>`).join('');
+  // Both filter rows list every possible category regardless of whether
+  // the user has any tasks in it -- for a lightly-used account that's up
+  // to 16 chips (7 status + 9 type) standing between the page title and a
+  // single task. Count against the unfiltered list and only show a chip
+  // when it would actually narrow something down, or when it's already
+  // selected (so picking a filter never makes its own chip disappear).
+  const statusCounts = {
+    today:     all.filter(a => a.status === 'pending' && !a.noDeadline && a.dueDate === today).length,
+    upcoming:  all.filter(a => a.status === 'pending' && !a.noDeadline && a.dueDate && a.dueDate >= today).length,
+    ongoing:   all.filter(a => a.status === 'pending' && (a.taskType === 'mission' || !!a.noDeadline)).length,
+    overdue:   all.filter(a => isTaskOverdue(a)).length,
+    exams:     all.filter(a => (a.taskType === 'exam' || a.taskType === 'quiz') && a.status === 'pending').length,
+    submitted: all.filter(a => a.status === 'submitted').length,
+  };
+  const typeCounts = {};
+  typeFilters.forEach(f => { if (f.key !== 'all') typeCounts[f.key] = all.filter(a => (a.taskType || 'assignment') === f.key).length; });
+
+  const visibleStatusFilters = statusFilters.filter(f => f.key === 'all' || f.key === state.assignFilter || statusCounts[f.key] > 0);
+  const visibleTypeFilters   = typeFilters.filter(f => f.key === 'all' || f.key === state.assignTypeFilter || typeCounts[f.key] > 0);
+
+  const statusBar  = visibleStatusFilters.map(f => `<button class="filter-chip ${(f.key===state.assignFilter || (f.key==='ongoing' && state.assignFilter==='missions'))?'active':''}" onclick="setAssignFilter('${f.key}')">${f.label}</button>`).join('');
+  const typeBar    = visibleTypeFilters.map(f => `<button class="filter-chip ${f.key===state.assignTypeFilter?'active':''}" onclick="setAssignTypeFilter('${f.key}')">${f.label}</button>`).join('');
   const subjectBar = subjects.map(s => `<button class="filter-chip ${s===state.assignSubjectFilter?'active':''}" onclick="setAssignSubject('${s}')">${s==='all'?'All Subjects':s}</button>`).join('');
 
   const cards = filtered.length ? filtered.map(a => {
