@@ -4,7 +4,7 @@
    2. Midnight Ink    (Focused Night Study)
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@40..96,500;40..96,600;40..96,700;40..96,800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ── 1) Paper Slate — Canonical Daylight Theme ─────────────── */
 :root,
@@ -18,35 +18,35 @@
   color-scheme: light;
 
   /* Layer 1: Primitive Theme Values */
-  --raw-bg-0: #f6f1e8;
-  --raw-bg-1: #fffdfc;
-  --raw-bg-2: #f1e8dc;
-  --raw-bg-3: #e7dccd;
+  --raw-bg-0: #e9ede2;
+  --raw-bg-1: #fbf7ee;
+  --raw-bg-2: #f5efe1;
+  --raw-bg-3: #e0e6d6;
 
-  --raw-ink-1: #2a241f;
-  --raw-ink-2: #5e5449;
-  --raw-ink-3: #8a7e71;
-  --raw-ink-inverse: #f8f4ee;
+  --raw-ink-1: #4a4038;
+  --raw-ink-2: #6f6558;
+  --raw-ink-3: #9c9182;
+  --raw-ink-inverse: #fbf7ee;
 
-  --raw-brand-1: #7a2e3d;
-  --raw-brand-2: #93465a;
-  --raw-brand-3: #f0dde1;
+  --raw-brand-1: #d17a5c;
+  --raw-brand-2: #b8593b;
+  --raw-brand-3: #f5ded4;
 
-  --raw-accent-1: #b48852;
-  --raw-accent-2: #8e6940;
-  --raw-accent-3: #efe3d2;
+  --raw-accent-1: #d9a04e;
+  --raw-accent-2: #a97328;
+  --raw-accent-3: #f6e6c9;
 
-  --raw-success: #4e7a5d;
-  --raw-warning: #b37a2a;
-  --raw-error: #a34b43;
-  --raw-info: #5a6f8f;
+  --raw-success: #4f6b45;
+  --raw-warning: #a97328;
+  --raw-error: #b8593b;
+  --raw-info: #5f7a7d;
 
-  --raw-rule: #d8ccbd;
-  --raw-border-soft: rgba(42, 36, 31, 0.10);
-  --raw-border-strong: rgba(42, 36, 31, 0.18);
-  --raw-shadow-sm: 0 1px 2px rgba(58, 43, 28, 0.05);
-  --raw-shadow-md: 0 8px 24px rgba(58, 43, 28, 0.08);
-  --raw-shadow-lg: 0 16px 40px rgba(58, 43, 28, 0.10);
+  --raw-rule: #dde1d0;
+  --raw-border-soft: rgba(74, 64, 56, 0.10);
+  --raw-border-strong: rgba(74, 64, 56, 0.18);
+  --raw-shadow-sm: 0 1px 2px rgba(74, 64, 56, 0.05);
+  --raw-shadow-md: 0 10px 24px -8px rgba(74, 64, 56, 0.14);
+  --raw-shadow-lg: 0 18px 40px -10px rgba(74, 64, 56, 0.18);
 
   /* Layer 2: Semantic Tokens */
   --color-canvas: var(--raw-bg-0);
@@ -91,13 +91,13 @@
   --shadow-md: var(--raw-shadow-md);
   --shadow-lg: var(--raw-shadow-lg);
 
-  --radius-card: 14px;
-  --radius-btn: 12px;
-  --radius-input: 14px;
+  --radius-card: 20px;
+  --radius-btn: 14px;
+  --radius-input: 16px;
   --radius-chip: 999px;
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-xs: 6px;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-xs: 8px;
   --radius-pill: 999px;
 
   /* Layer 3: Component Aliases */
@@ -164,9 +164,9 @@
 
   --focus-ring: var(--color-focus-ring);
 
-  --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-display:  var(--font-sans);
-  --font-editorial:'Fraunces', 'Source Serif 4', Georgia, serif;
+  --font-sans:     'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display:  'Fredoka', var(--font-sans);
+  --font-editorial:'Fredoka', 'Source Serif 4', Georgia, serif;
   --font-mono:     'JetBrains Mono', 'SF Mono', Consolas, Monaco, monospace;
   --font:          var(--font-sans);
 
@@ -4481,11 +4481,11 @@ body::before {
 :root[data-theme="paper"],
 :root[data-theme="light"],
 :root[data-theme="stone"] {
-  --shadow-paper-sm: 0 1px 2px rgba(58, 33, 23, 0.07), 0 1px 1px rgba(58, 33, 23, 0.05);
-  --shadow-paper-md: 0 2px 5px rgba(58, 33, 23, 0.08), 0 10px 24px -8px rgba(58, 33, 23, 0.16);
-  --shadow-paper-lg: 0 6px 14px rgba(58, 33, 23, 0.10), 0 24px 48px -14px rgba(58, 33, 23, 0.22);
-  --sheen-top: rgba(255, 255, 255, 0.55);
-  --sheen-bottom: rgba(58, 33, 23, 0.16);
+  --shadow-paper-sm: 0 1px 2px rgba(74, 64, 56, 0.07), 0 1px 1px rgba(74, 64, 56, 0.05);
+  --shadow-paper-md: 0 2px 5px rgba(74, 64, 56, 0.08), 0 10px 24px -8px rgba(74, 64, 56, 0.16);
+  --shadow-paper-lg: 0 6px 14px rgba(74, 64, 56, 0.10), 0 24px 48px -14px rgba(74, 64, 56, 0.22);
+  --sheen-top: rgba(255, 255, 255, 0.6);
+  --sheen-bottom: rgba(74, 64, 56, 0.14);
 }
 :root[data-theme="midnight-ink"],
 :root[data-theme="espresso-desk"],
