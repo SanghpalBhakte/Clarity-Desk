@@ -64,7 +64,7 @@
   --color-action-primary-hover: var(--raw-brand-2);
   --color-action-primary-text: var(--raw-ink-inverse);
   --color-action-secondary: var(--raw-accent-3);
-  --color-action-secondary-hover: #e7d7c0;
+  --color-action-secondary-hover: #f0dba8;
   --color-action-secondary-text: var(--raw-ink-1);
 
   --color-accent: var(--raw-accent-1);
@@ -81,10 +81,10 @@
   --color-error: var(--raw-error);
   --color-info: var(--raw-info);
 
-  --color-hover-fill: rgba(122, 46, 61, 0.06);
-  --color-pressed-fill: rgba(122, 46, 61, 0.10);
-  --color-focus-ring: #7a2e3d;
-  --color-selection: rgba(180, 136, 82, 0.24);
+  --color-hover-fill: rgba(209, 122, 92, 0.08);
+  --color-pressed-fill: rgba(209, 122, 92, 0.14);
+  --color-focus-ring: #b8593b;
+  --color-selection: rgba(217, 160, 78, 0.28);
 
   --shadow-sm: var(--raw-shadow-sm);
   --shadow:    var(--raw-shadow-md);
@@ -92,7 +92,7 @@
   --shadow-lg: var(--raw-shadow-lg);
 
   --radius-card: 20px;
-  --radius-btn: 14px;
+  --radius-btn: 999px;
   --radius-input: 16px;
   --radius-chip: 999px;
   --radius: 18px;
@@ -832,18 +832,17 @@ img { display: block; max-width: 100%; }
 /* ── Bottom Nav (mobile) ──────────────────────────────────── */
 .bottom-nav {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  bottom: 10px; left: 10px; right: 10px;
   height: var(--nav-h);
-  background: var(--bottomnav-bg);
-  backdrop-filter: var(--bottomnav-blur);
-  -webkit-backdrop-filter: var(--bottomnav-blur);
-  border-top: 1px solid var(--border);
+  background: var(--color-surface);
+  border-radius: 20px;
+  box-shadow: 0 8px 24px -8px rgba(74, 64, 56, 0.28);
   display: flex;
   align-items: center;
   justify-content: space-around;
   z-index: 100;
-  padding: 0;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding: 4px 6px;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
 }
 
 .bottom-nav-item {
@@ -867,7 +866,9 @@ img { display: block; max-width: 100%; }
 
 .bottom-nav-item.active {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
+  background: var(--raw-brand-3);
+  border-radius: var(--radius-sm);
 }
 
 .bottom-nav-item .bnav-dot {
@@ -966,7 +967,7 @@ a.card:hover,
   font-size: 2.4rem;
   font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -0.05em;
+  letter-spacing: -0.01em;
   line-height: 1.08;
 }
 
@@ -2889,7 +2890,7 @@ a.card:hover,
 .fab {
   position: fixed;
   right: 16px;
-  bottom: calc(var(--nav-h) + 12px);
+  bottom: calc(var(--nav-h) + 22px);
   z-index: 90;
   display: flex;
   align-items: center;
@@ -3162,18 +3163,18 @@ button:disabled {
   color: var(--brand-primary-text, #ffffff) !important;
   border-color: transparent;
   border-radius: var(--radius-btn, 12px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 3px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(74, 64, 56, 0.14), 0 4px 12px -2px rgba(74, 64, 56, 0.16);
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
   color: var(--brand-primary-text, #ffffff) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 3px 10px -1px rgba(74, 64, 56, 0.22);
 }
 
 .btn-primary:active {
   transform: translateY(0.5px) scale(0.97);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 3px rgba(74, 64, 56, 0.14);
   filter: brightness(0.96);
 }
 
@@ -4033,7 +4034,7 @@ body {
 
 .desk-greeting {
   font-size: 2.2rem;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.01em;
   line-height: 1.12;
 }
 
@@ -4093,9 +4094,9 @@ body {
 }
 
 .nav-item.active {
-  background: var(--color-hover-fill);
+  background: var(--color-surface);
   color: var(--color-action-primary);
-  font-weight: 600;
+  font-weight: 700;
   border-left-color: var(--color-action-primary);
 }
 
@@ -4657,7 +4658,7 @@ body::before {
 }
 .nav-item.active {
   border-left-color: transparent;
-  box-shadow: inset 0 1px 0 var(--sheen-top);
+  box-shadow: var(--shadow-paper-sm);
 }
 .nav-item.active::before {
   content: '';
@@ -4668,6 +4669,7 @@ body::before {
   width: 3px;
   border-radius: 999px;
   background: var(--accent);
+  display: none;
 }
 
 .topbar {
