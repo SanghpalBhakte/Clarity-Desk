@@ -518,9 +518,9 @@ function showTimetableLoadingModal(msg = "Analyzing photo...") {
   backdrop.id = 'tt-loading-backdrop';
   backdrop.innerHTML = `
     <div class="modal" style="max-width:360px;text-align:center;padding:32px 24px">
-      <div style="font-size:2rem;margin-bottom:12px;animation:spin 1.5s linear infinite">✨</div>
-      <div style="font-weight:700;font-size:1rem;margin-bottom:6px" class="loading-msg">${msg}</div>
-      <div style="font-size:0.8rem;color:var(--text-muted)">Extracting weekly schedule...</div>
+      <div style="font-size:var(--text-hero);margin-bottom:12px;animation:spin 1.5s linear infinite">✨</div>
+      <div style="font-weight:700;font-size:var(--text-md);margin-bottom:6px" class="loading-msg">${msg}</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted)">Extracting weekly schedule...</div>
     </div>
   `;
   document.body.appendChild(backdrop);
@@ -2660,14 +2660,14 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
   backdrop.id = 'tt-upload-error-backdrop';
   backdrop.innerHTML = `
     <div class="modal" style="max-width:400px;text-align:center;padding:28px 24px">
-      <div style="font-size:2.2rem;margin-bottom:12px">⚠️</div>
-      <div style="font-weight:700;font-size:1rem;margin-bottom:8px">Timetable Extraction Failed</div>
-      <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;line-height:1.5">${reason}</div>
+      <div style="font-size:var(--text-hero);margin-bottom:12px">⚠️</div>
+      <div style="font-weight:700;font-size:var(--text-md);margin-bottom:8px">Timetable Extraction Failed</div>
+      <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:20px;line-height:1.5">${reason}</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${canRetry ? `<button class="btn-primary" id="tt-error-retry-btn">🔄 Retry with Same Image</button>` : ''}
         <button class="btn-secondary" id="tt-error-upload-btn">📷 Upload a Different Image</button>
         <button class="btn-secondary" id="tt-error-manual-btn">✏️ Enter Timetable Manually</button>
-        <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.8rem;margin-top:4px"
+        <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--text-sm);margin-top:4px"
                 onclick="document.getElementById('tt-upload-error-backdrop')?.remove()">Dismiss</button>
       </div>
     </div>
@@ -2771,28 +2771,28 @@ function renderTimetablePreviewModalContent(backdrop) {
   const rowsHtml = visibleSchedule.map(({ item, originalIdx }) => {
     const isRowUncertain = item.isUncertain || !item.subject;
     const batchLabel = (item.batches && item.batches.length > 0)
-      ? `<span class="type-badge" style="font-size:0.7rem;padding:2px 6px;background:var(--accent-dim);color:var(--brand-primary)">${item.batches.join(', ')}</span>`
-      : `<span style="font-size:0.7rem;color:var(--text-muted)">General</span>`;
+      ? `<span class="type-badge" style="font-size:var(--text-xs);padding:2px 6px;background:var(--accent-dim);color:var(--brand-primary)">${item.batches.join(', ')}</span>`
+      : `<span style="font-size:var(--text-xs);color:var(--text-muted)">General</span>`;
 
     return `
     <tr class="${isRowUncertain ? 'preview-row-uncertain' : ''}" id="preview-row-${originalIdx}">
       <td>
-        <select class="form-select" style="padding:4px 6px;font-size:0.8rem" onchange="updatePreviewEntry(${originalIdx}, 'day', this.value)">
+        <select class="form-select" style="padding:4px 6px;font-size:var(--text-sm)" onchange="updatePreviewEntry(${originalIdx}, 'day', this.value)">
           ${['Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<option value="${d}" ${item.day===d?'selected':''}>${d}</option>`).join('')}
         </select>
       </td>
       <td>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="text" class="form-input" style="padding:4px 4px;font-size:0.8rem;width:52px;font-family:var(--font-mono)" value="${item.time || '10:00'}" placeholder="10:00" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
+          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:52px;font-family:var(--font-mono)" value="${item.time || '10:00'}" placeholder="10:00" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
           <span style="color:var(--text-muted)">-</span>
-          <input type="text" class="form-input" style="padding:4px 4px;font-size:0.8rem;width:52px;font-family:var(--font-mono)" value="${item.end || '11:00'}" placeholder="11:00" onchange="updatePreviewEntry(${originalIdx}, 'end', this.value)">
+          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:52px;font-family:var(--font-mono)" value="${item.end || '11:00'}" placeholder="11:00" onchange="updatePreviewEntry(${originalIdx}, 'end', this.value)">
         </div>
       </td>
       <td>
-        <input type="text" class="form-input ${!item.subject ? 'error' : ''}" id="preview-subject-${originalIdx}" style="padding:4px 6px;font-size:0.8rem;width:100%" value="${(item.subject || '').replace(/"/g, '&quot;')}" placeholder="Subject name *" onchange="updatePreviewEntry(${originalIdx}, 'subject', this.value)">
+        <input type="text" class="form-input ${!item.subject ? 'error' : ''}" id="preview-subject-${originalIdx}" style="padding:4px 6px;font-size:var(--text-sm);width:100%" value="${(item.subject || '').replace(/"/g, '&quot;')}" placeholder="Subject name *" onchange="updatePreviewEntry(${originalIdx}, 'subject', this.value)">
       </td>
       <td>
-        <select class="form-select" style="padding:4px 6px;font-size:0.8rem;width:82px" onchange="updatePreviewEntry(${originalIdx}, 'type', this.value)">
+        <select class="form-select" style="padding:4px 6px;font-size:var(--text-sm);width:82px" onchange="updatePreviewEntry(${originalIdx}, 'type', this.value)">
           <option value="lecture" ${item.type==='lecture'?'selected':''}>Lecture</option>
           <option value="lab" ${item.type==='lab'?'selected':''}>Lab</option>
           <option value="tutorial" ${item.type==='tutorial'?'selected':''}>Tutorial</option>
@@ -2804,16 +2804,16 @@ function renderTimetablePreviewModalContent(backdrop) {
         ${batchLabel}
       </td>
       <td>
-        <input type="text" class="form-input" style="padding:4px 6px;font-size:0.8rem;width:68px" value="${(item.code || '').replace(/"/g, '&quot;')}" placeholder="Code" onchange="updatePreviewEntry(${originalIdx}, 'code', this.value)">
+        <input type="text" class="form-input" style="padding:4px 6px;font-size:var(--text-sm);width:68px" value="${(item.code || '').replace(/"/g, '&quot;')}" placeholder="Code" onchange="updatePreviewEntry(${originalIdx}, 'code', this.value)">
       </td>
       <td>
-        <input type="text" class="form-input" style="padding:4px 6px;font-size:0.8rem;width:68px" value="${(item.room || '').replace(/"/g, '&quot;')}" placeholder="Room" onchange="updatePreviewEntry(${originalIdx}, 'room', this.value)">
+        <input type="text" class="form-input" style="padding:4px 6px;font-size:var(--text-sm);width:68px" value="${(item.room || '').replace(/"/g, '&quot;')}" placeholder="Room" onchange="updatePreviewEntry(${originalIdx}, 'room', this.value)">
       </td>
       <td>
-        <input type="text" class="form-input" style="padding:4px 6px;font-size:0.8rem;width:85px" value="${(item.teacher || '').replace(/"/g, '&quot;')}" placeholder="Faculty" onchange="updatePreviewEntry(${originalIdx}, 'teacher', this.value)">
+        <input type="text" class="form-input" style="padding:4px 6px;font-size:var(--text-sm);width:85px" value="${(item.teacher || '').replace(/"/g, '&quot;')}" placeholder="Faculty" onchange="updatePreviewEntry(${originalIdx}, 'teacher', this.value)">
       </td>
       <td style="text-align:center">
-        ${isRowUncertain ? '<span class="uncertain-badge" title="Please review or edit missing details">⚠️ Review</span>' : '<span style="color:var(--green);font-size:0.75rem;font-weight:600">✓ Ready</span>'}
+        ${isRowUncertain ? '<span class="uncertain-badge" title="Please review or edit missing details">⚠️ Review</span>' : '<span style="color:var(--green);font-size:var(--text-sm);font-weight:600">✓ Ready</span>'}
       </td>
       <td style="text-align:center">
         <button class="task-delete-btn" onclick="removePreviewEntry(${originalIdx})" title="Remove class entry">${icons.trash()}</button>
@@ -2826,7 +2826,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       <div class="modal-header">
         <div>
           <h2 class="modal-title">Extracted Timetable Preview</h2>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${visibleSchedule.length} class${visibleSchedule.length !== 1 ? 'es' : ''} shown ${selectedTimetablePreviewBatch !== 'all' ? `(Filtered for Batch ${selectedTimetablePreviewBatch})` : ''} ${uncertainCount > 0 ? `· <span style="color:var(--yellow);font-weight:600">${uncertainCount} entries need review</span>` : '· <span style="color:var(--green);font-weight:600">All fields structured</span>'}
           </div>
         </div>
@@ -2836,8 +2836,8 @@ function renderTimetablePreviewModalContent(backdrop) {
       <!-- Batch Filter & Normalization Controls -->
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:14px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:0.82rem;font-weight:600;color:var(--text-primary)">Your Practical Batch / Section:</span>
-          <select class="form-select" id="tt-preview-batch-select" style="padding:4px 8px;font-size:0.82rem;max-width:160px" onchange="onTimetablePreviewBatchChange(this.value)">
+          <span style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">Your Practical Batch / Section:</span>
+          <select class="form-select" id="tt-preview-batch-select" style="padding:4px 8px;font-size:var(--text-base);max-width:160px" onchange="onTimetablePreviewBatchChange(this.value)">
             <option value="all" ${selectedTimetablePreviewBatch === 'all' ? 'selected' : ''}>All Batches (No Filter)</option>
             ${batchList.map(b => `<option value="${b}" ${selectedTimetablePreviewBatch === b ? 'selected' : ''}>Batch ${b}</option>`).join('')}
             ${!batchList.includes('A1') ? '<option value="A1"' + (selectedTimetablePreviewBatch === 'A1' ? ' selected' : '') + '>Batch A1</option>' : ''}
@@ -2850,7 +2850,7 @@ function renderTimetablePreviewModalContent(backdrop) {
             ${!batchList.includes('D2') ? '<option value="D2"' + (selectedTimetablePreviewBatch === 'D2' ? ' selected' : '') + '>Batch D2</option>' : ''}
           </select>
         </div>
-        <div style="font-size:0.76rem;color:var(--text-muted)">
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">
           Hides other batch practicals so you only save classes for your section.
         </div>
       </div>
@@ -2884,7 +2884,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-        <button class="btn-secondary" onclick="addPreviewEntry()" style="font-size:0.8rem;display:flex;align-items:center;gap:5px">
+        <button class="btn-secondary" onclick="addPreviewEntry()" style="font-size:var(--text-sm);display:flex;align-items:center;gap:5px">
           ${icons.plus()} Add Class Row
         </button>
 
@@ -3322,13 +3322,13 @@ function showNoticeChannelModal(targetKey) {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;width:92vw">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:1.2rem">${isOfficial ? '📢' : '💬'}</span>
+          <span style="font-size:var(--text-xl)">${isOfficial ? '📢' : '💬'}</span>
           <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure Class Group & Channels'}</span>
         </div>
         <button class="modal-close" onclick="document.getElementById('notice-channel-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
-        <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.45">
+        <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">
           ${isOfficial 
             ? 'Set your college portal link, class channel, or department notice page URL.' 
             : 'Add your batch community link, group invite URL, or class representative contact. Tapping opens the channel directly for quick access.'}
@@ -3342,7 +3342,7 @@ function showNoticeChannelModal(targetKey) {
           <input type="url" class="form-input" id="nc-modal-url" value="${(currentUrl || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'https://college.edu/notices' : 'https://chat.whatsapp.com/... or https://wa.me/...'}">
         </div>
         ${!isOfficial ? `
-          <div style="font-size:0.75rem;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-xs,6px);padding:8px 10px;line-height:1.4">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-xs,6px);padding:8px 10px;line-height:1.4">
             💡 <strong>Note:</strong> Class group access opens directly in WhatsApp based on your batch link and admin settings.
           </div>
         ` : ''}
@@ -4099,10 +4099,10 @@ function renderPage(page) {
     if (targetEl) {
       targetEl.innerHTML = `
         <div class="card" style="text-align:center;padding:40px 20px;margin-top:20px;border-left:3px solid var(--red)">
-          <div style="font-size:2rem;margin-bottom:10px">⚠️</div>
-          <div style="font-weight:700;font-size:1.05rem;margin-bottom:6px">Unable to render section</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:16px">${err.message || 'An unexpected rendering error occurred.'}</div>
-          <button class="btn-primary" onclick="location.reload()" style="font-size:0.85rem">Reload Campus OS</button>
+          <div style="font-size:var(--text-hero);margin-bottom:10px">⚠️</div>
+          <div style="font-weight:700;font-size:var(--text-lg);margin-bottom:6px">Unable to render section</div>
+          <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:16px">${err.message || 'An unexpected rendering error occurred.'}</div>
+          <button class="btn-primary" onclick="location.reload()" style="font-size:var(--text-base)">Reload Campus OS</button>
         </div>
       `;
     }
@@ -4463,9 +4463,9 @@ window.handleQuickAdd = function() {
         <div class="card card-sm" style="display:flex;align-items:center;gap:12px;background:var(--surface-2);color:var(--text-primary);padding:10px 14px;border:1px solid var(--accent)">
           <div style="color:var(--green)">${icons.check()}</div>
           <div style="flex:1">
-            <div style="font-weight:600;font-size:0.85rem">Added: ${t.title}</div>
-            <div style="font-size:0.75rem;color:var(--text-muted)">
-              ${!foundAlias ? '<span class="type-badge" style="padding:2px 4px;font-size:0.6rem;background:var(--accent-dim);color:var(--accent)">General</span> ' : ''}
+            <div style="font-weight:600;font-size:var(--text-base)">Added: ${t.title}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">
+              ${!foundAlias ? '<span class="type-badge" style="padding:2px 4px;font-size:var(--text-2xs);background:var(--accent-dim);color:var(--accent)">General</span> ' : ''}
               ${subjectCode} · Due: ${formatDate(finalDateStr)}
             </div>
           </div>
@@ -4480,9 +4480,9 @@ window.handleQuickAdd = function() {
     if (container) {
       container.innerHTML = `
         <div class="card card-sm" style="display:flex;flex-direction:column;gap:10px;padding:12px">
-          <div style="font-size:0.85rem;color:var(--text-secondary)">Couldn't detect a date for: <strong>"${text}"</strong></div>
+          <div style="font-size:var(--text-base);color:var(--text-secondary)">Couldn't detect a date for: <strong>"${text}"</strong></div>
           <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:0.8rem;color:var(--text-muted)">Due:</span>
+            <span style="font-size:var(--text-sm);color:var(--text-muted)">Due:</span>
             <input type="date" id="quick-add-date" style="flex:1;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary)">
             <button class="btn btn-sm btn-primary" onclick="window._qaFinalize('${encodeURIComponent(text)}')">Save</button>
             <button class="btn btn-sm" onclick="cancelQuickAdd()">Cancel</button>
@@ -4508,7 +4508,7 @@ window.cancelQuickAdd = function() {
     container.innerHTML = `
       <div class="card" style="display:flex;align-items:center;gap:10px;padding:8px 12px">
         <div style="color:var(--accent);opacity:0.8">${icons.plus()}</div>
-        <input type="text" id="quick-add-input" enterkeyhint="done" placeholder="Add task: 'Math problem set due Friday'" style="flex:1;border:none;background:transparent;outline:none;font-size:0.9rem;color:var(--text-primary)" onkeypress="if(event.key==='Enter') handleQuickAdd()">
+        <input type="text" id="quick-add-input" enterkeyhint="done" placeholder="Add task: 'Math problem set due Friday'" style="flex:1;border:none;background:transparent;outline:none;font-size:var(--text-md);color:var(--text-primary)" onkeypress="if(event.key==='Enter') handleQuickAdd()">
         <button class="btn btn-sm btn-primary" onclick="handleQuickAdd()" style="padding:4px 12px">Add</button>
       </div>
     `;
@@ -4527,7 +4527,7 @@ window.handleRolloverAction = function(taskId, action) {
     if (el) {
       el.innerHTML = `
         <div style="flex:1;display:flex;flex-direction:column;gap:8px">
-          <div style="font-size:0.8rem;color:var(--text-muted)">Reschedule to:</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted)">Reschedule to:</div>
           <div style="display:flex;align-items:center;gap:10px">
             <input type="date" id="resched-${taskId}" value="${t.dueDate}" style="flex:1;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary)">
             <button class="btn btn-sm btn-primary" onclick="window._rsSave('${taskId}')">Save</button>
@@ -4634,10 +4634,10 @@ function renderReview() {
               ${done ? icons.check() : ''}
             </div>
             <div style="flex:1;min-width:0">
-              <div class="font-semibold" style="font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${a.title}</div>
-              <div style="font-size:0.75rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:2px">
+              <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${a.title}</div>
+              <div style="font-size:var(--text-sm);color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:2px">
                 <span onclick="openSubjectHub('${a.subject}')" style="cursor:pointer;font-weight:600">${a.subject}</span>
-                <span class="type-badge type-${taskType}" style="font-size:0.62rem;padding:1px 6px">${taskType}</span>
+                <span class="type-badge type-${taskType}" style="font-size:var(--text-2xs);padding:1px 6px">${taskType}</span>
               </div>
             </div>
           </div>
@@ -4646,8 +4646,8 @@ function renderReview() {
         const n = it.data;
         return `
           <div class="card card-sm notice-card" style="margin-bottom:8px;padding:12px 14px">
-            <div style="font-weight:600;font-size:0.9rem">${n.title}</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
+            <div style="font-weight:600;font-size:var(--text-md)">${n.title}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
           </div>
         `;
       }
@@ -4657,9 +4657,9 @@ function renderReview() {
     
     lookaheadHTML += `
       <div style="margin-bottom:16px">
-        <div style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <div style="font-size:var(--text-base);font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:8px">
           ${formatDate(dateStr)}
-          ${isBusy ? '<span class="type-badge" style="background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 6px;font-size:0.65rem">🔥 Busy Day</span>' : ''}
+          ${isBusy ? '<span class="type-badge" style="background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 6px;font-size:var(--text-2xs)">🔥 Busy Day</span>' : ''}
         </div>
         ${itemsHTML}
       </div>
@@ -4675,8 +4675,8 @@ function renderReview() {
       <div style="display:flex;align-items:center;gap:10px">
         <button class="btn btn-sm btn-secondary" onclick="navigateTo('dashboard')">← Back to Today</button>
         <div>
-          <div style="font-size:1.3rem;font-weight:700;color:var(--text-primary)">Weekly Reflection &amp; Reset</div>
-          <div style="font-size:0.8rem;color:var(--text-muted)">Review last week's coursework and plan your next 7 days</div>
+          <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">Weekly Reflection &amp; Reset</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted)">Review last week's coursework and plan your next 7 days</div>
         </div>
       </div>
     </div>
@@ -4685,11 +4685,11 @@ function renderReview() {
     <div class="card" style="padding:18px 20px;margin-bottom:22px;background:var(--surface);border-left:3px solid var(--accent-warm)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
         <div>
-          <div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px">
+          <div style="font-size:var(--text-md);font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px">
             <span>⏪ Last Week's Reflection</span>
-            <span class="type-badge" style="background:var(--accent-dim);color:var(--brand-primary);font-size:0.7rem;padding:2px 8px">${formatDate(lookbackStr)} – ${formatDate(todayS)}</span>
+            <span class="type-badge" style="background:var(--accent-dim);color:var(--brand-primary);font-size:var(--text-xs);padding:2px 8px">${formatDate(lookbackStr)} – ${formatDate(todayS)}</span>
           </div>
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">Lookback summary of completed tasks, rollover items, and study momentum.</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Lookback summary of completed tasks, rollover items, and study momentum.</div>
         </div>
       </div>
 
@@ -4706,10 +4706,10 @@ function renderReview() {
 
       ${tasksCompleted.length > 0 ? `
         <div style="margin-bottom:14px">
-          <div style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--green);margin-bottom:6px">✓ Completed in this period:</div>
+          <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--green);margin-bottom:6px">✓ Completed in this period:</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${tasksCompleted.map(t => `
-              <span class="filter-chip" style="font-size:0.75rem;padding:3px 10px;background:color-mix(in srgb, var(--status-success) 10%, transparent);color:var(--status-success);border:1px solid color-mix(in srgb, var(--status-success) 25%, transparent)">
+              <span class="filter-chip" style="font-size:var(--text-sm);padding:3px 10px;background:color-mix(in srgb, var(--status-success) 10%, transparent);color:var(--status-success);border:1px solid color-mix(in srgb, var(--status-success) 25%, transparent)">
                 ✓ ${t.title} (${t.subject || 'Task'})
               </span>
             `).join('')}
@@ -4719,17 +4719,17 @@ function renderReview() {
 
       ${tasksRolledOver.length > 0 ? `
         <div>
-          <div style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:6px">⚠ Tasks needing attention / reschedule:</div>
+          <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:6px">⚠ Tasks needing attention / reschedule:</div>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${tasksRolledOver.map(a => `
               <div class="card card-sm assignment-card" id="rollover-card-${a.id}" style="margin-bottom:0;display:flex;align-items:center;gap:12px;padding:10px 14px;border-left:3px solid var(--red)">
                 <div style="flex:1;min-width:0">
-                  <div class="font-semibold" style="font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.title}</div>
+                  <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.title}</div>
                   <div class="text-xs text-muted">${a.subject} · Due: ${formatDate(a.dueDate)}</div>
                 </div>
                 <div style="display:flex;gap:6px">
-                  <button class="btn btn-sm btn-secondary" style="color:var(--green);font-size:0.75rem;padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">✓ Done</button>
-                  <button class="btn btn-sm btn-secondary" style="font-size:0.75rem;padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">📅 Reschedule</button>
+                  <button class="btn btn-sm btn-secondary" style="color:var(--green);font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">✓ Done</button>
+                  <button class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">📅 Reschedule</button>
                 </div>
               </div>
             `).join('')}
@@ -4746,8 +4746,8 @@ function renderReview() {
       <div style="margin-bottom:22px">
         ${recentNotices.map(n => `
           <div class="card card-sm notice-card" onclick="showNotice('${n.id}')" style="margin-bottom:8px;padding:12px 14px;cursor:pointer">
-            <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary)">${n.title}</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">${formatDate(n.date)} · ${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
+            <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${n.title}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${formatDate(n.date)} · ${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
           </div>
         `).join('')}
       </div>
@@ -4757,7 +4757,7 @@ function renderReview() {
     ${lookaheadHTML}
 
     <div style="margin-top:24px;margin-bottom:32px;text-align:center">
-      <button class="btn btn-primary" onclick="completeWeeklyReset()" style="width:100%;max-width:400px;padding:12px;font-size:0.9rem;font-weight:700">
+      <button class="btn btn-primary" onclick="completeWeeklyReset()" style="width:100%;max-width:400px;padding:12px;font-size:var(--text-md);font-weight:700">
         ✓ Complete Weekly Reset &amp; Return to Today
       </button>
     </div>
@@ -4930,21 +4930,21 @@ function renderWeeklyAttendanceTracker() {
       return `
         <div class="card card-sm" style="margin-bottom:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            <div style="font-weight:600;font-size:0.88rem;display:flex;align-items:center;gap:6px">
+            <div style="font-weight:600;font-size:var(--text-md);display:flex;align-items:center;gap:6px">
               ${c.subject}
-              <span class="type-badge" style="font-size:0.65rem;padding:2px 6px;background:${isLab ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'var(--accent-dim)'};color:${isLab ? 'var(--status-success)' : 'var(--brand-primary)'}">
+              <span class="type-badge" style="font-size:var(--text-2xs);padding:2px 6px;background:${isLab ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'var(--accent-dim)'};color:${isLab ? 'var(--status-success)' : 'var(--brand-primary)'}">
                 ${isLab ? 'Lab' : 'Lecture'}
               </span>
             </div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
               ${formatDisplayTimeRange(c.time, c.end)} ${c.room ? '· ' + c.room : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as attended on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}" style="padding:5px 12px;font-size:0.75rem;font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='attended'?'var(--green)':'var(--surface-2)'};color:${status==='attended'?'white':'var(--text-primary)'};border:1px solid ${status==='attended'?'var(--green)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
+            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as attended on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='attended'?'var(--green)':'var(--surface-2)'};color:${status==='attended'?'white':'var(--text-primary)'};border:1px solid ${status==='attended'?'var(--green)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
               ${status==='attended'?'✓ Attended':'Attended'}
             </button>
-            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as skipped on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}" style="padding:5px 12px;font-size:0.75rem;font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='skipped'?'var(--red)':'var(--surface-2)'};color:${status==='skipped'?'white':'var(--text-primary)'};border:1px solid ${status==='skipped'?'var(--red)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
+            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as skipped on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='skipped'?'var(--red)':'var(--surface-2)'};color:${status==='skipped'?'white':'var(--text-primary)'};border:1px solid ${status==='skipped'?'var(--red)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
               ${status==='skipped'?'✕ Skipped':'Skipped'}
             </button>
           </div>
@@ -4954,7 +4954,7 @@ function renderWeeklyAttendanceTracker() {
 
     attendanceDaysHTML += `
       <div style="margin-bottom:14px">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px">
+        <div style="font-size:var(--text-base);font-weight:600;color:var(--text-secondary);margin-bottom:6px">
           ${dayName}, ${formatDate(dateStr)} ${isToday ? '<span style="color:var(--accent)">· Today</span>' : ''}
         </div>
         ${classListHTML}
@@ -4964,12 +4964,12 @@ function renderWeeklyAttendanceTracker() {
 
   const weekSelectorHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-      <div style="font-size:0.85rem;color:var(--text-muted);font-weight:500">
+      <div style="font-size:var(--text-base);color:var(--text-muted);font-weight:500">
         ${formatDate(weekDays[0].toISOString().split('T')[0])} – ${formatDate(weekDays[6].toISOString().split('T')[0])}
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-sm ${weekOffset === 0 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(0)" aria-pressed="${weekOffset === 0}" style="padding:4px 12px;font-size:0.75rem">This Week</button>
-        <button class="btn btn-sm ${weekOffset === -1 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(-1)" aria-pressed="${weekOffset === -1}" style="padding:4px 12px;font-size:0.75rem">Last Week</button>
+        <button class="btn btn-sm ${weekOffset === 0 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(0)" aria-pressed="${weekOffset === 0}" style="padding:4px 12px;font-size:var(--text-sm)">This Week</button>
+        <button class="btn btn-sm ${weekOffset === -1 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(-1)" aria-pressed="${weekOffset === -1}" style="padding:4px 12px;font-size:var(--text-sm)">Last Week</button>
       </div>
     </div>
   `;
@@ -4978,10 +4978,10 @@ function renderWeeklyAttendanceTracker() {
     return `
       ${weekSelectorHTML}
       <div class="card" style="padding:20px;text-align:center;color:var(--text-muted);margin-bottom:20px">
-        <div style="font-size:1.5rem;margin-bottom:6px">📅</div>
-        <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:var(--text-primary)">Set up your timetable to start tracking classes</div>
-        <div style="font-size:0.8rem;margin-bottom:12px">Add your weekly schedule to mark class attendance and view weekly totals.</div>
-        <button class="btn-primary" onclick="navigateTo('timetable')" style="font-size:0.8rem;padding:6px 14px">Go to Timetable</button>
+        <div style="font-size:var(--text-2xl);margin-bottom:6px">📅</div>
+        <div style="font-weight:600;font-size:var(--text-md);margin-bottom:4px;color:var(--text-primary)">Set up your timetable to start tracking classes</div>
+        <div style="font-size:var(--text-sm);margin-bottom:12px">Add your weekly schedule to mark class attendance and view weekly totals.</div>
+        <button class="btn-primary" onclick="navigateTo('timetable')" style="font-size:var(--text-sm);padding:6px 14px">Go to Timetable</button>
       </div>
     `;
   }
@@ -4993,7 +4993,7 @@ function renderWeeklyAttendanceTracker() {
     const st = subjectStats[subj];
     const pct = st.total > 0 ? Math.round((st.attended / st.total) * 100) : 0;
     return `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px dotted var(--border);font-size:0.8rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px dotted var(--border);font-size:var(--text-sm)">
         <span style="font-weight:600">${subj}</span>
         <span style="color:var(--text-secondary)">${st.attended} / ${st.total} attended (${pct}%)</span>
       </div>
@@ -5009,43 +5009,43 @@ function renderWeeklyAttendanceTracker() {
       <div class="card" style="padding:16px;margin-bottom:16px;background:var(--surface-2);border-left:3px solid ${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
           <div>
-            <div style="font-weight:700;font-size:0.98rem;color:var(--text-primary);display:flex;align-items:center;gap:8px">
+            <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);display:flex;align-items:center;gap:8px">
               <span>Attendance Health &amp; Safe Skips</span>
-              ${streak > 0 ? `<span class="type-badge" style="background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 8px;font-size:0.7rem">🔥 ${streak}-Class Streak</span>` : ''}
+              ${streak > 0 ? `<span class="type-badge" style="background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 8px;font-size:var(--text-xs)">🔥 ${streak}-Class Streak</span>` : ''}
             </div>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">Target threshold: <strong>75%</strong> minimum required attendance</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Target threshold: <strong>75%</strong> minimum required attendance</div>
           </div>
-          <span class="type-badge" style="font-size:0.75rem;padding:3px 9px;background:${guidance.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${guidance.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
+          <span class="type-badge" style="font-size:var(--text-sm);padding:3px 9px;background:${guidance.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${guidance.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
             ${guidance.badgeLabel}
           </span>
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px;margin-bottom:12px">
           <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:1.1rem;font-weight:700;color:var(--green)">${totalAttended}</div>
-            <div style="font-size:0.72rem;color:var(--text-muted)">Attended</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${totalAttended}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted)">Attended</div>
           </div>
           <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:1.1rem;font-weight:700;color:var(--red)">${totalSkipped}</div>
-            <div style="font-size:0.72rem;color:var(--text-muted)">Missed / Skipped</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:var(--red)">${totalSkipped}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted)">Missed / Skipped</div>
           </div>
           <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:1.1rem;font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? guidance.pct + '%' : '0%'}</div>
-            <div style="font-size:0.72rem;color:var(--text-muted)">Current Rate</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? guidance.pct + '%' : '0%'}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted)">Current Rate</div>
           </div>
           <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:1.1rem;font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.isSafe ? guidance.safeSkips : guidance.classesToAttend}</div>
-            <div style="font-size:0.72rem;color:var(--text-muted)">${guidance.isSafe ? 'Safe Skips' : 'Classes Needed'}</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.isSafe ? guidance.safeSkips : guidance.classesToAttend}</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted)">${guidance.isSafe ? 'Safe Skips' : 'Classes Needed'}</div>
           </div>
         </div>
 
-        <div style="font-size:0.83rem;color:var(--text-primary);background:var(--background);padding:10px 12px;border-radius:6px;line-height:1.45;border:1px solid var(--border)">
+        <div style="font-size:var(--text-base);color:var(--text-primary);background:var(--background);padding:10px 12px;border-radius:6px;line-height:1.45;border:1px solid var(--border)">
           💡 ${guidance.message}
         </div>
 
         ${subjectBreakdownHTML ? `
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px">Per-Subject Breakdown</div>
+            <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px">Per-Subject Breakdown</div>
             ${subjectBreakdownHTML}
           </div>
         ` : ''}
@@ -5080,24 +5080,24 @@ window.showOnboardingModal = function() {
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
         </div>
-        <h2 style="margin:0 0 6px 0;font-size:1.35rem;font-weight:700;letter-spacing:-0.025em;color:var(--text-primary)">Welcome to Clarity Desk</h2>
-        <div style="font-size:0.84rem;font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Your calm, unified student workspace</div>
-        <div style="font-size:0.88rem;color:var(--text-secondary);line-height:1.6;margin-bottom:24px">
+        <h2 style="margin:0 0 6px 0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.025em;color:var(--text-primary)">Welcome to Clarity Desk</h2>
+        <div style="font-size:var(--text-base);font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Your calm, unified student workspace</div>
+        <div style="font-size:var(--text-md);color:var(--text-secondary);line-height:1.6;margin-bottom:24px">
           Manage your class schedule, monitor attendance safety, track tasks, and access study notes with zero clutter.
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button class="btn-primary" onclick="showOnboardingStep2()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:0.88rem">Set up profile →</button>
-          <button class="btn-secondary" onclick="dismissOnboarding()" style="width:100%;padding:9px;font-size:0.84rem;justify-content:center">Explore first</button>
+          <button class="btn-primary" onclick="showOnboardingStep2()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">Set up profile →</button>
+          <button class="btn-secondary" onclick="dismissOnboarding()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Explore first</button>
         </div>
       </div>
 
       <div id="onboarding-step-2" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
-            <h2 style="margin:0;font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary)">Profile Setup</h2>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">Personalizes your timetable and countdown</div>
+            <h2 style="margin:0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.02em;color:var(--text-primary)">Profile Setup</h2>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Personalizes your timetable and countdown</div>
           </div>
-          <span style="font-size:0.74rem;color:var(--text-muted);background:var(--surface-2);padding:3px 8px;border-radius:999px;border:1px solid var(--border)">Step 1 of 1</span>
+          <span style="font-size:var(--text-xs);color:var(--text-muted);background:var(--surface-2);padding:3px 8px;border-radius:999px;border:1px solid var(--border)">Step 1 of 1</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
           <div class="form-group" style="margin-bottom:0">
@@ -5126,18 +5126,18 @@ window.showOnboardingModal = function() {
           </div>
 
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:4px">
-            <div style="font-weight:600;font-size:0.86rem;color:var(--text-primary);margin-bottom:2px">
+            <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);margin-bottom:2px">
               Timetable Schedule Setup
             </div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.45;margin-bottom:10px">
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45;margin-bottom:10px">
               Start clean to build or scan your own class schedule, or load a sample college timetable.
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
+              <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
                 <input type="radio" name="ob-tt-choice" value="clean" id="ob-tt-clean" checked style="accent-color:var(--accent)">
                 <span>Start with a clean schedule</span>
               </label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
+              <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
                 <input type="radio" name="ob-tt-choice" value="aids" id="ob-tt-aids" style="accent-color:var(--accent)">
                 <span>Load sample timetable (SY AI-DS)</span>
               </label>
@@ -5145,35 +5145,35 @@ window.showOnboardingModal = function() {
           </div>
 
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:4px">
-            <div style="font-weight:600;font-size:0.86rem;color:var(--text-primary);margin-bottom:2px">
+            <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);margin-bottom:2px">
               Set your current attendance (Optional)
             </div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.45;margin-bottom:10px">
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45;margin-bottom:10px">
               Add your current attended and missed class counts once. Clarity Desk will track continuously from there.
             </div>
-            <button type="button" class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:0.78rem;padding:5px 12px;display:inline-flex;align-items:center;gap:6px">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:var(--text-sm);padding:5px 12px;display:inline-flex;align-items:center;gap:6px">
               📊 Set attendance counts →
             </button>
           </div>
 
           <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:4px">
-            <div style="font-weight:600;font-size:0.86rem;color:var(--text-primary);margin-bottom:2px">
+            <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);margin-bottom:2px">
               Attendance Target (%)
             </div>
-            <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.45;margin-bottom:8px">
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45;margin-bottom:8px">
               Configure your institution's minimum required attendance % (default is 75%).
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <input type="number" class="form-input" id="ob-att-target" value="75" min="50" max="100" step="1" style="width:90px;font-size:0.88rem;padding:5px 10px">
-              <span style="font-size:0.82rem;color:var(--text-muted)">% minimum</span>
+              <input type="number" class="form-input" id="ob-att-target" value="75" min="50" max="100" step="1" style="width:90px;font-size:var(--text-md);padding:5px 10px">
+              <span style="font-size:var(--text-base);color:var(--text-muted)">% minimum</span>
             </div>
           </div>
 
-          <div id="ob-error" style="color:var(--red);font-size:0.78rem;display:none">Please enter your name to finish setup.</div>
+          <div id="ob-error" style="color:var(--red);font-size:var(--text-sm);display:none">Please enter your name to finish setup.</div>
         </div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
-          <button class="btn-secondary" onclick="dismissOnboarding()" style="font-size:0.82rem">Skip</button>
-          <button class="btn-primary" onclick="finishOnboarding()" style="font-size:0.85rem;padding:8px 18px">Finish setup</button>
+          <button class="btn-secondary" onclick="dismissOnboarding()" style="font-size:var(--text-base)">Skip</button>
+          <button class="btn-primary" onclick="finishOnboarding()" style="font-size:var(--text-base);padding:8px 18px">Finish setup</button>
         </div>
       </div>
     </div>
@@ -5331,12 +5331,12 @@ function answerTodaySummary() {
   const tsks = allTasks().filter(a => a.status === 'pending' && a.dueDate === todayStr());
   
   let html = `<div style="font-weight:600;margin-bottom:8px">Today's Focus &amp; Summary</div>`;
-  html += `<div style="font-size:0.85rem;margin-bottom:8px">You have ${classesLeft} class${classesLeft!==1?'es':''} left and ${tsks.length} task${tsks.length!==1?'s':''} due today.</div>`;
+  html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${classesLeft} class${classesLeft!==1?'es':''} left and ${tsks.length} task${tsks.length!==1?'s':''} due today.</div>`;
   if (nextClass) {
-    html += `<div style="font-size:0.85rem;color:var(--text-secondary)">👉 Next session: <strong>${nextClass.subject}</strong> at ${formatDisplayTime(nextClass.time)} (${nextClass.room})</div>`;
+    html += `<div style="font-size:var(--text-base);color:var(--text-secondary)">👉 Next session: <strong>${nextClass.subject}</strong> at ${formatDisplayTime(nextClass.time)} (${nextClass.room})</div>`;
   }
   if (tsks.length > 0) {
-    html += `<ul style="font-size:0.85rem;color:var(--text-secondary);margin:8px 0 0 16px;padding:0">`;
+    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:8px 0 0 16px;padding:0">`;
     tsks.forEach(t => { html += `<li>${t.title}</li>`; });
     html += `</ul>`;
   }
@@ -5358,9 +5358,9 @@ function answerSubjectTasks(subject, window) {
   
   let html = `<div style="font-weight:600;margin-bottom:8px">${subject} Tasks (${window.replace('-', ' ')})</div>`;
   if (tsks.length === 0) {
-    html += `<div style="font-size:0.85rem">No pending tasks found for ${subject}.</div>`;
+    html += `<div style="font-size:var(--text-base)">No pending tasks found for ${subject}.</div>`;
   } else {
-    html += `<ul style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
+    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
     tsks.forEach(t => { html += `<li>${t.title} (Due: ${formatDate(t.dueDate)})</li>`; });
     html += `</ul>`;
   }
@@ -5386,10 +5386,10 @@ function answerTimetableDay(dayMatch) {
   
   let html = `<div style="font-weight:600;margin-bottom:8px">Classes on ${DAY_NAMES[dayIdx]}</div>`;
   if (classes.length === 0) {
-    html += `<div style="font-size:0.85rem">You have no classes scheduled.</div>`;
+    html += `<div style="font-size:var(--text-base)">You have no classes scheduled.</div>`;
   } else {
-    html += `<div style="font-size:0.85rem;margin-bottom:8px">You have ${classes.length} class${classes.length!==1?'es':''}:</div>`;
-    html += `<ul style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
+    html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${classes.length} class${classes.length!==1?'es':''}:</div>`;
+    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
     classes.forEach(c => { html += `<li><strong>${c.subject}</strong> (${formatDisplayTime(c.time)} · ${c.room})</li>`; });
     html += `</ul>`;
   }
@@ -5400,10 +5400,10 @@ function answerOverdueTasks() {
   const tsks = allTasks().filter(t => isTaskOverdue(t));
   let html = `<div style="font-weight:600;margin-bottom:8px">Overdue Tasks</div>`;
   if (tsks.length === 0) {
-    html += `<div style="font-size:0.85rem">You have no overdue tasks — all clear!</div>`;
+    html += `<div style="font-size:var(--text-base)">You have no overdue tasks — all clear!</div>`;
   } else {
-    html += `<div style="font-size:0.85rem;margin-bottom:8px">You have ${tsks.length} overdue task(s):</div>`;
-    html += `<ul style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
+    html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${tsks.length} overdue task(s):</div>`;
+    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
     tsks.forEach(t => { html += `<li>${t.title} (Due: ${formatDate(t.dueDate)})</li>`; });
     html += `</ul>`;
   }
@@ -5416,9 +5416,9 @@ function answerExams() {
   
   let html = `<div style="font-weight:600;margin-bottom:8px">Upcoming Exams &amp; Tests</div>`;
   if (tsks.length === 0 && nts.length === 0) {
-    html += `<div style="font-size:0.85rem">No upcoming exams or tests found in your tasks or notice board.</div>`;
+    html += `<div style="font-size:var(--text-base)">No upcoming exams or tests found in your tasks or notice board.</div>`;
   } else {
-    html += `<ul style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
+    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
     tsks.forEach(t => { html += `<li>${t.title} (Due: ${formatDate(t.dueDate)})</li>`; });
     nts.forEach(n => { html += `<li>${n.title} (Notice Date: ${formatDate(n.date)})</li>`; });
     html += `</ul>`;
@@ -5429,7 +5429,7 @@ function answerExams() {
 function answerUnknown() {
   return `
     <div style="font-weight:600;margin-bottom:8px">Here are a few questions you can ask Clarity Desk:</div>
-    <ul style="font-size:0.85rem;color:var(--text-muted);margin:8px 0 0 16px;padding:0">
+    <ul style="font-size:var(--text-base);color:var(--text-muted);margin:8px 0 0 16px;padding:0">
       <li>"What should I focus on today?"</li>
       <li>"Show DS tasks due this week"</li>
       <li>"How many classes do I have tomorrow?"</li>
@@ -5644,14 +5644,14 @@ function renderDashboard() {
           <div class="chrono-beacon-meta">
             ${activeClass.room ? `<span>${activeClass.room}</span>` : ''}
             ${activeClass.teacher ? `<span>${iconText(icons.user(), 'Prof. ' + activeClass.teacher)}</span>` : ''}
-            <span class="type-badge type-${activeClass.type || 'lecture'}" style="font-size:0.62rem">${activeClass.type || 'lecture'}</span>
+            <span class="type-badge type-${activeClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${activeClass.type || 'lecture'}</span>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <button class="btn btn-sm ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:5px 12px;font-size:0.76rem;font-weight:600;${status==='attended'?'background:var(--status-success);border-color:var(--status-success);color:white;':''}">
+          <button class="btn btn-sm ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:5px 12px;font-size:var(--text-sm);font-weight:600;${status==='attended'?'background:var(--status-success);border-color:var(--status-success);color:white;':''}">
             ${status==='attended'?'Attended ✓':'Mark Attended'}
           </button>
-          <button class="btn btn-sm ${status==='skipped'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:5px 12px;font-size:0.76rem;font-weight:600;${status==='skipped'?'background:var(--status-error);border-color:var(--status-error);color:white;':''}">
+          <button class="btn btn-sm ${status==='skipped'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:5px 12px;font-size:var(--text-sm);font-weight:600;${status==='skipped'?'background:var(--status-error);border-color:var(--status-error);color:white;':''}">
             ${status==='skipped'?'Skipped':'Skip'}
           </button>
         </div>
@@ -5670,10 +5670,10 @@ function renderDashboard() {
           <div class="chrono-beacon-meta">
             ${nextClass.room ? `<span>${nextClass.room}</span>` : ''}
             ${nextClass.teacher ? `<span>${iconText(icons.user(), 'Prof. ' + nextClass.teacher)}</span>` : ''}
-            <span class="type-badge type-${nextClass.type || 'lecture'}" style="font-size:0.62rem">${nextClass.type || 'lecture'}</span>
+            <span class="type-badge type-${nextClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${nextClass.type || 'lecture'}</span>
           </div>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${nextClass.subject}')" style="font-size:0.75rem;padding:6px 12px">
+        <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${nextClass.subject}')" style="font-size:var(--text-sm);padding:6px 12px">
           Open Subject Hub →
         </button>
       </div>`;
@@ -5683,14 +5683,14 @@ function renderDashboard() {
         <div style="flex:1;min-width:180px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 12%, transparent);color:var(--status-success)">${icons.check()} Day Complete</span>
-            <span style="font-size:0.78rem;color:var(--text-muted)">All ${dayClasses.length} classes finished today</span>
+            <span style="font-size:var(--text-sm);color:var(--text-muted)">All ${dayClasses.length} classes finished today</span>
           </div>
           <div class="chrono-beacon-title">Classes Done for Today</div>
           <div class="chrono-beacon-meta">
             <span>${pending > 0 ? iconText(icons.filetext(), `${pending} task${pending !== 1 ? 's' : ''} pending on your desk`) : iconText(icons.check(), 'No pending tasks. Enjoy your evening.')}</span>
           </div>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="navigateTo('${pending > 0 ? 'assignments' : 'links'}')" style="font-size:0.75rem;padding:6px 12px">
+        <button class="btn btn-sm btn-secondary" onclick="navigateTo('${pending > 0 ? 'assignments' : 'links'}')" style="font-size:var(--text-sm);padding:6px 12px">
           ${pending > 0 ? 'Review Tasks →' : 'Study Vault →'}
         </button>
       </div>`;
@@ -5700,14 +5700,14 @@ function renderDashboard() {
         <div style="flex:1;min-width:180px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="chrono-beacon-badge" style="background:var(--surface-2);color:var(--text-secondary)">${icons.sun()} Rest Day</span>
-            <span style="font-size:0.78rem;color:var(--text-muted)">${DAY_NAMES[dayIdx]}</span>
+            <span style="font-size:var(--text-sm);color:var(--text-muted)">${DAY_NAMES[dayIdx]}</span>
           </div>
           <div class="chrono-beacon-title">No Classes Today</div>
           <div class="chrono-beacon-meta">
             <span>${!isCustomTimetableActive() ? 'Add your class schedule to track daily lectures.' : 'A free day on your study desk.'}</span>
           </div>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="navigateTo('${!isCustomTimetableActive() ? 'timetable' : 'assignments'}')" style="font-size:0.75rem;padding:6px 12px">
+        <button class="btn btn-sm btn-secondary" onclick="navigateTo('${!isCustomTimetableActive() ? 'timetable' : 'assignments'}')" style="font-size:var(--text-sm);padding:6px 12px">
           ${!isCustomTimetableActive() ? 'Set Schedule →' : 'View Tasks →'}
         </button>
       </div>`;
@@ -5726,9 +5726,9 @@ function renderDashboard() {
             <span class="setup-step-icon">${s.icon}</span>
             <div style="flex:1;min-width:0">
               <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${s.label}</div>
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:1px">${s.desc}</div>
+              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${s.desc}</div>
             </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:0.8rem">Start →</span>
+            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
           </button>
         `).join('')}
       </div>
@@ -5766,7 +5766,7 @@ function renderDashboard() {
           <div class="desk-greeting-sub">${contextLine}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
-          <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:0.76rem;padding:5px 12px;white-space:nowrap;flex-shrink:0">
+          <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
           </button>
         </div>
@@ -5786,7 +5786,7 @@ function renderDashboard() {
         <!-- SCHEDULE LEDGER -->
         <div class="dashboard-panel">
           <div class="panel-header">
-            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:0.65rem;font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length}</span>` : ''}</div>
+            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length}</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
           </div>
           <!-- Open ledger: no card box -->
@@ -5802,11 +5802,11 @@ function renderDashboard() {
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
                     <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub('${c.subject}')">
                       <div class="schedule-slot-title">${c.subject}</div>
-                      <div style="font-size:0.71rem;color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? 'Prof. ' + c.teacher + ' · ' : ''}${c.type || 'lecture'}</div>
+                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? 'Prof. ' + c.teacher + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                      <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:0.69rem;font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">${status==='attended'?'Attended ✓':'Present'}</button>
-                      <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:0.69rem;font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">${status==='skipped'?'Skipped':'Missed'}</button>
+                      <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">${status==='attended'?'Attended ✓':'Present'}</button>
+                      <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">${status==='skipped'?'Skipped':'Missed'}</button>
                     </div>
                   </div>`;
               }).join('')}
@@ -5831,7 +5831,7 @@ function renderDashboard() {
           <div class="panel-header">
             <div class="panel-title">Tasks &amp; Deadlines</div>
             <div style="display:flex;align-items:center;gap:8px">
-              <button class="btn btn-xs btn-secondary" data-testid="add-task-button" onclick="showAddTaskModal()" style="font-size:0.75rem;padding:3px 8px">+ Add</button>
+              <button class="btn btn-xs btn-secondary" data-testid="add-task-button" onclick="showAddTaskModal()" style="font-size:var(--text-sm);padding:3px 8px">+ Add</button>
               <button class="panel-action" onclick="navigateTo('assignments')">All tasks (${pending}) →</button>
             </div>
           </div>
@@ -5839,8 +5839,8 @@ function renderDashboard() {
           <!-- Progress bar -->
           <div style="margin-bottom:8px">
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
-              <span style="font-size:0.74rem;color:var(--text-muted)">${submittedCount} of ${total} completed</span>
-              <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-muted)">${progress}%</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">${submittedCount} of ${total} completed</span>
+              <span style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-muted)">${progress}%</span>
             </div>
             <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${progress}%"></div></div>
           </div>
@@ -5858,29 +5858,29 @@ function renderDashboard() {
                     ${done ? icons.check() : ''}
                   </div>
                   <div style="flex:1;min-width:0;cursor:pointer" onclick="navigateTo('assignments')">
-                    <div style="font-weight:600;font-size:0.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${a.title}</div>
-                    <div style="font-size:0.71rem;color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
+                    <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${a.title}</div>
+                    <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
                       <span onclick="event.stopPropagation(); openSubjectHub('${a.subject}')" style="color:var(--accent);font-weight:600;cursor:pointer">${a.subject || 'General'}</span>
                       <span>·</span>
                       <span>${isOngoing ? 'Standing' : formatDate(a.dueDate)}</span>
                     </div>
                   </div>
-                  <span class="due-badge ${rel.cls}" style="font-size:0.68rem;padding:2px 6px;font-family:var(--font-mono);flex-shrink:0">${rel.label}</span>
+                  <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;font-family:var(--font-mono);flex-shrink:0">${rel.label}</span>
                 </div>`;
-            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:0.84rem">${iconText(icons.check(), 'All caught up. No urgent tasks.')}</div>`}
+            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), 'All caught up. No urgent tasks.')}</div>`}
           </div>
 
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-            <input type="text" id="quick-add-input" class="form-input" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeypress="if(event.key==='Enter') handleQuickAdd()" style="font-size:0.82rem;padding:7px 12px;height:36px;flex:1">
-            <button class="btn btn-sm btn-secondary" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:0.78rem;flex-shrink:0">Add</button>
+            <input type="text" id="quick-add-input" class="form-input" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeypress="if(event.key==='Enter') handleQuickAdd()" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
+            <button class="btn btn-sm btn-secondary" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">Add</button>
           </div>
         </div>
 
         <!-- ASK DESK ASSISTANT DOCK -->
         <div class="desk-command-dock" style="margin-top:16px">
           <div class="command-dock-field">
-            <span style="color:var(--accent);opacity:0.8;font-size:0.8rem">✨</span>
+            <span style="color:var(--accent);opacity:0.8;font-size:var(--text-sm)">✨</span>
             <input type="text" id="assistant-input" enterkeyhint="send" placeholder="Ask Desk… e.g. 'Classes today?' or 'Safe to miss OS?'" onkeypress="if(event.key==='Enter') handleAssistantQuestion()">
             <span class="command-dock-kbd">Ask</span>
           </div>
@@ -5908,13 +5908,13 @@ function renderDashboard() {
                   <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
                   <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;margin-top:5px;font-family:var(--font-mono);font-size:0.67rem;color:var(--text-muted)">
+                <div style="display:flex;justify-content:space-between;margin-top:5px;font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--text-muted)">
                   <span>${totalAttended} present</span>
                   <span>${totalSkipped} missed</span>
                 </div>
               </div>
               ${!dashGuidance.isSafe ? `
-              <div style="margin-top:10px;font-size:0.77rem;color:var(--text-secondary);line-height:1.5;padding:8px 10px;background:color-mix(in srgb, var(--red) 5%, var(--surface-2));border-radius:var(--radius-sm);border-left:2px solid var(--red)">
+              <div style="margin-top:10px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5;padding:8px 10px;background:color-mix(in srgb, var(--red) 5%, var(--surface-2));border-radius:var(--radius-sm);border-left:2px solid var(--red)">
                 ${dashGuidance.message}
               </div>` : `<div class="att-stat-message" style="margin-top:8px">${dashGuidance.message}</div>`}
             ` : `<div class="att-stat-message" style="margin-top:8px">${dashGuidance.message}</div>`}
@@ -5930,13 +5930,13 @@ function renderDashboard() {
             </div>
             <div class="card card-sm notice-card ${latestNotice.important ? 'important' : ''}" onclick="navigateTo('notices')" style="padding:12px 14px;cursor:pointer">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-                <div style="font-weight:700;font-size:0.86rem;color:var(--text-primary)">${latestNotice.title}</div>
-                <span class="cat-badge cat-${latestNotice.category}" style="font-size:0.65rem">${latestNotice.category}</span>
+                <div style="font-weight:700;font-size:var(--text-base);color:var(--text-primary)">${latestNotice.title}</div>
+                <span class="cat-badge cat-${latestNotice.category}" style="font-size:var(--text-2xs)">${latestNotice.category}</span>
               </div>
-              <div style="font-size:0.76rem;color:var(--text-secondary);margin-top:4px;line-height:1.4">
+              <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;line-height:1.4">
                 ${latestNotice.content.length > 95 ? latestNotice.content.slice(0, 92) + '…' : latestNotice.content}
               </div>
-              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:6px;display:flex;align-items:center;justify-content:space-between">
                 <span>${formatDate(latestNotice.date)}</span>
                 <span style="color:var(--accent);font-weight:600">Read Notice →</span>
               </div>
@@ -5953,7 +5953,7 @@ function renderDashboard() {
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${quickLinksPreview.map(s => `
-                <div class="filter-chip" style="font-size:0.74rem;padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub('${s.subject}')" title="Open ${s.subject} Subject Hub">
+                <div class="filter-chip" style="font-size:var(--text-xs);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub('${s.subject}')" title="Open ${s.subject} Subject Hub">
                   <span style="width:6px;height:6px;border-radius:50%;background:${s.color || 'var(--accent)'}"></span>
                   <span>${s.subject}</span>
                 </div>
@@ -5998,9 +5998,9 @@ function renderTimetable() {
         <div class="empty-state-title">No Classes on ${DAY_NAMES[day]}</div>
         <div class="empty-state-desc">No classes scheduled for this day. You can add class slots manually, scan your class timetable photo, or load a sample template.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px">
-          <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="font-size:0.82rem;padding:6px 14px">+ Add Class Entry</button>
-          <button class="btn-secondary" onclick="triggerTimetableImport()" style="font-size:0.82rem;padding:6px 14px">📷 Scan Photo</button>
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:0.82rem;padding:6px 14px">📋 Load Sample Template</button>
+          <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="font-size:var(--text-base);padding:6px 14px">+ Add Class Entry</button>
+          <button class="btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:6px 14px">📷 Scan Photo</button>
+          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:6px 14px">📋 Load Sample Template</button>
         </div>
       </div>`;
   } else {
@@ -6021,14 +6021,14 @@ function renderTimetable() {
           <button class="btn btn-sm ${isAttended ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')"
                   title="Mark ${c.subject} Attended" aria-label="Mark ${c.subject} as attended" aria-pressed="${isAttended}"
-                  style="padding:4px 10px;font-size:0.75rem;font-weight:700;border-radius:6px;min-width:32px;height:28px;
+                  style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isAttended ? 'background:var(--green);border-color:var(--green);color:var(--text-inverse);' : ''}">
             ✓
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
                   title="Mark ${c.subject} as skipped" aria-label="Mark ${c.subject} as skipped" aria-pressed="${isSkipped}"
-                  style="padding:4px 10px;font-size:0.75rem;font-weight:700;border-radius:6px;min-width:32px;height:28px;
+                  style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isSkipped ? 'background:var(--red);border-color:var(--red);color:var(--text-inverse);' : ''}">
             ✕
           </button>
@@ -6048,7 +6048,7 @@ function renderTimetable() {
               </div>
               <div style="display:flex;align-items:center;gap:6px">
                 <span class="type-badge type-${c.type || 'lecture'}">${c.type || 'lecture'}</span>
-                <button class="btn btn-xs btn-secondary" onclick="openSubjectHub('${c.subject}')" style="font-size:0.7rem;padding:2px 6px">Hub →</button>
+                <button class="btn btn-xs btn-secondary" onclick="openSubjectHub('${c.subject}')" style="font-size:var(--text-xs);padding:2px 6px">Hub →</button>
               </div>
             </div>
             <div class="tt-meta">
@@ -6073,20 +6073,20 @@ function renderTimetable() {
         <div class="page-subtitle">${teachingClassCount} class${teachingClassCount!==1?'es':''} on ${DAY_NAMES[day]} ${isCustom ? '· Custom Schedule' : '· Regular Schedule'}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="display:flex;align-items:center;gap:6px;font-size:0.8rem;padding:7px 14px">
+        <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:7px 14px">
           ${icons.plus()} Add Class
         </button>
-        <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px">
+        <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
           📷 Scan Timetable
         </button>
-        <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px" title="Declutter duplicate or other-batch sessions">
+        <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch sessions">
           🧹 Declutter Schedule
         </button>
-        <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px" title="Load sample schedule template">
+        <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Load sample schedule template">
           📋 Sample Schedule
         </button>
         ${isCustom ? `
-          <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:0.72rem;padding:4px 10px;color:var(--text-muted)">
+          <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:var(--text-xs);padding:4px 10px;color:var(--text-muted)">
             Clear Schedule
           </button>` : ''}
       </div>
@@ -6517,25 +6517,25 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
     <div class="modal baseline-dialog" onclick="event.stopPropagation()" style="max-width:540px;padding:24px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:1.22rem;font-weight:700">Set your current attendance</h2>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">Add your present and absent counts once. Clarity Desk will continue from there.</div>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Set your current attendance</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Add your present and absent counts once. Clarity Desk will continue from there.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('baseline-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
 
       <!-- Mode Selector Tabs: Set Manually | Scan from Photo -->
       <div style="display:flex;gap:8px;background:var(--surface-2);padding:4px;border-radius:8px;margin-bottom:16px">
-        <button type="button" id="ab-tab-manual-btn" class="btn btn-sm ${initialTab==='manual'?'btn-primary':'btn-secondary'}" onclick="switchBaselineModalTab('manual')" style="flex:1;font-size:0.8rem;padding:6px 12px;border:none">
+        <button type="button" id="ab-tab-manual-btn" class="btn btn-sm ${initialTab==='manual'?'btn-primary':'btn-secondary'}" onclick="switchBaselineModalTab('manual')" style="flex:1;font-size:var(--text-sm);padding:6px 12px;border:none">
           ✍️ Set Manually
         </button>
-        <button type="button" id="ab-tab-scan-btn" class="btn btn-sm ${initialTab==='scan'?'btn-primary':'btn-secondary'}" onclick="switchBaselineModalTab('scan')" style="flex:1;font-size:0.8rem;padding:6px 12px;border:none">
+        <button type="button" id="ab-tab-scan-btn" class="btn btn-sm ${initialTab==='scan'?'btn-primary':'btn-secondary'}" onclick="switchBaselineModalTab('scan')" style="flex:1;font-size:var(--text-sm);padding:6px 12px;border:none">
           📷 Scan from Photo
         </button>
       </div>
 
       <!-- TAB 1: MANUAL SETUP FORM -->
       <div id="ab-manual-section" style="${initialTab==='manual'?'display:block':'display:none'}">
-        <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:0.79rem;color:var(--text-secondary);line-height:1.45">
+        <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
           💡 Set your current attendance to calculate from the right starting point. Future attendance actions update automatically from this baseline.
         </div>
 
@@ -6554,7 +6554,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
               <input type="text" id="ab-new-subject-name" class="form-input" placeholder="Subject Name * (e.g. Operating Systems)" oninput="updateBaselinePreview()">
               <input type="text" id="ab-new-subject-code" class="form-input" placeholder="Code (e.g. CS302)" oninput="updateBaselinePreview()">
             </div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">
               No subjects set up yet. Enter your subject name and counts below to begin.
             </div>
           `}
@@ -6595,12 +6595,12 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
         <div id="ab-preview-card" style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px"></div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <button type="button" class="btn btn-sm btn-secondary" id="ab-clear-btn" onclick="clearSubjectBaseline()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent);font-size:0.82rem;${baseline.hasBaseline ? '' : 'display:none'}">
+          <button type="button" class="btn btn-sm btn-secondary" id="ab-clear-btn" onclick="clearSubjectBaseline()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent);font-size:var(--text-base);${baseline.hasBaseline ? '' : 'display:none'}">
             Clear Baseline
           </button>
           <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
-            <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('baseline-modal-backdrop')?.remove()" style="font-size:0.84rem">Cancel</button>
-            <button type="button" class="btn-primary" onclick="saveSubjectBaselineFromModal()" style="padding:8px 18px;font-size:0.85rem;font-weight:600">Save Baseline ✓</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('baseline-modal-backdrop')?.remove()" style="font-size:var(--text-base)">Cancel</button>
+            <button type="button" class="btn-primary" onclick="saveSubjectBaselineFromModal()" style="padding:8px 18px;font-size:var(--text-base);font-weight:600">Save Baseline ✓</button>
           </div>
         </div>
       </div>
@@ -6610,19 +6610,19 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
         <input type="file" id="ab-scan-file-input" accept="image/*" style="display:none" onchange="handleAttendancePhotoUpload(event)">
         
         <div class="attendance-scan-zone" onclick="document.getElementById('ab-scan-file-input')?.click()">
-          <div style="font-size:2.4rem;margin-bottom:8px">📷</div>
-          <div style="font-weight:700;font-size:1rem;color:var(--text-primary);margin-bottom:4px">
+          <div style="font-size:var(--text-hero);margin-bottom:8px">📷</div>
+          <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);margin-bottom:4px">
             Upload your attendance screenshot and we’ll fill this in for you.
           </div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);max-width:380px;margin:0 auto 16px auto;line-height:1.4">
+          <div style="font-size:var(--text-sm);color:var(--text-secondary);max-width:380px;margin:0 auto 16px auto;line-height:1.4">
             Supports portal screenshots, PDF exports, and camera photos from MGM JUNO ERP, ERP portals, or Excel sheets.
           </div>
-          <button type="button" class="btn-primary" style="font-size:0.84rem;padding:8px 18px;display:inline-flex;align-items:center;gap:6px">
+          <button type="button" class="btn-primary" style="font-size:var(--text-base);padding:8px 18px;display:inline-flex;align-items:center;gap:6px">
             📁 Choose Photo / Screenshot
           </button>
         </div>
 
-        <div style="margin-top:16px;background:var(--surface-2);border-radius:8px;padding:10px 14px;font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:8px">
+        <div style="margin-top:16px;background:var(--surface-2);border-radius:8px;padding:10px 14px;font-size:var(--text-sm);color:var(--text-muted);display:flex;align-items:center;gap:8px">
           <span>🔒</span>
           <span>Photos are scanned locally in your browser. You can review and adjust every subject count before saving.</span>
         </div>
@@ -6676,9 +6676,9 @@ function showAttendanceScanLoadingModal(message = 'Scanning attendance…') {
   backdrop.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()" style="max-width:380px;text-align:center;padding:28px 24px">
       <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto 16px auto"></div>
-      <div id="ab-scan-loading-msg" style="font-weight:700;font-size:1rem;color:var(--text-primary);margin-bottom:6px">${message}</div>
-      <div id="ab-scan-loading-sub" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:18px">Extracting subject names and attendance counts from screenshot…</div>
-      <button type="button" class="btn-secondary" onclick="cancelAttendancePhotoScan()" style="font-size:0.82rem;padding:6px 16px">
+      <div id="ab-scan-loading-msg" style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);margin-bottom:6px">${message}</div>
+      <div id="ab-scan-loading-sub" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:18px">Extracting subject names and attendance counts from screenshot…</div>
+      <button type="button" class="btn-secondary" onclick="cancelAttendancePhotoScan()" style="font-size:var(--text-base);padding:6px 16px">
         Cancel Scan
       </button>
     </div>
@@ -7752,14 +7752,14 @@ function showAttendanceScanReviewModal(rows = []) {
     <div class="modal attendance-review-dialog" onclick="event.stopPropagation()" style="max-width:680px;padding:24px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:1.24rem;font-weight:700">We found your subject counts. Review once before saving.</h2>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">Check the scanned numbers below and make any quick corrections.</div>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">We found your subject counts. Review once before saving.</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Check the scanned numbers below and make any quick corrections.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('ab-review-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
 
       ${hasUncertain ? `
-        <div style="background:var(--surface-2);border-left:3px solid var(--yellow);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:0.79rem;color:var(--text-secondary);display:flex;align-items:center;gap:8px">
+        <div style="background:var(--surface-2);border-left:3px solid var(--yellow);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:var(--text-sm);color:var(--text-secondary);display:flex;align-items:center;gap:8px">
           <span>⚠️</span>
           <span>Couldn’t match a few rows directly. You can select your subject or keep the detected name below.</span>
         </div>
@@ -7770,14 +7770,14 @@ function showAttendanceScanReviewModal(rows = []) {
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border)">
-        <button type="button" class="btn-secondary" onclick="addScanReviewRow()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;padding:6px 12px">
+        <button type="button" class="btn-secondary" onclick="addScanReviewRow()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:6px 12px">
           ${icons.plus()} Add Subject Row
         </button>
         <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
-          <button type="button" class="btn-secondary" onclick="document.getElementById('ab-review-modal-backdrop')?.remove(); showBaselineModal(null, 'manual');" style="font-size:0.84rem">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('ab-review-modal-backdrop')?.remove(); showBaselineModal(null, 'manual');" style="font-size:var(--text-base)">
             ← Enter Manually
           </button>
-          <button type="button" class="btn-primary" onclick="saveAllReviewedBaselines()" style="padding:8px 20px;font-size:0.86rem;font-weight:600">
+          <button type="button" class="btn-primary" onclick="saveAllReviewedBaselines()" style="padding:8px 20px;font-size:var(--text-base);font-weight:600">
             Save All Baselines ✓
           </button>
         </div>
@@ -7790,7 +7790,7 @@ function showAttendanceScanReviewModal(rows = []) {
 
 function renderReviewRowsHTML(rows, subjects) {
   if (!rows.length) {
-    return `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:0.84rem">No rows found. Tap + Add Subject Row to add one.</div>`;
+    return `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:var(--text-base)">No rows found. Tap + Add Subject Row to add one.</div>`;
   }
 
   const targetPct = getAttendanceTarget();
@@ -7811,36 +7811,36 @@ function renderReviewRowsHTML(rows, subjects) {
       <div class="attendance-review-row ${r.isUncertain ? 'uncertain' : ''}" id="review-row-${idx}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">
           <div style="flex:1;min-width:200px">
-            <label class="form-label" style="font-size:0.75rem;margin-bottom:3px">Subject</label>
-            <select class="form-select review-subject-select" style="font-size:0.84rem;padding:5px 8px" onchange="onReviewRowInputChange(${idx})">
+            <label class="form-label" style="font-size:var(--text-sm);margin-bottom:3px">Subject</label>
+            <select class="form-select review-subject-select" style="font-size:var(--text-base);padding:5px 8px" onchange="onReviewRowInputChange(${idx})">
               ${subjectOptionsHTML}
               ${!isExisting ? `<option value="${r.subject}|||${r.code || ''}" selected>${r.subject} ${r.code ? `(${r.code})` : ''} (Detected)</option>` : ''}
             </select>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <span class="type-badge" id="row-badge-${idx}" style="font-size:0.72rem;padding:3px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
+            <span class="type-badge" id="row-badge-${idx}" style="font-size:var(--text-xs);padding:3px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
               ${total > 0 ? `${pct}% · ${isSafe ? 'Safe Zone' : 'Needs Recovery'}` : 'Attendance not set'}
             </span>
-            <button type="button" onclick="deleteReviewRow(${idx})" class="btn-icon" style="color:var(--text-muted);font-size:0.9rem" title="Remove row">✕</button>
+            <button type="button" onclick="deleteReviewRow(${idx})" class="btn-icon" style="color:var(--text-muted);font-size:var(--text-md)" title="Remove row">✕</button>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(80px, 1fr));gap:8px">
           <div>
-            <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--status-success)">Present *</label>
-            <input type="number" min="0" class="form-input review-present" id="row-present-${idx}" value="${r.present}" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
+            <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--status-success)">Present *</label>
+            <input type="number" min="0" class="form-input review-present" id="row-present-${idx}" value="${r.present}" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
           </div>
           <div>
-            <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--status-error)">Absent *</label>
-            <input type="number" min="0" class="form-input review-absent" id="row-absent-${idx}" value="${r.absent}" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
+            <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--status-error)">Absent *</label>
+            <input type="number" min="0" class="form-input review-absent" id="row-absent-${idx}" value="${r.absent}" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
           </div>
           <div>
-            <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--status-warning)">Leave</label>
-            <input type="number" min="0" class="form-input review-leave" id="row-leave-${idx}" value="${r.leave || 0}" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
+            <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--status-warning)">Leave</label>
+            <input type="number" min="0" class="form-input review-leave" id="row-leave-${idx}" value="${r.leave || 0}" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
           </div>
           <div>
-            <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--text-muted)">Not Entered</label>
-            <input type="number" min="0" class="form-input review-not-entered" id="row-not-entered-${idx}" value="${r.notEntered || 0}" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
+            <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--text-muted)">Not Entered</label>
+            <input type="number" min="0" class="form-input review-not-entered" id="row-not-entered-${idx}" value="${r.notEntered || 0}" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
           </div>
         </div>
       </div>
@@ -7888,35 +7888,35 @@ function addScanReviewRow() {
   rowDiv.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
-        <label class="form-label" style="font-size:0.75rem;margin-bottom:3px">Subject</label>
-        <select class="form-select review-subject-select" style="font-size:0.84rem;padding:5px 8px" onchange="onReviewRowInputChange(${newIdx})">
+        <label class="form-label" style="font-size:var(--text-sm);margin-bottom:3px">Subject</label>
+        <select class="form-select review-subject-select" style="font-size:var(--text-base);padding:5px 8px" onchange="onReviewRowInputChange(${newIdx})">
           ${subjectOptionsHTML}
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <span class="type-badge" id="row-badge-${newIdx}" style="font-size:0.72rem;padding:3px 8px;background:var(--surface-2);color:var(--text-muted)">
+        <span class="type-badge" id="row-badge-${newIdx}" style="font-size:var(--text-xs);padding:3px 8px;background:var(--surface-2);color:var(--text-muted)">
           Attendance not set
         </span>
-        <button type="button" onclick="deleteReviewRow(${newIdx})" class="btn-icon" style="color:var(--text-muted);font-size:0.9rem" title="Remove row">✕</button>
+        <button type="button" onclick="deleteReviewRow(${newIdx})" class="btn-icon" style="color:var(--text-muted);font-size:var(--text-md)" title="Remove row">✕</button>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(80px, 1fr));gap:8px">
       <div>
-        <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--green)">Present *</label>
-        <input type="number" min="0" class="form-input review-present" id="row-present-${newIdx}" value="0" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
+        <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--green)">Present *</label>
+        <input type="number" min="0" class="form-input review-present" id="row-present-${newIdx}" value="0" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
       </div>
       <div>
-        <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--red)">Absent *</label>
-        <input type="number" min="0" class="form-input review-absent" id="row-absent-${newIdx}" value="0" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
+        <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--red)">Absent *</label>
+        <input type="number" min="0" class="form-input review-absent" id="row-absent-${newIdx}" value="0" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
       </div>
       <div>
-        <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--yellow)">Leave</label>
-        <input type="number" min="0" class="form-input review-leave" id="row-leave-${newIdx}" value="0" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
+        <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--yellow)">Leave</label>
+        <input type="number" min="0" class="form-input review-leave" id="row-leave-${newIdx}" value="0" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
       </div>
       <div>
-        <label class="form-label" style="font-size:0.72rem;margin-bottom:2px;color:var(--text-muted)">Not Entered</label>
-        <input type="number" min="0" class="form-input review-not-entered" id="row-not-entered-${newIdx}" value="0" style="font-size:0.84rem;padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
+        <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--text-muted)">Not Entered</label>
+        <input type="number" min="0" class="form-input review-not-entered" id="row-not-entered-${newIdx}" value="0" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
       </div>
     </div>
   `;
@@ -7976,16 +7976,16 @@ function showAttendanceScanErrorModal(message) {
   backdrop.id = 'ab-scan-error-backdrop';
   backdrop.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;padding:26px 22px;text-align:center">
-      <div style="font-size:2.2rem;margin-bottom:10px">📷</div>
-      <h3 style="margin:0 0 8px 0;font-size:1.15rem;font-weight:700;color:var(--text-primary)">We couldn’t read this screenshot clearly.</h3>
-      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.45">
+      <div style="font-size:var(--text-hero);margin-bottom:10px">📷</div>
+      <h3 style="margin:0 0 8px 0;font-size:var(--text-lg);font-weight:700;color:var(--text-primary)">We couldn’t read this screenshot clearly.</h3>
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:20px;line-height:1.45">
         ${message || 'The image may be blurry, low contrast, or not showing table columns. You can still enter your counts manually.'}
       </div>
       <div style="display:flex;gap:10px;justify-content:center">
-        <button type="button" class="btn-secondary" onclick="document.getElementById('ab-scan-error-backdrop')?.remove()" style="font-size:0.84rem">
+        <button type="button" class="btn-secondary" onclick="document.getElementById('ab-scan-error-backdrop')?.remove()" style="font-size:var(--text-base)">
           Close
         </button>
-        <button type="button" class="btn-primary" onclick="document.getElementById('ab-scan-error-backdrop')?.remove(); showBaselineModal(null, 'manual');" style="font-size:0.84rem;padding:7px 16px">
+        <button type="button" class="btn-primary" onclick="document.getElementById('ab-scan-error-backdrop')?.remove(); showBaselineModal(null, 'manual');" style="font-size:var(--text-base);padding:7px 16px">
           ✍️ Enter Counts Manually
         </button>
       </div>
@@ -8058,7 +8058,7 @@ function updateBaselinePreview() {
 
   if (totalCount === 0) {
     previewEl.innerHTML = `
-      <div style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:4px 0">
+      <div style="font-size:var(--text-sm);color:var(--text-muted);text-align:center;padding:4px 0">
         Enter your present and absent counts to view instant percentage and recovery guidance.
       </div>
     `;
@@ -8069,18 +8069,18 @@ function updateBaselinePreview() {
 
   previewEl.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-      <div style="font-size:0.82rem;font-weight:600;color:var(--text-primary)">
+      <div style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">
         Conducted: <strong>${totalCount}</strong> sessions (${presentVal} attended)
       </div>
-      <span class="type-badge" style="font-size:0.75rem;padding:2px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
+      <span class="type-badge" style="font-size:var(--text-sm);padding:2px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
         ${isSafe ? 'Safe Zone' : 'Needs Recovery'} · ${pctFormatted}%
       </span>
     </div>
-    <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.45">
+    <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
       💡 ${guidance.message}
     </div>
     ${totalSessionsVal > 0 ? `
-      <div style="font-size:0.74rem;color:var(--text-muted);margin-top:6px;border-top:1px dashed var(--border);padding-top:6px">
+      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:6px;border-top:1px dashed var(--border);padding-top:6px">
         Semester Progress: <strong>${totalCount}</strong> of <strong>${totalSessionsVal}</strong> total planned sessions (${Math.round((totalCount / totalSessionsVal) * 100)}% conducted).
       </div>
     ` : ''}
@@ -8214,15 +8214,15 @@ function showDeclutterDeskModal() {
     <div class="modal declutter-dialog" onclick="event.stopPropagation()" style="max-width:540px;padding:26px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:1.24rem;font-weight:700">Declutter my desk</h2>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">Clean up duplicate, noisy, or other-batch subject cards and normalize your schedule.</div>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Declutter my desk</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Clean up duplicate, noisy, or other-batch subject cards and normalize your schedule.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
 
-      <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:0.8rem;color:var(--text-secondary);line-height:1.45">
+      <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
         💡 <strong>How decluttering works:</strong>
-        <ul style="margin:6px 0 0 16px;padding:0;font-size:0.78rem;line-height:1.4">
+        <ul style="margin:6px 0 0 16px;padding:0;font-size:var(--text-sm);line-height:1.4">
           <li><strong>General lectures</strong> with no batch markers will be kept for everyone.</li>
           <li><strong>Practical lab sessions</strong> will only be kept if they match your specific batch.</li>
           <li>Duplicate variations and OCR noise will be merged into clean canonical Subject Hub cards.</li>
@@ -8232,8 +8232,8 @@ function showDeclutterDeskModal() {
 
       <div class="form-group" style="margin-bottom:18px">
         <label class="form-label" style="font-weight:600">Your Practical Batch / Section</label>
-        <input type="text" id="declutter-user-batch" class="form-input" value="${(currentBatch || '').replace(/"/g, '&quot;')}" placeholder="e.g. A2, B1, D1 (or leave blank for All)" style="font-size:0.9rem">
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">
+        <input type="text" id="declutter-user-batch" class="form-input" value="${(currentBatch || '').replace(/"/g, '&quot;')}" placeholder="e.g. A2, B1, D1 (or leave blank for All)" style="font-size:var(--text-md)">
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">
           Enter your batch (e.g. <strong>A1</strong>, <strong>A2</strong>, <strong>B2</strong>, <strong>D1</strong>). Leave blank if you wish to keep all sessions.
         </div>
       </div>
@@ -8241,22 +8241,22 @@ function showDeclutterDeskModal() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap">
         <div>
           ${backup && backup.timestamp ? `
-            <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove(); showRestoreDeskModal();" style="font-size:0.8rem;padding:6px 12px;color:var(--text-secondary)">
+            <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove(); showRestoreDeskModal();" style="font-size:var(--text-sm);padding:6px 12px;color:var(--text-secondary)">
               ↩ Restore Previous Backup
             </button>
           ` : `
-            <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" style="font-size:0.84rem">
+            <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" style="font-size:var(--text-base)">
               Cancel
             </button>
           `}
         </div>
         <div style="display:flex;gap:8px">
           ${backup && backup.timestamp ? `
-            <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" style="font-size:0.84rem">
+            <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" style="font-size:var(--text-base)">
               Cancel
             </button>
           ` : ''}
-          <button type="button" class="btn-primary" onclick="proceedToDeclutterPreview()" style="font-size:0.85rem;padding:8px 18px;font-weight:600">
+          <button type="button" class="btn-primary" onclick="proceedToDeclutterPreview()" style="font-size:var(--text-base);padding:8px 18px;font-weight:600">
             Preview Cleanup Plan →
           </button>
         </div>
@@ -8503,21 +8503,21 @@ function renderDeclutterPreviewModal(plan, userBatch) {
   const subjectsHTML = plan.survivingSubjects.map(s => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface-2);border-radius:6px;margin-bottom:6px">
       <div>
-        <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary)">${s.name}</div>
-        <div style="font-size:0.75rem;color:var(--text-muted)">${s.code || 'No Code'} · ${s.slotsCount} slot${s.slotsCount!==1?'s':''}/wk ${s.room ? `· ${s.room}` : ''}</div>
+        <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${s.name}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">${s.code || 'No Code'} · ${s.slotsCount} slot${s.slotsCount!==1?'s':''}/wk ${s.room ? `· ${s.room}` : ''}</div>
       </div>
-      <span class="type-badge" style="font-size:0.72rem;padding:2px 8px;text-transform:capitalize">
+      <span class="type-badge" style="font-size:var(--text-xs);padding:2px 8px;text-transform:capitalize">
         ${s.type}
       </span>
     </div>
   `).join('');
 
   const archivedHTML = plan.archivedSlots.length > 0 ? plan.archivedSlots.map(a => `
-    <div style="font-size:0.77rem;color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between">
+    <div style="font-size:var(--text-sm);color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between">
       <span>${a.subject}</span>
       <span style="color:var(--yellow)">Batch: ${(a.batches || []).join(', ') || 'Other'}</span>
     </div>
-  `).join('') : '<div style="font-size:0.78rem;color:var(--text-muted)">No other-batch classes found to remove.</div>';
+  `).join('') : '<div style="font-size:var(--text-sm);color:var(--text-muted)">No other-batch classes found to remove.</div>';
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -8526,8 +8526,8 @@ function renderDeclutterPreviewModal(plan, userBatch) {
     <div class="modal declutter-preview-dialog" onclick="event.stopPropagation()" style="max-width:620px;padding:26px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:1.24rem;font-weight:700">Preview your clean desk setup</h2>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">Review the normalized course structure before applying changes.</div>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Preview your clean desk setup</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Review the normalized course structure before applying changes.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
@@ -8535,71 +8535,71 @@ function renderDeclutterPreviewModal(plan, userBatch) {
       <!-- Overview Stats Grid -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:14px">
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:700;color:var(--accent)">${plan.survivingSubjects.length}</div>
-          <div style="font-size:0.72rem;color:var(--text-muted)">Canonical Hubs</div>
+          <div style="font-size:var(--text-lg);font-weight:700;color:var(--accent)">${plan.survivingSubjects.length}</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Canonical Hubs</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:700;color:var(--yellow)">${plan.archivedSlots.length}</div>
-          <div style="font-size:0.72rem;color:var(--text-muted)">Other Batches Removed</div>
+          <div style="font-size:var(--text-lg);font-weight:700;color:var(--yellow)">${plan.archivedSlots.length}</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Other Batches Removed</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:700;color:var(--green)">${plan.remappedDailyLogs.length}</div>
-          <div style="font-size:0.72rem;color:var(--text-muted)">Daily Logs Remapped</div>
+          <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${plan.remappedDailyLogs.length}</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Daily Logs Remapped</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
-          <div style="font-size:1.15rem;font-weight:700;color:var(--text-primary)">${plan.remappedBaselines.length}</div>
-          <div style="font-size:0.72rem;color:var(--text-muted)">Baselines Merged</div>
+          <div style="font-size:var(--text-lg);font-weight:700;color:var(--text-primary)">${plan.remappedBaselines.length}</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Baselines Merged</div>
         </div>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:0.8rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:var(--text-sm)">
         <span>🎓 Practical Batch Filter:</span>
         <strong style="color:var(--accent)">${userBatch === 'all' ? 'All (Keep all batches)' : `Batch ${userBatch.toUpperCase()}`}</strong>
       </div>
 
       <div style="max-height:48vh;overflow-y:auto;padding-right:4px;margin-bottom:16px">
-        <div style="font-weight:700;font-size:0.86rem;margin-bottom:8px;color:var(--text-primary)">
+        <div style="font-weight:700;font-size:var(--text-base);margin-bottom:8px;color:var(--text-primary)">
           🟢 Surviving Canonical Subject Hubs (${plan.survivingSubjects.length})
         </div>
         ${subjectsHTML}
 
         ${plan.archivedSlots.length > 0 ? `
-          <div style="font-weight:700;font-size:0.86rem;margin:14px 0 6px 0;color:var(--text-secondary)">
+          <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
             🗑️ Other-Batch Sessions Removed (${plan.archivedSlots.length})
           </div>
           ${archivedHTML}
         ` : ''}
 
         ${plan.remappedBaselines.length > 0 ? `
-          <div style="font-weight:700;font-size:0.86rem;margin:14px 0 6px 0;color:var(--text-secondary)">
+          <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
             📊 Attendance Baselines Reassigned (${plan.remappedBaselines.length})
           </div>
-          <div style="font-size:0.77rem;color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
             All existing present and absent counts have been safely mapped to your clean canonical subjects.
           </div>
         ` : ''}
 
         ${plan.remappedDailyLogs.length > 0 ? `
-          <div style="font-weight:700;font-size:0.86rem;margin:14px 0 6px 0;color:var(--text-secondary)">
+          <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
             📅 Daily Attendance Logs Remapped (${plan.remappedDailyLogs.length})
           </div>
-          <div style="font-size:0.77rem;color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
             Past attendance marks from uncleaned subject keys will now link seamlessly to their canonical timetable slots.
           </div>
         ` : ''}
 
         ${plan.unmatchedDailyLogs && plan.unmatchedDailyLogs.length > 0 ? `
-          <div style="font-size:0.74rem;color:var(--text-muted);background:var(--surface-2);padding:6px 10px;border-radius:6px;margin-top:10px">
+          <div style="font-size:var(--text-xs);color:var(--text-muted);background:var(--surface-2);padding:6px 10px;border-radius:6px;margin-top:10px">
             🛡️ <strong>Data Safety:</strong> ${plan.unmatchedDailyLogs.length} unassociated check-in logs were safely retained without modification.
           </div>
         ` : ''}
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--border)">
-        <button type="button" class="btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:0.84rem">
+        <button type="button" class="btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-base)">
           ← Back
         </button>
-        <button type="button" class="btn-primary" onclick="confirmExecuteDeclutter()" style="font-size:0.86rem;padding:8px 20px;font-weight:600">
+        <button type="button" class="btn-primary" onclick="confirmExecuteDeclutter()" style="font-size:var(--text-base);padding:8px 20px;font-weight:600">
           Confirm &amp; Clean Up Desk ✓
         </button>
       </div>
@@ -8719,30 +8719,30 @@ function showRestoreDeskModal() {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:520px;padding:26px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:1.24rem;font-weight:700">Restore Previous Desk Setup</h2>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">Roll back your timetable, attendance baselines, and logs to before the last cleanup.</div>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Restore Previous Desk Setup</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Roll back your timetable, attendance baselines, and logs to before the last cleanup.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('restore-desk-backdrop')?.remove()">${icons.x()}</button>
       </div>
 
-      <div style="background:var(--surface-2);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem">
+      <div style="background:var(--surface-2);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:var(--text-base)">
         <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px">📦 Snapshot Details:</div>
-        <div style="color:var(--text-secondary);line-height:1.6;font-size:0.79rem">
+        <div style="color:var(--text-secondary);line-height:1.6;font-size:var(--text-sm)">
           📅 <strong>Backup Created:</strong> ${formattedDate}<br>
           🎓 <strong>Previous Filter:</strong> ${backup.userBatch && backup.userBatch !== 'all' ? `Batch ${backup.userBatch.toUpperCase()}` : 'All Batches (General)'}<br>
           📊 <strong>Contents:</strong> ${ttCount} timetable slots · ${baseCount} baselines · ${dailyCount} daily logs · ${taskCount} tasks · ${linkCount} links
         </div>
       </div>
 
-      <div style="background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));border-left:3px solid var(--status-error);border-radius:var(--radius-xs,6px);padding:10px 12px;margin-bottom:18px;font-size:0.79rem;color:var(--text-secondary)">
+      <div style="background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));border-left:3px solid var(--status-error);border-radius:var(--radius-xs,6px);padding:10px 12px;margin-bottom:18px;font-size:var(--text-sm);color:var(--text-secondary)">
         ⚠️ <strong>Note:</strong> Restoring this backup will replace current timetable slots, attendance baselines, and daily logs with the state saved on ${formattedDate}.
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--border)">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('restore-desk-backdrop')?.remove()" style="font-size:0.84rem">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('restore-desk-backdrop')?.remove()" style="font-size:var(--text-base)">
           Cancel
         </button>
-        <button type="button" class="btn btn-sm btn-primary" onclick="confirmExecuteRestore()" style="font-size:0.86rem;padding:8px 20px;font-weight:600;background:var(--status-error);border-color:var(--status-error)">
+        <button type="button" class="btn btn-sm btn-primary" onclick="confirmExecuteRestore()" style="font-size:var(--text-base);padding:8px 20px;font-weight:600;background:var(--status-error);border-color:var(--status-error)">
           Confirm &amp; Restore Desk ↩
         </button>
       </div>
@@ -8818,9 +8818,9 @@ function renderSubjectsOverview(el, subjects) {
         <div class="empty-state-title">No Subjects Set Up Yet</div>
         <div class="empty-state-desc">Import your timetable schedule or enter an initial attendance baseline to automatically create your Subject Hubs.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
-          <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:0.82rem;padding:7px 14px">📷 Scan Timetable Photo</button>
-          <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:0.82rem;padding:7px 14px">📊 Set Attendance Baseline</button>
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:0.82rem;padding:7px 14px">📋 Sample Template</button>
+          <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:7px 14px">📷 Scan Timetable Photo</button>
+          <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:7px 14px">📊 Set Attendance Baseline</button>
+          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:7px 14px">📋 Sample Template</button>
         </div>
       </div>
     `;
@@ -8839,16 +8839,16 @@ function renderSubjectsOverview(el, subjects) {
 
     return `
       <div class="card attendance-subject-card" style="padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
-        <div style="font-weight:700;font-size:1.02rem;color:var(--text-primary)">${s.name}</div>
-        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· Prof. ' + s.teacher : ''} ${s.room ? '· ' + s.room : ''}</div>
+        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary)">${s.name}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· Prof. ' + s.teacher : ''} ${s.room ? '· ' + s.room : ''}</div>
 
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0">
-          <span style="font-family:var(--font-mono);font-weight:700;font-size:1.15rem;color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
-          <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600">${att.pct !== null ? (att.isSafe ? 'Attendance · Safe' : 'Attendance · At risk') : 'Attendance · Not set'}</span>
+          <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
+          <span style="font-size:var(--text-xs);color:var(--text-muted);font-weight:600">${att.pct !== null ? (att.isSafe ? 'Attendance · Safe' : 'Attendance · At risk') : 'Attendance · Not set'}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-top:1px solid var(--border-light, var(--border))">
-          <span style="font-family:var(--font-mono);font-weight:700;font-size:1.15rem;color:var(--text-primary)">${pendingTasks.length}</span>
-          <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600">Pending task${pendingTasks.length!==1?'s':''}</span>
+          <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:var(--text-primary)">${pendingTasks.length}</span>
+          <span style="font-size:var(--text-xs);color:var(--text-muted);font-weight:600">Pending task${pendingTasks.length!==1?'s':''}</span>
         </div>
       </div>
     `;
@@ -8863,13 +8863,13 @@ function renderSubjectsOverview(el, subjects) {
         <div class="page-subtitle">Course schedules, attendance baselines, tasks &amp; study resources organized per subject</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px" title="Declutter duplicate or other-batch subject cards">
+        <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch subject cards">
           🧹 Declutter my desk
         </button>
-        <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:0.72rem;padding:4px 10px">
+        <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
           📷 Scan from Photo
         </button>
-        <button class="btn btn-primary" onclick="showBaselineModal(null, 'manual')" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px">
+        <button class="btn btn-primary" onclick="showBaselineModal(null, 'manual')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
           📊 Set Baseline
         </button>
       </div>
@@ -8878,28 +8878,28 @@ function renderSubjectsOverview(el, subjects) {
     ${hasPollution ? `
       <div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--surface-2);border-left:3px solid var(--yellow);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:700;font-size:0.88rem;color:var(--text-primary)">✨ Declutter your personalized desk</div>
-          <div style="font-size:0.79rem;color:var(--text-secondary);margin-top:2px">
+          <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary)">✨ Declutter your personalized desk</div>
+          <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:2px">
             We detected duplicate or batch-specific subject cards from an earlier timetable import. Clean them up to match your specific practical batch.
           </div>
         </div>
-        <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:0.82rem;padding:6px 14px;white-space:nowrap">
+        <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-base);padding:6px 14px;white-space:nowrap">
           🧹 Clean Up Desk →
         </button>
       </div>
     ` : anyMissingBaseline ? `
       <div class="card" style="padding:14px 18px;margin-bottom:18px;background:var(--surface-2);border-left:3px solid var(--accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">Set your current attendance</div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px">
+          <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary)">Set your current attendance</div>
+          <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:2px">
             Add your present and absent counts once. Clarity Desk will continue from there.
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'scan')" style="font-size:0.82rem;padding:6px 12px;white-space:nowrap">
+          <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'scan')" style="font-size:var(--text-base);padding:6px 12px;white-space:nowrap">
             📷 Scan Photo
           </button>
-          <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:0.82rem;padding:6px 14px;white-space:nowrap">
+          <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:6px 14px;white-space:nowrap">
             📊 Set Counts
           </button>
         </div>
@@ -8934,15 +8934,15 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
   const slotsHTML = subj.slots.length > 0 ? subj.slots.map(sl => `
     <div class="card card-sm" style="margin-bottom:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div>
-        <div style="font-weight:600;font-size:0.85rem">${DAY_NAMES[sl.day]} · ${formatDisplayTimeRange(sl.time, sl.end)}</div>
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">${sl.room || subj.room || 'Classroom'} ${sl.teacher ? '· ' + sl.teacher : subj.teacher ? '· ' + subj.teacher : ''} ${sl.batches && sl.batches.length > 0 ? '· Batch ' + sl.batches.join(', ') : ''}</div>
+        <div style="font-weight:600;font-size:var(--text-base)">${DAY_NAMES[sl.day]} · ${formatDisplayTimeRange(sl.time, sl.end)}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${sl.room || subj.room || 'Classroom'} ${sl.teacher ? '· ' + sl.teacher : subj.teacher ? '· ' + subj.teacher : ''} ${sl.batches && sl.batches.length > 0 ? '· Batch ' + sl.batches.join(', ') : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
-        <span class="type-badge" style="font-size:0.7rem;text-transform:capitalize">${sl.type || 'lecture'}</span>
+        <span class="type-badge" style="font-size:var(--text-xs);text-transform:capitalize">${sl.type || 'lecture'}</span>
         <span class="type-badge">${sl.code || subj.code}</span>
       </div>
     </div>
-  `).join('') : `<div style="font-size:0.82rem;color:var(--text-muted);padding:10px 0">No weekly timetable slots assigned to this subject yet.</div>`;
+  `).join('') : `<div style="font-size:var(--text-base);color:var(--text-muted);padding:10px 0">No weekly timetable slots assigned to this subject yet.</div>`;
 
   // Tasks list
   const tasksHTML = tasks.length > 0 ? tasks.map(a => {
@@ -8958,62 +8958,62 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
           ${done ? icons.check() : ''}
         </div>
         <div style="flex:1;min-width:0">
-          <div class="font-semibold" style="font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${a.title}</div>
+          <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${a.title}</div>
           <div class="text-xs text-muted">${dateText}</div>
         </div>
         <span class="due-badge ${cls}">${label}</span>
       </div>`;
-  }).join('') : `<div style="font-size:0.82rem;color:var(--text-muted);padding:10px 0">No active tasks for this subject. Tap + Add Task to create one.</div>`;
+  }).join('') : `<div style="font-size:var(--text-base);color:var(--text-muted);padding:10px 0">No active tasks for this subject. Tap + Add Task to create one.</div>`;
 
   // Links list
   const linksHTML = allResources.length > 0 ? allResources.map(r => `
     <div class="card card-sm" style="margin-bottom:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
-        <span class="r-icon" style="font-size:1.05rem;line-height:1">${getResourceIcon(r.icon || 'book-open')}</span>
+        <span class="r-icon" style="font-size:var(--text-lg);line-height:1">${getResourceIcon(r.icon || 'book-open')}</span>
         <div style="min-width:0;flex:1">
-          <div style="font-weight:600;font-size:0.85rem;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}</div>
-          ${r.fileSize ? `<div style="font-size:0.7rem;color:var(--text-muted)">${r.fileSize}</div>` : ''}
+          <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}</div>
+          ${r.fileSize ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${r.fileSize}</div>` : ''}
         </div>
       </div>
-      <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:0.75rem;padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>
+      <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>
     </div>
   `).join('') : `
     <div class="empty-state-card" style="padding:16px 14px;margin-top:6px;text-align:center">
-      <div style="font-size:1.35rem;margin-bottom:4px">📚</div>
-      <div style="font-weight:600;font-size:0.88rem;color:var(--text-primary);margin-bottom:2px">No Study Links or Notes Yet</div>
-      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px">Attach drive folders, lecture notes, syllabus PDFs, or code repos for ${subj.name}.</div>
-      <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:0.78rem;padding:5px 14px">+ Add Study Link / Note</button>
+      <div style="font-size:var(--text-xl);margin-bottom:4px">📚</div>
+      <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary);margin-bottom:2px">No Study Links or Notes Yet</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px">Attach drive folders, lecture notes, syllabus PDFs, or code repos for ${subj.name}.</div>
+      <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:5px 14px">+ Add Study Link / Note</button>
     </div>
   `;
 
   el.innerHTML = `
     <div style="margin-bottom:16px">
-      <button class="btn btn-sm btn-secondary" onclick="closeSubjectHub()" style="margin-bottom:12px;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px">
+      <button class="btn btn-sm btn-secondary" onclick="closeSubjectHub()" style="margin-bottom:12px;font-size:var(--text-sm);display:inline-flex;align-items:center;gap:6px">
         ← All Subjects
       </button>
 
       <div class="card" style="padding:20px;border-left:4px solid ${subj.color || 'var(--accent)'}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            <div style="font-size:1.35rem;font-weight:700;color:var(--text-primary)">${subj.name}</div>
-            <div style="font-size:0.85rem;color:var(--text-muted);margin-top:2px">
+            <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">${subj.name}</div>
+            <div style="font-size:var(--text-base);color:var(--text-muted);margin-top:2px">
               ${subj.code ? 'Course Code: <strong>' + subj.code + '</strong> · ' : ''}
               ${subj.teacher ? 'Faculty: <strong>Prof. ' + subj.teacher + '</strong> · ' : ''}
               ${subj.room ? 'Room: <strong>' + subj.room + '</strong>' : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span class="type-badge" style="font-size:0.8rem;padding:5px 12px;background:${att.pct===null?'var(--surface-2)':att.isSafe?'color-mix(in srgb, var(--status-success) 14%, transparent)':'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.pct===null?'var(--text-muted)':att.isSafe?'var(--status-success)':'var(--status-error)'}">
+            <span class="type-badge" style="font-size:var(--text-sm);padding:5px 12px;background:${att.pct===null?'var(--surface-2)':att.isSafe?'color-mix(in srgb, var(--status-success) 14%, transparent)':'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.pct===null?'var(--text-muted)':att.isSafe?'var(--status-success)':'var(--status-error)'}">
               ${att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}% Attendance (${att.attended}/${att.total})` : 'Attendance not set yet'}
             </span>
-            <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal('${subj.code || subj.name}')" style="display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;padding:5px 11px">
+            <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal('${subj.code || subj.name}')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
               📊 ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
             </button>
           </div>
         </div>
 
         ${att.hasBaseline ? `
-          <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
             <div>📌 ERP Baseline: <strong>${att.baseline.present} / ${att.baseline.totalCount}</strong> (${att.baseline.totalCount > 0 ? ((att.baseline.present/att.baseline.totalCount)*100).toFixed(2) : 0}%)</div>
             <div>${(att.dailyAttended > 0 || att.dailySkipped > 0 || att.liveAdj.present > 0 || att.liveAdj.missed > 0) ? `Live marked: <strong>+${att.dailyAttended + att.liveAdj.present}</strong> attended, <strong>+${att.dailySkipped + att.liveAdj.missed}</strong> missed` : 'Live tracking active from baseline'}</div>
           </div>
@@ -9021,7 +9021,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
 
         <!-- Quick Log Action Bar on Subject Hub -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-          <span style="font-size:0.74rem;font-weight:600;color:var(--text-muted);letter-spacing:-0.01em">Quick Log:</span>
+          <span style="font-size:var(--text-xs);font-weight:600;color:var(--text-muted);letter-spacing:-0.01em">Quick Log:</span>
           <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction('${subj.code || subj.name}', 'present')" style="color:var(--status-success);border-color:color-mix(in srgb, var(--status-success) 35%, transparent)">
             Present (+1)
           </button>
@@ -9035,7 +9035,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
             Edit Baseline
           </button>
           ${(att.liveAdj.present > 0 || att.liveAdj.missed > 0 || att.liveAdj.leave > 0) ? `
-            <button class="btn btn-xs btn-secondary" onclick="undoSubjectAttendanceAction('${subj.code || subj.name}')" title="Reset live manual adjustments" style="color:var(--text-muted);font-size:0.72rem;padding:3px 7px">
+            <button class="btn btn-xs btn-secondary" onclick="undoSubjectAttendanceAction('${subj.code || subj.name}')" title="Reset live manual adjustments" style="color:var(--text-muted);font-size:var(--text-xs);padding:3px 7px">
               ↩ Reset Live Adjustments
             </button>
           ` : ''}
@@ -9043,29 +9043,29 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
           <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:0.75rem;color:var(--text-muted)">Weekly Slots</div>
-            <div style="font-size:1.1rem;font-weight:700;margin-top:2px">${subj.slots.length} class${subj.slots.length!==1?'es':''}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Weekly Slots</div>
+            <div style="font-size:var(--text-lg);font-weight:700;margin-top:2px">${subj.slots.length} class${subj.slots.length!==1?'es':''}</div>
           </div>
           <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:0.75rem;color:var(--text-muted)">Pending Tasks</div>
-            <div style="font-size:1.1rem;font-weight:700;color:${pendingTasks.length>0?'var(--red)':'inherit'};margin-top:2px">${pendingTasks.length} pending</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Pending Tasks</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:${pendingTasks.length>0?'var(--red)':'inherit'};margin-top:2px">${pendingTasks.length} pending</div>
           </div>
           <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:0.75rem;color:var(--text-muted)">Completed Tasks</div>
-            <div style="font-size:1.1rem;font-weight:700;color:var(--green);margin-top:2px">${doneTasks.length} done</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Completed Tasks</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:var(--green);margin-top:2px">${doneTasks.length} done</div>
           </div>
           <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:0.75rem;color:var(--text-muted)">Study Resources</div>
-            <div style="font-size:1.1rem;font-weight:700;margin-top:2px">${allResources.length} link${allResources.length!==1?'s':''}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Study Resources</div>
+            <div style="font-size:var(--text-lg);font-weight:700;margin-top:2px">${allResources.length} link${allResources.length!==1?'s':''}</div>
           </div>
         </div>
 
         ${att.pct !== null ? `
-          <div style="font-size:0.8rem;color:var(--text-primary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;border-left:3px solid ${att.isSafe ? 'var(--green)' : 'var(--red)'}">
+          <div style="font-size:var(--text-sm);color:var(--text-primary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;border-left:3px solid ${att.isSafe ? 'var(--green)' : 'var(--red)'}">
             💡 ${att.insightMessage}
           </div>
         ` : `
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px">
             💡 Add your current counts once so future attendance stays accurate from the right starting point.
           </div>
         `}
@@ -9085,7 +9085,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     <div style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="section-heading" style="margin-bottom:0">Tasks &amp; Deadlines</div>
-        <button class="btn btn-sm btn-primary" onclick="showAssignmentModal(null, '${subj.name}')" style="font-size:0.75rem;padding:3px 9px">+ Add Task</button>
+        <button class="btn btn-sm btn-primary" onclick="showAssignmentModal(null, '${subj.name}')" style="font-size:var(--text-sm);padding:3px 9px">+ Add Task</button>
       </div>
       ${tasksHTML}
     </div>
@@ -9094,7 +9094,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     <div style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="section-heading" style="margin-bottom:0">Study Links &amp; Notes</div>
-        <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:0.75rem;padding:3px 9px">+ Add Link</button>
+        <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:3px 9px">+ Add Link</button>
       </div>
       ${linksHTML}
     </div>
@@ -9435,20 +9435,20 @@ function renderAssignments() {
         <span class="empty-state-icon">${icons.assignments()}</span>
         <div class="empty-state-title">No Tasks Yet</div>
         <div class="empty-state-desc">Stay on top of coursework, deadlines, and project milestones. Tap Add Task to get started.</div>
-        <button class="btn-primary" onclick="showAddTaskModal()" style="font-size:0.82rem;padding:7px 16px">+ Add Task</button>
+        <button class="btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-base);padding:7px 16px">+ Add Task</button>
       </div>`
     : (state.assignFilter === 'ongoing' || state.assignFilter === 'missions')
     ? `<div class="empty-state-card" style="margin-top:14px">
         <span class="empty-state-icon">${icons.target()}</span>
         <div class="empty-state-title">No Standing Missions</div>
         <div class="empty-state-desc">Missions stay visible on your desk without rigid deadlines until you complete them.</div>
-        <button class="btn-primary" onclick="showAddTaskModal(null, null, 'mission')" style="font-size:0.82rem;padding:7px 16px">+ Create Mission</button>
+        <button class="btn-primary" onclick="showAddTaskModal(null, null, 'mission')" style="font-size:var(--text-base);padding:7px 16px">+ Create Mission</button>
       </div>`
     : `<div class="empty-state-card" style="margin-top:14px">
         <span class="empty-state-icon">${icons.search()}</span>
         <div class="empty-state-title">No Matching Tasks</div>
         <div class="empty-state-desc">No tasks found matching the selected filter. Try switching back to All Tasks or resetting your filters.</div>
-        <button class="btn-secondary" onclick="resetAssignmentFilters()" style="font-size:0.82rem;padding:6px 14px">Reset Filters</button>
+        <button class="btn-secondary" onclick="resetAssignmentFilters()" style="font-size:var(--text-base);padding:6px 14px">Reset Filters</button>
       </div>`);
 
   el.innerHTML = `
@@ -9547,7 +9547,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
             </label>
           </div>
           <input type="date" class="form-input" id="task-due" data-testid="task-due" data-testid-alt="task-date" value="${editTask && !isOngoing ? (editTask.dueDate || '') : defaultDate}" ${isOngoing ? 'disabled style="opacity:0.45;background:var(--surface-2);cursor:not-allowed"' : ''}>
-          <div id="task-ongoing-hint" style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;line-height:1.4;display:${isOngoing ? 'flex' : 'none'};align-items:center;gap:6px">
+          <div id="task-ongoing-hint" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px;line-height:1.4;display:${isOngoing ? 'flex' : 'none'};align-items:center;gap:6px">
             <span style="color:var(--purple);font-weight:600">✦ Standing Goal:</span> Stays active on your desk until completed or deleted. Never becomes overdue.
           </div>
         </div>
@@ -9731,7 +9731,7 @@ function renderNotices() {
     <span class="empty-state-icon">${icons.search()}</span>
     <div class="empty-state-title">No Announcements Found</div>
     <div class="empty-state-desc">No campus notices match "${state.noticeSearch}". Check your keywords or clear your search to view all notices.</div>
-    <button class="btn-secondary" onclick="filterNotices(''); const el=document.getElementById('notice-search'); if(el) el.value='';" style="font-size:0.82rem;padding:6px 14px">Clear Search</button>
+    <button class="btn-secondary" onclick="filterNotices(''); const el=document.getElementById('notice-search'); if(el) el.value='';" style="font-size:var(--text-base);padding:6px 14px">Clear Search</button>
   </div>`;
 
   const searchInput = document.getElementById('notice-search');
@@ -9757,7 +9757,7 @@ function renderNotices() {
       <div class="notice-source-card tint-official" onclick="handleNoticeSourceClick('official')" title="Open official notice source">
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-official">📢</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('official')" title="Edit official channel settings" style="width:24px;height:24px;font-size:0.72rem" aria-label="Edit official channel settings">
+          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('official')" title="Edit official channel settings" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit official channel settings">
             ✏️
           </button>
         </div>
@@ -9774,7 +9774,7 @@ function renderNotices() {
       <div class="notice-source-card tint-whatsapp" onclick="handleNoticeSourceClick('whatsapp')" title="Open class group or channel">
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-whatsapp">💬</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit class group link" style="width:24px;height:24px;font-size:0.72rem" aria-label="Edit class group link">
+          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit class group link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit class group link">
             ✏️
           </button>
         </div>
@@ -9791,7 +9791,7 @@ function renderNotices() {
       <div class="notice-source-card tint-devnotes" onclick="showDevNotesModal()" title="View recent updates and improvements">
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-devnotes">🛠️</div>
-          <span style="font-size:0.68rem;font-weight:700;background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 6px;border-radius:var(--radius-xs,4px)">v2.4</span>
+          <span style="font-size:var(--text-2xs);font-weight:700;background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 6px;border-radius:var(--radius-xs,4px)">v2.4</span>
         </div>
         <div>
           <div class="notice-source-title">Dev Notes</div>
@@ -9808,7 +9808,7 @@ function renderNotices() {
       <input type="text" placeholder="Search notices by title, category, or keyword…" value="${state.noticeSearch}"
         oninput="filterNotices(this.value)" id="notice-search" style="flex:1">
       <button id="notice-search-clear" onclick="filterNotices('');document.getElementById('notice-search').value='';"
-        style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:0;font-size:1rem;display:${state.noticeSearch?'block':'none'}"
+        style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:0;font-size:var(--text-md);display:${state.noticeSearch?'block':'none'}"
         title="Clear search">×</button>
     </div>
     <div id="notices-list-container">${cardsHtml}</div>
@@ -9847,7 +9847,7 @@ function renderResources() {
         <div class="page-subtitle">Course notes, syllabus documents, cloud repositories &amp; academic briefing</div>
       </div>
       ${currentTab === 'links' ? `
-        <button class="btn-primary" onclick="addLinkSubject()" style="font-size:0.85rem;padding:8px 14px">+ Add Subject Vault</button>
+        <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base);padding:8px 14px">+ Add Subject Vault</button>
       ` : ''}
     </div>
 
@@ -9897,10 +9897,10 @@ function renderLinksContent(container) {
   if (!links || links.length === 0) {
     container.innerHTML = `
       <div class="card" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
-        <div style="font-size:2.2rem;margin-bottom:12px">📚</div>
-        <div style="font-weight:700;font-size:1.05rem;color:var(--text-primary);margin-bottom:6px">No Course Materials in Study Vault</div>
-        <div style="font-size:0.85rem;margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">Attach notes, syllabus PDFs, lab cheat sheets, and cloud drive folders per subject for 1-click access.</div>
-        <button class="btn-primary" onclick="addLinkSubject()" style="font-size:0.85rem">+ Create Your First Subject Vault</button>
+        <div style="font-size:var(--text-hero);margin-bottom:12px">📚</div>
+        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);margin-bottom:6px">No Course Materials in Study Vault</div>
+        <div style="font-size:var(--text-base);margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">Attach notes, syllabus PDFs, lab cheat sheets, and cloud drive folders per subject for 1-click access.</div>
+        <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base)">+ Create Your First Subject Vault</button>
       </div>
     `;
     return;
@@ -9920,7 +9920,7 @@ function renderLinksContent(container) {
 
       <div class="link-resources">
         ${s.resources.length === 0 ? `
-          <div style="font-size:0.8rem;color:var(--text-muted);font-style:italic;padding:8px 0">No materials attached yet. Click below to add files or links.</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);font-style:italic;padding:8px 0">No materials attached yet. Click below to add files or links.</div>
         ` : s.resources.map((r, ri) => {
           const isUploaded = r.isUpload || (r.url && r.url.startsWith('data:'));
           return `
@@ -9928,8 +9928,8 @@ function renderLinksContent(container) {
             <a class="resource-link" href="${r.url}" ${isUploaded ? `download="${r.label}"` : 'target="_blank" rel="noopener"'} title="${isUploaded ? 'Click to download ' + r.label : r.url}">
               <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
               <span class="resource-label" title="${r.label}">${r.label}</span>
-              ${r.fileSize ? `<span class="type-badge" style="font-size:0.62rem;padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${r.fileSize}</span>` : ''}
-              ${isUploaded ? `<span style="font-size:0.75rem;margin-left:auto;color:var(--accent)">📥</span>` : `<span style="font-size:0.75rem;margin-left:auto;color:var(--text-muted)">↗</span>`}
+              ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${r.fileSize}</span>` : ''}
+              ${isUploaded ? `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--accent)">📥</span>` : `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--text-muted)">↗</span>`}
             </a>
             <div class="resource-actions">
               <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">✏️</button>
@@ -10140,8 +10140,8 @@ function showLinkResourceModal(si, ri, existing) {
       </div>
 
       <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--surface-2);padding:4px;border-radius:var(--radius-sm)">
-        <button type="button" class="btn btn-sm ${!isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-url-btn" onclick="setResourceInputMode('url')" style="flex:1;padding:6px;font-size:0.8rem">🔗 Web / Cloud Link</button>
-        <button type="button" class="btn btn-sm ${isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-file-btn" onclick="setResourceInputMode('file')" style="flex:1;padding:6px;font-size:0.8rem">📁 Upload Document</button>
+        <button type="button" class="btn btn-sm ${!isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-url-btn" onclick="setResourceInputMode('url')" style="flex:1;padding:6px;font-size:var(--text-sm)">🔗 Web / Cloud Link</button>
+        <button type="button" class="btn btn-sm ${isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-file-btn" onclick="setResourceInputMode('file')" style="flex:1;padding:6px;font-size:var(--text-sm)">📁 Upload Document</button>
       </div>
 
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
@@ -10149,11 +10149,11 @@ function showLinkResourceModal(si, ri, existing) {
           <label class="form-label">Attach File / Note (PDF, Doc, Image, Code)</label>
           <input type="file" id="lrm-file-input" style="display:none" onchange="handleVaultFileSelect(event)" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.zip,.py,.java,.cpp,.c,.js">
           <div class="card" onclick="document.getElementById('lrm-file-input').click()" style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface-2)">
-            <div style="font-size:1.6rem;margin-bottom:6px">📥</div>
-            <div id="lrm-file-label" style="font-size:0.86rem;font-weight:600;color:var(--text-primary)">
+            <div style="font-size:var(--text-2xl);margin-bottom:6px">📥</div>
+            <div id="lrm-file-label" style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">
               ${existing?.label && isUpload ? `✓ <strong>${existing.label}</strong> (${existing.fileSize || 'Attached File'})` : 'Click to select note, PDF, slide, or code file'}
             </div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">Saved persistently to your local Study Vault</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Saved persistently to your local Study Vault</div>
           </div>
         </div>
 
@@ -10235,8 +10235,8 @@ function renderSummaryContent(container) {
   const remaining    = classes.filter(c => c.type !== 'off' && c.subject !== 'Recess' && timeToMinutes(c.end || '23:59') > currentMin);
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;background:var(--surface);padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm)">
-      <div style="font-weight:600;font-size:0.88rem;color:var(--text-secondary)">📅 Today's Date</div>
-      <div style="font-weight:700;font-size:0.88rem;color:var(--accent)">${DAY_NAMES[todayDay]}, ${today.getDate()} ${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}</div>
+      <div style="font-weight:600;font-size:var(--text-md);color:var(--text-secondary)">📅 Today's Date</div>
+      <div style="font-weight:700;font-size:var(--text-md);color:var(--accent)">${DAY_NAMES[todayDay]}, ${today.getDate()} ${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}</div>
     </div>
 
     <div class="section-heading">Today's Schedule</div>
@@ -10350,8 +10350,8 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:600;font-size:0.95rem">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">
+          <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your desk data stays in your browser storage. Sign in with Google to sync seamlessly across devices.'}
           </div>
         </div>
@@ -10366,7 +10366,7 @@ function renderSettings() {
 
     <div class="section-heading">${icons.user()} Student Profile</div>
     <div class="card" style="padding:20px;margin-bottom:16px">
-      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px">Used to personalize your dashboard greeting, timetable headers, and course schedule.</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Used to personalize your dashboard greeting, timetable headers, and course schedule.</div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Full Name</label>
@@ -10399,14 +10399,14 @@ function renderSettings() {
 
     <div class="section-heading">${icons.timetable()} Timetable Schedule Management</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
         Manage your schedule template. You can start clean to add or scan classes for any degree/major, or load the sample Sem 3 AI-DS template.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-secondary" onclick="resetTimetableToDefault()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px;color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent)">
+        <button class="btn btn-secondary" onclick="resetTimetableToDefault()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px;color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent)">
           Clear Timetable (Start Clean)
         </button>
-        <button class="btn btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px">
+        <button class="btn btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
           📋 Load Sample SY AI-DS Template
         </button>
       </div>
@@ -10414,28 +10414,28 @@ function renderSettings() {
 
     <div class="section-heading">${icons.timetable()} Mid-Semester Attendance Baseline</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
         Started using Clarity Desk mid-semester? Manually enter your current college portal / ERP attendance counts per subject. Future attendance marked in your timetable will calculate continuously from this baseline.
       </div>
-      <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:7px 14px">
+      <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
         📊 Configure Attendance Baselines →
       </button>
     </div>
 
     <div class="section-heading">🧹 Personalized Desk Optimization</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
         Did an earlier timetable import or photo scan create duplicate, noisy, or other-batch subject cards? Clean up and normalize your Subject Hubs, timetable slots, and attendance records to match your specific practical batch.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:8px 16px">
+        <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px">
           🧹 Declutter my desk →
         </button>
         ${(() => {
           const b = loadDeclutterBackup();
           if (b && b.timestamp) {
             return `
-              <button class="btn-secondary" onclick="showRestoreDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:0.84rem;padding:8px 16px;color:var(--text-secondary)">
+              <button class="btn-secondary" onclick="showRestoreDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px;color:var(--text-secondary)">
                 ↩ Restore Previous Desk (${new Date(b.timestamp).toLocaleDateString()})
               </button>
             `;
@@ -10451,14 +10451,14 @@ function renderSettings() {
         <div class="form-group">
           <label class="form-label">End-Semester Exam Date</label>
           <input type="date" class="form-input" id="s-exam-date" value="${p.examDate || ''}" style="max-width:240px">
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
             Shows a calm daily countdown on your dashboard once set.
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">Attendance Target (%)</label>
           <input type="number" class="form-input" id="s-att-target" value="${getAttendanceTarget()}" min="50" max="100" step="1" style="max-width:120px">
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px">
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
             Minimum attendance % to maintain. Default is 75% (most colleges).
           </div>
         </div>
@@ -10469,7 +10469,7 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label" style="margin-bottom:6px">Workspace Environment &amp; Theme</label>
-        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px">Two curated study atmospheres designed for maximum focus and visual calm. Saves automatically.</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Two curated study atmospheres designed for maximum focus and visual calm. Saves automatically.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Theme selection options" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
           <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate')" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate theme: Warm daylight desk">
             <div class="swatch-preview" aria-hidden="true">
@@ -10479,7 +10479,7 @@ function renderSettings() {
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Paper Slate</span>
-              <span style="font-size:0.72rem;color:var(--text-muted)">Warm daylight desk</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm daylight desk</span>
             </div>
           </button>
           <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink')" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink theme: Focused night study">
@@ -10490,7 +10490,7 @@ function renderSettings() {
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
-              <span style="font-size:0.72rem;color:var(--text-muted)">Focused night study</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Focused night study</span>
             </div>
           </button>
         </div>
@@ -10501,8 +10501,8 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
-          <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary)">Browser Notification Permission</div>
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">
+          <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">Browser Notification Permission</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             Status: <strong style="color:${isGranted ? 'var(--green)' : isDenied ? 'var(--red)' : 'var(--yellow)'}">
               ${isGranted ? 'Granted ✓' : isDenied ? 'Blocked ✕' : 'Not Requested'}
             </strong>
@@ -10514,8 +10514,8 @@ function renderSettings() {
       </div>
 
       ${isDenied ? `
-      <div style="margin-bottom:16px;font-size:0.78rem;color:var(--status-error);background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid color-mix(in srgb, var(--status-error) 25%, transparent);line-height:1.5;display:flex;align-items:flex-start;gap:8px">
-        <span style="font-size:0.9rem">🔒</span>
+      <div style="margin-bottom:16px;font-size:var(--text-sm);color:var(--status-error);background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid color-mix(in srgb, var(--status-error) 25%, transparent);line-height:1.5;display:flex;align-items:flex-start;gap:8px">
+        <span style="font-size:var(--text-md)">🔒</span>
         <div>
           <strong>Notifications are blocked by your browser.</strong> To receive alerts, click the lock or tune icon (🔒) near your browser address bar, set <strong>Notifications</strong> to <strong>Allow</strong>, and click <strong>Re-check Permission</strong>.
         </div>
@@ -10524,8 +10524,8 @@ function renderSettings() {
       ${currentUser ? `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
-          <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary)">Background Push (works when app is closed)</div>
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">
+          <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">Background Push (works when app is closed)</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             Status: <strong style="color:${isPushRegistered() ? 'var(--green)' : 'var(--text-muted)'}">
               ${isPushRegistered() ? 'Enabled on this device ✓' : 'Not enabled on this device'}
             </strong>
@@ -10536,46 +10536,46 @@ function renderSettings() {
         </button>
       </div>
       ` : `
-      <div style="margin-bottom:16px;font-size:0.78rem;color:var(--text-muted);background:var(--surface-2);padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid var(--border);line-height:1.5">
+      <div style="margin-bottom:16px;font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid var(--border);line-height:1.5">
         Sign in with Google (above) to enable background push notifications that arrive even when this app is closed.
       </div>
       `}
 
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div style="font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Task Deadlines</div>
+        <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Task Deadlines</div>
         
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.88rem;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
             <span style="font-weight:500;color:var(--text-primary)">Upcoming Tasks</span>
-            <div style="font-size:0.75rem;color:var(--text-muted)">Remind about pending assignments</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Remind about pending assignments</div>
           </div>
-          <select class="form-select" id="np-task-upcoming" style="width:170px;padding:5px 8px;font-size:0.82rem">
+          <select class="form-select" id="np-task-upcoming" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="day_before" ${nPrefs.taskUpcoming === 'day_before' ? 'selected' : ''}>Day Before (09:00)</option>
             <option value="same_day" ${nPrefs.taskUpcoming === 'same_day' ? 'selected' : ''}>Same Day (Morning)</option>
             <option value="off" ${nPrefs.taskUpcoming === 'off' ? 'selected' : ''}>Off</option>
           </select>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.88rem;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
             <span style="font-weight:500;color:var(--text-primary)">Overdue Tasks</span>
-            <div style="font-size:0.75rem;color:var(--text-muted)">Alert when tasks pass due date</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Alert when tasks pass due date</div>
           </div>
-          <select class="form-select" id="np-task-overdue" style="width:170px;padding:5px 8px;font-size:0.82rem">
+          <select class="form-select" id="np-task-overdue" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="same_day" ${nPrefs.taskOverdue === 'same_day' ? 'selected' : ''}>Daily Reminder</option>
             <option value="instant" ${nPrefs.taskOverdue === 'instant' ? 'selected' : ''}>Instant Alert</option>
             <option value="off" ${nPrefs.taskOverdue === 'off' ? 'selected' : ''}>Off</option>
           </select>
         </div>
 
-        <div style="font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Classes & Attendance</div>
+        <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Classes & Attendance</div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.88rem;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
             <span style="font-weight:500;color:var(--text-primary)">Class Reminders</span>
-            <div style="font-size:0.75rem;color:var(--text-muted)">Notify before upcoming classes</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Notify before upcoming classes</div>
           </div>
-          <select class="form-select" id="np-class-reminders" style="width:170px;padding:5px 8px;font-size:0.82rem">
+          <select class="form-select" id="np-class-reminders" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="15_min" ${nPrefs.classReminders === '15_min' ? 'selected' : ''}>15 Minutes Before</option>
             <option value="30_min" ${nPrefs.classReminders === '30_min' ? 'selected' : ''}>30 Minutes Before</option>
             <option value="1_hour" ${nPrefs.classReminders === '1_hour' ? 'selected' : ''}>1 Hour Before</option>
@@ -10583,45 +10583,45 @@ function renderSettings() {
           </select>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.88rem;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
             <span style="font-weight:500;color:var(--text-primary)">Low-Attendance Alerts</span>
-            <div style="font-size:0.75rem;color:var(--text-muted)">Alert if attendance drops below target (${getAttendanceTarget()}%)</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Alert if attendance drops below target (${getAttendanceTarget()}%)</div>
           </div>
-          <select class="form-select" id="np-attendance-alerts" style="width:170px;padding:5px 8px;font-size:0.82rem">
+          <select class="form-select" id="np-attendance-alerts" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="instant" ${nPrefs.attendanceAlerts === 'instant' ? 'selected' : ''}>Instant Alert (&lt; ${getAttendanceTarget()}%)</option>
             <option value="weekly" ${nPrefs.attendanceAlerts === 'weekly' ? 'selected' : ''}>Weekly Summary Only</option>
             <option value="off" ${nPrefs.attendanceAlerts === 'off' ? 'selected' : ''}>Off</option>
           </select>
         </div>
 
-        <div style="font-weight:700;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Notices & Summaries</div>
+        <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Notices & Summaries</div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.88rem;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
             <span style="font-weight:500;color:var(--text-primary)">New Notices</span>
-            <div style="font-size:0.75rem;color:var(--text-muted)">Alerts for admin announcements</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Alerts for admin announcements</div>
           </div>
-          <select class="form-select" id="np-new-notices" style="width:170px;padding:5px 8px;font-size:0.82rem">
+          <select class="form-select" id="np-new-notices" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="instant" ${nPrefs.newNotices === 'instant' ? 'selected' : ''}>Instant Alert</option>
             <option value="same_day" ${nPrefs.newNotices === 'same_day' ? 'selected' : ''}>Daily Overview</option>
             <option value="off" ${nPrefs.newNotices === 'off' ? 'selected' : ''}>Off</option>
           </select>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.88rem;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
             <span style="font-weight:500;color:var(--text-primary)">Daily Briefing Time</span>
-            <div style="font-size:0.75rem;color:var(--text-muted)">Preferred morning notification time</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Preferred morning notification time</div>
           </div>
-          <input type="time" class="form-input" id="np-summary-time" value="${nPrefs.dailySummaryTime || '08:00'}" style="width:130px;padding:4px 8px;font-size:0.85rem">
+          <input type="time" class="form-input" id="np-summary-time" value="${nPrefs.dailySummaryTime || '08:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
         </div>
       </div>
     </div>
 
     <div class="section-heading">📢 Notice Channels &amp; Class Communities</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px">
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
         Customize your department notice portal link and batch WhatsApp community invite link for quick access on your Notice Board.
       </div>
       <div class="form-row">
@@ -10644,7 +10644,7 @@ function renderSettings() {
           <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://chat.whatsapp.com/... or https://wa.me/...">
         </div>
       </div>
-      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;line-height:1.4">
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
         💡 Links open in WhatsApp where you can preview group details, submit join requests, or contact the group admin.
       </div>
     </div>
@@ -10653,14 +10653,14 @@ function renderSettings() {
       <button class="btn-primary" onclick="saveSettings()" style="display:flex;align-items:center;gap:6px">
         ${icons.save()} Save Changes
       </button>
-      <span id="settings-saved" style="display:none;align-items:center;gap:6px;color:var(--green);font-size:0.85rem;font-weight:500">
+      <span id="settings-saved" style="display:none;align-items:center;gap:6px;color:var(--green);font-size:var(--text-base);font-weight:500">
         ${icons.check()} Saved
       </span>
     </div>
 
     <div class="section-heading">${icons.trash()} Data &amp; Backup</div>
     <div class="card" style="padding:18px">
-      <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
         Your desk data (profile, custom schedule, tasks, attendance records, notice sources) stays private and stored locally in this browser.
         You can export a portable JSON backup anytime.
       </div>
@@ -10834,16 +10834,16 @@ function showNotice(id) {
           <span class="cat-badge cat-${n.category}">${n.category}</span>
           ${n.important ? '<span class="cat-badge" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error);margin-left:6px">Important</span>' : ''}
         </div>
-        <span style="font-size:0.75rem;color:var(--text-muted)">${formatDate(n.date)}</span>
+        <span style="font-size:var(--text-sm);color:var(--text-muted)">${formatDate(n.date)}</span>
       </div>
-      <h2 style="font-size:1.15rem;font-weight:700;margin-bottom:10px;line-height:1.4">${n.title}</h2>
-      <p style="font-size:0.9rem;line-height:1.7;color:var(--text-secondary);margin-bottom:20px;white-space:pre-line">${n.content}</p>
+      <h2 style="font-size:var(--text-lg);font-weight:700;margin-bottom:10px;line-height:1.4">${n.title}</h2>
+      <p style="font-size:var(--text-md);line-height:1.7;color:var(--text-secondary);margin-bottom:20px;white-space:pre-line">${n.content}</p>
       
       <div class="modal-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
-        <a href="${whatsappUrl}" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius-xs,6px);font-size:0.8rem;text-decoration:none;font-weight:700">
+        <a href="${whatsappUrl}" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius-xs,6px);font-size:var(--text-sm);text-decoration:none;font-weight:700">
           <span>💬</span> Share to Class Group ↗
         </a>
-        <button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText('${n.title.replace(/'/g, "\\'")}\\n\\n${n.content.replace(/'/g, "\\'")}').then(() => showToast('Notice copied to clipboard ✓', 'success'))" style="font-size:0.8rem;padding:6px 12px">
+        <button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText('${n.title.replace(/'/g, "\\'")}\\n\\n${n.content.replace(/'/g, "\\'")}').then(() => showToast('Notice copied to clipboard ✓', 'success'))" style="font-size:var(--text-sm);padding:6px 12px">
           📋 Copy Notice
         </button>
       </div>
@@ -11069,10 +11069,10 @@ function showDevNotesModal(filter = null) {
     <div class="modal dev-notes-dialog" onclick="event.stopPropagation()">
       <div class="dev-notes-header">
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:1.3rem">🛠️</span>
+          <span style="font-size:var(--text-xl)">🛠️</span>
           <div>
-            <div class="modal-title" style="font-size:1.05rem;line-height:1.2">Dev Notes &amp; System Updates</div>
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">Recent fixes, desk features &amp; engineering improvements</div>
+            <div class="modal-title" style="font-size:var(--text-lg);line-height:1.2">Dev Notes &amp; System Updates</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Recent fixes, desk features &amp; engineering improvements</div>
           </div>
         </div>
         <button class="modal-close" onclick="document.getElementById('dev-notes-modal-backdrop')?.remove()" title="Close (Esc)" aria-label="Close modal">${icons.x()}</button>
@@ -11099,8 +11099,8 @@ function showDevNotesModal(filter = null) {
       </div>
 
       <div class="dev-notes-footer">
-        <span style="font-size:0.75rem;color:var(--text-muted)">Clarity Desk Engine · Local-first</span>
-        <button class="btn-primary" onclick="document.getElementById('dev-notes-modal-backdrop')?.remove()" style="padding:6px 18px;font-size:0.82rem">Done</button>
+        <span style="font-size:var(--text-sm);color:var(--text-muted)">Clarity Desk Engine · Local-first</span>
+        <button class="btn-primary" onclick="document.getElementById('dev-notes-modal-backdrop')?.remove()" style="padding:6px 18px;font-size:var(--text-base)">Done</button>
       </div>
     </div>
   `;
@@ -11330,13 +11330,13 @@ const ClarityAssistant = (() => {
       issues.push({
         title: 'Timetable Import Pending',
         desc: 'No timetable data found. Your schedule has not been imported yet.',
-        action: `<button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:0.75rem;padding:3px 10px;margin-top:4px">📷 Scan Timetable Photo →</button>`
+        action: `<button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">📷 Scan Timetable Photo →</button>`
       });
     } else if (isPolluted) {
       issues.push({
         title: 'Timetable Multi-Batch Sessions Found',
         desc: 'Extracted timetable contains other-batch practicals or duplicate merged slots that need batch filtering confirmation.',
-        action: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:0.75rem;padding:3px 10px;margin-top:4px">🧹 Review &amp; Filter Batch →</button>`
+        action: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">🧹 Review &amp; Filter Batch →</button>`
       });
     }
 
@@ -11351,7 +11351,7 @@ const ClarityAssistant = (() => {
         issues.push({
           title: `Attendance Baselines (${unverified.length} Unverified)`,
           desc: `${unverified.map(s => s.name).slice(0, 3).join(', ')}${unverified.length > 3 ? ` and ${unverified.length - 3} more` : ''} need starting attendance counts confirmed.`,
-          action: `<button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:0.75rem;padding:3px 10px;margin-top:4px">📊 Confirm Baselines →</button>`
+          action: `<button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">📊 Confirm Baselines →</button>`
         });
       }
     }
@@ -11371,7 +11371,7 @@ const ClarityAssistant = (() => {
     const items = issues.map(iss => `
       <li style="margin-bottom:8px">
         <div style="font-weight:600;color:var(--text-primary)">${iss.title}</div>
-        <div style="font-size:0.78rem;color:var(--text-muted)">${iss.desc}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">${iss.desc}</div>
         ${iss.action}
       </li>
     `).join('');
@@ -11389,7 +11389,7 @@ const ClarityAssistant = (() => {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">Cleanup Incomplete</div><br>
       Your desk still has duplicate cards or mixed practical batches from an earlier timetable scan.<br><br>
       <strong>Next step:</strong> Select your practical batch to remove other-batch classes and merge duplicate cards safely.<br><br>
-      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:0.78rem;padding:6px 14px">🧹 Run Declutter &amp; Recovery →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:6px 14px">🧹 Run Declutter &amp; Recovery →</button>`;
     }
 
     const labSubjects = subjects.filter(s => s.isLab || /lab\b/i.test(s.name));
@@ -11401,8 +11401,8 @@ const ClarityAssistant = (() => {
     • <strong>Canonical Subjects:</strong> ${subjects.length} active (${theorySubjects.length} theory, ${labSubjects.length} lab)<br>
     • <strong>Data Integrity:</strong> All attendance baselines and tasks remain safely attached to canonical hubs.<br><br>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:0.78rem;padding:5px 12px">View Subject Hubs →</button>
-      <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:0.78rem;padding:5px 12px">View Timetable →</button>
+      <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">View Subject Hubs →</button>
+      <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:var(--text-sm);padding:5px 12px">View Timetable →</button>
     </div>`;
   }
 
@@ -11525,7 +11525,7 @@ const ClarityAssistant = (() => {
     }
 
     const items = scored.filter(s => s.score > 0).slice(0, 3).map(s => {
-      const typeBadge = s.isLab ? '<span class="cd-tag is-purple" style="font-size:0.7rem;padding:1px 5px">Lab</span> ' : '';
+      const typeBadge = s.isLab ? '<span class="cd-tag is-purple" style="font-size:var(--text-xs);padding:1px 5px">Lab</span> ' : '';
       return `<li>${typeBadge}<strong>${escHtml(s.subject.name)}</strong>: ${s.signals.join(' and ')}.</li>`;
     }).join('');
 
@@ -11533,8 +11533,8 @@ const ClarityAssistant = (() => {
     <strong>${escHtml(top.subject.name)}</strong> needs the most attention right now because ${top.signals.join(' and ')}.<br><br>
     <strong>Priority Breakdown:</strong><ul class="cd-list" style="margin-top:6px">${items}</ul>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-primary" onclick="sendAssistantMessage('Help me plan tonight')" style="font-size:0.75rem;padding:4px 10px">🎯 Plan Study for Today</button>
-      <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${top.subject.name.replace(/'/g, "\\'")}')" style="font-size:0.75rem;padding:4px 10px">✍️ Add Task</button>
+      <button class="btn btn-sm btn-primary" onclick="sendAssistantMessage('Help me plan tonight')" style="font-size:var(--text-sm);padding:4px 10px">🎯 Plan Study for Today</button>
+      <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${top.subject.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:4px 10px">✍️ Add Task</button>
     </div>`;
   }
 
@@ -11550,17 +11550,17 @@ const ClarityAssistant = (() => {
       return `<div class="cd-tag is-accent" style="margin-bottom:8px">Timetable Setup</div><br>
       You don't have a schedule set up yet. You can scan an image of your timetable or load our official sample schedule template.<br><br>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:0.78rem;padding:5px 12px">📷 Scan Timetable Photo</button>
-        <button class="btn btn-sm btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:0.78rem;padding:5px 12px">📋 Sample Template</button>
-        <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:0.78rem;padding:5px 12px">Open Timetable →</button>
+        <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan Timetable Photo</button>
+        <button class="btn btn-sm btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-sm);padding:5px 12px">📋 Sample Template</button>
+        <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:var(--text-sm);padding:5px 12px">Open Timetable →</button>
       </div>`;
     }
 
     return `<div class="cd-tag cd-tag-safe" style="margin-bottom:8px">Timetable Active</div><br>
     You currently have <strong>${totalSlots} class slot${totalSlots!==1?'s':''}</strong> active on your timetable. You can scan a new photo to replace/update it or add individual classes manually.<br><br>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="triggerTimetableImport()" style="font-size:0.78rem;padding:5px 12px">📷 Scan New Photo</button>
-      <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:0.78rem;padding:5px 12px">View Full Schedule →</button>
+      <button class="btn btn-sm btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan New Photo</button>
+      <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:var(--text-sm);padding:5px 12px">View Full Schedule →</button>
     </div>`;
   }
 
@@ -11576,24 +11576,24 @@ const ClarityAssistant = (() => {
     if (subjects.length === 0) {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">No Subjects Found</div><br>
       Set up your timetable schedule first so Clarity Desk can automatically create your Subject Hubs for tracking attendance.<br><br>
-      <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:0.78rem;padding:5px 12px">📷 Scan Timetable Photo →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan Timetable Photo →</button>`;
     }
 
     if (missing.length > 0) {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Baseline</div><br>
       <strong>${missing.length} of ${subjects.length} subjects</strong> are missing initial attendance counts. Entering your portal counts once gives you instant % calculations and safe skip guidance.<br><br>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'scan')" style="font-size:0.78rem;padding:5px 12px">📷 Scan Portal Screenshot</button>
-        <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:0.78rem;padding:5px 12px">✍️ Enter Counts Manually</button>
-        <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:0.78rem;padding:5px 12px">Subject Hubs →</button>
+        <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'scan')" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan Portal Screenshot</button>
+        <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">✍️ Enter Counts Manually</button>
+        <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">Subject Hubs →</button>
       </div>`;
     }
 
     return `<div class="cd-tag cd-tag-safe" style="margin-bottom:8px">Baselines Active</div><br>
     All your active Subject Hubs have baseline counts configured. You can update counts at any time or log daily attendance directly in the timetable.<br><br>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:0.78rem;padding:5px 12px">📊 Edit Baseline Counts</button>
-      <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:0.78rem;padding:5px 12px">Subject Hubs →</button>
+      <button class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:var(--text-sm);padding:5px 12px">📊 Edit Baseline Counts</button>
+      <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">Subject Hubs →</button>
     </div>`;
   }
 
@@ -11608,22 +11608,22 @@ const ClarityAssistant = (() => {
         <li>Merge duplicate variations into clean canonical cards</li>
         <li>Safely reassign all attendance baselines &amp; tasks without data loss</li>
       </ul>
-      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:0.78rem;padding:6px 14px">🧹 Declutter my desk →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:6px 14px">🧹 Declutter my desk →</button>`;
     }
 
     return `<div class="cd-tag cd-tag-safe" style="margin-bottom:8px">Clean Desk</div><br>
     Your Subject Hubs and timetable structure are already normalized and clean! If you ever need to change your practical batch or re-filter sessions, you can launch cleanup anytime.<br><br>
-    <button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:0.78rem;padding:5px 12px">🧹 Open Declutter Tool →</button>`;
+    <button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:5px 12px">🧹 Open Declutter Tool →</button>`;
   }
 
   function buildSubjectHubs() {
     const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
     if (subjects.length === 0) {
       return `No Subject Hubs found. Set up your timetable schedule or attendance baseline first.<br><br>
-      <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:0.78rem;padding:5px 12px">Open Subject Hubs →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">Open Subject Hubs →</button>`;
     }
     return `You have <strong>${subjects.length} active Subject Hub${subjects.length !== 1 ? 's' : ''}</strong> configured with attendance, course resources, and faculty metadata.<br><br>
-    <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:0.78rem;padding:6px 14px">📚 Open Subject Hubs →</button>`;
+    <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:6px 14px">📚 Open Subject Hubs →</button>`;
   }
 
   function buildCreateTask(query) {
@@ -11643,17 +11643,17 @@ const ClarityAssistant = (() => {
     if (matching.length === 1) {
       const foundSubj = matching[0];
       return `Open the Task Creator for <strong>${escHtml(foundSubj.name)}</strong> in <a href="javascript:void(0)" onclick="navigate('assignments')" style="color:var(--accent);font-weight:600">Tasks &amp; Deadlines</a>:<br><br>
-      <button class="btn btn-sm btn-primary" onclick="showAddTaskModal(null, '${foundSubj.name.replace(/'/g, "\\'")}')" style="font-size:0.78rem;padding:6px 14px">✍️ Create Task for ${escHtml(foundSubj.name)} →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="showAddTaskModal(null, '${foundSubj.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:6px 14px">✍️ Create Task for ${escHtml(foundSubj.name)} →</button>`;
     } else if (matching.length > 1) {
       const buttons = matching.map(s =>
-        `<button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${s.name.replace(/'/g, "\\'")}')" style="font-size:0.75rem;padding:4px 10px">${escHtml(s.name)}</button>`
+        `<button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${s.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:4px 10px">${escHtml(s.name)}</button>`
       ).join(' ');
       return `Multiple subjects matched your request. Choose which subject to create a task for:<br><br>
       <div style="display:flex;gap:6px;flex-wrap:wrap">${buttons}</div>`;
     }
 
     return `To create or schedule an assignment, open the Task Creator in <a href="javascript:void(0)" onclick="navigate('assignments')" style="color:var(--accent);font-weight:600">Tasks &amp; Deadlines</a>:<br><br>
-    <button class="btn btn-sm btn-primary" onclick="showAddTaskModal()" style="font-size:0.78rem;padding:6px 14px">✍️ Open Task Creator →</button>`;
+    <button class="btn btn-sm btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-sm);padding:6px 14px">✍️ Open Task Creator →</button>`;
   }
 
   function buildStudyPlan() {
@@ -11741,9 +11741,9 @@ const ClarityAssistant = (() => {
     let guidance = '';
     const next = getNextClass();
     if (next) {
-      guidance = `<div style="margin-top:10px;font-size:0.78rem;color:var(--text-secondary);border-top:1px dashed var(--border);padding-top:8px">⏱️ Next up: <strong>${escHtml(next.subject)}</strong> at ${formatTime(next.time)}${next.room ? ' (' + escHtml(next.room) + ')' : ''}</div>`;
+      guidance = `<div style="margin-top:10px;font-size:var(--text-sm);color:var(--text-secondary);border-top:1px dashed var(--border);padding-top:8px">⏱️ Next up: <strong>${escHtml(next.subject)}</strong> at ${formatTime(next.time)}${next.room ? ' (' + escHtml(next.room) + ')' : ''}</div>`;
     } else {
-      guidance = `<div style="margin-top:10px;font-size:0.78rem;color:var(--green);border-top:1px dashed var(--border);padding-top:8px">✓ All classes for today completed!</div>`;
+      guidance = `<div style="margin-top:10px;font-size:var(--text-sm);color:var(--green);border-top:1px dashed var(--border);padding-top:8px">✓ All classes for today completed!</div>`;
     }
 
     return `<strong>${dayName}</strong> — ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>${guidance}`;
@@ -11777,7 +11777,7 @@ const ClarityAssistant = (() => {
     const timeStr = `${formatTime(next.time)} – ${formatTime(next.end)}`;
     const meta = [next.room && next.room !== '—' ? next.room : null, next.teacher && next.teacher !== '—' ? next.teacher : null].filter(Boolean).join(' · ');
 
-    return `Next class: <strong>${escHtml(next.subject)}</strong>${inStr}<br><span style="font-size:0.8rem;color:var(--text-secondary)">🕐 ${timeStr}${meta ? ' · ' + escHtml(meta) : ''}</span>`;
+    return `Next class: <strong>${escHtml(next.subject)}</strong>${inStr}<br><span style="font-size:var(--text-sm);color:var(--text-secondary)">🕐 ${timeStr}${meta ? ' · ' + escHtml(meta) : ''}</span>`;
   }
 
   function buildAttendanceRisk() {
@@ -11823,7 +11823,7 @@ const ClarityAssistant = (() => {
   function buildAttendanceGeneral() {
     const { attended, skipped, total } = getOverallAttendance();
     if (total === 0) {
-      return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Setup Incomplete</div><br>No attendance recorded yet. Enter your starting portal baseline counts in <a href="javascript:void(0)" onclick="showBaselineModal(null, 'manual')" style="color:var(--accent);font-weight:600">Subject Hubs</a> to unlock percentage tracking and safe skip guidance.<br><br><button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:0.78rem;padding:5px 12px">📊 Set Baseline Counts →</button>`;
+      return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Setup Incomplete</div><br>No attendance recorded yet. Enter your starting portal baseline counts in <a href="javascript:void(0)" onclick="showBaselineModal(null, 'manual')" style="color:var(--accent);font-weight:600">Subject Hubs</a> to unlock percentage tracking and safe skip guidance.<br><br><button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">📊 Set Baseline Counts →</button>`;
     }
     const pct = Math.round((attended / total) * 100);
     const target = getAttendanceTarget();
@@ -11879,7 +11879,7 @@ const ClarityAssistant = (() => {
       gaps.push({
         title: 'Timetable Schedule',
         desc: 'No classes imported yet. Add or scan your schedule to unlock daily timetable intelligence.',
-        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="margin-top:4px;font-size:0.75rem;padding:3px 10px">📷 Scan Timetable →</button>`
+        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">📷 Scan Timetable →</button>`
       });
     }
 
@@ -11894,7 +11894,7 @@ const ClarityAssistant = (() => {
         gaps.push({
           title: 'Attendance Baselines',
           desc: `${missingBaselines.length} of ${subjects.length} subjects missing initial attendance counts.`,
-          btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="margin-top:4px;font-size:0.75rem;padding:3px 10px">📊 Set Baselines →</button>`
+          btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">📊 Set Baselines →</button>`
         });
       }
     }
@@ -11907,7 +11907,7 @@ const ClarityAssistant = (() => {
       gaps.push({
         title: 'Student Profile',
         desc: `Add your ${missingProfile.join(' and ')} for personalized headers and batch filtering.`,
-        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('settings')" style="margin-top:4px;font-size:0.75rem;padding:3px 10px">⚙️ Profile Settings →</button>`
+        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('settings')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">⚙️ Profile Settings →</button>`
       });
     }
 
@@ -11916,7 +11916,7 @@ const ClarityAssistant = (() => {
       gaps.push({
         title: 'Schedule Decluttering',
         desc: 'Detected duplicate or other-batch subject cards from an earlier timetable scan.',
-        btn: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="margin-top:4px;font-size:0.75rem;padding:3px 10px">🧹 Declutter Desk →</button>`
+        btn: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">🧹 Declutter Desk →</button>`
       });
     }
 
@@ -11927,7 +11927,7 @@ const ClarityAssistant = (() => {
     const items = gaps.map(g => `
       <li style="margin-bottom:8px">
         <div style="font-weight:600;color:var(--text-primary)">${g.title}</div>
-        <div style="font-size:0.78rem;color:var(--text-muted)">${g.desc}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">${g.desc}</div>
         ${g.btn}
       </li>
     `).join('');
