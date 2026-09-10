@@ -5564,52 +5564,41 @@ function renderDashboard() {
   }
   const tickerHTML = tickerItems.join('<span class="desk-ticker-sep">/</span>');
 
-  // Streamlined 1-line desk vitals bar
-  const vitalsPills = [];
-  vitalsPills.push(`
-    <span class="desk-vitals-pill" onclick="navigateTo('timetable')" title="View Today's Schedule">
-      ${icons.calendar()} ${formattedDay}
-    </span>
+  // Calm glanceable stat grid -- reuses the existing (previously unused)
+  // .vitals-strip/.vitals-tile pattern instead of a row of chips that
+  // just restated the context line and the panels below it.
+  const vitalsTiles = [];
+  vitalsTiles.push(`
+    <div class="vitals-tile" onclick="navigateTo('timetable')" title="View Today's Schedule">
+      <div class="vitals-label">${dayClasses.length > 0 ? 'Classes Left' : 'Today'}</div>
+      <div class="vitals-value">${dayClasses.length > 0 ? `${classesLeftCount}/${dayClasses.length}` : '—'}</div>
+      <div class="vitals-sub">${dayClasses.length > 0 ? formattedDay : 'No classes today'}</div>
+    </div>
   `);
-  if (dayClasses.length > 0) {
-    vitalsPills.push(`
-      <span class="desk-vitals-pill" onclick="navigateTo('timetable')" title="View Today's Schedule">
-        ${icons.book()} ${classesLeftCount} of ${dayClasses.length} classes left
-      </span>
-    `);
-  } else {
-    vitalsPills.push(`
-      <span class="desk-vitals-pill" onclick="navigateTo('timetable')" title="View Timetable">
-        ${icons.sun()} No classes today
-      </span>
-    `);
-  }
-  vitalsPills.push(`
-    <span class="desk-vitals-pill ${overdue > 0 ? 'is-critical' : pending > 0 ? '' : 'is-safe'}" onclick="filterAndNavigateToAssignments('${overdue > 0 ? 'overdue' : 'pending'}')" title="View Tasks">
-      ${icons.filetext()} ${pending} task${pending !== 1 ? 's' : ''}${overdue > 0 ? ` (${overdue} overdue)` : ''}
-    </span>
+  vitalsTiles.push(`
+    <div class="vitals-tile" onclick="filterAndNavigateToAssignments('${overdue > 0 ? 'overdue' : 'pending'}')" title="View Tasks">
+      <div class="vitals-label">Tasks</div>
+      <div class="vitals-value" style="${overdue > 0 ? 'color:var(--red)' : ''}">${pending}</div>
+      <div class="vitals-sub">${overdue > 0 ? `${overdue} overdue` : pending > 0 ? 'Pending' : 'All caught up'}</div>
+    </div>
   `);
-  if (attendancePct !== null) {
-    vitalsPills.push(`
-      <span class="desk-vitals-pill ${isAttendanceAtRisk ? 'is-critical' : 'is-safe'}" onclick="navigateTo('review')" title="View Attendance Guidance">
-        ${icons.summary()} ${attendancePct}% attendance · ${dashGuidance.isSafe ? 'Safe' : 'Needs attention'}
-      </span>
-    `);
-  } else {
-    vitalsPills.push(`
-      <span class="desk-vitals-pill" onclick="showBaselineModal(null, 'manual')" title="Set Attendance Baseline">
-        ${icons.summary()} Attendance: Not set
-      </span>
-    `);
-  }
-  if (countdownText) {
-    vitalsPills.push(`
-      <span class="desk-vitals-pill" onclick="navigateTo('settings')" title="Exam Date Settings">
-        ${icons.target()} ${countdownText}
-      </span>
+  vitalsTiles.push(`
+    <div class="vitals-tile" onclick="${attendancePct !== null ? "navigateTo('review')" : "showBaselineModal(null, 'manual')"}" title="View Attendance Guidance">
+      <div class="vitals-label">Attendance</div>
+      <div class="vitals-value" style="${attendancePct !== null ? `color:var(${isAttendanceAtRisk ? '--red' : '--green'})` : ''}">${attendancePct !== null ? `${attendancePct}%` : '—'}</div>
+      <div class="vitals-sub">${attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : 'Needs attention') : 'Not set'}</div>
+    </div>
+  `);
+  if (countdownText && examDaysLeftNum !== null) {
+    vitalsTiles.push(`
+      <div class="vitals-tile" onclick="navigateTo('settings')" title="Exam Date Settings">
+        <div class="vitals-label">To End-Sem</div>
+        <div class="vitals-value">${examDaysLeftNum}d</div>
+        <div class="vitals-sub">${formatDate(liveProfile.examDate)}</div>
+      </div>
     `);
   }
-  const vitalsBarHTML = `<div class="desk-vitals-bar">${vitalsPills.join('')}</div>`;
+  const vitalsBarHTML = `<div class="vitals-strip" style="margin-top:14px">${vitalsTiles.join('')}</div>`;
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
@@ -5712,7 +5701,7 @@ function renderDashboard() {
         <span class="setup-guide-count">${setupSteps.length} step${setupSteps.length !== 1 ? 's' : ''} left</span>
       </div>
       <div class="setup-guide-steps">
-        ${setupSteps.map((s) => `
+        ${setupSteps.slice(0, 1).map((s) => `
           <button class="setup-guide-step" onclick="${s.action}" aria-label="${s.label}">
             <span class="setup-step-icon">${s.icon}</span>
             <div style="flex:1;min-width:0">
