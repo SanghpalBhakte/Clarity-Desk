@@ -4607,6 +4607,35 @@ body::before {
   font-variation-settings: 'opsz' 20;
 }
 
+/* Dark themes: the paper "sheen" emboss (bright highlight below +
+   dark shadow above) was tuned for Paper Slate's muted ink - on
+   near-white hero text over a near-black ground it reads as a
+   doubled, blurred edge instead of a subtle bevel. Bold editorial
+   headings also carry their full 700 weight worse here: light
+   strokes on a dark ground optically swell (irradiation), closing
+   up Fredoka's already-round counters. Drop the sheen and ease the
+   weight back a notch so characters stay distinct. */
+:root[data-theme="midnight-ink"] .desk-greeting,
+:root[data-theme="espresso-desk"] .desk-greeting,
+:root[data-theme="quiet-dark"] .desk-greeting,
+:root[data-theme="dark"] .desk-greeting,
+:root[data-theme="cafe-night"] .desk-greeting {
+  text-shadow: none;
+  font-weight: 600;
+}
+:root[data-theme="midnight-ink"] .chrono-beacon-title,
+:root[data-theme="espresso-desk"] .chrono-beacon-title,
+:root[data-theme="quiet-dark"] .chrono-beacon-title,
+:root[data-theme="dark"] .chrono-beacon-title,
+:root[data-theme="cafe-night"] .chrono-beacon-title,
+:root[data-theme="midnight-ink"] .page-title,
+:root[data-theme="espresso-desk"] .page-title,
+:root[data-theme="quiet-dark"] .page-title,
+:root[data-theme="dark"] .page-title,
+:root[data-theme="cafe-night"] .page-title {
+  font-weight: 600;
+}
+
 /* A quiet italic cut for the context line under the greeting —
    gives the sub-line an editorial "caption" voice instead of
    reading as a generic muted paragraph. */
