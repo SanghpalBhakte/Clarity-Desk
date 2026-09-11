@@ -3861,6 +3861,21 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
+/* Dark themes: light-on-dark body copy reads thinner than the same
+   weight does on paper, and the sitewide -0.011em tracking (tuned for
+   large headings) tightens it further at this bubble's small size.
+   Normal tracking + antialiased smoothing keeps the strokes their
+   full weight instead of looking wispy. */
+:root[data-theme="midnight-ink"] .cd-bubble,
+:root[data-theme="espresso-desk"] .cd-bubble,
+:root[data-theme="quiet-dark"] .cd-bubble,
+:root[data-theme="dark"] .cd-bubble,
+:root[data-theme="cafe-night"] .cd-bubble {
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 .cd-bubble .cd-list {
   margin: 10px 0 0;
   padding: 0;
