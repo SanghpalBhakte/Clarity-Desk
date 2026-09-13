@@ -12559,13 +12559,13 @@ function init() {
   updateTopbarProfile();
   setupFABDrag();
 
-  // Attach event listeners to all navigation items with data-nav
-  document.querySelectorAll('[data-nav]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      const page = el.dataset.nav;
-      if (page) navigate(page);
-    });
-  });
+  // NOTE: every [data-nav] element already carries its own inline
+  // onclick="navigateTo(...)" attribute in index.html/404.html. An
+  // addEventListener('click', ...) used to be attached here on top of
+  // that, so a single click ran navigate() twice back-to-back -- tearing
+  // down and rebuilding the target page's DOM (e.g. the whole dashboard)
+  // twice per click, which is what made its content look like it was
+  // popping in and out. Removed; the inline handlers already cover it.
 
   document.getElementById('global-search')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') handleGlobalSearch(e.target.value);
