@@ -427,16 +427,38 @@ html {
    no easing/duration tuning removed that "everything changes together"
    pop, it only changed how long it took. Turning off both pseudo-elements'
    default cross-fade animation keeps the old theme's snapshot fully opaque
-   underneath while app.js grows a clip-path circle on the new theme's
-   snapshot on top, so old and new pixels only ever meet at that circle's
-   thin edge - never blended across the full screen. */
+   underneath while the new theme's snapshot reveals through a growing
+   clip-path circle on top, so old and new pixels only ever meet at that
+   circle's thin edge - never blended across the full screen.
+
+   The circle is a plain CSS @keyframes animation, not a JS-driven
+   Element.animate() call on a timer. app.js only sets the three
+   --theme-origin-x/-y/-radius custom properties (from the click that
+   triggered the switch) before calling startViewTransition() - the static
+   clip-path below and the animation both apply the instant the browser
+   creates these pseudo-elements, in the same style pass, so there's no
+   window between "pseudo-elements exist" and "the circle has a shape" for
+   a slower device to paint a stray full-screen frame in. A first version
+   set the circle from JS after awaiting transition.ready and calling
+   .animate({pseudoElement}) - on a fast desktop that gap was small enough
+   to rarely paint, but on a phone it was long enough to occasionally show
+   one frame of the new theme fully un-clipped (a flash) before the reveal
+   started, which matched the "flashes more on mobile" report exactly. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
 }
 ::view-transition-old(root) { z-index: 1; }
-::view-transition-new(root) { z-index: 2; }
+::view-transition-new(root) {
+  z-index: 2;
+  clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%));
+  animation: theme-reveal 500ms ease-in-out forwards;
+}
+@keyframes theme-reveal {
+  from { clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%)); }
+  to   { clip-path: circle(var(--theme-radius, 150%) at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%)); }
+}
 
 body {
   font-family: var(--font);

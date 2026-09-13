@@ -3940,6 +3940,22 @@ function setTheme(theme, originEvent) {
   // circle, the new theme is fully opaque and correctly colored inside it,
   // and the only place old and new pixels ever meet is the thin, moving
   // edge between them - never the full screen at once.
+  //
+  // The circle's geometry is set as CSS custom properties and the reveal
+  // itself is a plain @keyframes animation in style.css (see
+  // ::view-transition-new(root)), not driven from here with .animate().
+  // The first version used .animate({pseudoElement: ...}) after awaiting
+  // transition.ready, and on a slow device that gap between the pseudo-
+  // elements existing and that promise resolving was long enough to paint
+  // at least one real frame of ::view-transition-new(root) at its default,
+  // un-clipped state - fully covering the old theme before the circle had
+  // even started - which read as an extra flash layered on top of the
+  // wipe. That's exactly the kind of thing that shows up "more on mobile,
+  // less on PC": a timing race that a slower device is more likely to
+  // actually render a frame of. A static starting clip-path plus a CSS
+  // animation are both applied by the browser's style engine in the same
+  // pass that creates the pseudo-elements, with no JS scheduling gap for a
+  // wrong frame to land in.
   if (!reduceMotion && document.startViewTransition) {
     const x = (originEvent && typeof originEvent.clientX === 'number') ? originEvent.clientX : window.innerWidth - 32;
     const y = (originEvent && typeof originEvent.clientY === 'number') ? originEvent.clientY : 24;
@@ -3947,13 +3963,10 @@ function setTheme(theme, originEvent) {
       Math.max(x, window.innerWidth - x),
       Math.max(y, window.innerHeight - y)
     );
-    const transition = document.startViewTransition(applyTheme);
-    transition.ready.then(() => {
-      document.documentElement.animate(
-        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
-        { duration: 500, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' }
-      );
-    }).catch(() => {});
+    document.documentElement.style.setProperty('--theme-origin-x', x + 'px');
+    document.documentElement.style.setProperty('--theme-origin-y', y + 'px');
+    document.documentElement.style.setProperty('--theme-radius', endRadius + 'px');
+    document.startViewTransition(applyTheme);
   } else if (!reduceMotion) {
     // Fallback for browsers without View Transitions support.
     document.documentElement.classList.add('theme-transitioning');
