@@ -3896,15 +3896,15 @@ function initTheme() {
   updateThemeSelector(theme);
 }
 
-function toggleTheme() {
+function toggleTheme(originEvent) {
   let current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
   if (LEGACY_THEME_MAP[current]) current = LEGACY_THEME_MAP[current];
   const nextIdx = (ALL_THEMES.indexOf(current) + 1) % ALL_THEMES.length;
   const next    = ALL_THEMES[nextIdx];
-  setTheme(next);
+  setTheme(next, originEvent);
 }
 
-function setTheme(theme) {
+function setTheme(theme, originEvent) {
   if (LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
   if (!ALL_THEMES.includes(theme)) return;
 
@@ -3926,22 +3926,34 @@ function setTheme(theme) {
     // kept in sync by updateThemeSelector() above.
   }
 
-  // Cross-fade the whole screen between themes via the View Transitions API
-  // instead of animating each element's background/color/border individually.
-  // The per-property approach (kept below as a fallback) forces every themed
-  // value through a shared RGB midpoint - for Paper Slate's cream and
-  // Midnight Ink's near-black that midpoint is a muddy, desaturated grey, and
-  // because every element hits it in lockstep the whole screen pops through
-  // that grey as one synchronized frame. Steepening the easing and cutting
-  // the duration (measured on-device) shrank that grey window from ~180ms to
-  // ~30ms, but an "everything changes at once" pop that fast just reads as a
-  // flash/strobe instead of a fade - shorter didn't fix the perception, it
-  // made the pop quicker. startViewTransition() instead crossfades two pixel
-  // snapshots (old theme -> new theme) over the whole viewport as a single
-  // smooth dissolve, so there's no shared color midpoint and no per-element
-  // stagger to begin with.
+  // Reveal the new theme with an expanding circle from the toggle button
+  // instead of blending the whole screen at once. A plain crossfade (what
+  // this used to do) and the CSS property transition before it are both,
+  // for a pure color swap with no layout change, the same thing pixel-for-
+  // pixel: blending old-color and new-color at the same coordinates. For
+  // Paper Slate's cream and Midnight Ink's near-black that blend's midpoint
+  // is a muddy, desaturated grey, and because it happens across the whole
+  // screen at once, no amount of tuning the easing/duration removed the
+  // "everything changes together" pop - it only changed how long the pop
+  // took. A circular wipe sidesteps the blend instead of tuning it: the old
+  // theme stays fully opaque and correctly colored outside the growing
+  // circle, the new theme is fully opaque and correctly colored inside it,
+  // and the only place old and new pixels ever meet is the thin, moving
+  // edge between them - never the full screen at once.
   if (!reduceMotion && document.startViewTransition) {
-    document.startViewTransition(applyTheme);
+    const x = (originEvent && typeof originEvent.clientX === 'number') ? originEvent.clientX : window.innerWidth - 32;
+    const y = (originEvent && typeof originEvent.clientY === 'number') ? originEvent.clientY : 24;
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+    const transition = document.startViewTransition(applyTheme);
+    transition.ready.then(() => {
+      document.documentElement.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
+        { duration: 500, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' }
+      );
+    }).catch(() => {});
   } else if (!reduceMotion) {
     // Fallback for browsers without View Transitions support.
     document.documentElement.classList.add('theme-transitioning');
@@ -10491,7 +10503,7 @@ function renderSettings() {
         <label class="form-label" style="margin-bottom:6px">Workspace Environment &amp; Theme</label>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Two curated study atmospheres designed for maximum focus and visual calm. Saves automatically.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Theme selection options" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate')" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate theme: Warm daylight desk">
+          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate theme: Warm daylight desk">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#F6F1E8"></div>
               <div class="swatch-surface" style="background:#FFFDFC"></div>
@@ -10502,7 +10514,7 @@ function renderSettings() {
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm daylight desk</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink')" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink theme: Focused night study">
+          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink theme: Focused night study">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#171412"></div>
               <div class="swatch-surface" style="background:#221D19"></div>

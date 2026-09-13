@@ -417,24 +417,26 @@ html {
   }
 }
 
-/* Primary theme-switch transition (see setTheme() in app.js): the browser
-   crossfades a snapshot of the old theme into a snapshot of the new one as
-   a single dissolve over the whole screen, rather than every element
-   interpolating its own background/color/border through the muddy RGB
-   midpoint above. Kept a touch slower than the old 130ms lockstep fallback
-   since a crossfade reads as smooth motion instead of a synchronized pop,
-   so it can afford more time on screen. */
+/* Primary theme-switch transition (see setTheme() in app.js): a circular
+   wipe grown from the toggle button, not a crossfade. A plain crossfade
+   (tried first) and the CSS property transition before it both blend
+   old-color and new-color at the same pixel for a color-only swap like
+   this - there's no geometry change to distinguish the techniques. For
+   Paper Slate's cream and Midnight Ink's near-black that blend's midpoint
+   is a muddy, desaturated grey shown across the whole screen at once, and
+   no easing/duration tuning removed that "everything changes together"
+   pop, it only changed how long it took. Turning off both pseudo-elements'
+   default cross-fade animation keeps the old theme's snapshot fully opaque
+   underneath while app.js grows a clip-path circle on the new theme's
+   snapshot on top, so old and new pixels only ever meet at that circle's
+   thin edge - never blended across the full screen. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 220ms;
-  animation-timing-function: ease-out;
+  animation: none;
+  mix-blend-mode: normal;
 }
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation: none !important;
-  }
-}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
 
 body {
   font-family: var(--font);
