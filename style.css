@@ -466,12 +466,25 @@ html {
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) {
   z-index: 2;
-  clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%));
+  /* The clip shape is set ONCE at its final, full-coverage size instead
+     of being animated. Animating clip-path's radius directly forces a
+     repaint every frame -- cheap enough on a desktop GPU, but frame-by-
+     frame analysis of mobile recordings showed the wipe stepping
+     smoothly for most of its run and then jumping straight to fully
+     revealed in a single frame: classic dropped-frame jank from an
+     expensive per-frame repaint on weaker mobile hardware. Scaling the
+     already-clipped layer up from 0 with `transform` instead produces
+     the identical circular reveal (scaling a circle by s from its own
+     center is the same shape as a circle whose radius grew by s), and
+     transform is compositor-only -- GPU-accelerated, no repaint. */
+  clip-path: circle(var(--theme-radius, 150%) at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%));
+  transform-origin: var(--theme-origin-x, 100%) var(--theme-origin-y, 0%);
+  will-change: transform;
   animation: theme-reveal 500ms ease-in-out forwards;
 }
 @keyframes theme-reveal {
-  from { clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%)); }
-  to   { clip-path: circle(var(--theme-radius, 150%) at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%)); }
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
 }
 
 body {
