@@ -4497,6 +4497,30 @@ function formatDate(dateStr) {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Dashboard masthead live clock: 12-hour, no seconds, ticking about once a
+// minute. Deliberately mutates one text node directly (see
+// updateLiveClockDisplay) rather than re-rendering anything -- this session
+// spent a lot of effort eliminating spurious dashboard re-renders, so a
+// ticking clock must never become a new source of them.
+function formatLiveClockParts(d) {
+  const dateStr = `${DAY_NAMES_SHORT[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+  let hours = d.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return { dateStr, timeStr: `${hours}:${mins} ${ampm}` };
+}
+
+function updateLiveClockDisplay() {
+  const el = document.getElementById('live-clock-text');
+  if (!el) return; // no-op whenever the dashboard isn't the current page
+  const { dateStr, timeStr } = formatLiveClockParts(new Date());
+  el.textContent = `${dateStr} · ${timeStr}`;
+}
+
 function dueDaysLeft(dateStr) {
   if (!dateStr) return null;
   const now = new Date(); now.setHours(0,0,0,0);
@@ -6141,7 +6165,8 @@ function renderDashboard() {
           <div class="desk-greeting">${greeting}${firstName ? `, <span class="desk-greeting-name">${firstName}</span>` : ''}.${needsSetup ? '' : ''}</div>
           <div class="desk-greeting-sub">${contextLine}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div id="live-clock-text" style="font-variant-numeric:tabular-nums;white-space:nowrap;font-size:var(--text-sm);color:var(--text-muted);font-weight:500">${(() => { const p = formatLiveClockParts(new Date()); return `${p.dateStr} · ${p.timeStr}`; })()}</div>
           <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
           </button>
@@ -12791,6 +12816,7 @@ function init() {
   setInterval(() => {
     checkScheduledNotifications();
     checkNoticeNotifications();
+    updateLiveClockDisplay();
   }, 60000);
 
   // Initialize Firebase Auth & Firestore sync
