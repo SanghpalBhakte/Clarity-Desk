@@ -3917,7 +3917,7 @@ function setTheme(theme) {
     clearTimeout(window._themeTransitionTimer);
     window._themeTransitionTimer = setTimeout(() => {
       document.documentElement.classList.remove('theme-transitioning');
-    }, 240);
+    }, 150);
   }
 
   document.documentElement.setAttribute('data-theme', theme);
