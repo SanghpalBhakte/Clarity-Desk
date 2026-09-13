@@ -2,7 +2,7 @@
 // Clarity Desk — App Logic & Interactive Functions
 // ============================================================
 
-import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, NOTICES, QUICK_LINKS } from './data.js';
+import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, NOTICES, QUICK_LINKS, DEV_UPDATES } from './data.js';
 
 // ── localStorage Keys ─────────────────────────────────────────
 const KEY_PROFILE          = 'cos_profile';
@@ -194,6 +194,13 @@ let db = null;
 let auth = null;
 let currentUser = null;
 let cloudUnsubscribe = null;
+
+// True only for a real signed-in identity (Google account), never for the
+// throwaway anonymous session used solely to read/post in a Class Feed room.
+// Keeps anonymous class-feed auth from ever triggering personal cloud sync.
+function isRealUser(u) {
+  return !!(u && u.uid && !u.isAnonymous);
+}
 let firebaseInitError = null;
 
 function initFirebase() {
@@ -238,7 +245,7 @@ function initFirebase() {
       auth.onAuthStateChanged(user => {
         currentUser = user;
         updateSyncUI();
-        if (user) {
+        if (isRealUser(user)) {
           subscribeUserCloudData(user.uid);
         } else {
           if (cloudUnsubscribe) { cloudUnsubscribe(); cloudUnsubscribe = null; }
@@ -311,7 +318,7 @@ function updateSyncUI(status = null) {
     if (text) text.textContent = 'Offline · Saved';
     if (dot) dot.style.background = 'var(--yellow)';
     if (btn) btn.title = 'Working offline · All changes are saved locally to this device';
-  } else if (currentUser) {
+  } else if (isRealUser(currentUser)) {
     if (icon) icon.textContent = '⚡';
     if (text) text.textContent = 'Cloud synced';
     if (dot) dot.style.background = 'var(--green)';
@@ -3415,6 +3422,253 @@ function handleNoticeSourceClick(targetKey) {
   }
 }
 
+// ── Class Feed (free, Firestore-backed shared class board) ────
+// Replaces the old "open a WhatsApp link" card with a real live board
+// scoped to a class using a short join code (no paid API, no per-message
+// cost). Anyone with the code can read/post; posting uses a throwaway
+// anonymous sign-in so it never requires (or touches) a personal Google
+// account or that account's private cloud data -- see isRealUser().
+const KEY_CLASS_ROOM_CODE = 'cos_class_room_code';
+let _classFeedUnsub = null;
+let _classFeedPosts = [];
+
+function loadClassRoomCode() {
+  return (safeGetStorage(KEY_CLASS_ROOM_CODE, '') || '').trim().toUpperCase();
+}
+
+function saveClassRoomCode(code) {
+  safeSetStorage(KEY_CLASS_ROOM_CODE, (code || '').trim().toUpperCase());
+}
+
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function ensureClassFeedAuth() {
+  return new Promise((resolve, reject) => {
+    if (!auth) { reject(new Error('Cloud services are unavailable right now.')); return; }
+    if (auth.currentUser) { resolve(auth.currentUser); return; }
+    auth.signInAnonymously().then(res => resolve(res.user)).catch(reject);
+  });
+}
+
+function formatFeedTime(ts) {
+  if (!ts || typeof ts.toDate !== 'function') return 'Just now';
+  const d = ts.toDate();
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return formatDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+}
+
+function showClassFeedModal() {
+  document.getElementById('class-feed-modal-backdrop')?.remove();
+  const code = loadClassRoomCode();
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'class-feed-modal-backdrop';
+  backdrop.innerHTML = code ? renderClassFeedRoomHtml(code) : renderClassFeedSetupHtml();
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeClassFeedModal(); });
+  document.body.appendChild(backdrop);
+
+  if (code) startClassFeedListener(code);
+}
+
+function closeClassFeedModal() {
+  if (_classFeedUnsub) { _classFeedUnsub(); _classFeedUnsub = null; }
+  document.getElementById('class-feed-modal-backdrop')?.remove();
+}
+
+function renderClassFeedSetupHtml() {
+  return `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;width:92vw">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:var(--text-xl)">💬</span>
+          <span class="modal-title">Class Feed</span>
+        </div>
+        <button class="modal-close" onclick="closeClassFeedModal()">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
+        <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.5">
+          A live, shared board just for your class. Create a room and share the code with classmates, or join one they already made.
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Join with a Code</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" class="form-input" id="cf-join-code" maxlength="8" placeholder="e.g. K3F9QZ" style="text-transform:uppercase;letter-spacing:2px;font-weight:700">
+            <button class="btn-primary" onclick="joinClassRoom()" style="white-space:nowrap">Join</button>
+          </div>
+          <div id="cf-setup-status" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:var(--text-sm)">
+          <div style="flex:1;height:1px;background:var(--border)"></div>OR<div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <button class="btn-secondary" onclick="createClassRoom()" style="display:flex;align-items:center;justify-content:center;gap:6px">
+          + Create a New Room for Your Class
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderClassFeedRoomHtml(code) {
+  return `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;width:92vw;display:flex;flex-direction:column;max-height:82vh">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:var(--text-xl)">💬</span>
+          <div>
+            <div class="modal-title" style="line-height:1.2">Class Feed</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted);letter-spacing:1px">ROOM ${escHtml_cd(code)}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="btn-icon" onclick="copyClassRoomCode()" title="Copy room code" style="width:28px;height:28px">📋</button>
+          <button class="btn-icon" onclick="leaveClassRoom()" title="Leave this room" style="width:28px;height:28px">🚪</button>
+          <button class="modal-close" onclick="closeClassFeedModal()">${icons.x()}</button>
+        </div>
+      </div>
+      <div id="cf-feed-list" style="flex:1;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;min-height:180px">
+        <div class="empty-state-card" style="padding:24px 16px">
+          <span class="empty-state-icon">${icons.clock()}</span>
+          <div class="empty-state-title">Loading feed…</div>
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+        <input type="text" class="form-input" id="cf-compose-input" placeholder="Share something with the class…" maxlength="500" style="flex:1" onkeydown="if(event.key==='Enter'){postToClassFeed();}">
+        <button class="btn-primary" onclick="postToClassFeed()">Post</button>
+      </div>
+    </div>
+  `;
+}
+
+function joinClassRoom() {
+  const input = document.getElementById('cf-join-code');
+  const code = (input?.value || '').trim().toUpperCase();
+  const status = document.getElementById('cf-setup-status');
+  if (!/^[A-Z0-9]{4,8}$/.test(code)) {
+    if (status) status.textContent = 'Enter the code your classmate shared (4-8 letters/numbers).';
+    return;
+  }
+  saveClassRoomCode(code);
+  showClassFeedModal();
+}
+
+function createClassRoom() {
+  const code = generateRoomCode();
+  saveClassRoomCode(code);
+  showClassFeedModal();
+  showToast(`Room ${code} created — share this code with your class ✓`, 'success');
+}
+
+function leaveClassRoom() {
+  if (_classFeedUnsub) { _classFeedUnsub(); _classFeedUnsub = null; }
+  saveClassRoomCode('');
+  showClassFeedModal();
+}
+
+function copyClassRoomCode() {
+  const code = loadClassRoomCode();
+  if (!code) return;
+  navigator.clipboard?.writeText(code).then(() => {
+    showToast(`Room code ${code} copied ✓`, 'success');
+  }).catch(() => {
+    showToast(`Your room code is ${code}`, 'info');
+  });
+}
+
+function startClassFeedListener(code) {
+  const listEl = document.getElementById('cf-feed-list');
+  ensureClassFeedAuth().then(() => {
+    if (!db) throw new Error('offline');
+    if (_classFeedUnsub) { _classFeedUnsub(); _classFeedUnsub = null; }
+    _classFeedUnsub = db.collection('classRooms').doc(code).collection('posts')
+      .orderBy('createdAt', 'desc').limit(50)
+      .onSnapshot(snap => {
+        _classFeedPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderClassFeedList();
+      }, err => {
+        console.warn('Class feed listen error:', err);
+        if (listEl) listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't load the feed</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
+      });
+  }).catch(err => {
+    console.warn('Class feed auth error:', err);
+    if (listEl) listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't connect</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
+  });
+}
+
+function renderClassFeedList() {
+  const listEl = document.getElementById('cf-feed-list');
+  if (!listEl) return;
+  if (!_classFeedPosts.length) {
+    listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px">
+      <span class="empty-state-icon">💬</span>
+      <div class="empty-state-title">No posts yet</div>
+      <div class="empty-state-desc">Be the first to share something with your class.</div>
+    </div>`;
+    return;
+  }
+  const myUid = auth?.currentUser?.uid;
+  listEl.innerHTML = _classFeedPosts.map(p => `
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
+        <span style="font-weight:600;font-size:var(--text-sm)">${escHtml_cd(p.authorName || 'Classmate')}</span>
+        <span style="font-size:var(--text-2xs);color:var(--text-muted)">${formatFeedTime(p.createdAt)}</span>
+      </div>
+      <div style="font-size:var(--text-base);white-space:pre-wrap;word-break:break-word">${escHtml_cd(p.text || '')}</div>
+      ${p.authorId === myUid ? `<div style="text-align:right;margin-top:4px"><button class="btn-icon" onclick="deleteClassFeedPost('${p.id}')" title="Delete" style="width:22px;height:22px;font-size:var(--text-xs)">🗑️</button></div>` : ''}
+    </div>
+  `).join('');
+}
+
+function postToClassFeed() {
+  const input = document.getElementById('cf-compose-input');
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  const code = loadClassRoomCode();
+  if (!code || !db) return;
+
+  ensureClassFeedAuth().then(user => {
+    const p = loadProfile();
+    return db.collection('classRooms').doc(code).collection('posts').add({
+      text: text.slice(0, 500),
+      authorId: user.uid,
+      authorName: (p.name || '').trim() || 'Classmate',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }).then(() => {
+    if (input) input.value = '';
+  }).catch(err => {
+    console.warn('Class feed post error:', err);
+    showToast('Could not post — check your connection.', 'error');
+  });
+}
+
+function deleteClassFeedPost(postId) {
+  const code = loadClassRoomCode();
+  if (!code || !db) return;
+  db.collection('classRooms').doc(code).collection('posts').doc(postId).delete().catch(err => {
+    console.warn('Class feed delete error:', err);
+    showToast('Could not delete post.', 'error');
+  });
+}
+window.showClassFeedModal = showClassFeedModal;
+window.closeClassFeedModal = closeClassFeedModal;
+window.joinClassRoom = joinClassRoom;
+window.createClassRoom = createClassRoom;
+window.leaveClassRoom = leaveClassRoom;
+window.copyClassRoomCode = copyClassRoomCode;
+window.postToClassFeed = postToClassFeed;
+window.deleteClassFeedPost = deleteClassFeedPost;
+
 // ── Custom Quick Links / Resources ───────────────────────────
 function loadCustomLinks() {
   const saved = safeGetStorage(KEY_CUSTOM_LINKS, null);
@@ -3429,7 +3683,7 @@ function saveCustomLinks(links) {
 }
 
 function syncToCloud() {
-  if (!currentUser) return;
+  if (!isRealUser(currentUser)) return;
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     pushLocalDataToCloud(currentUser.uid);
@@ -3438,7 +3692,7 @@ function syncToCloud() {
 
 // Pause active cloud listener when tab is hidden to save Firestore read quota
 document.addEventListener('visibilitychange', () => {
-  if (!currentUser || !db) return;
+  if (!isRealUser(currentUser) || !db) return;
   if (document.hidden) {
     if (cloudUnsubscribe) {
       cloudUnsubscribe();
@@ -3545,7 +3799,7 @@ function isPushRegistered() {
 }
 
 async function registerBackgroundPush() {
-  if (!currentUser || !db) {
+  if (!isRealUser(currentUser) || !db) {
     showToast('Sign in with Google first to enable background push notifications.', 'info');
     return false;
   }
@@ -4025,7 +4279,7 @@ function setTheme(theme, originEvent) {
   }
 
   // Instant cloud persistence (no 2.5s delay)
-  if (currentUser && db) {
+  if (isRealUser(currentUser) && db) {
     // Mark this write's resulting hash as already-seen so the server's ack
     // echo (arriving via onSnapshot a moment later) isn't mistaken for an
     // incoming remote change -- that mistake was causing an unconditional,
@@ -9892,20 +10146,17 @@ function renderNotices() {
         </div>
       </div>
 
-      <!-- Card 2: WhatsApp / Community Group -->
-      <div class="notice-source-card tint-whatsapp" onclick="handleNoticeSourceClick('whatsapp')" title="Open class group or channel">
+      <!-- Card 2: Class Feed (Firestore-backed shared class board) -->
+      <div class="notice-source-card tint-whatsapp" onclick="showClassFeedModal()" title="Open your class's live feed">
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-whatsapp">💬</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit class group link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit class group link">
-            ✏️
-          </button>
         </div>
         <div>
-          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'Class Community')}</div>
-          <div class="notice-source-sub">Open batch channel or group invite</div>
+          <div class="notice-source-title">Class Feed</div>
+          <div class="notice-source-sub">${loadClassRoomCode() ? 'Live board for your class' : 'Create or join your class\'s live board'}</div>
         </div>
         <div class="notice-source-action" style="color:var(--accent-warm, #25D366)">
-          <span>${channels.whatsappUrl ? 'Open Class Group ↗' : '+ Set Channel Link'}</span>
+          <span>${loadClassRoomCode() ? 'Open Feed ↗' : '+ Set Up Class Feed'}</span>
         </div>
       </div>
 
@@ -10472,13 +10723,13 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
+          <div style="font-weight:600;font-size:var(--text-md)">${isRealUser(currentUser) ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-            ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your desk data stays in your browser storage. Sign in with Google to sync seamlessly across devices.'}
+            ${isRealUser(currentUser) ? `Cross-device sync active · Signed in via Google` : 'Your desk data stays in your browser storage. Sign in with Google to sync seamlessly across devices.'}
           </div>
         </div>
         <div>
-          ${currentUser ? 
+          ${isRealUser(currentUser) ? 
             `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
             `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>`
           }
@@ -10643,7 +10894,7 @@ function renderSettings() {
         </div>
       </div>` : ''}
 
-      ${currentUser ? `
+      ${isRealUser(currentUser) ? `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
           <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">Background Push (works when app is closed)</div>
@@ -10744,7 +10995,7 @@ function renderSettings() {
     <div class="section-heading">📢 Notice Channels &amp; Class Communities</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Customize your department notice portal link and batch WhatsApp community invite link for quick access on your Notice Board.
+        Customize your department notice portal link for quick access on your Notice Board.
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -10756,18 +11007,8 @@ function renderSettings() {
           <input type="url" class="form-input" id="nc-official-url" value="${(channels.officialUrl || '').replace(/"/g, '&quot;')}" placeholder="https://college.edu/notices or portal link">
         </div>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">WhatsApp Community Card Title</label>
-          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'Class Community').replace(/"/g, '&quot;')}" placeholder="e.g. Class Community or Batch 2026">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Group Invite Link or Admin Contact</label>
-          <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://chat.whatsapp.com/... or https://wa.me/...">
-        </div>
-      </div>
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
-        💡 Links open in WhatsApp where you can preview group details, submit join requests, or contact the group admin.
+        💡 Your Class Feed (live class board) is managed from its own card on the Notice Board — create a room, join one with a code, or copy your code to share, all from there.
       </div>
     </div>
 
@@ -10840,14 +11081,17 @@ function saveSettings() {
 
   const offTitleEl = document.getElementById('nc-official-title');
   const offUrlEl   = document.getElementById('nc-official-url');
-  const waTitleEl  = document.getElementById('nc-wa-title');
-  const waUrlEl    = document.getElementById('nc-wa-url');
-  if (offTitleEl || waTitleEl) {
+  if (offTitleEl) {
+    // Class Feed room state now lives separately (see KEY_CLASS_ROOM_CODE) and
+    // is managed from its own card, so this only ever touches the Official
+    // channel fields -- the old whatsappTitle/whatsappUrl values are left
+    // exactly as they were rather than being cleared on every settings save.
+    const existingChannels = loadNoticeChannels();
     const channels = {
-      officialTitle: (offTitleEl ? offTitleEl.value : '').trim() || 'Official Updates',
+      officialTitle: (offTitleEl.value || '').trim() || 'Official Updates',
       officialUrl:   (offUrlEl ? offUrlEl.value : '').trim(),
-      whatsappTitle: (waTitleEl ? waTitleEl.value : '').trim() || 'Class Community',
-      whatsappUrl:   (waUrlEl ? waUrlEl.value : '').trim()
+      whatsappTitle: existingChannels.whatsappTitle,
+      whatsappUrl:   existingChannels.whatsappUrl
     };
     saveNoticeChannels(channels);
   }
@@ -10981,89 +11225,8 @@ function showNotice(id) {
   document.addEventListener('keydown', escHandler);
 }
 
-const DEV_UPDATES = [
-  {
-    id: 'u1',
-    date: '2026-08-08',
-    title: 'Study Vault & File Attachment Engine',
-    category: 'Study Vault',
-    tag: 'Feature',
-    tagColor: 'var(--accent)',
-    summary: 'Direct note, syllabus PDF, and lab manual uploads with offline storage and 1-click downloads.',
-    points: [
-      'Upload PDFs, lecture slides, lab manuals, and code files directly from your device.',
-      'Auto-extracted file sizes and instant downloads saved offline to your browser storage.',
-      'Renamed Study Links to Study Vault for a calmer, student-first course workspace.'
-    ]
-  },
-  {
-    id: 'u2',
-    date: '2026-08-08',
-    title: 'Smart Attendance Streaks & Safe Bunk Calculator',
-    category: 'Attendance',
-    tag: 'Improvement',
-    tagColor: 'var(--green)',
-    summary: 'Natural college terminology with active streak counter and safe bunk guidance.',
-    points: [
-      'Replaced rigid buttons with authentic student actions (Attended ✓ / Bunked ✕).',
-      'Active streak counter (🔥) with milestone celebration feedback.',
-      'Real-time safe bunk status calculating how many classes you can afford to miss.'
-    ]
-  },
-  {
-    id: 'u3',
-    date: '2026-08-08',
-    title: 'Custom Notice Channels & WhatsApp Integration',
-    category: 'Notices',
-    tag: 'Integration',
-    tagColor: '#25D366',
-    summary: 'Quick-access linked cards for official updates, class WhatsApp groups, and circulars.',
-    points: [
-      'Soft linked cards for your Official Class Group and WhatsApp channels.',
-      '1-tap WhatsApp forward button formats notices for immediate class group sharing.',
-      'Copy Notice action for easy pasting into student chats and channels.'
-    ]
-  },
-  {
-    id: 'u4',
-    date: '2026-08-07',
-    title: 'Expanded Desktop Layout & Breathability',
-    category: 'Dashboard',
-    tag: 'Design',
-    tagColor: 'var(--yellow)',
-    summary: 'Wider desktop container and balanced 2-column grid for comfortable scanning.',
-    points: [
-      'Expanded desktop width to 1160px and 1240px for laptops and large displays.',
-      'Disciplined 2-column grid balancing today\'s classes with tasks and vitals.',
-      'Maintains compact, touch-friendly navigation on mobile devices.'
-    ]
-  },
-  {
-    id: 'u5',
-    date: '2026-08-07',
-    title: 'Zero-Flash Palette Persistence',
-    category: 'Theme',
-    tag: 'Reliability',
-    summary: 'Synchronous pre-render script ensures instant theme restoration without dark/light flash.',
-    points: [
-      'Synchronous head script applies data-theme before the DOM paints.',
-      'Local user selection heals cloud document states across multi-device sync.',
-      'Seamless support across Paper, Cloud, Stone, Quiet Dark, and Café Night palettes.'
-    ]
-  },
-  {
-    id: 'u6',
-    date: '2026-08-06',
-    title: 'Natural IST Greetings & Course Shortcuts',
-    category: 'Navigation',
-    tag: 'Polish',
-    summary: 'Human greeting transitions and direct deep-linking into subject course materials.',
-    points: [
-      'Night greeting now extends smoothly until 5:00 AM to match student study schedules.',
-      'Subject shortcut chips route directly into the specific subject course screen.'
-    ]
-  }
-];
+// DEV_UPDATES now lives in data.js (imported above) and is kept fresh by
+// `npm run devnotes`, which appends real entries from git commit history.
 
 let _devNotesFilter = 'week';
 

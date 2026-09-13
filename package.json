@@ -15,7 +15,8 @@
     "release:check": "node tests/release-check.mjs",
     "clear:pwa-cache": "node tests/clear-pwa-cache.mjs",
     "clear:pwa-cache:full": "node tests/clear-pwa-cache.mjs --full",
-    "serve": "node tests/serve.mjs"
+    "serve": "node tests/serve.mjs",
+    "devnotes": "node scripts/generate-devnotes.mjs"
   },
   "repository": {
     "type": "git",
