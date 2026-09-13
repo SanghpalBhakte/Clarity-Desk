@@ -4725,42 +4725,24 @@ body::before {
   color: var(--text-secondary);
 }
 
-/* ── 3. The signature moment: Chrono Beacon becomes a real
-   stacked-paper card — two faint offset sheets peeking out
-   behind the top sheet, a soft top sheen, and a gentle
-   perspective tilt on hover. All transform-only, GPU-cheap,
-   no JS, no layout thrash. ──────────────────────────────── */
+/* ── 3. The Chrono Beacon: one clean surface with a soft paper
+   shadow and a gentle lift on hover. This used to layer two
+   rotated ::before/::after "sheets" behind the card to suggest a
+   stack of paper -- direct user feedback was that it read as
+   several overlapping cards / a rendering glitch, not a stack of
+   paper, so that's gone. The left accent border + icon badge
+   already give it enough presence next to the plain vitals tiles
+   above it without the extra layers. ──────────────────────── */
 .chrono-beacon {
-  overflow: visible;
+  overflow: hidden;
   border-left-width: 4px;
   box-shadow:
     inset 0 1px 0 var(--sheen-top),
     var(--shadow-paper-md);
-  transform: perspective(900px) rotateX(0deg) translateZ(0);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
-  will-change: transform;
-}
-.chrono-beacon::before,
-.chrono-beacon::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  z-index: -1;
-  pointer-events: none;
-}
-.chrono-beacon::before {
-  transform: rotate(-0.3deg) translate(-5px, 6px);
-  opacity: 0.6;
-}
-.chrono-beacon::after {
-  transform: rotate(0.22deg) translate(6px, 7px);
-  opacity: 0.35;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .chrono-beacon:hover {
-  transform: perspective(900px) rotateX(1.6deg) translateY(-3px) translateZ(0);
+  transform: translateY(-2px);
   box-shadow:
     inset 0 1px 0 var(--sheen-top),
     var(--shadow-paper-lg);
@@ -4768,12 +4750,7 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .chrono-beacon { transition: none; }
 }
-/* Sheets would clip against the tight mobile gutters — pull
-   them in rather than hide them, so the depth cue survives. */
 @media (max-width: 560px) {
-  .chrono-beacon::before { transform: rotate(-0.25deg) translate(-2px, 3px); }
-  .chrono-beacon::after  { transform: rotate(0.18deg) translate(3px, 4px); }
-
   /* The rest-day empty state sits right above the floating Add
      Task button on short mobile viewports — trim its padding so
      the two never touch. */
