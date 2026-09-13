@@ -3908,31 +3908,51 @@ function setTheme(theme) {
   if (LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
   if (!ALL_THEMES.includes(theme)) return;
 
-  // Make every element recolor together instead of at its own hover/press
-  // transition speed (see .theme-transitioning in style.css). Skipped for
-  // reduced-motion users, who get an instant swap either way.
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduceMotion) {
+
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
+    localStorage.setItem(KEY_THEME, theme);
+    updateThemeSelector(theme);
+    // No renderPage() here: every themed value in the page already flows
+    // from CSS custom properties, so the DOM needs no rebuild on a theme
+    // switch. Rebuilding used to tear down and instantly repaint the main
+    // content in the new theme's final colors while the surrounding chrome
+    // (topbar/sidebar, untouched by the rebuild) was still mid-transition -
+    // that two-speed mismatch was the visible "flash". The one place JS
+    // reads the theme for rendering (Settings' theme swatches) is already
+    // kept in sync by updateThemeSelector() above.
+  }
+
+  // Cross-fade the whole screen between themes via the View Transitions API
+  // instead of animating each element's background/color/border individually.
+  // The per-property approach (kept below as a fallback) forces every themed
+  // value through a shared RGB midpoint - for Paper Slate's cream and
+  // Midnight Ink's near-black that midpoint is a muddy, desaturated grey, and
+  // because every element hits it in lockstep the whole screen pops through
+  // that grey as one synchronized frame. Steepening the easing and cutting
+  // the duration (measured on-device) shrank that grey window from ~180ms to
+  // ~30ms, but an "everything changes at once" pop that fast just reads as a
+  // flash/strobe instead of a fade - shorter didn't fix the perception, it
+  // made the pop quicker. startViewTransition() instead crossfades two pixel
+  // snapshots (old theme -> new theme) over the whole viewport as a single
+  // smooth dissolve, so there's no shared color midpoint and no per-element
+  // stagger to begin with.
+  if (!reduceMotion && document.startViewTransition) {
+    document.startViewTransition(applyTheme);
+  } else if (!reduceMotion) {
+    // Fallback for browsers without View Transitions support.
     document.documentElement.classList.add('theme-transitioning');
     clearTimeout(window._themeTransitionTimer);
     window._themeTransitionTimer = setTimeout(() => {
       document.documentElement.classList.remove('theme-transitioning');
     }, 150);
+    applyTheme();
+  } else {
+    applyTheme();
   }
-
-  document.documentElement.setAttribute('data-theme', theme);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
-  localStorage.setItem(KEY_THEME, theme);
-  updateThemeSelector(theme);
-  // No renderPage() here: every themed value in the page already flows
-  // from CSS custom properties, so the DOM needs no rebuild on a theme
-  // switch. Rebuilding used to tear down and instantly repaint the main
-  // content in the new theme's final colors while the surrounding chrome
-  // (topbar/sidebar, untouched by the rebuild) was still mid-transition -
-  // that two-speed mismatch was the visible "flash". The one place JS
-  // reads the theme for rendering (Settings' theme swatches) is already
-  // kept in sync by updateThemeSelector() above.
 
   // Instant cloud persistence (no 2.5s delay)
   if (currentUser && db) {

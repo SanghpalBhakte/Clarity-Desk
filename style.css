@@ -417,6 +417,25 @@ html {
   }
 }
 
+/* Primary theme-switch transition (see setTheme() in app.js): the browser
+   crossfades a snapshot of the old theme into a snapshot of the new one as
+   a single dissolve over the whole screen, rather than every element
+   interpolating its own background/color/border through the muddy RGB
+   midpoint above. Kept a touch slower than the old 130ms lockstep fallback
+   since a crossfade reads as smooth motion instead of a synchronized pop,
+   so it can afford more time on screen. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
 body {
   font-family: var(--font);
   background: var(--bg);
