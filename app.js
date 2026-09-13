@@ -4170,7 +4170,28 @@ function updateBackButtonUI() {
   }
 }
 
+let __lastRenderPage = null;
+let __lastRenderTime = 0;
+
 function renderPage(page) {
+  // Coalesce accidental duplicate calls: two calls for the SAME page
+  // within a few tens of milliseconds of each other are treated as one
+  // and the second is skipped, instead of tearing the page's DOM down
+  // and rebuilding it twice in a row. This is a permanent backstop
+  // against this whole class of bug (we already found and fixed one
+  // cause -- a nav item that fired navigate() twice per click -- but a
+  // guard here means any other accidental double-fire, now or in the
+  // future, from anywhere in the app can't reproduce the same visible
+  // "popping in and out" of a page's content again). A real second
+  // render for a genuine later change is unaffected -- it always arrives
+  // well outside this window.
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (page === __lastRenderPage && (now - __lastRenderTime) < 50) {
+    return;
+  }
+  __lastRenderPage = page;
+  __lastRenderTime = now;
+
   try {
     switch (page) {
       case 'dashboard':   renderDashboard();   break;
