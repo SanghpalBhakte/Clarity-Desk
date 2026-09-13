@@ -83,6 +83,9 @@ export const NOTICES = [
     date: "2026-07-20",
     content: "Go to Settings and enter your end-semester exam date. A live countdown will appear on your dashboard.",
     important: true,
+    // Stops nagging once the student has actually done this -- see
+    // getVisibleNotices() in app.js.
+    hideWhen: "examDateSet",
   },
   {
     id: "n2",
@@ -91,6 +94,10 @@ export const NOTICES = [
     date: "2026-07-28",
     content: "Your official SY-AIDS timetable effective 30/07/2026 (Lecture Hall SF-31) has been updated with DEMP, DS, WEB DEV, PBST, MDM, COI, BMFA, OE-1, OE-2, and Community Engagement modules.",
     important: false,
+    // Only relevant to a student still on the default timetable -- once
+    // they've customized their own, this specific batch announcement no
+    // longer applies to them. See getVisibleNotices() in app.js.
+    hideWhen: "timetableCustomized",
   },
 ];
 

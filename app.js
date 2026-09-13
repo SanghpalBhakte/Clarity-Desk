@@ -194,13 +194,6 @@ let db = null;
 let auth = null;
 let currentUser = null;
 let cloudUnsubscribe = null;
-
-// True only for a real signed-in identity (Google account), never for the
-// throwaway anonymous session used solely to read/post in a Class Feed room.
-// Keeps anonymous class-feed auth from ever triggering personal cloud sync.
-function isRealUser(u) {
-  return !!(u && u.uid && !u.isAnonymous);
-}
 let firebaseInitError = null;
 
 function initFirebase() {
@@ -245,7 +238,7 @@ function initFirebase() {
       auth.onAuthStateChanged(user => {
         currentUser = user;
         updateSyncUI();
-        if (isRealUser(user)) {
+        if (user) {
           subscribeUserCloudData(user.uid);
         } else {
           if (cloudUnsubscribe) { cloudUnsubscribe(); cloudUnsubscribe = null; }
@@ -318,7 +311,7 @@ function updateSyncUI(status = null) {
     if (text) text.textContent = 'Offline · Saved';
     if (dot) dot.style.background = 'var(--yellow)';
     if (btn) btn.title = 'Working offline · All changes are saved locally to this device';
-  } else if (isRealUser(currentUser)) {
+  } else if (currentUser) {
     if (icon) icon.textContent = '⚡';
     if (text) text.textContent = 'Cloud synced';
     if (dot) dot.style.background = 'var(--green)';
@@ -3144,8 +3137,7 @@ function calculatePayloadHash(data) {
       t: data.customTasks?.length,
       tt: data.customTimetable ? Object.keys(data.customTimetable).length : 0,
       a: data.assignmentStatuses,
-      tm: data.theme,
-      cr: data.classRoomCode
+      tm: data.theme
     });
   } catch (e) {
     return null;
@@ -3269,20 +3261,6 @@ function applyCloudDataToLocalState(data) {
   if (data.notificationPrefs && typeof data.notificationPrefs === 'object') {
     safeSetStorage(KEY_NOTIF_PREFS, data.notificationPrefs);
   }
-  if (typeof data.classRoomCode === 'string' && data.classRoomCode) {
-    // Lets a signed-in user open the same Class Feed room on a new device
-    // without re-typing the code. Same guard as theme: adopt only if this
-    // device doesn't already have a choice of its own, and never write
-    // back -- an else-branch here is exactly what caused the cross-device
-    // theme write-back loop this session had to remove. Uses safeSetStorage
-    // directly rather than saveClassRoomCode(), which also calls
-    // syncToCloud() -- calling that here would immediately echo this same
-    // value straight back to the cloud, the same self-write-back mistake
-    // theme just got fixed for.
-    if (!loadClassRoomCode()) {
-      safeSetStorage(KEY_CLASS_ROOM_CODE, data.classRoomCode.trim().toUpperCase());
-    }
-  }
   if (data.noticeChannels && typeof data.noticeChannels === 'object') {
     safeSetStorage(KEY_NOTICE_CHANNELS, data.noticeChannels);
   }
@@ -3316,7 +3294,6 @@ function pushLocalDataToCloud(uid) {
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget:          getAttendanceTarget(),
-    classRoomCode:      loadClassRoomCode() || null,
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
   // Mark this write's hash as already-seen so its own ack echo (which
@@ -3333,20 +3310,25 @@ function pushLocalDataToCloud(uid) {
 }
 
 // ── Notice Channels (Official & WhatsApp Links) ───────────────
+// NOTE: the whatsappTitle/whatsappUrl field names predate this card's
+// current purpose (it used to open a WhatsApp class group; it's now the
+// College ERP Portal link) and are kept as-is on purpose so anyone who
+// already configured a link under the old card keeps it instead of it
+// silently disappearing under a renamed key.
 function loadNoticeChannels() {
   const saved = safeGetStorage(KEY_NOTICE_CHANNELS, null);
   if (saved && typeof saved === 'object') {
     return {
       officialTitle: (saved.officialTitle || 'Official Updates').trim(),
       officialUrl:   (saved.officialUrl || '').trim(),
-      whatsappTitle: (saved.whatsappTitle || 'Class Community').trim(),
+      whatsappTitle: (saved.whatsappTitle || 'College ERP Portal').trim(),
       whatsappUrl:   (saved.whatsappUrl || '').trim()
     };
   }
   return {
     officialTitle: 'Official Updates',
     officialUrl:   '',
-    whatsappTitle: 'Class Community',
+    whatsappTitle: 'College ERP Portal',
     whatsappUrl:   ''
   };
 }
@@ -3370,8 +3352,8 @@ function showNoticeChannelModal(targetKey) {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;width:92vw">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:var(--text-xl)">${isOfficial ? '📢' : '💬'}</span>
-          <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure Class Group & Channels'}</span>
+          <span style="font-size:var(--text-xl)">${isOfficial ? '📢' : '🎓'}</span>
+          <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure ERP Portal Link'}</span>
         </div>
         <button class="modal-close" onclick="document.getElementById('notice-channel-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
@@ -3379,19 +3361,19 @@ function showNoticeChannelModal(targetKey) {
         <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">
           ${isOfficial 
             ? 'Set your college portal link, class channel, or department notice page URL.' 
-            : 'Add your batch community link, group invite URL, or class representative contact. Tapping opens the channel directly for quick access.'}
+            : 'Add your college ERP / student portal URL — attendance, marks, fees, exam forms. Tapping the card opens it directly.'}
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">${isOfficial ? 'Card Title' : 'Group or Channel Title'}</label>
-          <input type="text" class="form-input" id="nc-modal-title" value="${(currentTitle || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'e.g. Official Updates or Department Portal' : 'e.g. Class Community or SY-AIDS 2026'}">
+          <label class="form-label">${isOfficial ? 'Card Title' : 'Portal Title'}</label>
+          <input type="text" class="form-input" id="nc-modal-title" value="${(currentTitle || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'e.g. Official Updates or Department Portal' : 'e.g. College ERP Portal'}">
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">${isOfficial ? 'Destination Link / URL' : 'Invite Link or Contact URL'}</label>
-          <input type="url" class="form-input" id="nc-modal-url" value="${(currentUrl || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'https://college.edu/notices' : 'https://chat.whatsapp.com/... or https://wa.me/...'}">
+          <label class="form-label">${isOfficial ? 'Destination Link / URL' : 'Portal Link / URL'}</label>
+          <input type="url" class="form-input" id="nc-modal-url" value="${(currentUrl || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'https://college.edu/notices' : 'https://erp.yourcollege.edu'}">
         </div>
         ${!isOfficial ? `
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-xs,6px);padding:8px 10px;line-height:1.4">
-            💡 <strong>Note:</strong> Class group access opens directly in WhatsApp based on your batch link and admin settings.
+            💡 <strong>Tip:</strong> This just opens your portal in a new tab — you sign in there as usual, Clarity Desk never sees your ERP credentials.
           </div>
         ` : ''}
       </div>
@@ -3416,7 +3398,7 @@ function submitNoticeChannelModal(targetKey) {
     channels.officialTitle = title || 'Official Updates';
     channels.officialUrl   = url;
   } else {
-    channels.whatsappTitle = title || 'Class Community';
+    channels.whatsappTitle = title || 'College ERP Portal';
     channels.whatsappUrl   = url;
   }
 
@@ -3433,288 +3415,10 @@ function handleNoticeSourceClick(targetKey) {
   if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('tg://') || url.startsWith('whatsapp://'))) {
     window.open(url, '_blank', 'noopener,noreferrer');
   } else {
-    showToast(targetKey === 'official' ? 'Configure your official notice link' : 'Add your WhatsApp group invite or community link to enable quick access', 'info');
+    showToast(targetKey === 'official' ? 'Configure your official notice link' : 'Add your ERP portal link to enable quick access', 'info');
     showNoticeChannelModal(targetKey);
   }
 }
-
-// ── Class Feed (free, Firestore-backed shared class board) ────
-// Replaces the old "open a WhatsApp link" card with a real live board
-// scoped to a class using a short join code (no paid API, no per-message
-// cost). Anyone with the code can read/post; posting uses a throwaway
-// anonymous sign-in so it never requires (or touches) a personal Google
-// account or that account's private cloud data -- see isRealUser().
-const KEY_CLASS_ROOM_CODE = 'cos_class_room_code';
-// A fixed-interval poll while the modal is open, not a persistent
-// onSnapshot listener. A realtime listener's read cost scales with
-// (messages posted) x (people who currently have the feed open) --
-// unbounded as a room gets busier, and it shares Firestore's free-tier
-// daily read quota with every signed-in user's personal cloud sync
-// project-wide, so a chatty room could exhaust it for everyone, not just
-// itself. Polling makes the cost a fixed (open sessions) x (polls) x
-// (limit) instead, independent of how many messages fly by, at the
-// price of ~20s latency instead of instant delivery -- a fine trade for
-// a class bulletin board.
-let _classFeedPollTimer = null;
-let _classFeedPosts = [];
-
-function loadClassRoomCode() {
-  return (safeGetStorage(KEY_CLASS_ROOM_CODE, '') || '').trim().toUpperCase();
-}
-
-function saveClassRoomCode(code) {
-  safeSetStorage(KEY_CLASS_ROOM_CODE, (code || '').trim().toUpperCase());
-  syncToCloud(); // no-op for a Local Desk Mode / anonymous-only session (see isRealUser)
-}
-
-function generateRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
-  let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
-
-function ensureClassFeedAuth() {
-  return new Promise((resolve, reject) => {
-    if (!auth) { reject(new Error('Cloud services are unavailable right now.')); return; }
-    if (auth.currentUser) { resolve(auth.currentUser); return; }
-    auth.signInAnonymously().then(res => resolve(res.user)).catch(reject);
-  });
-}
-
-function formatFeedTime(ts) {
-  if (!ts || typeof ts.toDate !== 'function') return 'Just now';
-  const d = ts.toDate();
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return formatDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-}
-
-function showClassFeedModal() {
-  document.getElementById('class-feed-modal-backdrop')?.remove();
-  const code = loadClassRoomCode();
-
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  backdrop.id = 'class-feed-modal-backdrop';
-  backdrop.innerHTML = code ? renderClassFeedRoomHtml(code) : renderClassFeedSetupHtml();
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeClassFeedModal(); });
-  document.body.appendChild(backdrop);
-
-  if (code) startClassFeedListener(code);
-}
-
-function closeClassFeedModal() {
-  if (_classFeedPollTimer) { clearInterval(_classFeedPollTimer); _classFeedPollTimer = null; }
-  document.getElementById('class-feed-modal-backdrop')?.remove();
-}
-
-function renderClassFeedSetupHtml() {
-  return `
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;width:92vw">
-      <div class="modal-header">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:var(--text-xl)">💬</span>
-          <span class="modal-title">Class Feed</span>
-        </div>
-        <button class="modal-close" onclick="closeClassFeedModal()">${icons.x()}</button>
-      </div>
-      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
-        <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.5">
-          A live, shared board just for your class. Create a room and share the code with classmates, or join one they already made.
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Join with a Code</label>
-          <div style="display:flex;gap:8px">
-            <input type="text" class="form-input" id="cf-join-code" maxlength="8" placeholder="e.g. K3F9QZ" style="text-transform:uppercase;letter-spacing:2px;font-weight:700">
-            <button class="btn-primary" onclick="joinClassRoom()" style="white-space:nowrap">Join</button>
-          </div>
-          <div id="cf-setup-status" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px"></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:var(--text-sm)">
-          <div style="flex:1;height:1px;background:var(--border)"></div>OR<div style="flex:1;height:1px;background:var(--border)"></div>
-        </div>
-        <button class="btn-secondary" onclick="createClassRoom()" style="display:flex;align-items:center;justify-content:center;gap:6px">
-          + Create a New Room for Your Class
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-function renderClassFeedRoomHtml(code) {
-  return `
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;width:92vw;display:flex;flex-direction:column;max-height:82vh">
-      <div class="modal-header">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:var(--text-xl)">💬</span>
-          <div>
-            <div class="modal-title" style="line-height:1.2">Class Feed</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted);letter-spacing:1px">ROOM ${escHtml_cd(code)}</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <button class="btn-icon" onclick="copyClassRoomCode()" title="Copy room code" style="width:28px;height:28px">📋</button>
-          <button class="btn-icon" onclick="leaveClassRoom()" title="Leave this room" style="width:28px;height:28px">🚪</button>
-          <button class="modal-close" onclick="closeClassFeedModal()">${icons.x()}</button>
-        </div>
-      </div>
-      <div id="cf-feed-list" style="flex:1;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:10px;min-height:180px">
-        <div class="empty-state-card" style="padding:24px 16px">
-          <span class="empty-state-icon">${icons.clock()}</span>
-          <div class="empty-state-title">Loading feed…</div>
-        </div>
-      </div>
-      <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
-        <input type="text" class="form-input" id="cf-compose-input" placeholder="Share something with the class…" maxlength="500" style="flex:1" onkeydown="if(event.key==='Enter'){postToClassFeed();}">
-        <button class="btn-primary" onclick="postToClassFeed()">Post</button>
-      </div>
-    </div>
-  `;
-}
-
-function joinClassRoom() {
-  const input = document.getElementById('cf-join-code');
-  const code = (input?.value || '').trim().toUpperCase();
-  const status = document.getElementById('cf-setup-status');
-  if (!/^[A-Z0-9]{4,8}$/.test(code)) {
-    if (status) status.textContent = 'Enter the code your classmate shared (4-8 letters/numbers).';
-    return;
-  }
-  saveClassRoomCode(code);
-  showClassFeedModal();
-}
-
-function createClassRoom() {
-  const code = generateRoomCode();
-  saveClassRoomCode(code);
-  showClassFeedModal();
-  showToast(`Room ${code} created — share this code with your class ✓`, 'success');
-}
-
-function leaveClassRoom() {
-  if (_classFeedPollTimer) { clearInterval(_classFeedPollTimer); _classFeedPollTimer = null; }
-  saveClassRoomCode('');
-  showClassFeedModal();
-}
-
-function copyClassRoomCode() {
-  const code = loadClassRoomCode();
-  if (!code) return;
-  navigator.clipboard?.writeText(code).then(() => {
-    showToast(`Room code ${code} copied ✓`, 'success');
-  }).catch(() => {
-    showToast(`Your room code is ${code}`, 'info');
-  });
-}
-
-const CLASS_FEED_POLL_MS = 20000;
-const CLASS_FEED_POST_LIMIT = 30;
-
-function startClassFeedListener(code) {
-  ensureClassFeedAuth().then(() => {
-    if (!db) throw new Error('offline');
-    fetchClassFeedOnce(code);
-    clearInterval(_classFeedPollTimer);
-    _classFeedPollTimer = setInterval(() => fetchClassFeedOnce(code), CLASS_FEED_POLL_MS);
-  }).catch(err => {
-    console.warn('Class feed auth error:', err);
-    const listEl = document.getElementById('cf-feed-list');
-    if (listEl) listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't connect</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
-  });
-}
-
-function fetchClassFeedOnce(code) {
-  if (!db) return;
-  db.collection('classRooms').doc(code).collection('posts')
-    .orderBy('createdAt', 'desc').limit(CLASS_FEED_POST_LIMIT)
-    .get()
-    .then(snap => {
-      // The modal may have been closed (or a different room opened) while
-      // this request was in flight -- only apply it if it's still relevant.
-      if (loadClassRoomCode() !== code || !document.getElementById('cf-feed-list')) return;
-      _classFeedPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderClassFeedList();
-    })
-    .catch(err => {
-      console.warn('Class feed fetch error:', err);
-      const listEl = document.getElementById('cf-feed-list');
-      if (listEl && !_classFeedPosts.length) {
-        listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't load the feed</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
-      }
-    });
-}
-
-function renderClassFeedList() {
-  const listEl = document.getElementById('cf-feed-list');
-  if (!listEl) return;
-  if (!_classFeedPosts.length) {
-    listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px">
-      <span class="empty-state-icon">💬</span>
-      <div class="empty-state-title">No posts yet</div>
-      <div class="empty-state-desc">Be the first to share something with your class.</div>
-    </div>`;
-    return;
-  }
-  const myUid = auth?.currentUser?.uid;
-  listEl.innerHTML = _classFeedPosts.map(p => `
-    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
-        <span style="font-weight:600;font-size:var(--text-sm)">${escHtml_cd(p.authorName || 'Classmate')}</span>
-        <span style="font-size:var(--text-2xs);color:var(--text-muted)">${formatFeedTime(p.createdAt)}</span>
-      </div>
-      <div style="font-size:var(--text-base);white-space:pre-wrap;word-break:break-word">${escHtml_cd(p.text || '')}</div>
-      ${p.authorId === myUid ? `<div style="text-align:right;margin-top:4px"><button class="btn-icon" onclick="deleteClassFeedPost('${p.id}')" title="Delete" style="width:22px;height:22px;font-size:var(--text-xs)">🗑️</button></div>` : ''}
-    </div>
-  `).join('');
-}
-
-function postToClassFeed() {
-  const input = document.getElementById('cf-compose-input');
-  const text = (input?.value || '').trim();
-  if (!text) return;
-  const code = loadClassRoomCode();
-  if (!code || !db) return;
-
-  ensureClassFeedAuth().then(user => {
-    const p = loadProfile();
-    return db.collection('classRooms').doc(code).collection('posts').add({
-      text: text.slice(0, 500),
-      authorId: user.uid,
-      authorName: (p.name || '').trim() || 'Classmate',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  }).then(() => {
-    if (input) input.value = '';
-    fetchClassFeedOnce(code); // show your own post right away instead of waiting for the next poll
-  }).catch(err => {
-    console.warn('Class feed post error:', err);
-    showToast('Could not post — check your connection.', 'error');
-  });
-}
-
-function deleteClassFeedPost(postId) {
-  const code = loadClassRoomCode();
-  if (!code || !db) return;
-  db.collection('classRooms').doc(code).collection('posts').doc(postId).delete().then(() => {
-    fetchClassFeedOnce(code);
-  }).catch(err => {
-    console.warn('Class feed delete error:', err);
-    showToast('Could not delete post.', 'error');
-  });
-}
-window.showClassFeedModal = showClassFeedModal;
-window.closeClassFeedModal = closeClassFeedModal;
-window.joinClassRoom = joinClassRoom;
-window.createClassRoom = createClassRoom;
-window.leaveClassRoom = leaveClassRoom;
-window.copyClassRoomCode = copyClassRoomCode;
-window.postToClassFeed = postToClassFeed;
-window.deleteClassFeedPost = deleteClassFeedPost;
 
 // ── Custom Quick Links / Resources ───────────────────────────
 function loadCustomLinks() {
@@ -3730,7 +3434,7 @@ function saveCustomLinks(links) {
 }
 
 function syncToCloud() {
-  if (!isRealUser(currentUser)) return;
+  if (!currentUser) return;
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     pushLocalDataToCloud(currentUser.uid);
@@ -3739,7 +3443,7 @@ function syncToCloud() {
 
 // Pause active cloud listener when tab is hidden to save Firestore read quota
 document.addEventListener('visibilitychange', () => {
-  if (!isRealUser(currentUser) || !db) return;
+  if (!currentUser || !db) return;
   if (document.hidden) {
     if (cloudUnsubscribe) {
       cloudUnsubscribe();
@@ -3846,7 +3550,7 @@ function isPushRegistered() {
 }
 
 async function registerBackgroundPush() {
-  if (!isRealUser(currentUser) || !db) {
+  if (!currentUser || !db) {
     showToast('Sign in with Google first to enable background push notifications.', 'info');
     return false;
   }
@@ -4096,13 +3800,26 @@ function triggerNoticeNotification(notice) {
   }
 }
 
+// Notices can opt into disappearing once a one-time setup step is done
+// (exam date set, timetable customized) via an optional `hideWhen` key --
+// otherwise the board keeps nagging about something already handled.
+// Every place that reads NOTICES for display, notifications, or the
+// assistant should go through this instead of the raw array.
+function getVisibleNotices() {
+  return NOTICES.filter(n => {
+    if (n.hideWhen === 'examDateSet') return !(liveProfile.examDate && liveProfile.examDate.trim());
+    if (n.hideWhen === 'timetableCustomized') return !isCustomTimetableActive();
+    return true;
+  });
+}
+
 function checkNoticeNotifications() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const prefs = loadNotifPrefs();
   if (prefs.newNotices === 'off') return;
 
   const notifiedNotices = safeGetStorage('cos_notified_notices', {}) || {};
-  NOTICES.forEach(n => {
+  getVisibleNotices().forEach(n => {
     if (!notifiedNotices[n.id]) {
       triggerNoticeNotification(n);
       notifiedNotices[n.id] = true;
@@ -4326,7 +4043,7 @@ function setTheme(theme, originEvent) {
   }
 
   // Instant cloud persistence (no 2.5s delay)
-  if (isRealUser(currentUser) && db) {
+  if (currentUser && db) {
     // Mark this write's resulting hash as already-seen so the server's ack
     // echo (arriving via onSnapshot a moment later) isn't mistaken for an
     // incoming remote change -- that mistake was causing an unconditional,
@@ -5038,8 +4755,8 @@ function renderReview() {
   const lookaheadStr = next7.toISOString().split('T')[0];
   
   const upcomingTasks = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= todayS && t.dueDate <= lookaheadStr);
-  const upcomingNotices = NOTICES.filter(n => n.date >= todayS && n.date <= lookaheadStr);
-  const recentNotices = NOTICES.filter(n => n.date >= lookbackStr && n.date <= todayS);
+  const upcomingNotices = getVisibleNotices().filter(n => n.date >= todayS && n.date <= lookaheadStr);
+  const recentNotices = getVisibleNotices().filter(n => n.date >= lookbackStr && n.date <= todayS);
   
   const next7Days = {};
   for(let i=0; i<=7; i++) {
@@ -5859,7 +5576,7 @@ function answerOverdueTasks() {
 
 function answerExams() {
   const tsks = allTasks().filter(t => t.status === 'pending' && (t.title.toLowerCase().includes('exam') || t.title.toLowerCase().includes('test') || t.title.toLowerCase().includes('quiz')));
-  const nts = NOTICES.filter(n => n.category.toLowerCase().includes('exam') || n.title.toLowerCase().includes('exam') || n.title.toLowerCase().includes('test'));
+  const nts = getVisibleNotices().filter(n => n.category.toLowerCase().includes('exam') || n.title.toLowerCase().includes('exam') || n.title.toLowerCase().includes('test'));
   
   let html = `<div style="font-weight:600;margin-bottom:8px">Upcoming Exams &amp; Tests</div>`;
   if (tsks.length === 0 && nts.length === 0) {
@@ -6201,7 +5918,8 @@ function renderDashboard() {
     .slice(0, 4);
 
   // Latest notice
-  const latestNotice = NOTICES.find(n => n.important) || NOTICES[0];
+  const visibleNotices = getVisibleNotices();
+  const latestNotice = visibleNotices.find(n => n.important) || visibleNotices[0];
   const quickLinksPreview = loadCustomLinks().slice(0, 4);
 
   el.innerHTML = `
@@ -10157,7 +9875,7 @@ function renderNotices() {
   const q  = state.noticeSearch.toLowerCase();
   const channels = loadNoticeChannels();
 
-  let filtered = NOTICES;
+  let filtered = getVisibleNotices();
   if (q) filtered = filtered.filter(n =>
     n.title.toLowerCase().includes(q) ||
     n.content.toLowerCase().includes(q) ||
@@ -10195,7 +9913,7 @@ function renderNotices() {
     <div class="page-header">
       <div>
         <div class="page-title">Notice Board</div>
-        <div class="page-subtitle">${NOTICES.filter(n=>n.important).length} pinned announcements · official campus circulars</div>
+        <div class="page-subtitle">${getVisibleNotices().filter(n=>n.important).length} pinned announcements · official campus circulars</div>
       </div>
     </div>
 
@@ -10218,17 +9936,20 @@ function renderNotices() {
         </div>
       </div>
 
-      <!-- Card 2: Class Feed (Firestore-backed shared class board) -->
-      <div class="notice-source-card tint-whatsapp" onclick="showClassFeedModal()" title="Open your class's live feed">
+      <!-- Card 2: College ERP Portal (configurable link, same mechanism as Card 1) -->
+      <div class="notice-source-card tint-erp" onclick="handleNoticeSourceClick('whatsapp')" title="Open your college ERP portal">
         <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-whatsapp">💬</div>
+          <div class="notice-source-icon-wrap notice-source-icon-erp">🎓</div>
+          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit ERP portal link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit ERP portal link">
+            ✏️
+          </button>
         </div>
         <div>
-          <div class="notice-source-title">Class Feed</div>
-          <div class="notice-source-sub">${loadClassRoomCode() ? 'Live board for your class' : 'Create or join your class\'s live board'}</div>
+          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'College ERP Portal')}</div>
+          <div class="notice-source-sub">Your student login for attendance, marks &amp; fees</div>
         </div>
-        <div class="notice-source-action" style="color:var(--accent-warm, #25D366)">
-          <span>${loadClassRoomCode() ? 'Open Feed ↗' : '+ Set Up Class Feed'}</span>
+        <div class="notice-source-action" style="color:var(--blue)">
+          <span>${channels.whatsappUrl ? 'Open ERP Portal ↗' : '+ Set Portal Link'}</span>
         </div>
       </div>
 
@@ -10673,7 +10394,7 @@ function renderSummaryContent(container) {
   const todayDay = today.getDay();
   const classes  = loadTimetable()[todayDay] || [];
   const dueTodayItems = allTasks().filter(a => !a.noDeadline && a.dueDate === todayStr() && a.status === 'pending');
-  const importantNotices = NOTICES.filter(n => n.important).slice(0, 3);
+  const importantNotices = getVisibleNotices().filter(n => n.important).slice(0, 3);
   const overdueItems = allTasks().filter(a => isTaskOverdue(a));
   const ongoingMissions = allTasks().filter(a => a.status === 'pending' && (a.taskType === 'mission' || !!a.noDeadline));
   const currentMin   = currentTimeMinutes();
@@ -10795,13 +10516,13 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:600;font-size:var(--text-md)">${isRealUser(currentUser) ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
+          <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-            ${isRealUser(currentUser) ? `Cross-device sync active · Signed in via Google` : 'Your desk data stays in your browser storage. Sign in with Google to sync seamlessly across devices.'}
+            ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your desk data stays in your browser storage. Sign in with Google to sync seamlessly across devices.'}
           </div>
         </div>
         <div>
-          ${isRealUser(currentUser) ? 
+          ${currentUser ? 
             `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
             `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>`
           }
@@ -10966,7 +10687,7 @@ function renderSettings() {
         </div>
       </div>` : ''}
 
-      ${isRealUser(currentUser) ? `
+      ${currentUser ? `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
           <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">Background Push (works when app is closed)</div>
@@ -11064,10 +10785,10 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="section-heading">📢 Notice Channels &amp; Class Communities</div>
+    <div class="section-heading">📢 Notice Channels &amp; ERP Portal</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Customize your department notice portal link for quick access on your Notice Board.
+        Customize your department notice link and your college ERP portal link for quick access on your Notice Board.
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -11079,8 +10800,18 @@ function renderSettings() {
           <input type="url" class="form-input" id="nc-official-url" value="${(channels.officialUrl || '').replace(/"/g, '&quot;')}" placeholder="https://college.edu/notices or portal link">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">ERP Portal Card Title</label>
+          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'College ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. College ERP Portal">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ERP Portal Link / URL</label>
+          <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://erp.yourcollege.edu">
+        </div>
+      </div>
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
-        💡 Your Class Feed (live class board) is managed from its own card on the Notice Board — create a room, join one with a code, or copy your code to share, all from there.
+        💡 The ERP link just opens your portal in a new tab — you sign in there as usual.
       </div>
     </div>
 
@@ -11153,17 +10884,14 @@ function saveSettings() {
 
   const offTitleEl = document.getElementById('nc-official-title');
   const offUrlEl   = document.getElementById('nc-official-url');
-  if (offTitleEl) {
-    // Class Feed room state now lives separately (see KEY_CLASS_ROOM_CODE) and
-    // is managed from its own card, so this only ever touches the Official
-    // channel fields -- the old whatsappTitle/whatsappUrl values are left
-    // exactly as they were rather than being cleared on every settings save.
-    const existingChannels = loadNoticeChannels();
+  const waTitleEl  = document.getElementById('nc-wa-title');
+  const waUrlEl    = document.getElementById('nc-wa-url');
+  if (offTitleEl || waTitleEl) {
     const channels = {
-      officialTitle: (offTitleEl.value || '').trim() || 'Official Updates',
+      officialTitle: (offTitleEl ? offTitleEl.value : '').trim() || 'Official Updates',
       officialUrl:   (offUrlEl ? offUrlEl.value : '').trim(),
-      whatsappTitle: existingChannels.whatsappTitle,
-      whatsappUrl:   existingChannels.whatsappUrl
+      whatsappTitle: (waTitleEl ? waTitleEl.value : '').trim() || 'College ERP Portal',
+      whatsappUrl:   (waUrlEl ? waUrlEl.value : '').trim()
     };
     saveNoticeChannels(channels);
   }
@@ -12365,8 +12093,8 @@ const ClarityAssistant = (() => {
   }
 
   function buildNotices() {
-    const importantNotices = NOTICES.filter(n => n.important);
-    const allNotices = NOTICES;
+    const allNotices = getVisibleNotices();
+    const importantNotices = allNotices.filter(n => n.important);
 
     if (allNotices.length === 0) return `No notices posted yet.`;
 

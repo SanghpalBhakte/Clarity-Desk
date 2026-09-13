@@ -2242,6 +2242,10 @@ a.card:hover,
   border-left: 3.5px solid #25D366;
 }
 
+.notice-source-card.tint-erp {
+  border-left: 3.5px solid var(--blue);
+}
+
 .notice-source-card.tint-devnotes {
   border-left: 3.5px solid var(--yellow);
 }
@@ -2271,6 +2275,11 @@ a.card:hover,
 .notice-source-icon-whatsapp {
   background: rgba(37, 211, 102, 0.14);
   color: #25D366;
+}
+
+.notice-source-icon-erp {
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  color: var(--blue);
 }
 
 .notice-source-icon-devnotes {

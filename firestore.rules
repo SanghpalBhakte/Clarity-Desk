@@ -11,31 +11,5 @@ service cloud.firestore {
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
-
-    // Class Feed: a shared live board scoped by a short join code (e.g. "K3F9QZ").
-    // The code itself is the access control -- anyone who knows it (a real
-    // classmate it was shared with) can read/post, same trust model as a
-    // shared invite link. Posting works from an anonymous sign-in, so this
-    // intentionally does not require request.auth.uid to belong to a real
-    // (non-anonymous) account -- any authenticated session, anonymous or not,
-    // qualifies; only /users/{uid} above is restricted to a signed-in owner.
-    match /classRooms/{roomCode}/posts/{postId} {
-      allow read: if request.auth != null
-        && roomCode.matches('^[A-Z0-9]{4,8}$');
-
-      allow create: if request.auth != null
-        && roomCode.matches('^[A-Z0-9]{4,8}$')
-        && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.text is string
-        && request.resource.data.text.size() > 0
-        && request.resource.data.text.size() <= 500
-        && request.resource.data.authorName is string
-        && request.resource.data.authorName.size() <= 60;
-
-      // Only the original poster may remove their own post; no edits.
-      allow update: if false;
-      allow delete: if request.auth != null
-        && resource.data.authorId == request.auth.uid;
-    }
   }
 }
