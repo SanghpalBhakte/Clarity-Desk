@@ -3237,15 +3237,25 @@ function applyCloudDataToLocalState(data) {
     if (LEGACY_THEME_MAP[cloudTheme]) cloudTheme = LEGACY_THEME_MAP[cloudTheme];
     const localTheme = localStorage.getItem(KEY_THEME);
     
-    // If local theme is not set yet, adopt cloud theme
+    // If local theme is not set yet, adopt cloud theme. (There used to be
+    // an "else" branch here that wrote the LOCAL theme back to the cloud
+    // whenever it differed from what a snapshot just delivered, on the
+    // theory that "local wins". That's the actual cause of dashboard
+    // content re-rendering with no click involved at all: with two
+    // clients signed into the same account (e.g. a phone and this PC,
+    // both used across this whole debugging session), each one saw the
+    // OTHER's theme as a "stale" cloud value and wrote its own theme back
+    // -- which the other client then saw as a fresh change and wrote
+    // back again, forever, each write's round trip forcing a real
+    // dashboard rebuild on both ends every few seconds with nobody
+    // touching anything. A device's own explicit theme toggle already
+    // pushes to the cloud instantly from setTheme() -- this reconciling
+    // write-back was never needed for that case and only actively harmful
+    // for the multi-device case, so it's gone. A cloud value that differs
+    // from local now just leaves this device's local choice alone.
     if (!localTheme && ALL_THEMES.includes(cloudTheme)) {
       localStorage.setItem(KEY_THEME, cloudTheme);
       initTheme();
-    } else if (localTheme && localTheme !== cloudTheme && currentUser && db) {
-      // Local user preference takes precedence; heal cloud document with current local theme
-      db.collection('users').doc(currentUser.uid).set({
-        theme: localTheme
-      }, { merge: true }).catch(() => {});
     }
   }
   if (data.notificationPrefs && typeof data.notificationPrefs === 'object') {
