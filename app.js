@@ -3153,7 +3153,17 @@ function subscribeUserCloudData(uid) {
   // Cache-First Read: Immediate IndexedDB cache hit (0ms UI latency, 0 server reads)
   userRef.get({ source: 'cache' }).then(doc => {
     if (doc && doc.exists) {
-      applyCloudDataToLocalState(doc.data());
+      const data = doc.data() || {};
+      const currentHash = calculatePayloadHash(data);
+      // Same dedup as the server listener below -- without this, every
+      // resubscribe (e.g. the app regaining visibility after being
+      // backgrounded) unconditionally re-applied the cached doc and
+      // rebuilt the current page's DOM even when nothing had changed,
+      // which is what made the dashboard cards look like they were
+      // popping in and out.
+      if (currentHash && currentHash === lastCloudPayloadHash) return;
+      lastCloudPayloadHash = currentHash;
+      applyCloudDataToLocalState(data);
     }
   }).catch(() => {});
 
@@ -3276,6 +3286,11 @@ function pushLocalDataToCloud(uid) {
     attTarget:          getAttendanceTarget(),
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
+  // Mark this write's hash as already-seen so its own ack echo (which
+  // comes back through onSnapshot once the server confirms it) isn't
+  // mistaken for an incoming remote change and doesn't trigger a needless
+  // full re-render of whatever page is currently open.
+  lastCloudPayloadHash = calculatePayloadHash(payload);
   db.collection('users').doc(uid).set(payload, { merge: true }).catch(err => {
     if (err.code === 'permission-denied') {
       updateSyncUI('denied');
@@ -4001,6 +4016,17 @@ function setTheme(theme, originEvent) {
 
   // Instant cloud persistence (no 2.5s delay)
   if (currentUser && db) {
+    // Mark this write's resulting hash as already-seen so the server's ack
+    // echo (arriving via onSnapshot a moment later) isn't mistaken for an
+    // incoming remote change -- that mistake was causing an unconditional,
+    // unrelated full dashboard re-render shortly after every theme toggle.
+    lastCloudPayloadHash = calculatePayloadHash({
+      profile: loadProfile(),
+      customTasks: state.customTasks,
+      customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+      assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
+      theme: theme
+    });
     db.collection('users').doc(currentUser.uid).set({
       theme: theme,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
