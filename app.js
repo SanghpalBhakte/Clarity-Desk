@@ -3966,7 +3966,27 @@ function setTheme(theme, originEvent) {
     document.documentElement.style.setProperty('--theme-origin-x', x + 'px');
     document.documentElement.style.setProperty('--theme-origin-y', y + 'px');
     document.documentElement.style.setProperty('--theme-radius', endRadius + 'px');
-    document.startViewTransition(applyTheme);
+    // Every button/card/etc. still has its own hover/press transition
+    // (0.12s-0.3s, scattered across the stylesheet) - those are unrelated
+    // to theme switching normally, since they only fire on :hover/:active
+    // changing. But they also fire on ANY change to the color values they
+    // reference, theme switch included. A CSS transition's rendered value
+    // at the instant it starts is still the OLD color - zero time has
+    // passed - so the "new" snapshot startViewTransition() captures right
+    // after applyTheme() runs would freeze every one of those elements
+    // still showing their old color, mid-transition, with nothing to make
+    // them finish until the live DOM is shown again after the wipe. That
+    // produced a second, scattered wave of elements visibly catching up
+    // to their real color right after the wipe completed - a second
+    // flash stacked after the first. Suppressing transitions completely
+    // for the moment applyTheme() runs makes every element jump straight
+    // to its final color, so the snapshot the wipe reveals is already
+    // fully correct and there's nothing left to catch up afterward.
+    document.documentElement.classList.add('theme-instant');
+    const transition = document.startViewTransition(applyTheme);
+    transition.finished.catch(() => {}).finally(() => {
+      document.documentElement.classList.remove('theme-instant');
+    });
   } else if (!reduceMotion) {
     // Fallback for browsers without View Transitions support.
     document.documentElement.classList.add('theme-transitioning');

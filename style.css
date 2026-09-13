@@ -376,8 +376,22 @@
 
 html {
   scroll-behavior: smooth;
-  /* Smooth palette swap — applied only to surface-level tokens */
-  transition: background-color 0.26s ease, color 0.26s ease;
+}
+
+/* Suppresses every transition (hover/press states included - see the
+   scattered "transition:" rules throughout this file) for the instant a
+   View Transition-driven theme switch applies the new data-theme, so
+   every element jumps straight to its final color instead of freezing
+   mid-transition in the snapshot the circular wipe (further below)
+   reveals. See setTheme() in app.js for why that freeze happened and
+   what it looked like. Only affects the View Transition path - the
+   legacy .theme-transitioning fallback further below still uses a real,
+   brief transition of its own for browsers without View Transitions. */
+.theme-instant,
+.theme-instant *,
+.theme-instant *::before,
+.theme-instant *::after {
+  transition: none !important;
 }
 
 /* Theme switch: every themed element recolors in lockstep, so no
