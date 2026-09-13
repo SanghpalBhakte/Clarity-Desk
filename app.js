@@ -3144,7 +3144,8 @@ function calculatePayloadHash(data) {
       t: data.customTasks?.length,
       tt: data.customTimetable ? Object.keys(data.customTimetable).length : 0,
       a: data.assignmentStatuses,
-      tm: data.theme
+      tm: data.theme,
+      cr: data.classRoomCode
     });
   } catch (e) {
     return null;
@@ -3268,6 +3269,20 @@ function applyCloudDataToLocalState(data) {
   if (data.notificationPrefs && typeof data.notificationPrefs === 'object') {
     safeSetStorage(KEY_NOTIF_PREFS, data.notificationPrefs);
   }
+  if (typeof data.classRoomCode === 'string' && data.classRoomCode) {
+    // Lets a signed-in user open the same Class Feed room on a new device
+    // without re-typing the code. Same guard as theme: adopt only if this
+    // device doesn't already have a choice of its own, and never write
+    // back -- an else-branch here is exactly what caused the cross-device
+    // theme write-back loop this session had to remove. Uses safeSetStorage
+    // directly rather than saveClassRoomCode(), which also calls
+    // syncToCloud() -- calling that here would immediately echo this same
+    // value straight back to the cloud, the same self-write-back mistake
+    // theme just got fixed for.
+    if (!loadClassRoomCode()) {
+      safeSetStorage(KEY_CLASS_ROOM_CODE, data.classRoomCode.trim().toUpperCase());
+    }
+  }
   if (data.noticeChannels && typeof data.noticeChannels === 'object') {
     safeSetStorage(KEY_NOTICE_CHANNELS, data.noticeChannels);
   }
@@ -3301,6 +3316,7 @@ function pushLocalDataToCloud(uid) {
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget:          getAttendanceTarget(),
+    classRoomCode:      loadClassRoomCode() || null,
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
   // Mark this write's hash as already-seen so its own ack echo (which
@@ -3429,7 +3445,17 @@ function handleNoticeSourceClick(targetKey) {
 // anonymous sign-in so it never requires (or touches) a personal Google
 // account or that account's private cloud data -- see isRealUser().
 const KEY_CLASS_ROOM_CODE = 'cos_class_room_code';
-let _classFeedUnsub = null;
+// A fixed-interval poll while the modal is open, not a persistent
+// onSnapshot listener. A realtime listener's read cost scales with
+// (messages posted) x (people who currently have the feed open) --
+// unbounded as a room gets busier, and it shares Firestore's free-tier
+// daily read quota with every signed-in user's personal cloud sync
+// project-wide, so a chatty room could exhaust it for everyone, not just
+// itself. Polling makes the cost a fixed (open sessions) x (polls) x
+// (limit) instead, independent of how many messages fly by, at the
+// price of ~20s latency instead of instant delivery -- a fine trade for
+// a class bulletin board.
+let _classFeedPollTimer = null;
 let _classFeedPosts = [];
 
 function loadClassRoomCode() {
@@ -3438,6 +3464,7 @@ function loadClassRoomCode() {
 
 function saveClassRoomCode(code) {
   safeSetStorage(KEY_CLASS_ROOM_CODE, (code || '').trim().toUpperCase());
+  syncToCloud(); // no-op for a Local Desk Mode / anonymous-only session (see isRealUser)
 }
 
 function generateRoomCode() {
@@ -3482,7 +3509,7 @@ function showClassFeedModal() {
 }
 
 function closeClassFeedModal() {
-  if (_classFeedUnsub) { _classFeedUnsub(); _classFeedUnsub = null; }
+  if (_classFeedPollTimer) { clearInterval(_classFeedPollTimer); _classFeedPollTimer = null; }
   document.getElementById('class-feed-modal-backdrop')?.remove();
 }
 
@@ -3570,7 +3597,7 @@ function createClassRoom() {
 }
 
 function leaveClassRoom() {
-  if (_classFeedUnsub) { _classFeedUnsub(); _classFeedUnsub = null; }
+  if (_classFeedPollTimer) { clearInterval(_classFeedPollTimer); _classFeedPollTimer = null; }
   saveClassRoomCode('');
   showClassFeedModal();
 }
@@ -3585,24 +3612,41 @@ function copyClassRoomCode() {
   });
 }
 
+const CLASS_FEED_POLL_MS = 20000;
+const CLASS_FEED_POST_LIMIT = 30;
+
 function startClassFeedListener(code) {
-  const listEl = document.getElementById('cf-feed-list');
   ensureClassFeedAuth().then(() => {
     if (!db) throw new Error('offline');
-    if (_classFeedUnsub) { _classFeedUnsub(); _classFeedUnsub = null; }
-    _classFeedUnsub = db.collection('classRooms').doc(code).collection('posts')
-      .orderBy('createdAt', 'desc').limit(50)
-      .onSnapshot(snap => {
-        _classFeedPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderClassFeedList();
-      }, err => {
-        console.warn('Class feed listen error:', err);
-        if (listEl) listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't load the feed</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
-      });
+    fetchClassFeedOnce(code);
+    clearInterval(_classFeedPollTimer);
+    _classFeedPollTimer = setInterval(() => fetchClassFeedOnce(code), CLASS_FEED_POLL_MS);
   }).catch(err => {
     console.warn('Class feed auth error:', err);
+    const listEl = document.getElementById('cf-feed-list');
     if (listEl) listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't connect</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
   });
+}
+
+function fetchClassFeedOnce(code) {
+  if (!db) return;
+  db.collection('classRooms').doc(code).collection('posts')
+    .orderBy('createdAt', 'desc').limit(CLASS_FEED_POST_LIMIT)
+    .get()
+    .then(snap => {
+      // The modal may have been closed (or a different room opened) while
+      // this request was in flight -- only apply it if it's still relevant.
+      if (loadClassRoomCode() !== code || !document.getElementById('cf-feed-list')) return;
+      _classFeedPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderClassFeedList();
+    })
+    .catch(err => {
+      console.warn('Class feed fetch error:', err);
+      const listEl = document.getElementById('cf-feed-list');
+      if (listEl && !_classFeedPosts.length) {
+        listEl.innerHTML = `<div class="empty-state-card" style="padding:24px 16px"><div class="empty-state-title">Couldn't load the feed</div><div class="empty-state-desc">${escHtml_cd(err?.message || 'Check your connection and try again.')}</div></div>`;
+      }
+    });
 }
 
 function renderClassFeedList() {
@@ -3646,6 +3690,7 @@ function postToClassFeed() {
     });
   }).then(() => {
     if (input) input.value = '';
+    fetchClassFeedOnce(code); // show your own post right away instead of waiting for the next poll
   }).catch(err => {
     console.warn('Class feed post error:', err);
     showToast('Could not post — check your connection.', 'error');
@@ -3655,7 +3700,9 @@ function postToClassFeed() {
 function deleteClassFeedPost(postId) {
   const code = loadClassRoomCode();
   if (!code || !db) return;
-  db.collection('classRooms').doc(code).collection('posts').doc(postId).delete().catch(err => {
+  db.collection('classRooms').doc(code).collection('posts').doc(postId).delete().then(() => {
+    fetchClassFeedOnce(code);
+  }).catch(err => {
     console.warn('Class feed delete error:', err);
     showToast('Could not delete post.', 'error');
   });
