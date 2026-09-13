@@ -4279,8 +4279,11 @@ function formatLiveClockParts(d) {
 }
 
 function updateLiveClockDisplay() {
-  const el = document.getElementById('live-clock-text');
-  if (!el) return; // no-op whenever the dashboard isn't the current page
+  // Lives in the persistent topbar (index.html/404.html), not per-page
+  // content, so this same element is present on every page -- no more
+  // confined to the dashboard.
+  const el = document.getElementById('topbar-clock-text');
+  if (!el) return;
   const { dateStr, timeStr } = formatLiveClockParts(new Date());
   el.textContent = `${dateStr} · ${timeStr}`;
 }
@@ -5930,8 +5933,7 @@ function renderDashboard() {
           <div class="desk-greeting">${greeting}${firstName ? `, <span class="desk-greeting-name">${firstName}</span>` : ''}.${needsSetup ? '' : ''}</div>
           <div class="desk-greeting-sub">${contextLine}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <div id="live-clock-text" style="font-variant-numeric:tabular-nums;white-space:nowrap;font-size:var(--text-sm);color:var(--text-muted);font-weight:500">${(() => { const p = formatLiveClockParts(new Date()); return `${p.dateStr} · ${p.timeStr}`; })()}</div>
+        <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
           <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
           </button>
@@ -9919,24 +9921,7 @@ function renderNotices() {
 
     <!-- ── Quick-Access Notice Sources (3 Soft Linked Cards) ── -->
     <div class="notice-sources-grid">
-      <!-- Card 1: Official Updates / Official Class Group -->
-      <div class="notice-source-card tint-official" onclick="handleNoticeSourceClick('official')" title="Open official notice source">
-        <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-official">📢</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('official')" title="Edit official channel settings" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit official channel settings">
-            ✏️
-          </button>
-        </div>
-        <div>
-          <div class="notice-source-title">${escHtml_cd(channels.officialTitle || 'Official Updates')}</div>
-          <div class="notice-source-sub">Official notices from your class or department</div>
-        </div>
-        <div class="notice-source-action">
-          <span>${channels.officialUrl ? 'Open Portal / Source ↗' : '+ Configure Link'}</span>
-        </div>
-      </div>
-
-      <!-- Card 2: College ERP Portal (configurable link, same mechanism as Card 1) -->
+      <!-- College ERP Portal (configurable link) -->
       <div class="notice-source-card tint-erp" onclick="handleNoticeSourceClick('whatsapp')" title="Open your college ERP portal">
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-erp">🎓</div>
@@ -10785,20 +10770,10 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="section-heading">📢 Notice Channels &amp; ERP Portal</div>
+    <div class="section-heading">📢 ERP Portal</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Customize your department notice link and your college ERP portal link for quick access on your Notice Board.
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Official Channel Card Title</label>
-          <input type="text" class="form-input" id="nc-official-title" value="${(channels.officialTitle || 'Official Updates').replace(/"/g, '&quot;')}" placeholder="e.g. Official Updates or College Portal">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Official Channel Link / Portal URL</label>
-          <input type="url" class="form-input" id="nc-official-url" value="${(channels.officialUrl || '').replace(/"/g, '&quot;')}" placeholder="https://college.edu/notices or portal link">
-        </div>
+        Customize your college ERP portal link for quick access on your Notice Board.
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -10882,15 +10857,18 @@ function saveSettings() {
   };
   saveNotifPrefs(nPrefs);
 
-  const offTitleEl = document.getElementById('nc-official-title');
-  const offUrlEl   = document.getElementById('nc-official-url');
-  const waTitleEl  = document.getElementById('nc-wa-title');
-  const waUrlEl    = document.getElementById('nc-wa-url');
-  if (offTitleEl || waTitleEl) {
+  // The Official Updates card is gone (only ERP Portal + Dev Notes remain
+  // on the Notice Board), so this only ever touches the ERP fields --
+  // whatever officialTitle/officialUrl a device already had saved is left
+  // exactly as-is rather than being reset every settings save.
+  const waTitleEl = document.getElementById('nc-wa-title');
+  const waUrlEl   = document.getElementById('nc-wa-url');
+  if (waTitleEl) {
+    const existingChannels = loadNoticeChannels();
     const channels = {
-      officialTitle: (offTitleEl ? offTitleEl.value : '').trim() || 'Official Updates',
-      officialUrl:   (offUrlEl ? offUrlEl.value : '').trim(),
-      whatsappTitle: (waTitleEl ? waTitleEl.value : '').trim() || 'College ERP Portal',
+      officialTitle: existingChannels.officialTitle,
+      officialUrl:   existingChannels.officialUrl,
+      whatsappTitle: (waTitleEl.value || '').trim() || 'College ERP Portal',
       whatsappUrl:   (waUrlEl ? waUrlEl.value : '').trim()
     };
     saveNoticeChannels(channels);
@@ -12551,6 +12529,7 @@ window.registerBackgroundPush = registerBackgroundPush;
 function init() {
   initTheme();
   updateTopbarProfile();
+  updateLiveClockDisplay(); // populate the topbar clock immediately, don't wait for the first 60s tick
   setupFABDrag();
 
   // NOTE: every [data-nav] element already carries its own inline

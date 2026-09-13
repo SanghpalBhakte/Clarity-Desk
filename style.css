@@ -647,6 +647,26 @@ img { display: block; max-width: 100%; }
   gap: 8px;
 }
 
+/* ── Topbar Live Clock ─────────────────────────────────────
+   Present on every page (the topbar itself is outside per-page
+   content), not just the dashboard. Hidden on narrow screens along
+   with the other topbar text this app already sheds there (brand
+   wordmark, theme label) so it never crowds the search field. */
+.topbar-clock {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .topbar-clock {
+    display: none;
+  }
+}
+
 /* .theme-selector-topbar removed — theme picker moved to Settings */
 
 /* ── Topbar Theme Toggle Button ───────────────────────────── */
@@ -2198,7 +2218,7 @@ a.card:hover,
 /* ── Notice Sources Linked Cards ────────────────────────────── */
 .notice-sources-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 18px;
 }
