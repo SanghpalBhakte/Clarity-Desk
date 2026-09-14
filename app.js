@@ -986,6 +986,24 @@ function extractBatchTags(rawText) {
   return Array.from(batches);
 }
 
+// Renders a teacher/faculty value with exactly one "Prof. " title, never
+// doubled. Several render sites used to hardcode 'Prof. ' + teacher, which
+// double-prefixed any value that already carried a title -- data.js's own
+// default timetable entries all store "Prof. VAK" etc. already, and the
+// Add/Edit Class form's placeholder used to suggest typing the title too
+// -- producing "Prof. Prof. VAK" on screen. A value that isn't actually a
+// person's name (a not-yet-assigned placeholder like "Faculty", or an
+// empty-marker like "—") is left untouched since there's no name to title.
+const TEACHER_TITLE_PATTERN = /^(?:prof\.?|dr\.?|mr\.?|mrs\.?|ms\.?|adv\.?|shri|smt\.?)\s/i;
+const TEACHER_NO_TITLE_VALUES = new Set(['faculty', 'staff', 'tba', '\u2014', '-']);
+function formatTeacherName(teacher) {
+  const t = (teacher || '').trim();
+  if (!t) return '';
+  if (TEACHER_NO_TITLE_VALUES.has(t.toLowerCase())) return t;
+  if (TEACHER_TITLE_PATTERN.test(t)) return t;
+  return `Prof. ${t}`;
+}
+
 // ── Bounded Fuzzy Matching for Existing-Subject Reconciliation ──
 // Conservative, name-only (never applied to codes -- codes are short
 // structured tokens where ratio-based fuzzing is dangerous). Used solely to
@@ -1420,6 +1438,94 @@ function shouldKeepClassForUserBatch(classItem, userBatch = 'all') {
   if (itemBatches.includes(userLetter)) return true;
 
   return false;
+}
+
+// Splits a combined multi-batch timetable row -- data.js's "A + B" lab-slot
+// shorthand, e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)", where several
+// batches share one time slot but each does a DIFFERENT subject in a
+// different room -- into one entry per batch. Verified against every
+// combined row in TIMETABLE: `subject` segments split on "+" and `room`
+// segments split on "/" list the same batches in the same order, so they
+// pair up by index; each segment's own trailing "(INITIALS)" is pulled out
+// as that segment's teacher, since the row's shared `teacher` field is not
+// reliably parallel (only the first name in it carries a title). Rows that
+// aren't combined (the vast majority -- ordinary lectures, single-batch
+// labs, recess) pass through unchanged.
+function expandCombinedTimetableRow(item) {
+  const subj = item.subject || '';
+  if (!subj.includes('+')) return [item];
+
+  const subjParts = subj.split(/\s*\+\s*/).map(s => s.trim()).filter(Boolean);
+  if (subjParts.length < 2) return [item];
+
+  const roomParts = (item.room || '').split(/\s*\/\s*/).map(s => s.trim());
+  const roomsAlign = roomParts.length === subjParts.length;
+
+  return subjParts.map((part, i) => {
+    const teacherMatch = part.match(/\(([^)]+)\)\s*$/);
+    return {
+      ...item,
+      subject: part,
+      room: roomsAlign ? roomParts[i] : (item.room || ''),
+      teacher: teacherMatch ? teacherMatch[1].trim() : (item.teacher || ''),
+      code: '',
+    };
+  });
+}
+
+// Flattens data.js's TIMETABLE (keyed 0=Sun..6=Sat) into the flat
+// {day, time, end, subject, room, teacher, type, ...} shape the timetable
+// preview pipeline (showTimetablePreviewModal) already expects, expanding
+// combined multi-batch rows first via expandCombinedTimetableRow() so each
+// entry describes exactly one batch's class rather than several batches
+// glued into one row.
+function buildSampleTimetableSchedule() {
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const out = [];
+  Object.keys(TIMETABLE).forEach(dayKey => {
+    const dayName = DAY_NAMES[parseInt(dayKey, 10)] || 'Mon';
+    (TIMETABLE[dayKey] || []).forEach(item => {
+      expandCombinedTimetableRow(item).forEach(entry => {
+        out.push({ ...entry, day: dayName });
+      });
+    });
+  });
+  return out;
+}
+
+// Headless counterpart to showTimetablePreviewModal()'s per-item
+// normalization step, used only where popping the interactive preview
+// modal would be disruptive (mid-onboarding). Mirrors that modal's
+// normalize-and-fallback logic exactly, so a class looks identical
+// whether it was loaded via onboarding or the standalone "Load sample
+// timetable" button, then keeps only the rows relevant to userBatch
+// (shouldKeepClassForUserBatch already keeps batch-less rows -- lectures,
+// recess -- for everyone).
+function buildFilteredAidsTimetable(userBatch) {
+  const existingSubjects = getSubjectList();
+  const grouped = getEmptyTimetable();
+  buildSampleTimetableSchedule().forEach(item => {
+    const norm = normalizeSubjectIdentity(item.subject || '', existingSubjects, item.type);
+    const batches = (norm.batches && norm.batches.length > 0) ? norm.batches : (item.batches || []);
+    const entry = {
+      time: item.time || '10:00',
+      end: item.end || '11:00',
+      subject: norm.canonicalName || item.subject || '',
+      code: norm.canonicalCode || item.code || '',
+      room: norm.room || item.room || '',
+      teacher: norm.teacher || item.teacher || '',
+      type: norm.classType || item.type || 'lecture',
+      batches,
+    };
+    if (!shouldKeepClassForUserBatch(entry, userBatch)) return;
+    const dayIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(item.day);
+    if (dayIdx === -1) return;
+    grouped[dayIdx].push(entry);
+  });
+  Object.keys(grouped).forEach(d => {
+    grouped[d].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  });
+  return grouped;
 }
 
 function cleanupTimetableDomain(rawText, existingSubjects = []) {
@@ -3201,14 +3307,29 @@ function subscribeUserCloudData(uid) {
 function applyCloudDataToLocalState(data) {
   if (!data || typeof data !== 'object') return;
   if (data.profile && typeof data.profile === 'object') {
-    const cleanProfile = {
-      name:     String(data.profile.name || '').slice(0, 80),
-      college:  String(data.profile.college || '').slice(0, 100),
-      branch:   String(data.profile.branch || '').slice(0, 100),
-      year:     String(data.profile.year || '').slice(0, 50),
-      rollNo:   String(data.profile.rollNo || '').slice(0, 50),
-      examDate: String(data.profile.examDate || '').slice(0, 20),
+    // Merge onto the current local profile instead of replacing it whole.
+    // Two real bugs lived here: `batch` was never in this list at all, so
+    // every cloud sync (including the one that fires right after this
+    // device's own save) silently wiped whatever batch the user had just
+    // set -- it simply never made the round trip. And because this built
+    // a brand-new object from scratch, any field the cloud snapshot didn't
+    // have (or hadn't caught up on yet) overwrote a fresher local value
+    // with nothing instead of leaving it alone. Each field below now only
+    // overwrites the local value when the incoming data actually has one.
+    const cleanProfile = { ...loadProfile() };
+    const applyIfPresent = (key, maxLen) => {
+      const val = data.profile[key];
+      if (val !== undefined && val !== null && String(val).trim()) {
+        cleanProfile[key] = String(val).slice(0, maxLen);
+      }
     };
+    applyIfPresent('name', 80);
+    applyIfPresent('college', 100);
+    applyIfPresent('branch', 100);
+    applyIfPresent('year', 50);
+    applyIfPresent('rollNo', 50);
+    applyIfPresent('batch', 30);
+    applyIfPresent('examDate', 20);
     safeSetStorage(KEY_PROFILE, cleanProfile);
   }
   if (Array.isArray(data.customTasks)) {
@@ -4457,12 +4578,14 @@ function resetTimetableToDefault() {
 }
 
 function loadOfficialAidsTimetable() {
-  if (!confirm("Load the official Sem 3 SY AI-DS timetable schedule? This will set up your weekly classes.")) return;
-  safeSetStorage(KEY_CUSTOM_TIMETABLE, TIMETABLE);
+  if (!confirm("Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.")) return;
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
-  syncToCloud();
-  renderPage(state.currentPage);
-  showToast("Official SY AI-DS timetable loaded ✓", "success");
+  // Combined lab slots (e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)") need
+  // to be split per batch and the whole schedule reviewed/filtered before
+  // saving -- see buildSampleTimetableSchedule() and the batch selector
+  // already built into this preview modal -- rather than saving the raw
+  // TIMETABLE object (with every batch's classes glued together) directly.
+  showTimetablePreviewModal(buildSampleTimetableSchedule());
 }
 
 function todayClasses() {
@@ -5392,7 +5515,13 @@ window.finishOnboarding = function() {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
     const existingCustom = safeGetStorage(KEY_CUSTOM_TIMETABLE, null);
     if (!existingCustom) {
-      safeSetStorage(KEY_CUSTOM_TIMETABLE, TIMETABLE);
+      // Same batch-aware split as the standalone "Load sample timetable"
+      // button (buildFilteredAidsTimetable) -- popping its interactive
+      // preview modal on top of onboarding would be disruptive here, and
+      // the batch this student just typed a few fields up is right there,
+      // so this filters straight to their own classes without it.
+      const batchVal = (document.getElementById('ob-batch')?.value || '').trim();
+      safeSetStorage(KEY_CUSTOM_TIMETABLE, buildFilteredAidsTimetable(batchVal || 'all'));
     }
   } else {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
@@ -5815,7 +5944,7 @@ function renderDashboard() {
           </div>
           <div class="chrono-beacon-meta">
             ${activeClass.room ? `<span>${activeClass.room}</span>` : ''}
-            ${activeClass.teacher ? `<span>${iconText(icons.user(), 'Prof. ' + activeClass.teacher)}</span>` : ''}
+            ${activeClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(activeClass.teacher))}</span>` : ''}
             <span class="type-badge type-${activeClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${activeClass.type || 'lecture'}</span>
           </div>
         </div>
@@ -5841,7 +5970,7 @@ function renderDashboard() {
           </div>
           <div class="chrono-beacon-meta">
             ${nextClass.room ? `<span>${nextClass.room}</span>` : ''}
-            ${nextClass.teacher ? `<span>${iconText(icons.user(), 'Prof. ' + nextClass.teacher)}</span>` : ''}
+            ${nextClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(nextClass.teacher))}</span>` : ''}
             <span class="type-badge type-${nextClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${nextClass.type || 'lecture'}</span>
           </div>
         </div>
@@ -5975,7 +6104,7 @@ function renderDashboard() {
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
                     <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub('${c.subject}')">
                       <div class="schedule-slot-title">${c.subject}</div>
-                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? 'Prof. ' + c.teacher + ' · ' : ''}${c.type || 'lecture'}</div>
+                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                       <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">${status==='attended'?'Attended ✓':'Present'}</button>
@@ -6226,7 +6355,7 @@ function renderTimetable() {
             </div>
             <div class="tt-meta">
               ${c.room ? `Room: <strong>${c.room}</strong>` : ''}
-              ${c.teacher ? ` · Prof. <strong>${c.teacher}</strong>` : ''}
+              ${c.teacher ? ` · <strong>${formatTeacherName(c.teacher)}</strong>` : ''}
               ${c.notes ? ` · <span style="font-style:italic">${c.notes}</span>` : ''}
             </div>
           </div>
@@ -9013,7 +9142,7 @@ function renderSubjectsOverview(el, subjects) {
     return `
       <div class="card attendance-subject-card" style="padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary)">${s.name}</div>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· Prof. ' + s.teacher : ''} ${s.room ? '· ' + s.room : ''}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
 
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0">
           <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
@@ -9171,7 +9300,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
             <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">${subj.name}</div>
             <div style="font-size:var(--text-base);color:var(--text-muted);margin-top:2px">
               ${subj.code ? 'Course Code: <strong>' + subj.code + '</strong> · ' : ''}
-              ${subj.teacher ? 'Faculty: <strong>Prof. ' + subj.teacher + '</strong> · ' : ''}
+              ${subj.teacher ? 'Faculty: <strong>' + formatTeacherName(subj.teacher) + '</strong> · ' : ''}
               ${subj.room ? 'Room: <strong>' + subj.room + '</strong>' : ''}
             </div>
           </div>
@@ -9328,7 +9457,7 @@ function showTimetableEntryModal(day = state.ttDay, idx = null) {
         </div>
         <div class="form-group">
           <label class="form-label">Faculty / Teacher</label>
-          <input type="text" class="form-input" id="tte-teacher" placeholder="e.g. Prof. VJM" value="${item ? (item.teacher || '').replace(/"/g, '&quot;') : ''}">
+          <input type="text" class="form-input" id="tte-teacher" placeholder="e.g. V. J. More (no need to type Prof. -- added automatically)" value="${item ? (item.teacher || '').replace(/"/g, '&quot;') : ''}">
         </div>
       </div>
 
