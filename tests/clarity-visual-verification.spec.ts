@@ -117,7 +117,17 @@ const SEL = {
   consoleErrorIgnore: [/favicon/i, /firebase/i]
 };
 
+// Fixed instant for every visual-regression run. The dashboard renders
+// several live/date-derived strings (topbar clock, the "Good morning"
+// greeting, notice timestamps, the Add Task form's default due date) that
+// otherwise differ from whatever moment the baseline screenshots were
+// captured at, failing toHaveScreenshot() on pixels that have nothing to
+// do with the code under test. Freezing Date/Date.now() (real timers keep
+// running) makes those strings constant so the comparison is deterministic.
+const FIXED_NOW = new Date('2026-02-10T09:15:00');
+
 async function gotoApp(page: Page) {
+  await page.clock.setFixedTime(FIXED_NOW);
   await page.addInitScript(() => {
     try {
       localStorage.setItem('cos_onboarding_dismissed', 'true');
