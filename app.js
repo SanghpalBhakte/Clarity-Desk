@@ -870,12 +870,21 @@ function getCanonicalSubjectName(rawText) {
   text = text.replace(/^\d+[\s.\-–)]+/, '');
   let clean = text.replace(/[^a-zA-Z0-9\s/&+-]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  const words = clean.split(' ').filter(w => {
+  const words = clean.split(' ').filter((w, idx, arr) => {
     const wLow = w.toLowerCase();
+    if (w === '&') return true;
+    if (/^\d+$/.test(w)) {
+      // Keep a short trailing number ("Open Elective 1", "Group 2") --
+      // it is the only thing distinguishing otherwise-identical subject
+      // names. A bare digit anywhere else in the text is still OCR/format
+      // noise (stray page numbers, leftover credit counts, etc.) and gets
+      // dropped as before. Checked ahead of the generic length<=1 filter
+      // below, which would otherwise reject a single trailing digit first.
+      return idx === arr.length - 1 && w.length <= 2;
+    }
     if (w.length <= 1 && !['c', 'r'].includes(wLow)) return false;
     if (TIMETABLE_JUNK_TOKENS.has(wLow)) return false;
     if (/^[A-D][1-4]$/i.test(w)) return false;
-    if (/^\d+$/.test(w)) return false;
     return true;
   });
 
@@ -894,6 +903,8 @@ function getCanonicalSubjectName(rawText) {
     'probability & statistics': 'Probability and Statistics',
     'probability and statistics': 'Probability and Statistics',
     'bmfa': 'Business Management and Financial Accounting',
+    'business management financial account': 'Business Management and Financial Accounting',
+    'business management & financial account': 'Business Management and Financial Accounting',
     'business management': 'Business Management and Financial Accounting',
     'coi': 'Constitution of India',
     'ce': 'Community Engagement',
@@ -1296,12 +1307,21 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
     .replace(/\s+/g, ' ')
     .trim();
 
-  const words = cleanName.split(' ').filter(w => {
+  const words = cleanName.split(' ').filter((w, idx, arr) => {
     const wLow = w.toLowerCase();
+    if (w === '&') return true;
+    if (/^\d+$/.test(w)) {
+      // Keep a short trailing number ("Open Elective 1", "Group 2") --
+      // it is the only thing distinguishing otherwise-identical subject
+      // names. A bare digit anywhere else in the text is still OCR/format
+      // noise (stray page numbers, leftover credit counts, etc.) and gets
+      // dropped as before. Checked ahead of the generic length<=1 filter
+      // below, which would otherwise reject a single trailing digit first.
+      return idx === arr.length - 1 && w.length <= 2;
+    }
     if (w.length <= 1 && !['c', 'r'].includes(wLow)) return false;
     if (TIMETABLE_JUNK_TOKENS.has(wLow)) return false;
     if (/^[A-D][1-4]$/i.test(w)) return false;
-    if (/^\d+$/.test(w)) return false;
     return true;
   });
 
@@ -1319,6 +1339,8 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
     'probability & statistics': 'Probability and Statistics',
     'probability and statistic': 'Probability and Statistics',
     'bmfa': 'Business Management and Financial Accounting',
+    'business management financial account': 'Business Management and Financial Accounting',
+    'business management & financial account': 'Business Management and Financial Accounting',
     'business management': 'Business Management and Financial Accounting',
     'coi': 'Constitution of India',
     'ce': 'Community Engagement',

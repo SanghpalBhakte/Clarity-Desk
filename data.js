@@ -104,7 +104,7 @@ export const NOTICES = [
 // ── Quick Links ───────────────────────────────────────────────
 export const QUICK_LINKS = [
   {
-    subject: "Data Structure",
+    subject: "Data Structures",
     code: "DS",
     color: "#394B63",
     resources: [
@@ -114,7 +114,7 @@ export const QUICK_LINKS = [
     ],
   },
   {
-    subject: "Digital Electronics & Microprocessor",
+    subject: "Digital Electronics and Microprocessors",
     code: "DEMP",
     color: "#5A6F8F",
     resources: [
@@ -134,7 +134,7 @@ export const QUICK_LINKS = [
     ],
   },
   {
-    subject: "Probability & Statistics",
+    subject: "Probability and Statistics",
     code: "PBST",
     color: "#B48852",
     resources: [
@@ -163,7 +163,7 @@ export const QUICK_LINKS = [
     ],
   },
   {
-    subject: "Business Management & Financial Account",
+    subject: "Business Management and Financial Accounting",
     code: "BMFA",
     color: "#7E9C8D",
     resources: [
