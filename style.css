@@ -62,11 +62,11 @@
 
   --color-text-primary: var(--raw-ink-1);
   --color-text-secondary: var(--raw-ink-2);
-  --color-text-tertiary: var(--raw-ink-3);
+  --color-text-tertiary: #72685a; /* WCAG AA fix: raw-ink-3 (#9c9182) was 2.89:1 on surface, now 4.6-5.1:1 */
   --color-text-inverse: var(--raw-ink-inverse);
 
-  --color-action-primary: var(--raw-brand-1);
-  --color-action-primary-hover: var(--raw-brand-2);
+  --color-action-primary: #b75534; /* WCAG AA fix: raw-brand-1 (#d17a5c) gave 2.95:1 with white button text, now 4.5:1 */
+  --color-action-primary-hover: #9d4c32; /* darkened to stay visually distinct from the new default above */
   --color-action-primary-text: var(--raw-ink-inverse);
   --color-action-secondary: var(--raw-accent-3);
   --color-action-secondary-hover: #f0dba8;

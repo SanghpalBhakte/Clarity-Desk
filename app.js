@@ -265,6 +265,11 @@ function showToast(msg, type = 'info') {
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
+    // Announce toast text to screen readers -- these messages (saved,
+    // error, etc.) previously had no non-visual equivalent.
+    toastContainer.setAttribute('role', 'status');
+    toastContainer.setAttribute('aria-live', 'polite');
+    toastContainer.setAttribute('aria-atomic', 'true');
     document.body.appendChild(toastContainer);
   }
 
@@ -12377,6 +12382,67 @@ document.addEventListener('keydown', (e) => {
     closeAssistant();
   }
 });
+
+// ── Accessibility: activate role="button" elements from the keyboard ───
+// A few controls (the desktop sidebar nav items in particular) are <div>s
+// with onclick for layout reasons and carry role="button" tabindex="0"
+// instead of being real <button> elements. This makes Enter/Space on any
+// of them behave like a native button click, matching what the mobile
+// bottom-nav's real <button> elements already do for free.
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"]')) {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
+// ── Accessibility: retrofit dialog semantics onto every modal ──────────
+// Modals here are hand-built per-feature (~20 show*Modal functions, each
+// creating its own `.modal-backdrop > .modal` pair) rather than going
+// through one shared builder. Instead of editing every one of them, this
+// watches for any `.modal-backdrop` appearing in the DOM and adds
+// role="dialog"/aria-modal/aria-labelledby plus a Tab focus trap to
+// whatever it finds inside -- safe for every modal, present and future,
+// without changing how any of them open, close, or submit.
+function enhanceModalA11y(backdrop) {
+  const modal = backdrop.querySelector('.modal');
+  if (!modal || modal.hasAttribute('data-a11y-enhanced')) return;
+  modal.setAttribute('data-a11y-enhanced', 'true');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  if (!modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
+
+  const titleEl = modal.querySelector('.modal-title');
+  if (titleEl) {
+    if (!titleEl.id) titleEl.id = 'modal-title-' + Math.random().toString(36).slice(2, 9);
+    modal.setAttribute('aria-labelledby', titleEl.id);
+  }
+
+  const focusableSel = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  modal.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(modal.querySelectorAll(focusableSel)).filter(el => el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+}
+
+if (typeof MutationObserver !== 'undefined' && document.body) {
+  new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType === 1 && node.classList && node.classList.contains('modal-backdrop')) {
+          enhanceModalA11y(node);
+        }
+      }
+    }
+  }).observe(document.body, { childList: true });
+}
 
 // ── Global Handlers ───────────────────────────────────────────
 
