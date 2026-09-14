@@ -41,6 +41,22 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
       if (!('serviceWorker' in navigator)) return { supported: false };
       try {
         const reg = await navigator.serviceWorker.ready;
+        const worker = reg.active;
+        // `.ready` resolves as soon as a worker becomes `active`, which can
+        // happen right as it enters "activating" -- wait for the actual
+        // "activated" state (or the statechange event) instead of sampling
+        // state at that instant, to avoid a race against the real signal.
+        if (worker && worker.state !== 'activated') {
+          await new Promise((resolve) => {
+            const onChange = () => {
+              if (worker.state === 'activated') {
+                worker.removeEventListener('statechange', onChange);
+                resolve(undefined);
+              }
+            };
+            worker.addEventListener('statechange', onChange);
+          });
+        }
         return {
           supported: true,
           active: !!reg.active,
