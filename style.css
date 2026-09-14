@@ -661,7 +661,7 @@ img { display: block; max-width: 100%; }
   flex-shrink: 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .topbar-clock {
     display: none;
   }
@@ -1739,7 +1739,7 @@ a.card:hover,
   font-weight: 500;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .dashboard-grid-2col {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -2223,7 +2223,7 @@ a.card:hover,
   margin-bottom: 18px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .notice-sources-grid {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -3415,6 +3415,27 @@ button:disabled {
 
 .btn-icon:active { transform: scale(0.92); }
 
+/* ============================================================
+   Breakpoint Scale — canonical values, don't add new ones without
+   a documented reason (see the 560px example below).
+
+   Mobile (max-width), scoped near the components they affect:
+     540px  — topbar label/search-field crowding (topbar, storage badge,
+              form-row stacking)
+     560px  — deliberately not 540: tuned so the dashboard rest-day empty
+              state doesn't collide with the floating Add Task button on
+              short phones specifically (see its own comment)
+     600px  — component-level reflow (vitals strip, hero padding, Ask
+              Desk panel, greeting text size)
+     767px  — the mobile side of the 768px desktop switch below (kept at
+              767, not 768, so the two never fire on the same viewport)
+
+   Desktop (min-width), the primary layout system, all below:
+     768px  — sidebar replaces bottom-nav; base desktop spacing
+     1024px — wider content padding, topbar breathing room
+     1100px — dashboard right panel becomes a sticky 2-column layout
+     1280px — maximum comfortable padding on very wide screens
+   ============================================================ */
 /* ── Responsive — Desktop ≥768px ──────────────────────────── */
 @media (min-width: 768px) {
   .sidebar { display: flex; }
