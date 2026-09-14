@@ -3388,7 +3388,7 @@ function showNoticeChannelModal(targetKey) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 
@@ -9355,7 +9355,7 @@ function showTimetableEntryModal(day = state.ttDay, idx = null) {
     </div>
   `;
 
-  backdrop.addEventListener('click', () => backdrop.remove());
+  wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
 }
 
@@ -9764,7 +9764,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', () => backdrop.remove());
+  wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
   setTimeout(() => document.getElementById('task-subject')?.focus(), 50);
 
@@ -10193,7 +10193,7 @@ function showLinkSubjectModal(si, existing) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 
@@ -10339,7 +10339,7 @@ function showLinkResourceModal(si, ri, existing) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 
@@ -10998,7 +10998,7 @@ function showNotice(id) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', () => backdrop.remove());
+  wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
 
   // Close on Esc
@@ -11172,7 +11172,7 @@ function showDevNotesModal(filter = null) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 window.showDevNotesModal = showDevNotesModal;
@@ -12404,6 +12404,18 @@ document.addEventListener('keydown', (e) => {
 // role="dialog"/aria-modal/aria-labelledby plus a Tab focus trap to
 // whatever it finds inside -- safe for every modal, present and future,
 // without changing how any of them open, close, or submit.
+// Shared close-on-backdrop-click wiring, extracted from the several
+// modal-building functions that repeated this exact line. requireDirectClick
+// (default true) mirrors each call site's prior behavior: most modals only
+// close when the click lands on the backdrop itself (not bubbled from modal
+// content); a few older ones closed on any click inside the backdrop area
+// and keep that exact behavior via requireDirectClick=false.
+function wireBackdropClickClose(backdrop, requireDirectClick = true) {
+  backdrop.addEventListener('click', (e) => {
+    if (!requireDirectClick || e.target === backdrop) backdrop.remove();
+  });
+}
+
 function enhanceModalA11y(backdrop) {
   const modal = backdrop.querySelector('.modal');
   if (!modal || modal.hasAttribute('data-a11y-enhanced')) return;
