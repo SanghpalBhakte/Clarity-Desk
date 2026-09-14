@@ -115,6 +115,26 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
 
     const cacheAudit = await page.evaluate(async () => {
       if (!('caches' in window)) return { supported: false, keys: [] };
+      if ('serviceWorker' in navigator) {
+        // The versioned cache is created during the SW's install handler and
+        // pruned to one entry during its activate handler -- both must have
+        // actually run before caches.keys() reflects the final state.
+        // Checking right after navigation races that work; wait for the
+        // real "activated" signal instead, same as the registration test.
+        const reg = await navigator.serviceWorker.ready;
+        const worker = reg.active;
+        if (worker && worker.state !== 'activated') {
+          await new Promise((resolve) => {
+            const onChange = () => {
+              if (worker.state === 'activated') {
+                worker.removeEventListener('statechange', onChange);
+                resolve(undefined);
+              }
+            };
+            worker.addEventListener('statechange', onChange);
+          });
+        }
+      }
       const keys = await caches.keys();
       return { supported: true, keys };
     });
