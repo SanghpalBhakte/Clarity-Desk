@@ -3064,6 +3064,16 @@ async function extractTimetableFromImage(base64Data, mimeType) {
   const worker = await getTesseractWorker();
   const ocrResult = await worker.recognize(preprocessedDataUrl);
 
+  // Diagnostic-only: surfaces exactly what Tesseract itself read off this
+  // image, before any grid/parsing logic touches it -- the single fastest
+  // way to tell "OCR read the photo badly" apart from "OCR read it fine but
+  // parsing/mapping mangled it after". Cheap, console-only, no UI/behavior
+  // impact; safe to leave in permanently the way the existing
+  // [TesseractWorker]/[TimetableUpload] logs already are.
+  console.log('[TimetableOCR] Raw Tesseract text:\n' + (ocrResult.data?.text || '(empty)'));
+  console.log('[TimetableOCR] Raw word list (text @ confidence):',
+    (ocrResult.data?.words || []).map(w => `"${w.text}"@${Math.round(w.confidence)}`).join('  '));
+
   // Parsed once, up front, from the first pass's own word list: many real
   // timetables print a "Name of the faculty" legend below the grid mapping
   // short initials (e.g. "VAK") used inside cells to the actual faculty
