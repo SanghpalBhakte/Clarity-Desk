@@ -459,6 +459,76 @@ const AIService = {
     }
 
     throw lastError || new Error('AI service unavailable. Please try again later.');
+  },
+
+  // True vision-based extraction: sends the actual photo to a multimodal
+  // Gemini model, instead of only Tesseract's OCR text output. This is
+  // the only path that can recover information Tesseract lost at the
+  // pixel level (heavy skew, poor lighting, handwriting) --
+  // generateContentFromText can only ever polish what Tesseract already
+  // read, and has no way to see anything Tesseract missed or misread.
+  // Only ever called when the user has already configured a Gemini API
+  // key (the caller checks this before invoking it) -- sending the photo
+  // itself is a bigger privacy step than sending text, so this must never
+  // run without that same key already present.
+  async generateContentFromImage(base64Data, mimeType, promptText) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('No Gemini API key configured for vision extraction.');
+    }
+
+    const models = this.getModelsList();
+    let lastError = null;
+
+    for (const model of models) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      try {
+        console.log(`[AIService] Attempting VISION extraction with Gemini model: ${model}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: promptText },
+                { inline_data: { mime_type: mimeType, data: base64Data } }
+              ]
+            }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errObj = await response.json().catch(() => ({}));
+          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
+          throw new Error(friendlyGeminiError(response.status, rawMsg));
+        }
+
+        const resData = await response.json();
+        const candidate = resData.candidates?.[0];
+
+        const finishReason = candidate?.finishReason;
+        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+          throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
+        }
+
+        const rawText = candidate?.content?.parts?.[0]?.text || '';
+        const parsed = safeParseGeminiJson(rawText);
+        if (!parsed) {
+          throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
+        }
+        console.log(`[AIService] ✅ Vision extraction succeeded with model: ${model}`, parsed);
+        return parsed;
+      } catch (err) {
+        lastError = new Error(`${lastError ? lastError.message + ' (Vision Fallback: ' + (err.message || err) + ')' : (err.message || err)}`);
+        console.warn(`[AIService] Vision model attempt ${model} failed:`, err.message || err);
+      }
+    }
+
+    throw lastError || new Error('Vision AI service unavailable. Please try again later.');
   }
 };
 
@@ -599,12 +669,122 @@ async function getTesseractWorker(onProgress = null) {
   return _tesseractWorkerPromise;
 }
 
+// ── Auto-Deskew (Rotation Correction) ──────────────────────────
+// Detects small handheld-photo tilt via a projection-profile angle
+// search: for each candidate angle, rotate a cheap downscaled copy of
+// the photo and score how sharply text rows separate (variance of
+// per-row ink density across the rotated image). The angle that produces
+// the highest variance is the one where horizontal table/text lines are
+// best aligned to the horizontal axis -- the standard "projection
+// profile" deskew method. Bounded to +/-12 degrees: this corrects
+// ordinary camera tilt, not gross 90/180-degree misorientation (already
+// handled by the browser's own EXIF-orientation handling on image
+// decode, well before this ever runs).
+function detectSkewAngle(sourceCanvas) {
+  const SEARCH_W = 320;
+  const scale = Math.min(1, SEARCH_W / sourceCanvas.width);
+  const searchW = Math.max(40, Math.round(sourceCanvas.width * scale));
+  const searchH = Math.max(40, Math.round(sourceCanvas.height * scale));
+
+  const smallCanvas = document.createElement('canvas');
+  smallCanvas.width = searchW;
+  smallCanvas.height = searchH;
+  const sctx = smallCanvas.getContext('2d');
+  sctx.drawImage(sourceCanvas, 0, 0, searchW, searchH);
+
+  const rotCanvas = document.createElement('canvas');
+  const rotCtx = rotCanvas.getContext('2d');
+
+  let bestAngle = 0;
+  let bestScore = -Infinity;
+
+  for (let angleDeg = -12; angleDeg <= 12; angleDeg += 0.5) {
+    const rad = angleDeg * Math.PI / 180;
+    const absCos = Math.abs(Math.cos(rad));
+    const absSin = Math.abs(Math.sin(rad));
+    const rotW = Math.max(1, Math.round(searchW * absCos + searchH * absSin));
+    const rotH = Math.max(1, Math.round(searchW * absSin + searchH * absCos));
+    rotCanvas.width = rotW;
+    rotCanvas.height = rotH;
+    rotCtx.save();
+    rotCtx.fillStyle = '#ffffff';
+    rotCtx.fillRect(0, 0, rotW, rotH);
+    rotCtx.translate(rotW / 2, rotH / 2);
+    rotCtx.rotate(rad);
+    rotCtx.drawImage(smallCanvas, -searchW / 2, -searchH / 2);
+    rotCtx.restore();
+
+    const { data: rotData } = rotCtx.getImageData(0, 0, rotW, rotH);
+    const rowSums = new Float64Array(rotH);
+    for (let y = 0; y < rotH; y++) {
+      let sum = 0;
+      const rowOffset = y * rotW * 4;
+      for (let x = 0; x < rotW; x++) {
+        const i = rowOffset + x * 4;
+        const luminance = 0.299 * rotData[i] + 0.587 * rotData[i + 1] + 0.114 * rotData[i + 2];
+        sum += 255 - luminance;
+      }
+      rowSums[y] = sum;
+    }
+    const mean = rowSums.reduce((a, b) => a + b, 0) / rotH;
+    let variance = 0;
+    for (let y = 0; y < rotH; y++) {
+      const d = rowSums[y] - mean;
+      variance += d * d;
+    }
+    variance /= rotH;
+
+    if (variance > bestScore) {
+      bestScore = variance;
+      bestAngle = angleDeg;
+    }
+  }
+
+  rotCanvas.width = 1;
+  rotCanvas.height = 1;
+  smallCanvas.width = 1;
+  smallCanvas.height = 1;
+
+  return bestAngle;
+}
+
+// Rotates a full-resolution canvas by the given angle (degrees) around
+// its own center, returning a NEW canvas sized to fit the fully-rotated
+// content against a white background (so no corner content is clipped
+// and the added corners read as blank page, not noise, to the margin-trim
+// step that runs later). A near-zero angle is a no-op -- returns the
+// same canvas unchanged -- so the common case of an already-square photo
+// pays no extra resample cost.
+function rotateCanvasByAngle(sourceCanvas, angleDeg) {
+  if (Math.abs(angleDeg) < 0.3) return sourceCanvas;
+
+  const rad = angleDeg * Math.PI / 180;
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+  const absCos = Math.abs(Math.cos(rad));
+  const absSin = Math.abs(Math.sin(rad));
+  const newW = Math.max(1, Math.round(w * absCos + h * absSin));
+  const newH = Math.max(1, Math.round(w * absSin + h * absCos));
+
+  const out = document.createElement('canvas');
+  out.width = newW;
+  out.height = newH;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, newW, newH);
+  ctx.translate(newW / 2, newH / 2);
+  ctx.rotate(rad);
+  ctx.drawImage(sourceCanvas, -w / 2, -h / 2);
+
+  return out;
+}
+
 function preprocessImageForOCR(base64Data, mimeType) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
+      let canvas = document.createElement('canvas');
+      let ctx = canvas.getContext('2d');
       
       let width = img.width;
       let height = img.height;
@@ -631,6 +811,24 @@ function preprocessImageForOCR(base64Data, mimeType) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
+      // 1b. Auto-deskew: correct small handheld-photo rotation before any
+      // further processing, so both the margin-trim step below (which
+      // assumes roughly horizontal table lines) and Tesseract itself see
+      // an upright table. Scored on a cheap downscaled copy, applied once
+      // to the full-resolution canvas.
+      const skewAngle = detectSkewAngle(canvas);
+      if (Math.abs(skewAngle) >= 0.3) {
+        const rotated = rotateCanvasByAngle(canvas, skewAngle);
+        if (rotated !== canvas) {
+          canvas.width = 1;
+          canvas.height = 1;
+          canvas = rotated;
+          ctx = canvas.getContext('2d');
+          width = canvas.width;
+          height = canvas.height;
+        }
+      }
+
       // 2. Grayscale & contrast enhancement with dynamic range expansion & soft S-curve
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
@@ -655,6 +853,82 @@ function preprocessImageForOCR(base64Data, mimeType) {
         data[i] = boosted;
         data[i + 1] = boosted;
         data[i + 2] = boosted;
+      }
+
+      // 2b. Local (tile-based) contrast normalization, blended with the
+      // global S-curve above. A single global min/max stretch assumes
+      // uniform lighting across the whole photo -- a real photographed
+      // page commonly has a shadow across half the sheet or a glare
+      // patch, which one curve can't equalize. Each tile is renormalized
+      // against its OWN local min/max (from `grayValues`, captured before
+      // the S-curve above overwrote `data`) and blended 50/50 with the
+      // global result already written -- a full replacement risks
+      // amplifying flat, near-blank tiles (pure background/margin) into
+      // visible noise, so the global curve stays as a floor.
+      const TILE = 48;
+      const tilesX = Math.ceil(width / TILE);
+      const tilesY = Math.ceil(height / TILE);
+      const tileMin = new Float32Array(tilesX * tilesY).fill(255);
+      const tileMax = new Float32Array(tilesX * tilesY).fill(0);
+      for (let y = 0; y < height; y++) {
+        const ty = Math.min(tilesY - 1, Math.floor(y / TILE));
+        const rowBase = y * width;
+        for (let x = 0; x < width; x++) {
+          const tx = Math.min(tilesX - 1, Math.floor(x / TILE));
+          const idx = ty * tilesX + tx;
+          const g = grayValues[rowBase + x];
+          if (g < tileMin[idx]) tileMin[idx] = g;
+          if (g > tileMax[idx]) tileMax[idx] = g;
+        }
+      }
+      for (let y = 0; y < height; y++) {
+        const ty = Math.min(tilesY - 1, Math.floor(y / TILE));
+        const rowBase = y * width;
+        for (let x = 0; x < width; x++) {
+          const tx = Math.min(tilesX - 1, Math.floor(x / TILE));
+          const idx = ty * tilesX + tx;
+          const localMin = tileMin[idx];
+          const localMax = tileMax[idx];
+          const localRange = localMax - localMin;
+          // Skip near-flat tiles (pure background/margin) -- normalizing
+          // them would only amplify sensor noise into visible speckling.
+          if (localRange < 18) continue;
+          const g = grayValues[rowBase + x];
+          const localNorm = Math.min(255, Math.max(0, ((g - localMin) / localRange) * 255));
+          const i = (rowBase + x) * 4;
+          const blended = Math.round((data[i] + localNorm) / 2);
+          data[i] = blended;
+          data[i + 1] = blended;
+          data[i + 2] = blended;
+        }
+      }
+
+      // 2c. Light unsharp-mask sharpening to recover edge crispness lost
+      // to smartphone camera softness/motion blur (and to the smoothing
+      // upscale draw above). Deliberately mild -- a fast 3x3 box-blur
+      // estimate rather than a true Gaussian, amount capped at 0.4 --
+      // since OCR accuracy suffers more from over-sharpened halo
+      // artifacts than from mild residual softness.
+      const sharpenSrc = new Uint8ClampedArray(data.length);
+      sharpenSrc.set(data);
+      const SHARPEN_AMOUNT = 0.4;
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = (y * width + x) * 4;
+          let sum = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const rowOffset = (y + dy) * width;
+            for (let dx = -1; dx <= 1; dx++) {
+              sum += sharpenSrc[(rowOffset + (x + dx)) * 4];
+            }
+          }
+          const blurVal = sum / 9;
+          const orig = sharpenSrc[i];
+          const sharpened = Math.min(255, Math.max(0, orig + (orig - blurVal) * SHARPEN_AMOUNT));
+          data[i] = sharpened;
+          data[i + 1] = sharpened;
+          data[i + 2] = sharpened;
+        }
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -2640,8 +2914,20 @@ async function extractTimetableFromImage(base64Data, mimeType) {
     }
   }
   
-  // If deterministic parser extracted classes, return immediately!
-  if (deterministicResult.schedule && deterministicResult.schedule.length > 0) {
+  // If the deterministic parser found a confident result, return
+  // immediately -- "confident" now means both non-empty AND not mostly
+  // flagged uncertain, so a photo that produced a few rows but garbled
+  // most of them still gets a chance at AI help below instead of being
+  // silently accepted as-is.
+  const uncertainRowCount = (deterministicResult.schedule || []).filter(r => r.isUncertain).length;
+  const uncertainRatio = deterministicResult.schedule?.length
+    ? uncertainRowCount / deterministicResult.schedule.length
+    : 1;
+  const deterministicIsConfident = deterministicResult.schedule
+    && deterministicResult.schedule.length > 0
+    && uncertainRatio < 0.4;
+
+  if (deterministicIsConfident) {
     return { schedule: deterministicResult.schedule, confidence: Math.max(70, deterministicResult.confidence) };
   }
   
@@ -2679,26 +2965,39 @@ Rules:
 3. Do not invent fake subjects or rooms if not present in text.
 4. If an entry is ambiguous, mark isUncertain: true.`;
 
+  // Vision-first: send the actual photo to a multimodal Gemini model when
+  // a Gemini key is configured -- this is the only path that can recover
+  // information Tesseract lost at the pixel level (heavy skew, poor
+  // lighting, handwriting), which text-only repair structurally cannot do
+  // since it never sees the picture. Falls through to the existing
+  // text-only repair below if vision isn't available (Groq-only setup) or
+  // the vision call itself fails, so nothing regresses for a
+  // Gemini-less setup or a transient vision-call error.
+  if (hasGeminiKey) {
+    try {
+      const visionPrompt = schemaInstruction + `
+
+The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
+
+Rough OCR text (may be inaccurate):
+${ocrResult.data.text || ''}`;
+      const visionResult = await AIService.generateContentFromImage(base64Data, mimeType, visionPrompt);
+      if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
+        const sanitized = sanitizeAiScheduleRows(visionResult.schedule);
+        if (sanitized.length > 0) {
+          return { schedule: sanitized, confidence: 88 };
+        }
+      }
+    } catch (err) {
+      console.warn("[ExtractionPipeline] Vision AI Repair failed, falling back to text-only repair:", err);
+    }
+  }
+
   try {
     const rawOcrText = ocrResult.data.text;
     const aiResult = await AIService.generateContentFromText(rawOcrText, schemaInstruction);
     if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
-      // Sanitize AI rows to prevent hallucinations
-      const sanitized = aiResult.schedule.map(item => {
-        const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
-        return {
-          day: standardizeTimetableDay(item.day) || 'Mon',
-          time: timeNorm.time || item.time || '10:00',
-          end: timeNorm.end || item.end || '11:00',
-          subject: (item.subject || '').trim(),
-          code: (item.code || '').trim(),
-          room: (item.room || '').trim(),
-          teacher: (item.teacher || '').trim(),
-          type: item.type || 'lecture',
-          isUncertain: !!item.isUncertain || !item.subject
-        };
-      }).filter(r => r.subject.length > 0);
-
+      const sanitized = sanitizeAiScheduleRows(aiResult.schedule);
       return { schedule: sanitized.length > 0 ? sanitized : deterministicResult.schedule, confidence: 85 };
     }
     return deterministicResult;
@@ -2706,6 +3005,28 @@ Rules:
     console.warn("[ExtractionPipeline] AI Repair failed:", err);
     return deterministicResult;
   }
+}
+
+// Shared sanitizer for AI-returned schedule rows (both the vision path and
+// the text-only repair path), extracted so the two never drift apart.
+// Rejects hallucinated rows with no subject, and re-runs each time value
+// through the same normalizeTimetableTime used everywhere else so an AI
+// model's own time formatting quirks don't bypass the app's own validation.
+function sanitizeAiScheduleRows(rawRows) {
+  return (rawRows || []).map(item => {
+    const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
+    return {
+      day: standardizeTimetableDay(item.day) || 'Mon',
+      time: timeNorm.time || item.time || '10:00',
+      end: timeNorm.end || item.end || '11:00',
+      subject: (item.subject || '').trim(),
+      code: (item.code || '').trim(),
+      room: (item.room || '').trim(),
+      teacher: (item.teacher || '').trim(),
+      type: item.type || 'lecture',
+      isUncertain: !!item.isUncertain || !item.subject
+    };
+  }).filter(r => r.subject.length > 0);
 }
 
 function triggerTimetableImport() {
@@ -2716,6 +3037,11 @@ function selectTimetableFile() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
+  // Hints mobile browsers to offer the rear camera directly rather than
+  // defaulting straight to the photo library -- most mobile browsers still
+  // also offer a gallery/file option alongside it, so this only speeds up
+  // the common case without removing any existing choice.
+  input.capture = 'environment';
   input.onchange = handleTimetableImageUpload;
   input.click();
 }

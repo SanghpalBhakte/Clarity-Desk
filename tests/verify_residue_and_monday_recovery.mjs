@@ -47,7 +47,12 @@ function makeFakeCanvas() {
       imageSmoothingQuality: 'high',
       drawImage: () => {},
       getImageData: (x, y, w, h) => ({ data: new Uint8ClampedArray(Math.max(1, w) * Math.max(1, h) * 4).fill(180) }),
-      putImageData: () => {}
+      putImageData: () => {},
+      save: () => {},
+      restore: () => {},
+      translate: () => {},
+      rotate: () => {},
+      fillRect: () => {}
     }),
     toDataURL: (mime) => `data:${mime || 'image/png'};base64,FAKE`
   };
