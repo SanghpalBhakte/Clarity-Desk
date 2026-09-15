@@ -1,4 +1,7 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Mock browser environment (same pattern as other verify_*.mjs files).
 // Covers Stage 12: removing "General" vs "Other" duplicate-category
@@ -20,7 +23,7 @@ import fs from 'fs';
 //       normalized subject, so a task with a blank subject ended up as
 //       subject:'General' but code:'OTH' -- two different labels for one
 //       task.
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
 const localStorageData = {};
 globalThis.localStorage = {

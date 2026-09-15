@@ -39,6 +39,7 @@ D:\Clarity Desk\
 │   ├── verify_gap_fixes.mjs                        # 5-unit Gap Fix Board suite
 │   ├── verify_subject_normalization.mjs            # 11 scenarios — canonical subject/OCR-variant merging
 │   ├── verify_attendance_scan_row_reconstruction.mjs
+│   ├── verify_ocr_scan_improvements.mjs             # Deskew, shadow-flatten, dark-invert, subject-legend & digit-confusion (see §11)
 │   ├── verify_bodytext_retry.mjs / verify_ocr_header_robustness.mjs / verify_multiline_split.mjs
 │   ├── verify_residue_and_monday_recovery.mjs / verify_subject_code_and_faculty_legend.mjs
 │   ├── verify_timetable_recess_count.mjs / verify_timetable_structure.mjs / verify_task_category_cleanup.mjs
@@ -248,6 +249,22 @@ Cloud Functions requires the Blaze (pay-as-you-go) billing plan — a card on fi
 3. Deploy hosting as usual (`firebase deploy --only hosting`) so the client-side changes (FCM SDK, VAPID key, service worker) go live. The GitHub Actions workflow itself needs no `firebase deploy` step — it runs directly from the repo.
 
 If a rule inside `checkScheduledNotifications()` in `app.js` ever changes, mirror the change in `evaluateUser()` inside `scripts/push-notifications/send-notifications.js` — the two are hand-kept in sync, there's no shared module between client and job for this logic.
+
+---
+
+## 11. Timetable OCR Scan — Preprocessing & Parsing Robustness Pass
+
+Building on Unit 5 (§3), this pass targeted real-world scan failure modes not previously covered: camera skew, uneven lighting/shadows, dark-theme screenshots (light text on dark), and single-institution-only subject vocabulary.
+
+- **Deskew** — `estimateSkewAngleFromGray()` (pure, no DOM) estimates rotation via projection-profile variance over a downsampled dark-pixel set; only acts on a confident non-zero angle (≥0.3°, ≤12°, ≥15% variance improvement over unrotated), so straight photos/screenshots are unaffected. `rotateCanvasByDegrees()` applies the correction (`-skewAngle`) in `preprocessImageForOCR` before the existing grayscale/contrast step. Full 4-corner perspective correction was deliberately **not** attempted (no image library in this project; out of scope for a canvas-only, no-build-step app).
+- **Shadow/uneven-lighting flattening** — `computeIlluminationFlattenedGray()` estimates local background via coarse block-averaging (cheap blur stand-in) and rescales toward the global mean; returns the input **unchanged** (reference-equal) when lighting is already even, so clean scans are never touched.
+- **Dark-theme auto-invert** — `isDarkDominantForInvert(meanGray)` (threshold: mean < 100) inverts light-text-on-dark screenshots (e.g. Notion-exported timetables) before the existing dark-text-on-light-tuned contrast stretch runs. A real photo of a paper timetable is background-dominant even under shadow, so this only fires on genuinely dark-dominant images.
+- **Subject-abbreviation legend parsing** — `parseSubjectAbbreviationLegend()` mirrors `parseFacultyLegend`'s pattern for the other common footer table ("Subject | Abbreviation | Lab | Hall No."), so a scan can resolve abbreviations **not** in the hardcoded `CANONICAL_SUBJECT_MAP` (which is authored against one institution's subject list) straight from that scan's own legend. Wired through `normalizeSubjectIdentity(..., facultyLegend, subjectLegend)`.
+- **Digit/letter OCR-confusion reuse** — `correctDigitLetterConfusion()` generalizes the attendance-pipeline's existing 0/O, 1/I, 5/S, 8/B correction table into the timetable path (previously attendance-only). Only invoked on a token that already failed both the canonical map and the scan legend, and only kept if the corrected token then resolves — never invents a name.
+- **Review-modal provenance marker** — schedule entries now carry `subjectInferred` (true when resolved via scan legend or digit-confusion correction rather than a direct/mapped read); the preview modal shows a small "✨ inferred" tag next to such subjects so extracted vs. inferred values are visually distinct, per the zero-silent-writes principle. Cleared automatically if the user edits the field.
+- **Test portability fix** — all `tests/verify_*.mjs` files previously hardcoded `D:/Clarity Desk/app.js` (a Windows dev-machine absolute path), which made `npm test` unrunnable on any other checkout. Replaced with `path.dirname(path.dirname(fileURLToPath(import.meta.url)))`-derived paths. Unrelated to OCR itself, but was blocking verification of everything else in this pass.
+- **New suite**: `tests/verify_ocr_scan_improvements.mjs` (21 scenarios) — unit tests for all of the above as pure/near-pure functions with synthetic fixtures (no image files, no network, no paid APIs — consistent with every other suite in this project). Wired into `npm test` and `release:check`.
+- **Known limitation**: these preprocessing functions were verified via synthetic grayscale arrays and synthetic OCR word/bbox fixtures, not literal photographed JPEGs — this project has no canvas/image-decoding library in its Node test toolchain (browser-only APIs), matching how `preprocessImageForOCR` itself was already untested end-to-end before this pass.
 
 ---
 

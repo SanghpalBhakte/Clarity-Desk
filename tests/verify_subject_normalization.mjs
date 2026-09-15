@@ -1,7 +1,10 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
-const cssSrc = fs.readFileSync('D:/Clarity Desk/style.css', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
+const cssSrc = fs.readFileSync(`${ROOT}/style.css`, 'utf8');
 
 // Mock browser environment
 const localStorageData = {};
