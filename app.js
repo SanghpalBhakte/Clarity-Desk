@@ -938,6 +938,9 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
     if (mer2 === 'pm' && h2 < 12) {
       h2 += 12;
     }
+    // 12-hour clock midnight rule: "12:00 AM" means hour 0, not 12.
+    if (mer1 === 'am' && h1 === 12) h1 = 0;
+    if (mer2 === 'am' && h2 === 12) h2 = 0;
 
     // College afternoon heuristic for non-AM/PM timetables
     if (!mer1 && !mer2) {
@@ -949,7 +952,7 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
     if (h1 >= 0 && h1 <= 23 && m1 >= 0 && m1 <= 59 && h2 >= 0 && h2 <= 23 && m2 >= 0 && m2 <= 59) {
       const t1 = `${String(h1).padStart(2, '0')}:${String(m1).padStart(2, '0')}`;
       const t2 = `${String(h2).padStart(2, '0')}:${String(m2).padStart(2, '0')}`;
-      return { time: t1, end: t2, isValid: true };
+      return { time: t1, end: t2, isValid: true, isRangeMatch: true };
     }
   }
 
@@ -961,17 +964,23 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
     let mer = singleMatch[3] ? singleMatch[3].toLowerCase() : '';
 
     if (mer === 'pm' && h1 < 12) h1 += 12;
+    if (mer === 'am' && h1 === 12) h1 = 0;
     if (!mer && h1 >= 1 && h1 <= 6) h1 += 12;
 
     if (h1 >= 0 && h1 <= 23 && m1 >= 0 && m1 <= 59) {
       const t1 = `${String(h1).padStart(2, '0')}:${String(m1).padStart(2, '0')}`;
       let endH = (h1 + defaultEndHours) % 24;
       const t2 = `${String(endH).padStart(2, '0')}:${String(m1).padStart(2, '0')}`;
-      return { time: t1, end: t2, isValid: true };
+      // isRangeMatch: false -- this end time is a SYNTHESIZED default (start
+      // + defaultEndHours), not read from the image. Callers that can spot
+      // this token's real end elsewhere (e.g. a timetable that prints a
+      // period's start and end time on two separate header rows) should
+      // prefer that over trusting this guess -- see mergeSplitHeaderTimeTokens.
+      return { time: t1, end: t2, isValid: true, isRangeMatch: false };
     }
   }
 
-  return { time: '', end: '', isValid: false };
+  return { time: '', end: '', isValid: false, isRangeMatch: false };
 }
 
 // ── Day Standardizer ───────────────────────────────────────────
@@ -2003,6 +2012,22 @@ function correctDigitLetterConfusion(token) {
   return changed ? corrected : null;
 }
 
+// True when two words' vertical centers are close enough to plausibly be on
+// the same physical text line -- scaled to each word's own bbox height
+// rather than a fixed pixel guess. Guards detectDayAndTimeTokens's
+// pairText/tripText lookahead against fusing the trailing word of one
+// header line with the leading word of the NEXT line into a bogus token
+// (real risk on a tightly-packed multi-row header, e.g. a period's start
+// time on one line and its end time directly below it -- Tesseract's word
+// array need not be grouped by line, so words[i+1] is not guaranteed to be
+// on the same line as words[i]).
+function wordsOnSameLine(a, b) {
+  const heightA = (a.bbox?.y1 ?? a.cy) - (a.bbox?.y0 ?? a.cy);
+  const heightB = (b.bbox?.y1 ?? b.cy) - (b.bbox?.y0 ?? b.cy);
+  const tolerance = Math.max(8, Math.max(heightA, heightB) * 0.7);
+  return Math.abs(a.cy - b.cy) < tolerance;
+}
+
 // ── OCR Header-Band Robustness Helpers (Stage A) ─────────────────
 // Pure extraction of the day/time-token detection loop that
 // reconstructTimetable2DGrid already used inline. Identical behavior --
@@ -2026,8 +2051,31 @@ function detectDayAndTimeTokens(words) {
     // Check single word or multi-word window for time range
     const timeWin1 = normalizeTimetableTime(w.text);
     if (timeWin1.isValid) {
-      timeTokens.push({ words: [w], timeNorm: timeWin1, cx: w.cx, cy: w.cy });
-    } else if (i < words.length - 1) {
+      // A number that's already valid alone (e.g. "10:00") still commonly
+      // has its own trailing "AM"/"PM" as a SEPARATE OCR word right after
+      // it. If left dangling here, that bare meridiem word would fall
+      // through to the NEXT loop iteration and could wrongly pair forward
+      // with an unrelated neighboring column's number instead (real risk on
+      // a tightly-packed multi-column header row: "10:00" "AM" "11:00" "AM"
+      // side by side, where "AM" belongs to "10:00", not to "11:00").
+      // Consume it now as this token's own meridiem suffix whenever it's
+      // genuinely just "am"/"pm" on the same line, so nothing is left for
+      // a later column to accidentally absorb.
+      let token = { words: [w], timeNorm: timeWin1, cx: w.cx, cy: w.cy };
+      if (i < words.length - 1 && wordsOnSameLine(w, words[i+1]) && /^(am|pm)$/i.test(words[i+1].text.trim())) {
+        const paired = normalizeTimetableTime(`${w.text} ${words[i+1].text}`);
+        if (paired.isValid) {
+          token = {
+            words: [w, words[i+1]],
+            timeNorm: paired,
+            cx: (w.cx + words[i+1].cx) / 2,
+            cy: (w.cy + words[i+1].cy) / 2
+          };
+          i++;
+        }
+      }
+      timeTokens.push(token);
+    } else if (i < words.length - 1 && wordsOnSameLine(w, words[i+1])) {
       const pairText = `${w.text} ${words[i+1].text}`;
       const timeWin2 = normalizeTimetableTime(pairText);
       if (timeWin2.isValid) {
@@ -2035,7 +2083,7 @@ function detectDayAndTimeTokens(words) {
         const cy = (w.cy + words[i+1].cy) / 2;
         timeTokens.push({ words: [w, words[i+1]], timeNorm: timeWin2, cx, cy });
         i++;
-      } else if (i < words.length - 2) {
+      } else if (i < words.length - 2 && wordsOnSameLine(w, words[i+2])) {
         const tripText = `${w.text} ${words[i+1].text} ${words[i+2].text}`;
         const timeWin3 = normalizeTimetableTime(tripText);
         if (timeWin3.isValid) {
@@ -2049,6 +2097,87 @@ function detectDayAndTimeTokens(words) {
   }
 
   return { dayTokens, timeTokens };
+}
+
+// Real printed timetables commonly split a single period's start and end
+// time across two separate physical header rows/lines instead of one
+// "10:00 - 11:00" range on a single line (real evidence: an MGM University-
+// style grid printing "10:00 AM" then "11:00 AM" as two stacked rows under
+// the same period-number column). detectDayAndTimeTokens's single-timestamp
+// branch treats EACH of those independently, synthesizing its own
+// default-duration end time for both -- so a 6-period timetable like that
+// produces ~12 bogus, overlapping "columns" instead of 6 real ones, which
+// then corrupts every downstream cell-to-time-slot mapping.
+//
+// This merges pairs of such not-yet-a-real-range tokens (isRangeMatch ===
+// false) that sit in the same column/row of the header (close together on
+// the axis perpendicular to `primaryAxis`) but on two different header
+// lines (spread apart along `primaryAxis`) into one token carrying the
+// EARLIER one's start time and the LATER one's start time as the real end
+// -- not either token's own synthesized default. Already-valid range
+// tokens (isRangeMatch === true, e.g. a clean single-line "10:00 - 11:00")
+// are never touched. `primaryAxis` is 'y' for Layout A (times spread
+// horizontally as columns, so a split pair is stacked vertically) and 'x'
+// for Layout B (times spread vertically as rows, so a split pair sits
+// side-by-side horizontally).
+function mergeSplitHeaderTimeTokens(timeTokens, primaryAxis) {
+  if (!timeTokens || timeTokens.length < 2) return timeTokens || [];
+
+  const primaryOf = (t) => primaryAxis === 'y' ? t.cy : t.cx;
+  const crossOf = (t) => primaryAxis === 'y' ? t.cx : t.cy;
+  const tokenExtent = (t) => {
+    const vals = t.words.flatMap(w => primaryAxis === 'y' ? [w.bbox.y0, w.bbox.y1] : [w.bbox.x0, w.bbox.x1]);
+    return Math.max(...vals) - Math.min(...vals);
+  };
+
+  const candidates = timeTokens.filter(t => t.timeNorm && t.timeNorm.isRangeMatch === false);
+  if (candidates.length < 2) return timeTokens;
+
+  const medianExtent = candidates
+    .map(tokenExtent)
+    .sort((a, b) => a - b)[Math.floor(candidates.length / 2)] || 20;
+
+  const used = new Set();
+  const merged = [];
+
+  for (let i = 0; i < timeTokens.length; i++) {
+    if (used.has(i)) continue;
+    const a = timeTokens[i];
+    if (!a.timeNorm || a.timeNorm.isRangeMatch !== false) { merged.push(a); continue; }
+
+    let bestJ = -1, bestPrimaryGap = Infinity;
+    for (let j = 0; j < timeTokens.length; j++) {
+      if (j === i || used.has(j)) continue;
+      const b = timeTokens[j];
+      if (!b.timeNorm || b.timeNorm.isRangeMatch !== false) continue;
+      const crossGap = Math.abs(crossOf(a) - crossOf(b));
+      const primaryGap = Math.abs(primaryOf(a) - primaryOf(b));
+      // Same column/row (tight cross-axis alignment), different header
+      // line (a real but small gap along the primary axis) -- both scaled
+      // to this header's own text size rather than a fixed pixel guess.
+      if (crossGap < medianExtent * 1.5 && primaryGap > 0 && primaryGap < medianExtent * 4) {
+        if (primaryGap < bestPrimaryGap) { bestPrimaryGap = primaryGap; bestJ = j; }
+      }
+    }
+
+    if (bestJ !== -1) {
+      const b = timeTokens[bestJ];
+      const [earlier, later] = primaryOf(a) <= primaryOf(b) ? [a, b] : [b, a];
+      merged.push({
+        words: [...earlier.words, ...later.words],
+        timeNorm: { time: earlier.timeNorm.time, end: later.timeNorm.time, isValid: true, isRangeMatch: true },
+        cx: (earlier.cx + later.cx) / 2,
+        cy: (earlier.cy + later.cy) / 2
+      });
+      used.add(i);
+      used.add(bestJ);
+    } else {
+      merged.push(a);
+      used.add(i);
+    }
+  }
+
+  return merged;
 }
 
 // Maps raw Tesseract word entries {text, bbox, confidence} into the
@@ -2271,7 +2400,9 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
   }
 
   // 1. Identify Day Tokens and Time Tokens with coordinates
-  const { dayTokens, timeTokens } = detectDayAndTimeTokens(words);
+  const tokenDetection = detectDayAndTimeTokens(words);
+  const { dayTokens } = tokenDetection;
+  let { timeTokens } = tokenDetection;
 
   // 2. Detect Orientation:
   // Layout A: Rows = Days (stacked vertically), Columns = Times (spread horizontally)
@@ -2303,6 +2434,7 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
   if (isLayoutA && dayTokens.length >= 1 && timeTokens.length >= 1) {
     // Layout A: Days are row headers along left, Times are column headers along top
     dayTokens.sort((a, b) => a.cy - b.cy);
+    timeTokens = mergeSplitHeaderTimeTokens(timeTokens, 'y');
     timeTokens.sort((a, b) => a.cx - b.cx);
 
     const dayIntervals = [];
@@ -2323,13 +2455,21 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
 
     const headerWordSet = new Set([...dayTokens.map(d => d.word), ...timeTokens.flatMap(t => t.words)]);
 
-    // Median column width sizes the horizontal gap threshold that
+    // Narrowest column width sizes the horizontal gap threshold that
     // separates genuinely distinct side-by-side cells from a single
     // label's own word spacing -- scales with the actual scanned table
-    // instead of a fixed pixel guess.
+    // instead of a fixed pixel guess. Uses the MINIMUM (not median/average)
+    // column width deliberately: a real timetable's Recess columns make
+    // period-to-period spacing uneven across one header row (adjacent
+    // periods sit close together; a period separated from its neighbor by
+    // a Recess column sits much farther apart), so a median/average width
+    // gets pulled up by those wider Recess-adjacent gaps and ends up too
+    // generous for the genuinely-adjacent, no-recess-between-them columns
+    // -- letting two short, centered labels like "DEMP" and "DS" in
+    // neighboring narrow columns wrongly merge into one cell.
     const colWidthsA = timeIntervals.map(t => t.maxX - t.minX).filter(w => w > 0);
-    const medianColWidthA = colWidthsA.length ? colWidthsA.slice().sort((a, b) => a - b)[Math.floor(colWidthsA.length / 2)] : 80;
-    const xGapThresholdA = Math.max(18, medianColWidthA * 0.55);
+    const narrowestColWidthA = colWidthsA.length ? Math.min(...colWidthsA) : 80;
+    const xGapThresholdA = Math.max(18, narrowestColWidthA * 0.55);
 
     dayIntervals.forEach(dInt => {
       const dayBandWords = words.filter(w => {
@@ -2403,6 +2543,7 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
   } else if (isLayoutB && dayTokens.length >= 1 && timeTokens.length >= 1) {
     // Layout B: Days are column headers along top, Times are row headers along left
     dayTokens.sort((a, b) => a.cx - b.cx);
+    timeTokens = mergeSplitHeaderTimeTokens(timeTokens, 'x');
     timeTokens.sort((a, b) => a.cy - b.cy);
 
     const dayIntervals = [];
@@ -2423,12 +2564,16 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
 
     const headerWordSet = new Set([...dayTokens.map(d => d.word), ...timeTokens.flatMap(t => t.words)]);
 
-    // Median row height sizes the vertical gap threshold that separates
+    // Narrowest row height sizes the vertical gap threshold that separates
     // genuinely distinct stacked cells from one session's own stacked
-    // subject/teacher/room lines.
+    // subject/teacher/room lines. Uses the MINIMUM (not median) row height
+    // for the same reason as Layout A's xGapThresholdA above: a Recess row
+    // makes period-to-period spacing uneven, so a median gets pulled up by
+    // the wider Recess-adjacent gaps and becomes too generous for
+    // genuinely-adjacent rows.
     const rowHeightsB = timeIntervals.map(t => t.maxY - t.minY).filter(h => h > 0);
-    const medianRowHeightB = rowHeightsB.length ? rowHeightsB.slice().sort((a, b) => a - b)[Math.floor(rowHeightsB.length / 2)] : 60;
-    const yGapThresholdB = Math.max(14, medianRowHeightB * 0.5);
+    const narrowestRowHeightB = rowHeightsB.length ? Math.min(...rowHeightsB) : 60;
+    const yGapThresholdB = Math.max(14, narrowestRowHeightB * 0.5);
 
     dayIntervals.forEach(dInt => {
       const dayBandWords = words.filter(w => {
@@ -3077,9 +3222,9 @@ function renderTimetablePreviewModalContent(backdrop) {
       </td>
       <td>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:52px;font-family:var(--font-mono)" value="${item.time || '10:00'}" placeholder="10:00" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
+          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.time || '10:00')}" placeholder="10:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
           <span style="color:var(--text-muted)">-</span>
-          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:52px;font-family:var(--font-mono)" value="${item.end || '11:00'}" placeholder="11:00" onchange="updatePreviewEntry(${originalIdx}, 'end', this.value)">
+          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.end || '11:00')}" placeholder="11:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'end', this.value)">
         </div>
       </td>
       <td>
@@ -3202,7 +3347,18 @@ window.onTimetablePreviewBatchChange = function(val) {
 
 window.updatePreviewEntry = function(idx, key, val) {
   if (pendingExtractedSchedule[idx]) {
-    pendingExtractedSchedule[idx][key] = val;
+    if (key === 'time' || key === 'end') {
+      // The input displays/accepts 12-hour AM/PM (formatDisplayTime, matching
+      // the rest of the app's display convention), but the stored shape
+      // (cos_custom_timetable's time/end fields) stays 24-hour "HH:MM" --
+      // reuse the same parser the OCR extraction itself already relies on
+      // rather than inventing a second one. An unparseable edit is kept as
+      // typed (never silently discarded) so the user can see and fix it.
+      const parsed = normalizeTimetableTime(val);
+      pendingExtractedSchedule[idx][key] = parsed.isValid ? parsed.time : val;
+    } else {
+      pendingExtractedSchedule[idx][key] = val;
+    }
     if (key === 'subject' && val.trim().length > 0) {
       pendingExtractedSchedule[idx].isUncertain = false;
       pendingExtractedSchedule[idx].subjectInferred = false;
@@ -3248,7 +3404,7 @@ window.confirmSaveExtractedTimetable = function() {
     const item = toSave[i];
     const subj = (item.subject || '').trim();
     if (!subj && item.type !== 'off') {
-      showToast(`A class on ${item.day} at ${item.time} is missing a Subject name. Please fill it in or delete the row.`, "error");
+      showToast(`A class on ${item.day} at ${formatDisplayTime(item.time)} is missing a Subject name. Please fill it in or delete the row.`, "error");
       return;
     }
 

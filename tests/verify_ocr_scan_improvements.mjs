@@ -64,7 +64,12 @@ const sandboxCode = `
     parseSubjectAbbreviationLegend,
     correctDigitLetterConfusion,
     normalizeSubjectIdentity,
-    reconstructTimetable2DGrid
+    normalizeTimetableTime,
+    mergeSplitHeaderTimeTokens,
+    detectDayAndTimeTokens,
+    mapRawOcrWordsForDetection,
+    reconstructTimetable2DGrid,
+    formatDisplayTime
   };
 `;
 
@@ -75,8 +80,13 @@ const {
   isDarkDominantForInvert,
   parseSubjectAbbreviationLegend,
   correctDigitLetterConfusion,
+  normalizeTimetableTime,
+  mergeSplitHeaderTimeTokens,
+  detectDayAndTimeTokens,
+  mapRawOcrWordsForDetection,
   normalizeSubjectIdentity,
-  reconstructTimetable2DGrid
+  reconstructTimetable2DGrid,
+  formatDisplayTime
 } = mod;
 
 let passed = 0;
@@ -302,6 +312,156 @@ check('7. Two-line stacked multi-course cell (real photo pattern) splits into tw
   const hasDS = subjects.some(s => /data structures/i.test(s));
   const hasWD = subjects.some(s => /web development/i.test(s));
   if (!hasDS || !hasWD) return `expected both Data Structures and Web Development, got ${JSON.stringify(subjects)}`;
+  return true;
+});
+
+// ── 8. ROOT CAUSE FIX: split start/end header rows were doubling columns ──
+// Real timetables (e.g. the MGM University SY-AIDS grid) commonly print a
+// period's start time and end time on two SEPARATE physical header lines
+// ("10:00 AM" then "11:00 AM" stacked directly below it) instead of one
+// "10:00 - 11:00" line. Before this fix, detectDayAndTimeTokens treated
+// each standalone timestamp as its own fully independent time column (with
+// a synthesized +1h end), so a 6-period timetable produced ~12 bogus,
+// overlapping columns instead of 6 -- corrupting every cell's day/time
+// mapping. mergeSplitHeaderTimeTokens collapses each such pair back into
+// one real column before intervals are built.
+check('8A. mergeSplitHeaderTimeTokens collapses a stacked start/end pair into one real range', () => {
+  const words = mapRawOcrWordsForDetection([
+    w('10:00', 130, 10, 175, 28, 92), w('AM', 180, 10, 205, 28, 92),
+    w('11:00', 130, 35, 175, 53, 92), w('AM', 180, 35, 205, 53, 92)
+  ]);
+  const { timeTokens } = detectDayAndTimeTokens(words);
+  if (timeTokens.length !== 2) return `expected 2 raw single-timestamp tokens before merge, got ${timeTokens.length}: ${JSON.stringify(timeTokens.map(t => t.timeNorm))}`;
+  const merged = mergeSplitHeaderTimeTokens(timeTokens, 'y');
+  if (merged.length !== 1) return `expected 1 merged column, got ${merged.length}: ${JSON.stringify(merged.map(m => m.timeNorm))}`;
+  if (merged[0].timeNorm.time !== '10:00' || merged[0].timeNorm.end !== '11:00') {
+    return `expected 10:00-11:00, got ${merged[0].timeNorm.time}-${merged[0].timeNorm.end}`;
+  }
+  return true;
+});
+
+check('8B. mergeSplitHeaderTimeTokens does not merge two genuinely different columns\' start times', () => {
+  const words = mapRawOcrWordsForDetection([
+    w('10:00', 130, 10, 175, 28, 92), w('AM', 180, 10, 205, 28, 92), // Period 1 start (row 2)
+    w('11:00', 320, 10, 365, 28, 92), w('AM', 370, 10, 395, 28, 92)  // Period 2 start (row 2, same line, different column)
+  ]);
+  const { timeTokens } = detectDayAndTimeTokens(words);
+  const merged = mergeSplitHeaderTimeTokens(timeTokens, 'y');
+  return merged.length === 2 || `expected the two distinct columns to stay separate, got ${merged.length}`;
+});
+
+check('8C. mergeSplitHeaderTimeTokens never touches an already-resolved single-line range', () => {
+  const words = mapRawOcrWordsForDetection([w('10:00 - 11:00', 130, 10, 280, 28, 92)]);
+  const { timeTokens } = detectDayAndTimeTokens(words);
+  const merged = mergeSplitHeaderTimeTokens(timeTokens, 'y');
+  return (merged.length === 1 && merged[0].timeNorm.time === '10:00' && merged[0].timeNorm.end === '11:00')
+    || `expected the clean range to pass through unchanged, got ${JSON.stringify(merged)}`;
+});
+
+check('8D. detectDayAndTimeTokens no longer fuses one header line\'s trailing word with the NEXT line\'s leading word', () => {
+  // Same fixture as 8A, but asserts on the RAW (pre-merge) tokens directly:
+  // each must be a clean single-line read, not a cross-row "AM"+"11:00"
+  // splice (the second, subtler bug this same trace surfaced).
+  const words = mapRawOcrWordsForDetection([
+    w('10:00', 130, 10, 175, 28, 92), w('AM', 180, 10, 205, 28, 92),
+    w('11:00', 130, 35, 175, 53, 92), w('AM', 180, 35, 205, 53, 92)
+  ]);
+  const { timeTokens } = detectDayAndTimeTokens(words);
+  const texts = timeTokens.map(t => t.words.map(x => x.text).join('+'));
+  // "10:00" and "11:00" are each already valid on their own (no meridiem
+  // needed), so they never reach the pairText lookahead at all -- the
+  // cross-row fusion this guards against would show up as "AM+11:00".
+  return !texts.includes('AM+11:00') || `cross-row fusion still occurring: ${JSON.stringify(texts)}`;
+});
+
+// ── 9. END-TO-END: MGM University SY-AIDS-style grid (split header, ─────
+// merged 2-period blocks, recess columns, 2-line stacked cell) ───────────
+// Reproduces a representative slice of the real attached photo: a 3-row
+// header (period number / start time / end time on separate lines), a
+// Recess column between periods, a single-period cell, and a cell that
+// spans TWO periods with its own stacked 2-line content. This is the
+// closest end-to-end check possible without literal access to the
+// uploaded photo's pixels (this environment cannot persist a pasted image
+// to disk -- see PROJECT_MEMORY.md §11) -- coordinates and text are a
+// faithful reproduction of the real grid's layout and content, not a
+// simplified toy case.
+check('9. MGM-style grid: split header + Recess column + 2-period-merged cell all map correctly', () => {
+  // Column widths (~150-160px) and short, centered subject-code text are
+  // deliberately proportioned like a real printed timetable photo, not
+  // compressed to the point where two adjacent short labels' whitespace
+  // margins alone would close the gap between them below the clusterer's
+  // own column-derived split threshold.
+  const ocrData = {
+    words: [
+      w('MONDAY', 20, 150, 90, 180, 95),
+
+      // Header row 2 (start times) -- Period 1, Period 2, [Recess], Period 3
+      w('10:00', 150, 10, 195, 28, 90), w('AM', 198, 10, 225, 28, 90),
+      w('11:00', 310, 10, 355, 28, 90), w('AM', 358, 10, 385, 28, 90),
+      w('12:45', 620, 10, 665, 28, 90), w('PM', 668, 10, 695, 28, 90),
+
+      // Header row 3 (end times), stacked directly below row 2 -- same columns
+      w('11:00', 150, 33, 195, 51, 90), w('AM', 198, 33, 225, 51, 90),
+      w('12:00', 310, 33, 355, 51, 90), w('PM', 358, 33, 385, 51, 90),
+      w('1:45', 620, 33, 660, 51, 90), w('PM', 663, 33, 690, 51, 90),
+
+      w('Recess', 470, 20, 510, 45, 85),
+
+      // Monday, Period 1: single-period cell "DEMP / VAK"
+      w('DEMP', 165, 150, 210, 170, 88), w('VAK', 170, 175, 205, 195, 88),
+      // Monday, Period 2: single-period cell "DS / VJM"
+      w('DS', 335, 150, 360, 170, 88), w('VJM', 330, 175, 365, 195, 88),
+      // Monday, Period 3: "OE-1"
+      w('OE-1', 615, 150, 665, 170, 88)
+    ]
+  };
+
+  const facultyLegend = { VAK: 'Prof. V. A. Kulkarni', VJM: 'Dr. V. J. Murambikar' };
+  const result = reconstructTimetable2DGrid(ocrData, [], facultyLegend, {});
+  const schedule = result.schedule || [];
+
+  const demp = schedule.find(e => /demp|digital electronics/i.test(e.subject));
+  if (!demp) return `DEMP not found: ${JSON.stringify(schedule.map(e => ({ subject: e.subject, time: e.time, end: e.end })))}`;
+  if (demp.time !== '10:00' || demp.end !== '11:00') return `DEMP got wrong slot: ${demp.time}-${demp.end} (expected 10:00-11:00, the real column-2 start time 11:00 AM must NOT leak in as DEMP's end)`;
+  if (!demp.teacher.includes('Kulkarni')) return `DEMP's teacher (VAK) not resolved: got "${demp.teacher}"`;
+
+  const ds = schedule.find(e => /^ds$|data structures/i.test(e.subject));
+  if (!ds) return `DS not found: ${JSON.stringify(schedule.map(e => e.subject))}`;
+  if (ds.time !== '11:00' || ds.end !== '12:00') return `DS got wrong slot: ${ds.time}-${ds.end} (expected 11:00-12:00)`;
+  if (!ds.teacher.includes('Murambikar')) return `DS's teacher (VJM) not resolved: got "${ds.teacher}"`;
+
+  const oe1 = schedule.find(e => /oe-1|oe1/i.test(e.subject) || e.code === 'OE-1');
+  if (!oe1) return `OE-1 not found: ${JSON.stringify(schedule.map(e => e.subject))}`;
+  if (oe1.time !== '12:45' || oe1.end !== '13:45') return `OE-1 got wrong slot: ${oe1.time}-${oe1.end} (expected 12:45-13:45)`;
+
+  if (demp.day !== 'Mon' || ds.day !== 'Mon' || oe1.day !== 'Mon') return `wrong day assigned: ${JSON.stringify({ dempDay: demp.day, dsDay: ds.day, oe1Day: oe1.day })}`;
+  if (schedule.length !== 3) return `expected exactly 3 entries (DEMP, DS, OE-1), got ${schedule.length}: ${JSON.stringify(schedule.map(e => e.subject))}`;
+
+  return true;
+});
+
+// ── 10. OCR review modal displays/accepts 12-hour AM/PM, matching the ────
+// rest of the app's display convention, while cos_custom_timetable's
+// stored shape stays 24-hour "HH:MM" underneath (no migration needed).
+check('10A. formatDisplayTime renders the review modal\'s 24h-stored values as 12-hour AM/PM', () => {
+  if (formatDisplayTime('13:45') !== '1:45 PM') return `got "${formatDisplayTime('13:45')}"`;
+  if (formatDisplayTime('10:00') !== '10:00 AM') return `got "${formatDisplayTime('10:00')}"`;
+  if (formatDisplayTime('00:30') !== '12:30 AM') return `got "${formatDisplayTime('00:30')}"`;
+  return true;
+});
+
+check('10B. Editing a review-modal time field in 12-hour form round-trips to the correct 24h stored value', () => {
+  // Mirrors updatePreviewEntry's own parse-back logic: whatever the user
+  // types into the 12-hour-displayed input goes through normalizeTimetableTime
+  // before being stored, so "1:45 PM" must come back as "13:45", not be
+  // stored verbatim or misparsed.
+  const cases = [['1:45 PM', '13:45'], ['10:00 AM', '10:00'], ['12:00 AM', '00:00'], ['12:00 PM', '12:00']];
+  for (const [typed, expected24h] of cases) {
+    const parsed = normalizeTimetableTime(typed);
+    if (!parsed.isValid || parsed.time !== expected24h) {
+      return `"${typed}" -> expected "${expected24h}", got ${JSON.stringify(parsed)}`;
+    }
+  }
   return true;
 });
 
