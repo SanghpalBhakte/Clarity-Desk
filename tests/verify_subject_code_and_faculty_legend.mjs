@@ -1,4 +1,7 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Mock browser environment (same pattern as other verify_*.mjs files).
 // Covers Stage 11: five real-photo-evidenced fixes bundled together --
@@ -17,7 +20,7 @@ import fs from 'fs';
 //       is parsed and used to resolve bare faculty initials left in a
 //       cell (e.g. "VAK") into the real teacher's name.
 //   (E) "Adv." (Advocate) added to the recognized faculty title prefixes.
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
 const localStorageData = {};
 globalThis.localStorage = {

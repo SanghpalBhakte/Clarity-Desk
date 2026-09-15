@@ -1,10 +1,13 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Mock browser environment (same pattern as verify_ocr_header_robustness.mjs),
 // plus lightweight Image/canvas/Tesseract-worker mocks so the new
 // low-confidence cell-region retry (Stage C) can be exercised end-to-end
 // without a real browser or real OCR.
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
 const localStorageData = {};
 globalThis.localStorage = {

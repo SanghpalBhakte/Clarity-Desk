@@ -779,6 +779,16 @@ function rotateCanvasByAngle(sourceCanvas, angleDeg) {
   return out;
 }
 
+// Threshold for the dark-dominant auto-invert decision in
+// preprocessImageForOCR -- pulled out as a pure, named function so it's
+// independently testable without a canvas/DOM. Ported from PR #33
+// (claude/gifted-feynman-s1s33y): handles light-text-on-dark screenshots
+// (e.g. a Notion-exported timetable) that the existing dark-text-on-light-
+// tuned contrast stretch below was never tuned for.
+function isDarkDominantForInvert(meanGrayValue) {
+  return meanGrayValue < 100;
+}
+
 function preprocessImageForOCR(base64Data, mimeType) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -841,6 +851,25 @@ function preprocessImageForOCR(base64Data, mimeType) {
         grayValues[j] = gray;
         if (gray < minL) minL = gray;
         if (gray > maxL) maxL = gray;
+      }
+
+      // 1c. Auto-invert dark-dominant images (e.g. dark-theme screenshots
+      // with light text) so the light-text-on-dark case binarizes the same
+      // way the light-background/dark-text case is tuned for below. A real
+      // photo of a paper timetable is background-dominant (mostly light
+      // pixels even under shadow), so this only fires on genuinely
+      // dark-dominant images. Ported from PR #33.
+      let sumGrayForInvert = 0;
+      for (let j = 0; j < grayValues.length; j++) sumGrayForInvert += grayValues[j];
+      const meanGrayForInvert = sumGrayForInvert / grayValues.length;
+      if (isDarkDominantForInvert(meanGrayForInvert)) {
+        minL = 255;
+        maxL = 0;
+        for (let j = 0; j < grayValues.length; j++) {
+          grayValues[j] = 255 - grayValues[j];
+          if (grayValues[j] < minL) minL = grayValues[j];
+          if (grayValues[j] > maxL) maxL = grayValues[j];
+        }
       }
 
       const range = Math.max(1, maxL - minL);
@@ -1449,7 +1478,68 @@ function parseFacultyLegend(rawWords) {
   return legend;
 }
 
-function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = null, facultyLegend = {}) {
+// Mirrors parseFacultyLegend's shape/approach for the other common legend
+// table printed below a timetable grid: "Subject | Abbreviation | Lab | Hall
+// No.". Lets a scan resolve abbreviations that aren't in the hardcoded
+// CANONICAL_SUBJECT_MAP below (i.e. any institution's own subject list, not
+// just the one this map was authored against), straight from that scan's
+// own legend rather than requiring the map to be extended per-college.
+// Ported from PR #33 (claude/gifted-feynman-s1s33y), unchanged.
+function parseSubjectAbbreviationLegend(rawWords) {
+  const legend = {};
+  if (!rawWords || rawWords.length === 0) return legend;
+
+  const mapped = mapRawOcrWordsForDetection(rawWords);
+  const lines = groupWordsIntoLines(mapped);
+
+  let headerIndex = -1;
+  lines.forEach((line, idx) => {
+    if (headerIndex !== -1) return;
+    const sorted = [...line].sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    const cleanWords = sorted.map(w => w.text.toLowerCase().replace(/[^a-z]/g, ''));
+    const hasSubjectWord = cleanWords.some(w => w.startsWith('subject'));
+    // "abbrivat" (not "abbreviat") covers the common real-world misspelling
+    // printed on the source document itself, not just an OCR misread.
+    const hasAbbrevWord = cleanWords.some(w => w.startsWith('abbrev') || w.startsWith('abbriv'));
+    if (hasSubjectWord && hasAbbrevWord) headerIndex = idx;
+  });
+  if (headerIndex === -1) return legend;
+
+  lines.slice(headerIndex + 1).forEach(line => {
+    const sorted = [...line].sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    if (sorted.length < 2) return;
+
+    const nameWords = [];
+    let abbrev = null;
+    for (const w of sorted) {
+      const raw = (w.text || '').trim();
+      if (!raw) continue;
+      const alphaOnly = raw.replace(/[^A-Za-z0-9-]/g, '');
+      // Only accept an all-caps short token as the abbreviation once at
+      // least one name word already precedes it -- a faculty-legend row
+      // (e.g. "VAK  Prof. V. A. Kulkarni") starts with its all-caps token
+      // immediately, so this naturally skips that table instead of misreading
+      // it as this one.
+      if (!abbrev && nameWords.length > 0 && /^[A-Z]{2,6}$/.test(alphaOnly)) {
+        abbrev = alphaOnly;
+        break;
+      }
+      nameWords.push(raw);
+    }
+    if (!abbrev) return;
+
+    const subjectName = nameWords.join(' ')
+      .replace(/[^A-Za-z0-9\s&/.-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (subjectName.length < 3 || subjectName.length > 60) return;
+    if (!legend[abbrev]) legend[abbrev] = subjectName;
+  });
+
+  return legend;
+}
+
+function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = null, facultyLegend = {}, subjectLegend = {}) {
   if (!rawText || typeof rawText !== 'string') {
     return {
       canonicalName: '',
@@ -1631,8 +1721,28 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
   };
 
   const lowerClean = cleanName.toLowerCase();
+  let resolvedFromScanLegend = false;
+  let digitConfusionCorrected = false;
   if (CANONICAL_SUBJECT_MAP[lowerClean]) {
     cleanName = CANONICAL_SUBJECT_MAP[lowerClean];
+  } else if (subjectLegend && subjectLegend[cleanName.toUpperCase()]) {
+    // Not a subject this app already knows about, but this exact scan's own
+    // "Subject | Abbreviation" legend table resolves it -- use that instead
+    // of leaving the bare code as the display name.
+    cleanName = subjectLegend[cleanName.toUpperCase()];
+    resolvedFromScanLegend = true;
+  } else {
+    const corrected = correctDigitLetterConfusion(cleanName.toUpperCase());
+    if (corrected) {
+      if (CANONICAL_SUBJECT_MAP[corrected.toLowerCase()]) {
+        cleanName = CANONICAL_SUBJECT_MAP[corrected.toLowerCase()];
+        digitConfusionCorrected = true;
+      } else if (subjectLegend && subjectLegend[corrected]) {
+        cleanName = subjectLegend[corrected];
+        resolvedFromScanLegend = true;
+        digitConfusionCorrected = true;
+      }
+    }
   }
 
   // If Lab variant, standardize name with 'Lab' suffix
@@ -1717,7 +1827,9 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
     faculty: teacher,
     teacher,
     isLab: classType === 'lab',
-    normalization_confidence: confidence
+    normalization_confidence: confidence,
+    resolvedFromScanLegend,
+    digitConfusionCorrected
   };
 }
 
@@ -2124,6 +2236,21 @@ function looksLikeUnresolvedCodeResidue(canonicalName) {
   return /^[A-Z0-9]+([\s-]+[A-Z0-9]+)*$/.test(trimmed);
 }
 
+// Reuses the attendance-scan pipeline's digit/letter OCR-confusion pattern
+// (0/O, 1/I, 5/S, 8/B) for the timetable path, where it wasn't previously
+// applied. Only ever called on a token that already failed both the
+// canonical-subject map and the per-scan legend lookup, and only kept if the
+// corrected version then resolves against one of them -- so it can never
+// invent a subject name, only recover one that a single misread character
+// was hiding. Ported from PR #33 (claude/gifted-feynman-s1s33y), unchanged.
+function correctDigitLetterConfusion(token) {
+  if (!token || !/\d/.test(token)) return null;
+  const DIGIT_TO_LETTER = { '0': 'O', '1': 'I', '5': 'S', '8': 'B' };
+  let changed = false;
+  const corrected = token.replace(/[0158]/g, (d) => { changed = true; return DIGIT_TO_LETTER[d]; });
+  return changed ? corrected : null;
+}
+
 // ── OCR Header-Band Robustness Helpers (Stage A) ─────────────────
 // Pure extraction of the day/time-token detection loop that
 // reconstructTimetable2DGrid already used inline. Identical behavior --
@@ -2343,7 +2470,7 @@ async function reOcrCellRegion(preprocessedDataUrl, worker, bboxFullImage) {
 }
 
 // ── Table-Aware 2D Grid Reconstructor ────────────────────────────
-function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegend = {}) {
+function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegend = {}, subjectLegend = {}) {
   if (!ocrData || !ocrData.words || ocrData.words.length === 0) {
     return { schedule: [], confidence: 0, ambiguous: true };
   }
@@ -2493,7 +2620,7 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
         const guardrailDeclinedSplit = cellRaw.includes('+') && !plusWasSplit;
 
         fragments.forEach(fragmentText => {
-          const norm = normalizeSubjectIdentity(fragmentText, existingSubjects, null, facultyLegend);
+          const norm = normalizeSubjectIdentity(fragmentText, existingSubjects, null, facultyLegend, subjectLegend);
           if (!norm.canonicalName || TIMETABLE_JUNK_TOKENS.has(norm.canonicalName.toLowerCase())) return;
 
           const isUncertainRow = !norm.canonicalName
@@ -2515,7 +2642,8 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
             teacher: norm.teacher,
             type: norm.classType,
             batches: norm.batches,
-            isUncertain: isUncertainRow
+            isUncertain: isUncertainRow,
+            subjectInferred: !!(norm.resolvedFromScanLegend || norm.digitConfusionCorrected)
           });
         });
       });
@@ -2591,7 +2719,7 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
         const guardrailDeclinedSplit = cellRaw.includes('+') && !plusWasSplit;
 
         fragments.forEach(fragmentText => {
-          const norm = normalizeSubjectIdentity(fragmentText, existingSubjects, null, facultyLegend);
+          const norm = normalizeSubjectIdentity(fragmentText, existingSubjects, null, facultyLegend, subjectLegend);
           if (!norm.canonicalName || TIMETABLE_JUNK_TOKENS.has(norm.canonicalName.toLowerCase())) return;
 
           const isUncertainRow = !norm.canonicalName
@@ -2613,7 +2741,8 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
             teacher: norm.teacher,
             type: norm.classType,
             batches: norm.batches,
-            isUncertain: isUncertainRow
+            isUncertain: isUncertainRow,
+            subjectInferred: !!(norm.resolvedFromScanLegend || norm.digitConfusionCorrected)
           });
         });
       });
@@ -2625,7 +2754,7 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
 }
 
 // ── Multi-Strategy Timetable Parser (2D Grid + Geometric Rows + Text Stream) ───
-function parseTimetableFromGrid(ocrData, existingSubjects = [], facultyLegend = {}) {
+function parseTimetableFromGrid(ocrData, existingSubjects = [], facultyLegend = {}, subjectLegend = {}) {
   if (!ocrData || !ocrData.words || ocrData.words.length === 0) {
     if (ocrData?.text) {
       const textFallback = parseTimetableFromTextStream(ocrData.text, existingSubjects);
@@ -2636,7 +2765,7 @@ function parseTimetableFromGrid(ocrData, existingSubjects = [], facultyLegend = 
 
   // Strategy 1: Table-Aware 2D Grid Reconstructor (Layout A & Layout B)
   try {
-    const gridResult = reconstructTimetable2DGrid(ocrData, existingSubjects, facultyLegend);
+    const gridResult = reconstructTimetable2DGrid(ocrData, existingSubjects, facultyLegend, subjectLegend);
     if (gridResult.schedule && gridResult.schedule.length > 0) {
       return gridResult;
     }
@@ -2797,6 +2926,7 @@ async function extractTimetableFromImage(base64Data, mimeType) {
   // Stage A/C/D's retries below, since the legend's physical position
   // never depends on how the grid itself gets recovered.
   const facultyLegend = parseFacultyLegend(ocrResult.data?.words);
+  const subjectLegend = parseSubjectAbbreviationLegend(ocrResult.data?.words);
 
   // Stage A: if the first pass found day labels but essentially no usable
   // time-range tokens, retry OCR on just the header band (cropped +
@@ -2873,7 +3003,7 @@ async function extractTimetableFromImage(base64Data, mimeType) {
   updateTimetableLoadingModal("Reconstructing schedule rows and matching subjects...");
   let deterministicResult;
   try {
-    deterministicResult = parseTimetableFromGrid(ocrResult.data, existingSubjects, facultyLegend);
+    deterministicResult = parseTimetableFromGrid(ocrResult.data, existingSubjects, facultyLegend, subjectLegend);
   } catch (err) {
     console.error("[TimetableParser] Error in grid parser, falling back to text stream:", err);
     try {
@@ -2905,7 +3035,7 @@ async function extractTimetableFromImage(base64Data, mimeType) {
           improvedWords = [...improvedWords, ...recovered];
         }
       }
-      const retryResult = parseTimetableFromGrid({ ...ocrResult.data, words: improvedWords }, existingSubjects, facultyLegend);
+      const retryResult = parseTimetableFromGrid({ ...ocrResult.data, words: improvedWords }, existingSubjects, facultyLegend, subjectLegend);
       if ((retryResult?.schedule?.length || 0) >= (deterministicResult.schedule?.length || 0)) {
         deterministicResult = retryResult;
       }
@@ -3190,7 +3320,12 @@ function showTimetablePreviewModal(schedule) {
       teacher: norm.teacher || item.teacher || '',
       type: norm.classType || item.type || 'lecture',
       batches,
-      isUncertain: !norm.canonicalName || !!item.isUncertain
+      isUncertain: !norm.canonicalName || !!item.isUncertain,
+      // Carries forward (not recomputed here -- this re-normalization pass
+      // has no legend context) whether the OCR extraction step resolved
+      // this subject via the scan's own legend table or an OCR digit/letter
+      // correction, rather than reading it directly off the grid.
+      subjectInferred: !!item.subjectInferred
     };
   });
 
@@ -3248,7 +3383,10 @@ function renderTimetablePreviewModalContent(backdrop) {
         </div>
       </td>
       <td>
-        <input type="text" class="form-input ${!item.subject ? 'error' : ''}" id="preview-subject-${originalIdx}" style="padding:4px 6px;font-size:var(--text-sm);width:100%" value="${(item.subject || '').replace(/"/g, '&quot;')}" placeholder="Subject name *" onchange="updatePreviewEntry(${originalIdx}, 'subject', this.value)">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="text" class="form-input ${!item.subject ? 'error' : ''}" id="preview-subject-${originalIdx}" style="padding:4px 6px;font-size:var(--text-sm);width:100%" value="${(item.subject || '').replace(/"/g, '&quot;')}" placeholder="Subject name *" onchange="updatePreviewEntry(${originalIdx}, 'subject', this.value)">
+          ${item.subjectInferred ? '<span title="Resolved from this scan\'s legend/OCR-correction, not read directly off the grid \u2014 please double-check" style="font-size:var(--text-xs);color:var(--text-muted);white-space:nowrap">\u2728 inferred</span>' : ''}
+        </div>
       </td>
       <td>
         <select class="form-select" style="padding:4px 6px;font-size:var(--text-sm);width:82px" onchange="updatePreviewEntry(${originalIdx}, 'type', this.value)">
@@ -3367,6 +3505,7 @@ window.updatePreviewEntry = function(idx, key, val) {
     pendingExtractedSchedule[idx][key] = val;
     if (key === 'subject' && val.trim().length > 0) {
       pendingExtractedSchedule[idx].isUncertain = false;
+      pendingExtractedSchedule[idx].subjectInferred = false;
       const subjEl = document.getElementById(`preview-subject-${idx}`);
       if (subjEl) subjEl.classList.remove('error');
     }

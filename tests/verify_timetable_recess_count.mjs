@@ -1,4 +1,7 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Stage 13: the Timetable tab's "N classes on <Day>" header counted Recess
 // (and any other break/off period) as if it were a real class, because
@@ -7,7 +10,7 @@ import fs from 'fs';
 // way every other class-count in the app already does via isBreakEntry()/
 // isTeachingClass() (see getDayClasses(), getTodayRemainingClasses(),
 // answerTodaySummary(), etc. -- renderTimetable() was the one outlier).
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
 const localStorageData = {};
 globalThis.localStorage = {

@@ -30,12 +30,17 @@ const STEPS = [
     args: ['tests/verify_subject_normalization.mjs']
   },
   {
-    name: '4. PWA Release & Offline Smoke Suite',
+    name: '4. OCR Scan Preprocessing & Parsing Improvements',
+    command: 'node',
+    args: ['tests/verify_ocr_scan_improvements.mjs']
+  },
+  {
+    name: '5. PWA Release & Offline Smoke Suite',
     command: 'npx',
     args: ['playwright', 'test', 'tests/pwa-smoke.spec.ts', '--project=chromium-desktop']
   },
   {
-    name: '5. Visual & Layout Regression Suite (Desktop & Mobile)',
+    name: '6. Visual & Layout Regression Suite (Desktop & Mobile)',
     command: 'npx',
     args: ['playwright', 'test', 'tests/clarity-visual-verification.spec.ts']
   }

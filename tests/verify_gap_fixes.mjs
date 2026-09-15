@@ -1,8 +1,11 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-const htmlSrc = fs.readFileSync('D:/Clarity Desk/index.html', 'utf8');
-const jsSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
-const cssSrc = fs.readFileSync('D:/Clarity Desk/style.css', 'utf8');
+const htmlSrc = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
+const jsSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
+const cssSrc = fs.readFileSync(`${ROOT}/style.css`, 'utf8');
 
 let passed = 0;
 let total = 0;

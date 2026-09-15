@@ -1,7 +1,10 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Mock browser environment (same pattern as the other tests/*.mjs files)
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
 const localStorageData = {};
 globalThis.localStorage = {

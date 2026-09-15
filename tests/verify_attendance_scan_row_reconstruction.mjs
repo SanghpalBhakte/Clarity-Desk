@@ -1,4 +1,7 @@
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Stage 13: the attendance-photo scanner's reconstructAttendanceTableFromGrid
 // was rewritten from a naive sequential-Y-overlap row grouping (which could
@@ -10,7 +13,7 @@ import fs from 'fs';
 // against 3 real erp.mgmu.ac.in screenshots; this file locks each one down
 // with a minimal synthetic fixture so no future change can silently
 // reintroduce it.
-const appSrc = fs.readFileSync('D:/Clarity Desk/app.js', 'utf8');
+const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
 const localStorageData = {};
 globalThis.localStorage = {
