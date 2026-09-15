@@ -2,7 +2,7 @@
 // Clarity Desk — App Logic & Interactive Functions
 // ============================================================
 
-import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, NOTICES, QUICK_LINKS } from './data.js';
+import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, NOTICES, QUICK_LINKS, DEV_UPDATES } from './data.js';
 
 // ── localStorage Keys ─────────────────────────────────────────
 const KEY_PROFILE          = 'cos_profile';
@@ -265,6 +265,11 @@ function showToast(msg, type = 'info') {
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
+    // Announce toast text to screen readers -- these messages (saved,
+    // error, etc.) previously had no non-visual equivalent.
+    toastContainer.setAttribute('role', 'status');
+    toastContainer.setAttribute('aria-live', 'polite');
+    toastContainer.setAttribute('aria-atomic', 'true');
     document.body.appendChild(toastContainer);
   }
 
@@ -454,6 +459,76 @@ const AIService = {
     }
 
     throw lastError || new Error('AI service unavailable. Please try again later.');
+  },
+
+  // True vision-based extraction: sends the actual photo to a multimodal
+  // Gemini model, instead of only Tesseract's OCR text output. This is
+  // the only path that can recover information Tesseract lost at the
+  // pixel level (heavy skew, poor lighting, handwriting) --
+  // generateContentFromText can only ever polish what Tesseract already
+  // read, and has no way to see anything Tesseract missed or misread.
+  // Only ever called when the user has already configured a Gemini API
+  // key (the caller checks this before invoking it) -- sending the photo
+  // itself is a bigger privacy step than sending text, so this must never
+  // run without that same key already present.
+  async generateContentFromImage(base64Data, mimeType, promptText) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error('No Gemini API key configured for vision extraction.');
+    }
+
+    const models = this.getModelsList();
+    let lastError = null;
+
+    for (const model of models) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      try {
+        console.log(`[AIService] Attempting VISION extraction with Gemini model: ${model}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: promptText },
+                { inline_data: { mime_type: mimeType, data: base64Data } }
+              ]
+            }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.1
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errObj = await response.json().catch(() => ({}));
+          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
+          throw new Error(friendlyGeminiError(response.status, rawMsg));
+        }
+
+        const resData = await response.json();
+        const candidate = resData.candidates?.[0];
+
+        const finishReason = candidate?.finishReason;
+        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+          throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
+        }
+
+        const rawText = candidate?.content?.parts?.[0]?.text || '';
+        const parsed = safeParseGeminiJson(rawText);
+        if (!parsed) {
+          throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
+        }
+        console.log(`[AIService] ✅ Vision extraction succeeded with model: ${model}`, parsed);
+        return parsed;
+      } catch (err) {
+        lastError = new Error(`${lastError ? lastError.message + ' (Vision Fallback: ' + (err.message || err) + ')' : (err.message || err)}`);
+        console.warn(`[AIService] Vision model attempt ${model} failed:`, err.message || err);
+      }
+    }
+
+    throw lastError || new Error('Vision AI service unavailable. Please try again later.');
   }
 };
 
@@ -594,153 +669,122 @@ async function getTesseractWorker(onProgress = null) {
   return _tesseractWorkerPromise;
 }
 
-// ── Skew angle estimation via projection-profile variance (deskew) ──
-// Pure function: works on a plain grayscale array, no DOM — unit-testable.
-// Returns the angle (degrees) the image content should be rotated by to
-// straighten it, or 0 when there isn't enough confident structure to act on
-// (keeps well-composed, already-straight scans byte-for-byte unaffected).
-function estimateSkewAngleFromGray(gray, width, height) {
-  const maxDim = 260;
-  const scale = Math.min(1, maxDim / Math.max(width, height));
-  const tw = Math.max(1, Math.round(width * scale));
-  const th = Math.max(1, Math.round(height * scale));
-  if (tw < 8 || th < 8) return 0;
+// ── Auto-Deskew (Rotation Correction) ──────────────────────────
+// Detects small handheld-photo tilt via a projection-profile angle
+// search: for each candidate angle, rotate a cheap downscaled copy of
+// the photo and score how sharply text rows separate (variance of
+// per-row ink density across the rotated image). The angle that produces
+// the highest variance is the one where horizontal table/text lines are
+// best aligned to the horizontal axis -- the standard "projection
+// profile" deskew method. Bounded to +/-12 degrees: this corrects
+// ordinary camera tilt, not gross 90/180-degree misorientation (already
+// handled by the browser's own EXIF-orientation handling on image
+// decode, well before this ever runs).
+function detectSkewAngle(sourceCanvas) {
+  const SEARCH_W = 320;
+  const scale = Math.min(1, SEARCH_W / sourceCanvas.width);
+  const searchW = Math.max(40, Math.round(sourceCanvas.width * scale));
+  const searchH = Math.max(40, Math.round(sourceCanvas.height * scale));
 
-  const thumb = new Uint8ClampedArray(tw * th);
-  for (let ty = 0; ty < th; ty++) {
-    const sy = Math.min(height - 1, Math.round(ty / scale));
-    for (let tx = 0; tx < tw; tx++) {
-      const sx = Math.min(width - 1, Math.round(tx / scale));
-      thumb[ty * tw + tx] = gray[sy * width + sx];
+  const smallCanvas = document.createElement('canvas');
+  smallCanvas.width = searchW;
+  smallCanvas.height = searchH;
+  const sctx = smallCanvas.getContext('2d');
+  sctx.drawImage(sourceCanvas, 0, 0, searchW, searchH);
+
+  const rotCanvas = document.createElement('canvas');
+  const rotCtx = rotCanvas.getContext('2d');
+
+  let bestAngle = 0;
+  let bestScore = -Infinity;
+
+  for (let angleDeg = -12; angleDeg <= 12; angleDeg += 0.5) {
+    const rad = angleDeg * Math.PI / 180;
+    const absCos = Math.abs(Math.cos(rad));
+    const absSin = Math.abs(Math.sin(rad));
+    const rotW = Math.max(1, Math.round(searchW * absCos + searchH * absSin));
+    const rotH = Math.max(1, Math.round(searchW * absSin + searchH * absCos));
+    rotCanvas.width = rotW;
+    rotCanvas.height = rotH;
+    rotCtx.save();
+    rotCtx.fillStyle = '#ffffff';
+    rotCtx.fillRect(0, 0, rotW, rotH);
+    rotCtx.translate(rotW / 2, rotH / 2);
+    rotCtx.rotate(rad);
+    rotCtx.drawImage(smallCanvas, -searchW / 2, -searchH / 2);
+    rotCtx.restore();
+
+    const { data: rotData } = rotCtx.getImageData(0, 0, rotW, rotH);
+    const rowSums = new Float64Array(rotH);
+    for (let y = 0; y < rotH; y++) {
+      let sum = 0;
+      const rowOffset = y * rotW * 4;
+      for (let x = 0; x < rotW; x++) {
+        const i = rowOffset + x * 4;
+        const luminance = 0.299 * rotData[i] + 0.587 * rotData[i + 1] + 0.114 * rotData[i + 2];
+        sum += 255 - luminance;
+      }
+      rowSums[y] = sum;
+    }
+    const mean = rowSums.reduce((a, b) => a + b, 0) / rotH;
+    let variance = 0;
+    for (let y = 0; y < rotH; y++) {
+      const d = rowSums[y] - mean;
+      variance += d * d;
+    }
+    variance /= rotH;
+
+    if (variance > bestScore) {
+      bestScore = variance;
+      bestAngle = angleDeg;
     }
   }
 
-  let sum = 0;
-  for (let i = 0; i < thumb.length; i++) sum += thumb[i];
-  const mean = sum / thumb.length;
+  rotCanvas.width = 1;
+  rotCanvas.height = 1;
+  smallCanvas.width = 1;
+  smallCanvas.height = 1;
 
-  const darkPts = [];
-  for (let ty = 0; ty < th; ty++) {
-    for (let tx = 0; tx < tw; tx++) {
-      if (thumb[ty * tw + tx] < mean * 0.82) darkPts.push(tx - tw / 2, ty - th / 2);
-    }
-  }
-  const numPts = darkPts.length / 2;
-  if (numPts < 40) return 0; // not enough dark structure (text/gridlines) to trust an angle
-
-  function varianceAtAngle(deg) {
-    const rad = deg * Math.PI / 180;
-    const sin = Math.sin(rad), cos = Math.cos(rad);
-    const bins = new Float64Array(th + 1);
-    for (let i = 0; i < numPts; i++) {
-      const x = darkPts[i * 2], y = darkPts[i * 2 + 1];
-      const yp = -x * sin + y * cos;
-      let bin = Math.round(yp + th / 2);
-      if (bin < 0) bin = 0; else if (bin > th) bin = th;
-      bins[bin]++;
-    }
-    let bmean = 0;
-    for (let i = 0; i < bins.length; i++) bmean += bins[i];
-    bmean /= bins.length;
-    let v = 0;
-    for (let i = 0; i < bins.length; i++) { const d = bins[i] - bmean; v += d * d; }
-    return v / bins.length;
-  }
-
-  const baseline = varianceAtAngle(0);
-  let bestAngle = 0, bestVar = baseline;
-  for (let deg = -10; deg <= 10; deg += 0.5) {
-    if (deg === 0) continue;
-    const v = varianceAtAngle(deg);
-    if (v > bestVar) { bestVar = v; bestAngle = deg; }
-  }
-  for (let deg = bestAngle - 0.4; deg <= bestAngle + 0.4; deg += 0.1) {
-    const v = varianceAtAngle(deg);
-    if (v > bestVar) { bestVar = v; bestAngle = deg; }
-  }
-
-  if (Math.abs(bestAngle) < 0.3) return 0;
-  if (Math.abs(bestAngle) > 12) return 0; // outside trusted range — likely a false signal, not a skewed page
-  if (bestVar < baseline * 1.15) return 0; // not a confident improvement over unrotated
-  return Math.round(bestAngle * 10) / 10;
+  return bestAngle;
 }
 
-// ── Illumination flattening (shadow / uneven-lighting correction) ──
-// Pure function: estimates a coarse local-background map via block averaging
-// (a cheap stand-in for a Gaussian blur) and rescales each pixel relative to
-// its local background toward the global mean, before the existing contrast
-// stretch runs. Returns the input array unchanged when lighting is already
-// even, so clean scans are not touched.
-function computeIlluminationFlattenedGray(gray, width, height) {
-  const blockSize = Math.max(16, Math.round(Math.min(width, height) / 18));
-  const bw = Math.ceil(width / blockSize);
-  const bh = Math.ceil(height / blockSize);
-  const blockSum = new Float64Array(bw * bh);
-  const blockCount = new Int32Array(bw * bh);
-  for (let y = 0; y < height; y++) {
-    const by = Math.min(bh - 1, Math.floor(y / blockSize));
-    for (let x = 0; x < width; x++) {
-      const bx = Math.min(bw - 1, Math.floor(x / blockSize));
-      const idx = by * bw + bx;
-      blockSum[idx] += gray[y * width + x];
-      blockCount[idx]++;
-    }
-  }
-  const blockAvg = new Float64Array(bw * bh);
-  for (let i = 0; i < blockAvg.length; i++) {
-    blockAvg[i] = blockCount[i] ? blockSum[i] / blockCount[i] : 200;
-  }
+// Rotates a full-resolution canvas by the given angle (degrees) around
+// its own center, returning a NEW canvas sized to fit the fully-rotated
+// content against a white background (so no corner content is clipped
+// and the added corners read as blank page, not noise, to the margin-trim
+// step that runs later). A near-zero angle is a no-op -- returns the
+// same canvas unchanged -- so the common case of an already-square photo
+// pays no extra resample cost.
+function rotateCanvasByAngle(sourceCanvas, angleDeg) {
+  if (Math.abs(angleDeg) < 0.3) return sourceCanvas;
 
-  let blockMin = 255, blockMax = 0;
-  for (let i = 0; i < blockAvg.length; i++) {
-    if (blockAvg[i] < blockMin) blockMin = blockAvg[i];
-    if (blockAvg[i] > blockMax) blockMax = blockAvg[i];
-  }
-  if (blockMax - blockMin < 28) return gray; // lighting already even — avoid amplifying noise
+  const rad = angleDeg * Math.PI / 180;
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+  const absCos = Math.abs(Math.cos(rad));
+  const absSin = Math.abs(Math.sin(rad));
+  const newW = Math.max(1, Math.round(w * absCos + h * absSin));
+  const newH = Math.max(1, Math.round(w * absSin + h * absCos));
 
-  let globalSum = 0;
-  for (let i = 0; i < gray.length; i++) globalSum += gray[i];
-  const globalMean = globalSum / gray.length;
+  const out = document.createElement('canvas');
+  out.width = newW;
+  out.height = newH;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, newW, newH);
+  ctx.translate(newW / 2, newH / 2);
+  ctx.rotate(rad);
+  ctx.drawImage(sourceCanvas, -w / 2, -h / 2);
 
-  const out = new Uint8ClampedArray(gray.length);
-  for (let y = 0; y < height; y++) {
-    const by = Math.min(bh - 1, Math.floor(y / blockSize));
-    for (let x = 0; x < width; x++) {
-      const bx = Math.min(bw - 1, Math.floor(x / blockSize));
-      const localBg = blockAvg[by * bw + bx] || globalMean;
-      out[y * width + x] = Math.min(255, Math.max(0, Math.round((gray[y * width + x] / Math.max(1, localBg)) * globalMean)));
-    }
-  }
   return out;
 }
 
-// Rotates a canvas's content by `correctionDeg` degrees around its center
-// onto a new, larger canvas sized to fit the rotated bounding box (white
-// fill for newly-exposed corners). DOM-only glue around the pure angle math
-// above; a no-op is never called since callers only invoke this when
-// estimateSkewAngleFromGray returned a non-zero angle.
-function rotateCanvasByDegrees(sourceCanvas, correctionDeg) {
-  const w = sourceCanvas.width, h = sourceCanvas.height;
-  const rad = correctionDeg * Math.PI / 180;
-  const sin = Math.abs(Math.sin(rad)), cos = Math.abs(Math.cos(rad));
-  const newW = Math.round(w * cos + h * sin);
-  const newH = Math.round(w * sin + h * cos);
-
-  const rotated = document.createElement('canvas');
-  rotated.width = newW;
-  rotated.height = newH;
-  const rctx = rotated.getContext('2d');
-  rctx.fillStyle = '#ffffff';
-  rctx.fillRect(0, 0, newW, newH);
-  rctx.translate(newW / 2, newH / 2);
-  rctx.rotate(rad);
-  rctx.drawImage(sourceCanvas, -w / 2, -h / 2);
-  return rotated;
-}
-
 // Threshold for the dark-dominant auto-invert decision in
-// preprocessImageForOCR (step 2b) -- pulled out as a pure, named function so
-// it's independently testable without a canvas/DOM.
+// preprocessImageForOCR -- pulled out as a pure, named function so it's
+// independently testable without a canvas/DOM. Ported from PR #33
+// (claude/gifted-feynman-s1s33y): handles light-text-on-dark screenshots
+// (e.g. a Notion-exported timetable) that the existing dark-text-on-light-
+// tuned contrast stretch below was never tuned for.
 function isDarkDominantForInvert(meanGrayValue) {
   return meanGrayValue < 100;
 }
@@ -751,7 +795,7 @@ function preprocessImageForOCR(base64Data, mimeType) {
     img.onload = () => {
       let canvas = document.createElement('canvas');
       let ctx = canvas.getContext('2d');
-
+      
       let width = img.width;
       let height = img.height;
 
@@ -777,18 +821,17 @@ function preprocessImageForOCR(base64Data, mimeType) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
-      // 1b. Deskew: estimate rotation from a quick grayscale pass, and only
-      // re-render the canvas when a confident non-zero angle was found —
-      // straight photos/screenshots take the exact same path as before.
-      {
-        const probe = ctx.getImageData(0, 0, width, height).data;
-        const probeGray = new Uint8ClampedArray(probe.length / 4);
-        for (let i = 0, j = 0; i < probe.length; i += 4, j++) {
-          probeGray[j] = Math.round(0.299 * probe[i] + 0.587 * probe[i + 1] + 0.114 * probe[i + 2]);
-        }
-        const skewAngle = estimateSkewAngleFromGray(probeGray, width, height);
-        if (skewAngle !== 0) {
-          const rotated = rotateCanvasByDegrees(canvas, -skewAngle);
+      // 1b. Auto-deskew: correct small handheld-photo rotation before any
+      // further processing, so both the margin-trim step below (which
+      // assumes roughly horizontal table lines) and Tesseract itself see
+      // an upright table. Scored on a cheap downscaled copy, applied once
+      // to the full-resolution canvas.
+      const skewAngle = detectSkewAngle(canvas);
+      if (Math.abs(skewAngle) >= 0.3) {
+        const rotated = rotateCanvasByAngle(canvas, skewAngle);
+        if (rotated !== canvas) {
+          canvas.width = 1;
+          canvas.height = 1;
           canvas = rotated;
           ctx = canvas.getContext('2d');
           width = canvas.width;
@@ -796,37 +839,38 @@ function preprocessImageForOCR(base64Data, mimeType) {
         }
       }
 
-      // 2. Grayscale, illumination flattening, dark-mode auto-invert, and
-      //    contrast enhancement with dynamic range expansion & soft S-curve
+      // 2. Grayscale & contrast enhancement with dynamic range expansion & soft S-curve
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
 
-      let rawGray = new Uint8ClampedArray(data.length / 4);
+      let grayValues = new Uint8ClampedArray(data.length / 4);
       for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-        rawGray[j] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-      }
-
-      // 2a. Flatten shadows / uneven lighting (no-op on already-even scans)
-      let grayValues = computeIlluminationFlattenedGray(rawGray, width, height);
-
-      // 2b. Auto-invert dark-dominant images (e.g. dark-theme screenshots
-      // with light text) so the light-text-on-dark case binarizes the same
-      // way the light-background/dark-text case already does. A real photo
-      // of a paper timetable is background-dominant (mostly light pixels
-      // even under shadow), so this only fires on genuinely dark scans.
-      let sumGray = 0;
-      for (let j = 0; j < grayValues.length; j++) sumGray += grayValues[j];
-      const meanGray = sumGray / grayValues.length;
-      if (isDarkDominantForInvert(meanGray)) {
-        const inverted = new Uint8ClampedArray(grayValues.length);
-        for (let j = 0; j < grayValues.length; j++) inverted[j] = 255 - grayValues[j];
-        grayValues = inverted;
+        grayValues[j] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
       }
 
       let minL = 255, maxL = 0;
       for (let j = 0; j < grayValues.length; j++) {
         if (grayValues[j] < minL) minL = grayValues[j];
         if (grayValues[j] > maxL) maxL = grayValues[j];
+      }
+
+      // 2a. Auto-invert dark-dominant images (e.g. dark-theme screenshots
+      // with light text) so the light-text-on-dark case binarizes the same
+      // way the light-background/dark-text case is tuned for below. A real
+      // photo of a paper timetable is background-dominant (mostly light
+      // pixels even under shadow), so this only fires on genuinely
+      // dark-dominant images. Ported from PR #33.
+      let sumGrayForInvert = 0;
+      for (let j = 0; j < grayValues.length; j++) sumGrayForInvert += grayValues[j];
+      const meanGrayForInvert = sumGrayForInvert / grayValues.length;
+      if (isDarkDominantForInvert(meanGrayForInvert)) {
+        minL = 255;
+        maxL = 0;
+        for (let j = 0; j < grayValues.length; j++) {
+          grayValues[j] = 255 - grayValues[j];
+          if (grayValues[j] < minL) minL = grayValues[j];
+          if (grayValues[j] > maxL) maxL = grayValues[j];
+        }
       }
 
       const range = Math.max(1, maxL - minL);
@@ -839,6 +883,82 @@ function preprocessImageForOCR(base64Data, mimeType) {
         data[i] = boosted;
         data[i + 1] = boosted;
         data[i + 2] = boosted;
+      }
+
+      // 2b. Local (tile-based) contrast normalization, blended with the
+      // global S-curve above. A single global min/max stretch assumes
+      // uniform lighting across the whole photo -- a real photographed
+      // page commonly has a shadow across half the sheet or a glare
+      // patch, which one curve can't equalize. Each tile is renormalized
+      // against its OWN local min/max (from `grayValues`, captured before
+      // the S-curve above overwrote `data`) and blended 50/50 with the
+      // global result already written -- a full replacement risks
+      // amplifying flat, near-blank tiles (pure background/margin) into
+      // visible noise, so the global curve stays as a floor.
+      const TILE = 48;
+      const tilesX = Math.ceil(width / TILE);
+      const tilesY = Math.ceil(height / TILE);
+      const tileMin = new Float32Array(tilesX * tilesY).fill(255);
+      const tileMax = new Float32Array(tilesX * tilesY).fill(0);
+      for (let y = 0; y < height; y++) {
+        const ty = Math.min(tilesY - 1, Math.floor(y / TILE));
+        const rowBase = y * width;
+        for (let x = 0; x < width; x++) {
+          const tx = Math.min(tilesX - 1, Math.floor(x / TILE));
+          const idx = ty * tilesX + tx;
+          const g = grayValues[rowBase + x];
+          if (g < tileMin[idx]) tileMin[idx] = g;
+          if (g > tileMax[idx]) tileMax[idx] = g;
+        }
+      }
+      for (let y = 0; y < height; y++) {
+        const ty = Math.min(tilesY - 1, Math.floor(y / TILE));
+        const rowBase = y * width;
+        for (let x = 0; x < width; x++) {
+          const tx = Math.min(tilesX - 1, Math.floor(x / TILE));
+          const idx = ty * tilesX + tx;
+          const localMin = tileMin[idx];
+          const localMax = tileMax[idx];
+          const localRange = localMax - localMin;
+          // Skip near-flat tiles (pure background/margin) -- normalizing
+          // them would only amplify sensor noise into visible speckling.
+          if (localRange < 18) continue;
+          const g = grayValues[rowBase + x];
+          const localNorm = Math.min(255, Math.max(0, ((g - localMin) / localRange) * 255));
+          const i = (rowBase + x) * 4;
+          const blended = Math.round((data[i] + localNorm) / 2);
+          data[i] = blended;
+          data[i + 1] = blended;
+          data[i + 2] = blended;
+        }
+      }
+
+      // 2c. Light unsharp-mask sharpening to recover edge crispness lost
+      // to smartphone camera softness/motion blur (and to the smoothing
+      // upscale draw above). Deliberately mild -- a fast 3x3 box-blur
+      // estimate rather than a true Gaussian, amount capped at 0.4 --
+      // since OCR accuracy suffers more from over-sharpened halo
+      // artifacts than from mild residual softness.
+      const sharpenSrc = new Uint8ClampedArray(data.length);
+      sharpenSrc.set(data);
+      const SHARPEN_AMOUNT = 0.4;
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const i = (y * width + x) * 4;
+          let sum = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const rowOffset = (y + dy) * width;
+            for (let dx = -1; dx <= 1; dx++) {
+              sum += sharpenSrc[(rowOffset + (x + dx)) * 4];
+            }
+          }
+          const blurVal = sum / 9;
+          const orig = sharpenSrc[i];
+          const sharpened = Math.min(255, Math.max(0, orig + (orig - blurVal) * SHARPEN_AMOUNT));
+          data[i] = sharpened;
+          data[i + 1] = sharpened;
+          data[i + 2] = sharpened;
+        }
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -1063,12 +1183,21 @@ function getCanonicalSubjectName(rawText) {
   text = text.replace(/^\d+[\s.\-–)]+/, '');
   let clean = text.replace(/[^a-zA-Z0-9\s/&+-]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  const words = clean.split(' ').filter(w => {
+  const words = clean.split(' ').filter((w, idx, arr) => {
     const wLow = w.toLowerCase();
+    if (w === '&') return true;
+    if (/^\d+$/.test(w)) {
+      // Keep a short trailing number ("Open Elective 1", "Group 2") --
+      // it is the only thing distinguishing otherwise-identical subject
+      // names. A bare digit anywhere else in the text is still OCR/format
+      // noise (stray page numbers, leftover credit counts, etc.) and gets
+      // dropped as before. Checked ahead of the generic length<=1 filter
+      // below, which would otherwise reject a single trailing digit first.
+      return idx === arr.length - 1 && w.length <= 2;
+    }
     if (w.length <= 1 && !['c', 'r'].includes(wLow)) return false;
     if (TIMETABLE_JUNK_TOKENS.has(wLow)) return false;
     if (/^[A-D][1-4]$/i.test(w)) return false;
-    if (/^\d+$/.test(w)) return false;
     return true;
   });
 
@@ -1087,6 +1216,8 @@ function getCanonicalSubjectName(rawText) {
     'probability & statistics': 'Probability and Statistics',
     'probability and statistics': 'Probability and Statistics',
     'bmfa': 'Business Management and Financial Accounting',
+    'business management financial account': 'Business Management and Financial Accounting',
+    'business management & financial account': 'Business Management and Financial Accounting',
     'business management': 'Business Management and Financial Accounting',
     'coi': 'Constitution of India',
     'ce': 'Community Engagement',
@@ -1177,6 +1308,24 @@ function extractBatchTags(rawText) {
   }
 
   return Array.from(batches);
+}
+
+// Renders a teacher/faculty value with exactly one "Prof. " title, never
+// doubled. Several render sites used to hardcode 'Prof. ' + teacher, which
+// double-prefixed any value that already carried a title -- data.js's own
+// default timetable entries all store "Prof. VAK" etc. already, and the
+// Add/Edit Class form's placeholder used to suggest typing the title too
+// -- producing "Prof. Prof. VAK" on screen. A value that isn't actually a
+// person's name (a not-yet-assigned placeholder like "Faculty", or an
+// empty-marker like "—") is left untouched since there's no name to title.
+const TEACHER_TITLE_PATTERN = /^(?:prof\.?|dr\.?|mr\.?|mrs\.?|ms\.?|adv\.?|shri|smt\.?)\s/i;
+const TEACHER_NO_TITLE_VALUES = new Set(['faculty', 'staff', 'tba', '\u2014', '-']);
+function formatTeacherName(teacher) {
+  const t = (teacher || '').trim();
+  if (!t) return '';
+  if (TEACHER_NO_TITLE_VALUES.has(t.toLowerCase())) return t;
+  if (TEACHER_TITLE_PATTERN.test(t)) return t;
+  return `Prof. ${t}`;
 }
 
 // ── Bounded Fuzzy Matching for Existing-Subject Reconciliation ──
@@ -1345,6 +1494,7 @@ function parseFacultyLegend(rawWords) {
 // CANONICAL_SUBJECT_MAP below (i.e. any institution's own subject list, not
 // just the one this map was authored against), straight from that scan's
 // own legend rather than requiring the map to be extended per-college.
+// Ported from PR #33 (claude/gifted-feynman-s1s33y), unchanged.
 function parseSubjectAbbreviationLegend(rawWords) {
   const legend = {};
   if (!rawWords || rawWords.length === 0) return legend;
@@ -1531,12 +1681,21 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
     .replace(/\s+/g, ' ')
     .trim();
 
-  const words = cleanName.split(' ').filter(w => {
+  const words = cleanName.split(' ').filter((w, idx, arr) => {
     const wLow = w.toLowerCase();
+    if (w === '&') return true;
+    if (/^\d+$/.test(w)) {
+      // Keep a short trailing number ("Open Elective 1", "Group 2") --
+      // it is the only thing distinguishing otherwise-identical subject
+      // names. A bare digit anywhere else in the text is still OCR/format
+      // noise (stray page numbers, leftover credit counts, etc.) and gets
+      // dropped as before. Checked ahead of the generic length<=1 filter
+      // below, which would otherwise reject a single trailing digit first.
+      return idx === arr.length - 1 && w.length <= 2;
+    }
     if (w.length <= 1 && !['c', 'r'].includes(wLow)) return false;
     if (TIMETABLE_JUNK_TOKENS.has(wLow)) return false;
     if (/^[A-D][1-4]$/i.test(w)) return false;
-    if (/^\d+$/.test(w)) return false;
     return true;
   });
 
@@ -1554,6 +1713,8 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
     'probability & statistics': 'Probability and Statistics',
     'probability and statistic': 'Probability and Statistics',
     'bmfa': 'Business Management and Financial Accounting',
+    'business management financial account': 'Business Management and Financial Accounting',
+    'business management & financial account': 'Business Management and Financial Accounting',
     'business management': 'Business Management and Financial Accounting',
     'coi': 'Constitution of India',
     'ce': 'Community Engagement',
@@ -1695,6 +1856,94 @@ function shouldKeepClassForUserBatch(classItem, userBatch = 'all') {
   if (itemBatches.includes(userLetter)) return true;
 
   return false;
+}
+
+// Splits a combined multi-batch timetable row -- data.js's "A + B" lab-slot
+// shorthand, e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)", where several
+// batches share one time slot but each does a DIFFERENT subject in a
+// different room -- into one entry per batch. Verified against every
+// combined row in TIMETABLE: `subject` segments split on "+" and `room`
+// segments split on "/" list the same batches in the same order, so they
+// pair up by index; each segment's own trailing "(INITIALS)" is pulled out
+// as that segment's teacher, since the row's shared `teacher` field is not
+// reliably parallel (only the first name in it carries a title). Rows that
+// aren't combined (the vast majority -- ordinary lectures, single-batch
+// labs, recess) pass through unchanged.
+function expandCombinedTimetableRow(item) {
+  const subj = item.subject || '';
+  if (!subj.includes('+')) return [item];
+
+  const subjParts = subj.split(/\s*\+\s*/).map(s => s.trim()).filter(Boolean);
+  if (subjParts.length < 2) return [item];
+
+  const roomParts = (item.room || '').split(/\s*\/\s*/).map(s => s.trim());
+  const roomsAlign = roomParts.length === subjParts.length;
+
+  return subjParts.map((part, i) => {
+    const teacherMatch = part.match(/\(([^)]+)\)\s*$/);
+    return {
+      ...item,
+      subject: part,
+      room: roomsAlign ? roomParts[i] : (item.room || ''),
+      teacher: teacherMatch ? teacherMatch[1].trim() : (item.teacher || ''),
+      code: '',
+    };
+  });
+}
+
+// Flattens data.js's TIMETABLE (keyed 0=Sun..6=Sat) into the flat
+// {day, time, end, subject, room, teacher, type, ...} shape the timetable
+// preview pipeline (showTimetablePreviewModal) already expects, expanding
+// combined multi-batch rows first via expandCombinedTimetableRow() so each
+// entry describes exactly one batch's class rather than several batches
+// glued into one row.
+function buildSampleTimetableSchedule() {
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const out = [];
+  Object.keys(TIMETABLE).forEach(dayKey => {
+    const dayName = DAY_NAMES[parseInt(dayKey, 10)] || 'Mon';
+    (TIMETABLE[dayKey] || []).forEach(item => {
+      expandCombinedTimetableRow(item).forEach(entry => {
+        out.push({ ...entry, day: dayName });
+      });
+    });
+  });
+  return out;
+}
+
+// Headless counterpart to showTimetablePreviewModal()'s per-item
+// normalization step, used only where popping the interactive preview
+// modal would be disruptive (mid-onboarding). Mirrors that modal's
+// normalize-and-fallback logic exactly, so a class looks identical
+// whether it was loaded via onboarding or the standalone "Load sample
+// timetable" button, then keeps only the rows relevant to userBatch
+// (shouldKeepClassForUserBatch already keeps batch-less rows -- lectures,
+// recess -- for everyone).
+function buildFilteredAidsTimetable(userBatch) {
+  const existingSubjects = getSubjectList();
+  const grouped = getEmptyTimetable();
+  buildSampleTimetableSchedule().forEach(item => {
+    const norm = normalizeSubjectIdentity(item.subject || '', existingSubjects, item.type);
+    const batches = (norm.batches && norm.batches.length > 0) ? norm.batches : (item.batches || []);
+    const entry = {
+      time: item.time || '10:00',
+      end: item.end || '11:00',
+      subject: norm.canonicalName || item.subject || '',
+      code: norm.canonicalCode || item.code || '',
+      room: norm.room || item.room || '',
+      teacher: norm.teacher || item.teacher || '',
+      type: norm.classType || item.type || 'lecture',
+      batches,
+    };
+    if (!shouldKeepClassForUserBatch(entry, userBatch)) return;
+    const dayIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(item.day);
+    if (dayIdx === -1) return;
+    grouped[dayIdx].push(entry);
+  });
+  Object.keys(grouped).forEach(d => {
+    grouped[d].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  });
+  return grouped;
 }
 
 function cleanupTimetableDomain(rawText, existingSubjects = []) {
@@ -2003,7 +2252,7 @@ function looksLikeUnresolvedCodeResidue(canonicalName) {
 // canonical-subject map and the per-scan legend lookup, and only kept if the
 // corrected version then resolves against one of them -- so it can never
 // invent a subject name, only recover one that a single misread character
-// was hiding.
+// was hiding. Ported from PR #33 (claude/gifted-feynman-s1s33y), unchanged.
 function correctDigitLetterConfusion(token) {
   if (!token || !/\d/.test(token)) return null;
   const DIGIT_TO_LETTER = { '0': 'O', '1': 'I', '5': 'S', '8': 'B' };
@@ -2941,8 +3190,20 @@ async function extractTimetableFromImage(base64Data, mimeType) {
     }
   }
   
-  // If deterministic parser extracted classes, return immediately!
-  if (deterministicResult.schedule && deterministicResult.schedule.length > 0) {
+  // If the deterministic parser found a confident result, return
+  // immediately -- "confident" now means both non-empty AND not mostly
+  // flagged uncertain, so a photo that produced a few rows but garbled
+  // most of them still gets a chance at AI help below instead of being
+  // silently accepted as-is.
+  const uncertainRowCount = (deterministicResult.schedule || []).filter(r => r.isUncertain).length;
+  const uncertainRatio = deterministicResult.schedule?.length
+    ? uncertainRowCount / deterministicResult.schedule.length
+    : 1;
+  const deterministicIsConfident = deterministicResult.schedule
+    && deterministicResult.schedule.length > 0
+    && uncertainRatio < 0.4;
+
+  if (deterministicIsConfident) {
     return { schedule: deterministicResult.schedule, confidence: Math.max(70, deterministicResult.confidence) };
   }
   
@@ -2980,26 +3241,39 @@ Rules:
 3. Do not invent fake subjects or rooms if not present in text.
 4. If an entry is ambiguous, mark isUncertain: true.`;
 
+  // Vision-first: send the actual photo to a multimodal Gemini model when
+  // a Gemini key is configured -- this is the only path that can recover
+  // information Tesseract lost at the pixel level (heavy skew, poor
+  // lighting, handwriting), which text-only repair structurally cannot do
+  // since it never sees the picture. Falls through to the existing
+  // text-only repair below if vision isn't available (Groq-only setup) or
+  // the vision call itself fails, so nothing regresses for a
+  // Gemini-less setup or a transient vision-call error.
+  if (hasGeminiKey) {
+    try {
+      const visionPrompt = schemaInstruction + `
+
+The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
+
+Rough OCR text (may be inaccurate):
+${ocrResult.data.text || ''}`;
+      const visionResult = await AIService.generateContentFromImage(base64Data, mimeType, visionPrompt);
+      if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
+        const sanitized = sanitizeAiScheduleRows(visionResult.schedule);
+        if (sanitized.length > 0) {
+          return { schedule: sanitized, confidence: 88 };
+        }
+      }
+    } catch (err) {
+      console.warn("[ExtractionPipeline] Vision AI Repair failed, falling back to text-only repair:", err);
+    }
+  }
+
   try {
     const rawOcrText = ocrResult.data.text;
     const aiResult = await AIService.generateContentFromText(rawOcrText, schemaInstruction);
     if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
-      // Sanitize AI rows to prevent hallucinations
-      const sanitized = aiResult.schedule.map(item => {
-        const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
-        return {
-          day: standardizeTimetableDay(item.day) || 'Mon',
-          time: timeNorm.time || item.time || '10:00',
-          end: timeNorm.end || item.end || '11:00',
-          subject: (item.subject || '').trim(),
-          code: (item.code || '').trim(),
-          room: (item.room || '').trim(),
-          teacher: (item.teacher || '').trim(),
-          type: item.type || 'lecture',
-          isUncertain: !!item.isUncertain || !item.subject
-        };
-      }).filter(r => r.subject.length > 0);
-
+      const sanitized = sanitizeAiScheduleRows(aiResult.schedule);
       return { schedule: sanitized.length > 0 ? sanitized : deterministicResult.schedule, confidence: 85 };
     }
     return deterministicResult;
@@ -3007,6 +3281,28 @@ Rules:
     console.warn("[ExtractionPipeline] AI Repair failed:", err);
     return deterministicResult;
   }
+}
+
+// Shared sanitizer for AI-returned schedule rows (both the vision path and
+// the text-only repair path), extracted so the two never drift apart.
+// Rejects hallucinated rows with no subject, and re-runs each time value
+// through the same normalizeTimetableTime used everywhere else so an AI
+// model's own time formatting quirks don't bypass the app's own validation.
+function sanitizeAiScheduleRows(rawRows) {
+  return (rawRows || []).map(item => {
+    const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
+    return {
+      day: standardizeTimetableDay(item.day) || 'Mon',
+      time: timeNorm.time || item.time || '10:00',
+      end: timeNorm.end || item.end || '11:00',
+      subject: (item.subject || '').trim(),
+      code: (item.code || '').trim(),
+      room: (item.room || '').trim(),
+      teacher: (item.teacher || '').trim(),
+      type: item.type || 'lecture',
+      isUncertain: !!item.isUncertain || !item.subject
+    };
+  }).filter(r => r.subject.length > 0);
 }
 
 function triggerTimetableImport() {
@@ -3017,6 +3313,11 @@ function selectTimetableFile() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
+  // Hints mobile browsers to offer the rear camera directly rather than
+  // defaulting straight to the photo library -- most mobile browsers still
+  // also offer a gallery/file option alongside it, so this only speeds up
+  // the common case without removing any existing choice.
+  input.capture = 'environment';
   input.onchange = handleTimetableImageUpload;
   input.click();
 }
@@ -3607,7 +3908,17 @@ function subscribeUserCloudData(uid) {
   // Cache-First Read: Immediate IndexedDB cache hit (0ms UI latency, 0 server reads)
   userRef.get({ source: 'cache' }).then(doc => {
     if (doc && doc.exists) {
-      applyCloudDataToLocalState(doc.data());
+      const data = doc.data() || {};
+      const currentHash = calculatePayloadHash(data);
+      // Same dedup as the server listener below -- without this, every
+      // resubscribe (e.g. the app regaining visibility after being
+      // backgrounded) unconditionally re-applied the cached doc and
+      // rebuilt the current page's DOM even when nothing had changed,
+      // which is what made the dashboard cards look like they were
+      // popping in and out.
+      if (currentHash && currentHash === lastCloudPayloadHash) return;
+      lastCloudPayloadHash = currentHash;
+      applyCloudDataToLocalState(data);
     }
   }).catch(() => {});
 
@@ -3640,14 +3951,29 @@ function subscribeUserCloudData(uid) {
 function applyCloudDataToLocalState(data) {
   if (!data || typeof data !== 'object') return;
   if (data.profile && typeof data.profile === 'object') {
-    const cleanProfile = {
-      name:     String(data.profile.name || '').slice(0, 80),
-      college:  String(data.profile.college || '').slice(0, 100),
-      branch:   String(data.profile.branch || '').slice(0, 100),
-      year:     String(data.profile.year || '').slice(0, 50),
-      rollNo:   String(data.profile.rollNo || '').slice(0, 50),
-      examDate: String(data.profile.examDate || '').slice(0, 20),
+    // Merge onto the current local profile instead of replacing it whole.
+    // Two real bugs lived here: `batch` was never in this list at all, so
+    // every cloud sync (including the one that fires right after this
+    // device's own save) silently wiped whatever batch the user had just
+    // set -- it simply never made the round trip. And because this built
+    // a brand-new object from scratch, any field the cloud snapshot didn't
+    // have (or hadn't caught up on yet) overwrote a fresher local value
+    // with nothing instead of leaving it alone. Each field below now only
+    // overwrites the local value when the incoming data actually has one.
+    const cleanProfile = { ...loadProfile() };
+    const applyIfPresent = (key, maxLen) => {
+      const val = data.profile[key];
+      if (val !== undefined && val !== null && String(val).trim()) {
+        cleanProfile[key] = String(val).slice(0, maxLen);
+      }
     };
+    applyIfPresent('name', 80);
+    applyIfPresent('college', 100);
+    applyIfPresent('branch', 100);
+    applyIfPresent('year', 50);
+    applyIfPresent('rollNo', 50);
+    applyIfPresent('batch', 30);
+    applyIfPresent('examDate', 20);
     safeSetStorage(KEY_PROFILE, cleanProfile);
   }
   if (Array.isArray(data.customTasks)) {
@@ -3681,15 +4007,25 @@ function applyCloudDataToLocalState(data) {
     if (LEGACY_THEME_MAP[cloudTheme]) cloudTheme = LEGACY_THEME_MAP[cloudTheme];
     const localTheme = localStorage.getItem(KEY_THEME);
     
-    // If local theme is not set yet, adopt cloud theme
+    // If local theme is not set yet, adopt cloud theme. (There used to be
+    // an "else" branch here that wrote the LOCAL theme back to the cloud
+    // whenever it differed from what a snapshot just delivered, on the
+    // theory that "local wins". That's the actual cause of dashboard
+    // content re-rendering with no click involved at all: with two
+    // clients signed into the same account (e.g. a phone and this PC,
+    // both used across this whole debugging session), each one saw the
+    // OTHER's theme as a "stale" cloud value and wrote its own theme back
+    // -- which the other client then saw as a fresh change and wrote
+    // back again, forever, each write's round trip forcing a real
+    // dashboard rebuild on both ends every few seconds with nobody
+    // touching anything. A device's own explicit theme toggle already
+    // pushes to the cloud instantly from setTheme() -- this reconciling
+    // write-back was never needed for that case and only actively harmful
+    // for the multi-device case, so it's gone. A cloud value that differs
+    // from local now just leaves this device's local choice alone.
     if (!localTheme && ALL_THEMES.includes(cloudTheme)) {
       localStorage.setItem(KEY_THEME, cloudTheme);
       initTheme();
-    } else if (localTheme && localTheme !== cloudTheme && currentUser && db) {
-      // Local user preference takes precedence; heal cloud document with current local theme
-      db.collection('users').doc(currentUser.uid).set({
-        theme: localTheme
-      }, { merge: true }).catch(() => {});
     }
   }
   if (data.notificationPrefs && typeof data.notificationPrefs === 'object') {
@@ -3730,6 +4066,11 @@ function pushLocalDataToCloud(uid) {
     attTarget:          getAttendanceTarget(),
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
+  // Mark this write's hash as already-seen so its own ack echo (which
+  // comes back through onSnapshot once the server confirms it) isn't
+  // mistaken for an incoming remote change and doesn't trigger a needless
+  // full re-render of whatever page is currently open.
+  lastCloudPayloadHash = calculatePayloadHash(payload);
   db.collection('users').doc(uid).set(payload, { merge: true }).catch(err => {
     if (err.code === 'permission-denied') {
       updateSyncUI('denied');
@@ -3739,20 +4080,25 @@ function pushLocalDataToCloud(uid) {
 }
 
 // ── Notice Channels (Official & WhatsApp Links) ───────────────
+// NOTE: the whatsappTitle/whatsappUrl field names predate this card's
+// current purpose (it used to open a WhatsApp class group; it's now the
+// College ERP Portal link) and are kept as-is on purpose so anyone who
+// already configured a link under the old card keeps it instead of it
+// silently disappearing under a renamed key.
 function loadNoticeChannels() {
   const saved = safeGetStorage(KEY_NOTICE_CHANNELS, null);
   if (saved && typeof saved === 'object') {
     return {
       officialTitle: (saved.officialTitle || 'Official Updates').trim(),
       officialUrl:   (saved.officialUrl || '').trim(),
-      whatsappTitle: (saved.whatsappTitle || 'Class Community').trim(),
+      whatsappTitle: (saved.whatsappTitle || 'College ERP Portal').trim(),
       whatsappUrl:   (saved.whatsappUrl || '').trim()
     };
   }
   return {
     officialTitle: 'Official Updates',
     officialUrl:   '',
-    whatsappTitle: 'Class Community',
+    whatsappTitle: 'College ERP Portal',
     whatsappUrl:   ''
   };
 }
@@ -3776,8 +4122,8 @@ function showNoticeChannelModal(targetKey) {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;width:92vw">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:var(--text-xl)">${isOfficial ? '📢' : '💬'}</span>
-          <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure Class Group & Channels'}</span>
+          <span style="font-size:var(--text-xl)">${isOfficial ? '📢' : '🎓'}</span>
+          <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure ERP Portal Link'}</span>
         </div>
         <button class="modal-close" onclick="document.getElementById('notice-channel-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
@@ -3785,19 +4131,19 @@ function showNoticeChannelModal(targetKey) {
         <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">
           ${isOfficial 
             ? 'Set your college portal link, class channel, or department notice page URL.' 
-            : 'Add your batch community link, group invite URL, or class representative contact. Tapping opens the channel directly for quick access.'}
+            : 'Add your college ERP / student portal URL — attendance, marks, fees, exam forms. Tapping the card opens it directly.'}
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">${isOfficial ? 'Card Title' : 'Group or Channel Title'}</label>
-          <input type="text" class="form-input" id="nc-modal-title" value="${(currentTitle || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'e.g. Official Updates or Department Portal' : 'e.g. Class Community or SY-AIDS 2026'}">
+          <label class="form-label">${isOfficial ? 'Card Title' : 'Portal Title'}</label>
+          <input type="text" class="form-input" id="nc-modal-title" value="${(currentTitle || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'e.g. Official Updates or Department Portal' : 'e.g. College ERP Portal'}">
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">${isOfficial ? 'Destination Link / URL' : 'Invite Link or Contact URL'}</label>
-          <input type="url" class="form-input" id="nc-modal-url" value="${(currentUrl || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'https://college.edu/notices' : 'https://chat.whatsapp.com/... or https://wa.me/...'}">
+          <label class="form-label">${isOfficial ? 'Destination Link / URL' : 'Portal Link / URL'}</label>
+          <input type="url" class="form-input" id="nc-modal-url" value="${(currentUrl || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'https://college.edu/notices' : 'https://erp.yourcollege.edu'}">
         </div>
         ${!isOfficial ? `
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-xs,6px);padding:8px 10px;line-height:1.4">
-            💡 <strong>Note:</strong> Class group access opens directly in WhatsApp based on your batch link and admin settings.
+            💡 <strong>Tip:</strong> This just opens your portal in a new tab — you sign in there as usual, Clarity Desk never sees your ERP credentials.
           </div>
         ` : ''}
       </div>
@@ -3807,7 +4153,7 @@ function showNoticeChannelModal(targetKey) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 
@@ -3822,7 +4168,7 @@ function submitNoticeChannelModal(targetKey) {
     channels.officialTitle = title || 'Official Updates';
     channels.officialUrl   = url;
   } else {
-    channels.whatsappTitle = title || 'Class Community';
+    channels.whatsappTitle = title || 'College ERP Portal';
     channels.whatsappUrl   = url;
   }
 
@@ -3839,7 +4185,7 @@ function handleNoticeSourceClick(targetKey) {
   if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('tg://') || url.startsWith('whatsapp://'))) {
     window.open(url, '_blank', 'noopener,noreferrer');
   } else {
-    showToast(targetKey === 'official' ? 'Configure your official notice link' : 'Add your WhatsApp group invite or community link to enable quick access', 'info');
+    showToast(targetKey === 'official' ? 'Configure your official notice link' : 'Add your ERP portal link to enable quick access', 'info');
     showNoticeChannelModal(targetKey);
   }
 }
@@ -4224,13 +4570,26 @@ function triggerNoticeNotification(notice) {
   }
 }
 
+// Notices can opt into disappearing once a one-time setup step is done
+// (exam date set, timetable customized) via an optional `hideWhen` key --
+// otherwise the board keeps nagging about something already handled.
+// Every place that reads NOTICES for display, notifications, or the
+// assistant should go through this instead of the raw array.
+function getVisibleNotices() {
+  return NOTICES.filter(n => {
+    if (n.hideWhen === 'examDateSet') return !(liveProfile.examDate && liveProfile.examDate.trim());
+    if (n.hideWhen === 'timetableCustomized') return !isCustomTimetableActive();
+    return true;
+  });
+}
+
 function checkNoticeNotifications() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const prefs = loadNotifPrefs();
   if (prefs.newNotices === 'off') return;
 
   const notifiedNotices = safeGetStorage('cos_notified_notices', {}) || {};
-  NOTICES.forEach(n => {
+  getVisibleNotices().forEach(n => {
     if (!notifiedNotices[n.id]) {
       triggerNoticeNotification(n);
       notifiedNotices[n.id] = true;
@@ -4455,6 +4814,17 @@ function setTheme(theme, originEvent) {
 
   // Instant cloud persistence (no 2.5s delay)
   if (currentUser && db) {
+    // Mark this write's resulting hash as already-seen so the server's ack
+    // echo (arriving via onSnapshot a moment later) isn't mistaken for an
+    // incoming remote change -- that mistake was causing an unconditional,
+    // unrelated full dashboard re-render shortly after every theme toggle.
+    lastCloudPayloadHash = calculatePayloadHash({
+      profile: loadProfile(),
+      customTasks: state.customTasks,
+      customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+      assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
+      theme: theme
+    });
     db.collection('users').doc(currentUser.uid).set({
       theme: theme,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -4598,7 +4968,28 @@ function updateBackButtonUI() {
   }
 }
 
+let __lastRenderPage = null;
+let __lastRenderTime = 0;
+
 function renderPage(page) {
+  // Coalesce accidental duplicate calls: two calls for the SAME page
+  // within a few tens of milliseconds of each other are treated as one
+  // and the second is skipped, instead of tearing the page's DOM down
+  // and rebuilding it twice in a row. This is a permanent backstop
+  // against this whole class of bug (we already found and fixed one
+  // cause -- a nav item that fired navigate() twice per click -- but a
+  // guard here means any other accidental double-fire, now or in the
+  // future, from anywhere in the app can't reproduce the same visible
+  // "popping in and out" of a page's content again). A real second
+  // render for a genuine later change is unaffected -- it always arrives
+  // well outside this window.
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  if (page === __lastRenderPage && (now - __lastRenderTime) < 50) {
+    return;
+  }
+  __lastRenderPage = page;
+  __lastRenderTime = now;
+
   try {
     switch (page) {
       case 'dashboard':   renderDashboard();   break;
@@ -4638,6 +5029,33 @@ function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   if (isNaN(d.getTime())) return String(dateStr);
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Dashboard masthead live clock: 12-hour, no seconds, ticking about once a
+// minute. Deliberately mutates one text node directly (see
+// updateLiveClockDisplay) rather than re-rendering anything -- this session
+// spent a lot of effort eliminating spurious dashboard re-renders, so a
+// ticking clock must never become a new source of them.
+function formatLiveClockParts(d) {
+  const dateStr = `${DAY_NAMES_SHORT[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+  let hours = d.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return { dateStr, timeStr: `${hours}:${mins} ${ampm}` };
+}
+
+function updateLiveClockDisplay() {
+  // Lives in the persistent topbar (index.html/404.html), not per-page
+  // content, so this same element is present on every page -- no more
+  // confined to the dashboard.
+  const el = document.getElementById('topbar-clock-text');
+  if (!el) return;
+  const { dateStr, timeStr } = formatLiveClockParts(new Date());
+  el.textContent = `${dateStr} · ${timeStr}`;
 }
 
 function dueDaysLeft(dateStr) {
@@ -4804,12 +5222,14 @@ function resetTimetableToDefault() {
 }
 
 function loadOfficialAidsTimetable() {
-  if (!confirm("Load the official Sem 3 SY AI-DS timetable schedule? This will set up your weekly classes.")) return;
-  safeSetStorage(KEY_CUSTOM_TIMETABLE, TIMETABLE);
+  if (!confirm("Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.")) return;
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
-  syncToCloud();
-  renderPage(state.currentPage);
-  showToast("Official SY AI-DS timetable loaded ✓", "success");
+  // Combined lab slots (e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)") need
+  // to be split per batch and the whole schedule reviewed/filtered before
+  // saving -- see buildSampleTimetableSchedule() and the batch selector
+  // already built into this preview modal -- rather than saving the raw
+  // TIMETABLE object (with every batch's classes glued together) directly.
+  showTimetablePreviewModal(buildSampleTimetableSchedule());
 }
 
 function todayClasses() {
@@ -5110,8 +5530,8 @@ function renderReview() {
   const lookaheadStr = next7.toISOString().split('T')[0];
   
   const upcomingTasks = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= todayS && t.dueDate <= lookaheadStr);
-  const upcomingNotices = NOTICES.filter(n => n.date >= todayS && n.date <= lookaheadStr);
-  const recentNotices = NOTICES.filter(n => n.date >= lookbackStr && n.date <= todayS);
+  const upcomingNotices = getVisibleNotices().filter(n => n.date >= todayS && n.date <= lookaheadStr);
+  const recentNotices = getVisibleNotices().filter(n => n.date >= lookbackStr && n.date <= todayS);
   
   const next7Days = {};
   for(let i=0; i<=7; i++) {
@@ -5739,7 +6159,13 @@ window.finishOnboarding = function() {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
     const existingCustom = safeGetStorage(KEY_CUSTOM_TIMETABLE, null);
     if (!existingCustom) {
-      safeSetStorage(KEY_CUSTOM_TIMETABLE, TIMETABLE);
+      // Same batch-aware split as the standalone "Load sample timetable"
+      // button (buildFilteredAidsTimetable) -- popping its interactive
+      // preview modal on top of onboarding would be disruptive here, and
+      // the batch this student just typed a few fields up is right there,
+      // so this filters straight to their own classes without it.
+      const batchVal = (document.getElementById('ob-batch')?.value || '').trim();
+      safeSetStorage(KEY_CUSTOM_TIMETABLE, buildFilteredAidsTimetable(batchVal || 'all'));
     }
   } else {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
@@ -5931,7 +6357,7 @@ function answerOverdueTasks() {
 
 function answerExams() {
   const tsks = allTasks().filter(t => t.status === 'pending' && (t.title.toLowerCase().includes('exam') || t.title.toLowerCase().includes('test') || t.title.toLowerCase().includes('quiz')));
-  const nts = NOTICES.filter(n => n.category.toLowerCase().includes('exam') || n.title.toLowerCase().includes('exam') || n.title.toLowerCase().includes('test'));
+  const nts = getVisibleNotices().filter(n => n.category.toLowerCase().includes('exam') || n.title.toLowerCase().includes('exam') || n.title.toLowerCase().includes('test'));
   
   let html = `<div style="font-weight:600;margin-bottom:8px">Upcoming Exams &amp; Tests</div>`;
   if (tsks.length === 0 && nts.length === 0) {
@@ -6162,7 +6588,7 @@ function renderDashboard() {
           </div>
           <div class="chrono-beacon-meta">
             ${activeClass.room ? `<span>${activeClass.room}</span>` : ''}
-            ${activeClass.teacher ? `<span>${iconText(icons.user(), 'Prof. ' + activeClass.teacher)}</span>` : ''}
+            ${activeClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(activeClass.teacher))}</span>` : ''}
             <span class="type-badge type-${activeClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${activeClass.type || 'lecture'}</span>
           </div>
         </div>
@@ -6188,7 +6614,7 @@ function renderDashboard() {
           </div>
           <div class="chrono-beacon-meta">
             ${nextClass.room ? `<span>${nextClass.room}</span>` : ''}
-            ${nextClass.teacher ? `<span>${iconText(icons.user(), 'Prof. ' + nextClass.teacher)}</span>` : ''}
+            ${nextClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(nextClass.teacher))}</span>` : ''}
             <span class="type-badge type-${nextClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${nextClass.type || 'lecture'}</span>
           </div>
         </div>
@@ -6273,7 +6699,8 @@ function renderDashboard() {
     .slice(0, 4);
 
   // Latest notice
-  const latestNotice = NOTICES.find(n => n.important) || NOTICES[0];
+  const visibleNotices = getVisibleNotices();
+  const latestNotice = visibleNotices.find(n => n.important) || visibleNotices[0];
   const quickLinksPreview = loadCustomLinks().slice(0, 4);
 
   el.innerHTML = `
@@ -6321,7 +6748,7 @@ function renderDashboard() {
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
                     <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub('${c.subject}')">
                       <div class="schedule-slot-title">${c.subject}</div>
-                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? 'Prof. ' + c.teacher + ' · ' : ''}${c.type || 'lecture'}</div>
+                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                       <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">${status==='attended'?'Attended ✓':'Present'}</button>
@@ -6572,7 +6999,7 @@ function renderTimetable() {
             </div>
             <div class="tt-meta">
               ${c.room ? `Room: <strong>${c.room}</strong>` : ''}
-              ${c.teacher ? ` · Prof. <strong>${c.teacher}</strong>` : ''}
+              ${c.teacher ? ` · <strong>${formatTeacherName(c.teacher)}</strong>` : ''}
               ${c.notes ? ` · <span style="font-style:italic">${c.notes}</span>` : ''}
             </div>
           </div>
@@ -9359,7 +9786,7 @@ function renderSubjectsOverview(el, subjects) {
     return `
       <div class="card attendance-subject-card" style="padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary)">${s.name}</div>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· Prof. ' + s.teacher : ''} ${s.room ? '· ' + s.room : ''}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
 
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0">
           <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
@@ -9517,7 +9944,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
             <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">${subj.name}</div>
             <div style="font-size:var(--text-base);color:var(--text-muted);margin-top:2px">
               ${subj.code ? 'Course Code: <strong>' + subj.code + '</strong> · ' : ''}
-              ${subj.teacher ? 'Faculty: <strong>Prof. ' + subj.teacher + '</strong> · ' : ''}
+              ${subj.teacher ? 'Faculty: <strong>' + formatTeacherName(subj.teacher) + '</strong> · ' : ''}
               ${subj.room ? 'Room: <strong>' + subj.room + '</strong>' : ''}
             </div>
           </div>
@@ -9674,7 +10101,7 @@ function showTimetableEntryModal(day = state.ttDay, idx = null) {
         </div>
         <div class="form-group">
           <label class="form-label">Faculty / Teacher</label>
-          <input type="text" class="form-input" id="tte-teacher" placeholder="e.g. Prof. VJM" value="${item ? (item.teacher || '').replace(/"/g, '&quot;') : ''}">
+          <input type="text" class="form-input" id="tte-teacher" placeholder="e.g. V. J. More (no need to type Prof. -- added automatically)" value="${item ? (item.teacher || '').replace(/"/g, '&quot;') : ''}">
         </div>
       </div>
 
@@ -9701,7 +10128,7 @@ function showTimetableEntryModal(day = state.ttDay, idx = null) {
     </div>
   `;
 
-  backdrop.addEventListener('click', () => backdrop.remove());
+  wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
 }
 
@@ -10110,7 +10537,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', () => backdrop.remove());
+  wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
   setTimeout(() => document.getElementById('task-subject')?.focus(), 50);
 
@@ -10228,7 +10655,7 @@ function renderNotices() {
   const q  = state.noticeSearch.toLowerCase();
   const channels = loadNoticeChannels();
 
-  let filtered = NOTICES;
+  let filtered = getVisibleNotices();
   if (q) filtered = filtered.filter(n =>
     n.title.toLowerCase().includes(q) ||
     n.content.toLowerCase().includes(q) ||
@@ -10266,43 +10693,26 @@ function renderNotices() {
     <div class="page-header">
       <div>
         <div class="page-title">Notice Board</div>
-        <div class="page-subtitle">${NOTICES.filter(n=>n.important).length} pinned announcements · official campus circulars</div>
+        <div class="page-subtitle">${getVisibleNotices().filter(n=>n.important).length} pinned announcements · official campus circulars</div>
       </div>
     </div>
 
     <!-- ── Quick-Access Notice Sources (3 Soft Linked Cards) ── -->
     <div class="notice-sources-grid">
-      <!-- Card 1: Official Updates / Official Class Group -->
-      <div class="notice-source-card tint-official" onclick="handleNoticeSourceClick('official')" title="Open official notice source">
+      <!-- College ERP Portal (configurable link) -->
+      <div class="notice-source-card tint-erp" onclick="handleNoticeSourceClick('whatsapp')" title="Open your college ERP portal">
         <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-official">📢</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('official')" title="Edit official channel settings" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit official channel settings">
+          <div class="notice-source-icon-wrap notice-source-icon-erp">🎓</div>
+          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit ERP portal link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit ERP portal link">
             ✏️
           </button>
         </div>
         <div>
-          <div class="notice-source-title">${escHtml_cd(channels.officialTitle || 'Official Updates')}</div>
-          <div class="notice-source-sub">Official notices from your class or department</div>
+          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'College ERP Portal')}</div>
+          <div class="notice-source-sub">Your student login for attendance, marks &amp; fees</div>
         </div>
-        <div class="notice-source-action">
-          <span>${channels.officialUrl ? 'Open Portal / Source ↗' : '+ Configure Link'}</span>
-        </div>
-      </div>
-
-      <!-- Card 2: WhatsApp / Community Group -->
-      <div class="notice-source-card tint-whatsapp" onclick="handleNoticeSourceClick('whatsapp')" title="Open class group or channel">
-        <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-whatsapp">💬</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit class group link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit class group link">
-            ✏️
-          </button>
-        </div>
-        <div>
-          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'Class Community')}</div>
-          <div class="notice-source-sub">Open batch channel or group invite</div>
-        </div>
-        <div class="notice-source-action" style="color:var(--accent-warm, #25D366)">
-          <span>${channels.whatsappUrl ? 'Open Class Group ↗' : '+ Set Channel Link'}</span>
+        <div class="notice-source-action" style="color:var(--blue)">
+          <span>${channels.whatsappUrl ? 'Open ERP Portal ↗' : '+ Set Portal Link'}</span>
         </div>
       </div>
 
@@ -10556,7 +10966,7 @@ function showLinkSubjectModal(si, existing) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 
@@ -10702,7 +11112,7 @@ function showLinkResourceModal(si, ri, existing) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 
@@ -10747,7 +11157,7 @@ function renderSummaryContent(container) {
   const todayDay = today.getDay();
   const classes  = loadTimetable()[todayDay] || [];
   const dueTodayItems = allTasks().filter(a => !a.noDeadline && a.dueDate === todayStr() && a.status === 'pending');
-  const importantNotices = NOTICES.filter(n => n.important).slice(0, 3);
+  const importantNotices = getVisibleNotices().filter(n => n.important).slice(0, 3);
   const overdueItems = allTasks().filter(a => isTaskOverdue(a));
   const ongoingMissions = allTasks().filter(a => a.status === 'pending' && (a.taskType === 'mission' || !!a.noDeadline));
   const currentMin   = currentTimeMinutes();
@@ -11138,33 +11548,23 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="section-heading">📢 Notice Channels &amp; Class Communities</div>
+    <div class="section-heading">📢 ERP Portal</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Customize your department notice portal link and batch WhatsApp community invite link for quick access on your Notice Board.
+        Customize your college ERP portal link for quick access on your Notice Board.
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Official Channel Card Title</label>
-          <input type="text" class="form-input" id="nc-official-title" value="${(channels.officialTitle || 'Official Updates').replace(/"/g, '&quot;')}" placeholder="e.g. Official Updates or College Portal">
+          <label class="form-label">ERP Portal Card Title</label>
+          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'College ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. College ERP Portal">
         </div>
         <div class="form-group">
-          <label class="form-label">Official Channel Link / Portal URL</label>
-          <input type="url" class="form-input" id="nc-official-url" value="${(channels.officialUrl || '').replace(/"/g, '&quot;')}" placeholder="https://college.edu/notices or portal link">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">WhatsApp Community Card Title</label>
-          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'Class Community').replace(/"/g, '&quot;')}" placeholder="e.g. Class Community or Batch 2026">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Group Invite Link or Admin Contact</label>
-          <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://chat.whatsapp.com/... or https://wa.me/...">
+          <label class="form-label">ERP Portal Link / URL</label>
+          <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://erp.yourcollege.edu">
         </div>
       </div>
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
-        💡 Links open in WhatsApp where you can preview group details, submit join requests, or contact the group admin.
+        💡 The ERP link just opens your portal in a new tab — you sign in there as usual.
       </div>
     </div>
 
@@ -11235,15 +11635,18 @@ function saveSettings() {
   };
   saveNotifPrefs(nPrefs);
 
-  const offTitleEl = document.getElementById('nc-official-title');
-  const offUrlEl   = document.getElementById('nc-official-url');
-  const waTitleEl  = document.getElementById('nc-wa-title');
-  const waUrlEl    = document.getElementById('nc-wa-url');
-  if (offTitleEl || waTitleEl) {
+  // The Official Updates card is gone (only ERP Portal + Dev Notes remain
+  // on the Notice Board), so this only ever touches the ERP fields --
+  // whatever officialTitle/officialUrl a device already had saved is left
+  // exactly as-is rather than being reset every settings save.
+  const waTitleEl = document.getElementById('nc-wa-title');
+  const waUrlEl   = document.getElementById('nc-wa-url');
+  if (waTitleEl) {
+    const existingChannels = loadNoticeChannels();
     const channels = {
-      officialTitle: (offTitleEl ? offTitleEl.value : '').trim() || 'Official Updates',
-      officialUrl:   (offUrlEl ? offUrlEl.value : '').trim(),
-      whatsappTitle: (waTitleEl ? waTitleEl.value : '').trim() || 'Class Community',
+      officialTitle: existingChannels.officialTitle,
+      officialUrl:   existingChannels.officialUrl,
+      whatsappTitle: (waTitleEl.value || '').trim() || 'College ERP Portal',
       whatsappUrl:   (waUrlEl ? waUrlEl.value : '').trim()
     };
     saveNoticeChannels(channels);
@@ -11368,7 +11771,7 @@ function showNotice(id) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', () => backdrop.remove());
+  wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
 
   // Close on Esc
@@ -11378,89 +11781,8 @@ function showNotice(id) {
   document.addEventListener('keydown', escHandler);
 }
 
-const DEV_UPDATES = [
-  {
-    id: 'u1',
-    date: '2026-08-08',
-    title: 'Study Vault & File Attachment Engine',
-    category: 'Study Vault',
-    tag: 'Feature',
-    tagColor: 'var(--accent)',
-    summary: 'Direct note, syllabus PDF, and lab manual uploads with offline storage and 1-click downloads.',
-    points: [
-      'Upload PDFs, lecture slides, lab manuals, and code files directly from your device.',
-      'Auto-extracted file sizes and instant downloads saved offline to your browser storage.',
-      'Renamed Study Links to Study Vault for a calmer, student-first course workspace.'
-    ]
-  },
-  {
-    id: 'u2',
-    date: '2026-08-08',
-    title: 'Smart Attendance Streaks & Safe Bunk Calculator',
-    category: 'Attendance',
-    tag: 'Improvement',
-    tagColor: 'var(--green)',
-    summary: 'Natural college terminology with active streak counter and safe bunk guidance.',
-    points: [
-      'Replaced rigid buttons with authentic student actions (Attended ✓ / Bunked ✕).',
-      'Active streak counter (🔥) with milestone celebration feedback.',
-      'Real-time safe bunk status calculating how many classes you can afford to miss.'
-    ]
-  },
-  {
-    id: 'u3',
-    date: '2026-08-08',
-    title: 'Custom Notice Channels & WhatsApp Integration',
-    category: 'Notices',
-    tag: 'Integration',
-    tagColor: '#25D366',
-    summary: 'Quick-access linked cards for official updates, class WhatsApp groups, and circulars.',
-    points: [
-      'Soft linked cards for your Official Class Group and WhatsApp channels.',
-      '1-tap WhatsApp forward button formats notices for immediate class group sharing.',
-      'Copy Notice action for easy pasting into student chats and channels.'
-    ]
-  },
-  {
-    id: 'u4',
-    date: '2026-08-07',
-    title: 'Expanded Desktop Layout & Breathability',
-    category: 'Dashboard',
-    tag: 'Design',
-    tagColor: 'var(--yellow)',
-    summary: 'Wider desktop container and balanced 2-column grid for comfortable scanning.',
-    points: [
-      'Expanded desktop width to 1160px and 1240px for laptops and large displays.',
-      'Disciplined 2-column grid balancing today\'s classes with tasks and vitals.',
-      'Maintains compact, touch-friendly navigation on mobile devices.'
-    ]
-  },
-  {
-    id: 'u5',
-    date: '2026-08-07',
-    title: 'Zero-Flash Palette Persistence',
-    category: 'Theme',
-    tag: 'Reliability',
-    summary: 'Synchronous pre-render script ensures instant theme restoration without dark/light flash.',
-    points: [
-      'Synchronous head script applies data-theme before the DOM paints.',
-      'Local user selection heals cloud document states across multi-device sync.',
-      'Seamless support across Paper, Cloud, Stone, Quiet Dark, and Café Night palettes.'
-    ]
-  },
-  {
-    id: 'u6',
-    date: '2026-08-06',
-    title: 'Natural IST Greetings & Course Shortcuts',
-    category: 'Navigation',
-    tag: 'Polish',
-    summary: 'Human greeting transitions and direct deep-linking into subject course materials.',
-    points: [
-      'Night greeting now extends smoothly until 5:00 AM to match student study schedules.',
-      'Subject shortcut chips route directly into the specific subject course screen.'
-    ]
-  }
-];
+// DEV_UPDATES now lives in data.js (imported above) and is kept fresh by
+// `npm run devnotes`, which appends real entries from git commit history.
 
 let _devNotesFilter = 'week';
 
@@ -11623,7 +11945,7 @@ function showDevNotesModal(filter = null) {
       </div>
     </div>
   `;
-  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+  wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
 window.showDevNotesModal = showDevNotesModal;
@@ -12527,8 +12849,8 @@ const ClarityAssistant = (() => {
   }
 
   function buildNotices() {
-    const importantNotices = NOTICES.filter(n => n.important);
-    const allNotices = NOTICES;
+    const allNotices = getVisibleNotices();
+    const importantNotices = allNotices.filter(n => n.important);
 
     if (allNotices.length === 0) return `No notices posted yet.`;
 
@@ -12834,6 +13156,79 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ── Accessibility: activate role="button" elements from the keyboard ───
+// A few controls (the desktop sidebar nav items in particular) are <div>s
+// with onclick for layout reasons and carry role="button" tabindex="0"
+// instead of being real <button> elements. This makes Enter/Space on any
+// of them behave like a native button click, matching what the mobile
+// bottom-nav's real <button> elements already do for free.
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"]')) {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
+// ── Accessibility: retrofit dialog semantics onto every modal ──────────
+// Modals here are hand-built per-feature (~20 show*Modal functions, each
+// creating its own `.modal-backdrop > .modal` pair) rather than going
+// through one shared builder. Instead of editing every one of them, this
+// watches for any `.modal-backdrop` appearing in the DOM and adds
+// role="dialog"/aria-modal/aria-labelledby plus a Tab focus trap to
+// whatever it finds inside -- safe for every modal, present and future,
+// without changing how any of them open, close, or submit.
+// Shared close-on-backdrop-click wiring, extracted from the several
+// modal-building functions that repeated this exact line. requireDirectClick
+// (default true) mirrors each call site's prior behavior: most modals only
+// close when the click lands on the backdrop itself (not bubbled from modal
+// content); a few older ones closed on any click inside the backdrop area
+// and keep that exact behavior via requireDirectClick=false.
+function wireBackdropClickClose(backdrop, requireDirectClick = true) {
+  backdrop.addEventListener('click', (e) => {
+    if (!requireDirectClick || e.target === backdrop) backdrop.remove();
+  });
+}
+
+function enhanceModalA11y(backdrop) {
+  const modal = backdrop.querySelector('.modal');
+  if (!modal || modal.hasAttribute('data-a11y-enhanced')) return;
+  modal.setAttribute('data-a11y-enhanced', 'true');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  if (!modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
+
+  const titleEl = modal.querySelector('.modal-title');
+  if (titleEl) {
+    if (!titleEl.id) titleEl.id = 'modal-title-' + Math.random().toString(36).slice(2, 9);
+    modal.setAttribute('aria-labelledby', titleEl.id);
+  }
+
+  const focusableSel = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  modal.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(modal.querySelectorAll(focusableSel)).filter(el => el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+}
+
+if (typeof MutationObserver !== 'undefined' && document.body) {
+  new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType === 1 && node.classList && node.classList.contains('modal-backdrop')) {
+          enhanceModalA11y(node);
+        }
+      }
+    }
+  }).observe(document.body, { childList: true });
+}
+
 // ── Global Handlers ───────────────────────────────────────────
 
 window.navigateTo       = navigate;
@@ -12985,15 +13380,16 @@ window.registerBackgroundPush = registerBackgroundPush;
 function init() {
   initTheme();
   updateTopbarProfile();
+  updateLiveClockDisplay(); // populate the topbar clock immediately, don't wait for the first 60s tick
   setupFABDrag();
 
-  // Attach event listeners to all navigation items with data-nav
-  document.querySelectorAll('[data-nav]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      const page = el.dataset.nav;
-      if (page) navigate(page);
-    });
-  });
+  // NOTE: every [data-nav] element already carries its own inline
+  // onclick="navigateTo(...)" attribute in index.html/404.html. An
+  // addEventListener('click', ...) used to be attached here on top of
+  // that, so a single click ran navigate() twice back-to-back -- tearing
+  // down and rebuilding the target page's DOM (e.g. the whole dashboard)
+  // twice per click, which is what made its content look like it was
+  // popping in and out. Removed; the inline handlers already cover it.
 
   document.getElementById('global-search')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') handleGlobalSearch(e.target.value);
@@ -13025,6 +13421,7 @@ function init() {
   setInterval(() => {
     checkScheduledNotifications();
     checkNoticeNotifications();
+    updateLiveClockDisplay();
   }, 60000);
 
   // Initialize Firebase Auth & Firestore sync

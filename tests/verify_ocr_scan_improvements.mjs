@@ -58,8 +58,6 @@ const sandboxCode = `
   ${codeToRun}
 
   return {
-    estimateSkewAngleFromGray,
-    computeIlluminationFlattenedGray,
     isDarkDominantForInvert,
     parseSubjectAbbreviationLegend,
     correctDigitLetterConfusion,
@@ -75,8 +73,6 @@ const sandboxCode = `
 
 const mod = new Function(sandboxCode)();
 const {
-  estimateSkewAngleFromGray,
-  computeIlluminationFlattenedGray,
   isDarkDominantForInvert,
   parseSubjectAbbreviationLegend,
   correctDigitLetterConfusion,
@@ -114,94 +110,14 @@ function w(text, x0, y0, x1, y1, conf = 90) {
   return { text, bbox: { x0, y0, x1, y1 }, confidence: conf };
 }
 
-// ── Synthetic grayscale fixture builders ──────────────────────────
-// Builds a WxH grayscale array with `lineCount` horizontal dark bands
-// (simulating text lines / grid rows on a light background), then rotates
-// those bands by `angleDeg` to simulate a camera-skewed photo.
-function buildRotatedLinesGray(width, height, lineCount, angleDeg) {
-  const gray = new Uint8ClampedArray(width * height).fill(230);
-  const rad = angleDeg * Math.PI / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  const cx = width / 2, cy = height / 2;
-  const bandThickness = 3;
-  for (let li = 0; li < lineCount; li++) {
-    const lineY = Math.round(((li + 1) / (lineCount + 1)) * height);
-    for (let x = 0; x < width; x++) {
-      for (let t = -bandThickness; t <= bandThickness; t++) {
-        // Rotate the (x, lineY+t) point around the image center by angleDeg
-        const dx = x - cx, dy = (lineY + t) - cy;
-        const rx = Math.round(cx + dx * cos - dy * sin);
-        const ry = Math.round(cy + dx * sin + dy * cos);
-        if (rx >= 0 && rx < width && ry >= 0 && ry < height) {
-          gray[ry * width + rx] = 30;
-        }
-      }
-    }
-  }
-  return gray;
-}
-
 console.log('==================================================================');
 console.log('🏆 VERIFICATION: OCR SCAN PREPROCESSING & PARSING IMPROVEMENTS');
 console.log('==================================================================\n');
 
-// ── 1. Deskew angle estimation ─────────────────────────────────────
-check('1A. Unrotated horizontal-line pattern: no correction applied (angle 0)', () => {
-  const gray = buildRotatedLinesGray(240, 240, 6, 0);
-  const angle = estimateSkewAngleFromGray(gray, 240, 240);
-  return angle === 0 || `expected 0, got ${angle}`;
-});
-
-// estimateSkewAngleFromGray returns the skew the CONTENT is already at
-// (matches the fixture's own rotation directly) -- the caller in
-// preprocessImageForOCR then applies rotateCanvasByDegrees(canvas,
-// -skewAngle) to cancel it out. This is verified algebraically: the
-// rotation matrices compose to R(angleDeg_true - correctionDeg), which is
-// identity exactly when correctionDeg == angleDeg_true == the value
-// asserted below.
-check('1B. Lines rotated 6°: detected angle matches the true skew directly', () => {
-  const gray = buildRotatedLinesGray(240, 240, 6, 6);
-  const angle = estimateSkewAngleFromGray(gray, 240, 240);
-  return Math.abs(angle - 6) <= 1.5 || `expected ~6, got ${angle}`;
-});
-
-check('1C. Lines rotated -4°: detected angle matches the true skew directly', () => {
-  const gray = buildRotatedLinesGray(240, 240, 6, -4);
-  const angle = estimateSkewAngleFromGray(gray, 240, 240);
-  return Math.abs(angle - (-4)) <= 1.5 || `expected ~-4, got ${angle}`;
-});
-
-check('1D. Blank/near-uniform image: returns 0 rather than a false angle', () => {
-  const gray = new Uint8ClampedArray(200 * 200).fill(240);
-  const angle = estimateSkewAngleFromGray(gray, 200, 200);
-  return angle === 0 || `expected 0 on blank image, got ${angle}`;
-});
-
-// ── 2. Illumination flattening (shadow correction) ─────────────────
-check('2A. Evenly-lit image: returned unchanged (reference-equal no-op)', () => {
-  const gray = new Uint8ClampedArray(100 * 100).fill(200);
-  const flattened = computeIlluminationFlattenedGray(gray, 100, 100);
-  return flattened === gray || 'expected the exact same array reference back';
-});
-
-check('2B. Shadow gradient (dark right half): flattened output narrows the left/right brightness gap', () => {
-  const width = 120, height = 120;
-  const gray = new Uint8ClampedArray(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      gray[y * width + x] = x < width / 2 ? 210 : 90; // hard shadow edge
-    }
-  }
-  const flattened = computeIlluminationFlattenedGray(gray, width, height);
-  const avg = (arr, xMin, xMax) => {
-    let s = 0, n = 0;
-    for (let y = 0; y < height; y++) for (let x = xMin; x < xMax; x++) { s += arr[y * width + x]; n++; }
-    return s / n;
-  };
-  const beforeGap = avg(gray, 0, width / 2) - avg(gray, width / 2, width);
-  const afterGap = avg(flattened, 0, width / 2) - avg(flattened, width / 2, width);
-  return Math.abs(afterGap) < Math.abs(beforeGap) || `expected gap to shrink: before=${beforeGap}, after=${afterGap}`;
-});
+// Note: deskew (detectSkewAngle/rotateCanvasByAngle) and local-contrast
+// normalization live in this codebase as their own separate, pre-existing
+// implementations (not estimateSkewAngleFromGray/computeIlluminationFlattenedGray
+// from PR #33 claude/gifted-feynman-s1s33y) -- not covered by this file.
 
 // ── 3. Dark-dominant auto-invert threshold ──────────────────────────
 check('3A. Light-background mean (e.g. paper photo, ~200): does not trigger invert', () => {
@@ -463,6 +379,24 @@ check('10B. Editing a review-modal time field in 12-hour form round-trips to the
     }
   }
   return true;
+});
+
+// ── 11. A scan-legend-only abbreviation resolves end-to-end through the ──
+// full grid reconstructor (not just normalizeSubjectIdentity directly).
+check('11. A scan-legend-only abbreviation resolves end-to-end via reconstructTimetable2DGrid', () => {
+  const ocrData = {
+    words: [
+      w('Tue', 20, 100, 60, 130, 95),
+      w('10:00 - 11:00', 150, 30, 280, 60, 95),
+      w('XYZ', 150, 100, 200, 120, 88)
+    ]
+  };
+  const subjectLegend = { XYZ: 'Xenobiology Zoology' };
+  const result = reconstructTimetable2DGrid(ocrData, [], {}, subjectLegend);
+  const subjects = (result.schedule || []).map(e => e.subject);
+  const entry = (result.schedule || []).find(e => e.subject === 'Xenobiology Zoology');
+  if (!entry) return `expected "Xenobiology Zoology" among ${JSON.stringify(subjects)}`;
+  return entry.subjectInferred === true || 'expected subjectInferred flag set on the schedule entry';
 });
 
 console.log('\n========================================');

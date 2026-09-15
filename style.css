@@ -62,11 +62,11 @@
 
   --color-text-primary: var(--raw-ink-1);
   --color-text-secondary: var(--raw-ink-2);
-  --color-text-tertiary: var(--raw-ink-3);
+  --color-text-tertiary: #72685a; /* WCAG AA fix: raw-ink-3 (#9c9182) was 2.89:1 on surface, now 4.6-5.1:1 */
   --color-text-inverse: var(--raw-ink-inverse);
 
-  --color-action-primary: var(--raw-brand-1);
-  --color-action-primary-hover: var(--raw-brand-2);
+  --color-action-primary: #b75534; /* WCAG AA fix: raw-brand-1 (#d17a5c) gave 2.95:1 with white button text, now 4.5:1 */
+  --color-action-primary-hover: #9d4c32; /* darkened to stay visually distinct from the new default above */
   --color-action-primary-text: var(--raw-ink-inverse);
   --color-action-secondary: var(--raw-accent-3);
   --color-action-secondary-hover: #f0dba8;
@@ -466,6 +466,16 @@ html {
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) {
   z-index: 2;
+  /* Reverted from a transform:scale()-based reveal (see git history):
+     scaling the already-clipped layer doesn't just shrink the clip
+     window, it also scales the CONTENT visible through it toward the
+     origin point, since `transform` affects everything the box paints,
+     not just its clip boundary. That made the whole new-theme page look
+     like it was being zoomed/dragged in from the corner instead of a
+     stationary page being revealed through a growing porthole -- a
+     visual regression, so back to animating clip-path's radius
+     directly, which only moves the window and leaves the content itself
+     completely still underneath it. */
   clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%));
   animation: theme-reveal 500ms ease-in-out forwards;
 }
@@ -635,6 +645,26 @@ img { display: block; max-width: 100%; }
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ── Topbar Live Clock ─────────────────────────────────────
+   Present on every page (the topbar itself is outside per-page
+   content), not just the dashboard. Hidden on narrow screens along
+   with the other topbar text this app already sheds there (brand
+   wordmark, theme label) so it never crowds the search field. */
+.topbar-clock {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .topbar-clock {
+    display: none;
+  }
 }
 
 /* .theme-selector-topbar removed — theme picker moved to Settings */
@@ -1709,7 +1739,7 @@ a.card:hover,
   font-weight: 500;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .dashboard-grid-2col {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -2188,12 +2218,12 @@ a.card:hover,
 /* ── Notice Sources Linked Cards ────────────────────────────── */
 .notice-sources-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 18px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .notice-sources-grid {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -2232,6 +2262,10 @@ a.card:hover,
   border-left: 3.5px solid #25D366;
 }
 
+.notice-source-card.tint-erp {
+  border-left: 3.5px solid var(--blue);
+}
+
 .notice-source-card.tint-devnotes {
   border-left: 3.5px solid var(--yellow);
 }
@@ -2261,6 +2295,11 @@ a.card:hover,
 .notice-source-icon-whatsapp {
   background: rgba(37, 211, 102, 0.14);
   color: #25D366;
+}
+
+.notice-source-icon-erp {
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  color: var(--blue);
 }
 
 .notice-source-icon-devnotes {
@@ -3376,6 +3415,27 @@ button:disabled {
 
 .btn-icon:active { transform: scale(0.92); }
 
+/* ============================================================
+   Breakpoint Scale — canonical values, don't add new ones without
+   a documented reason (see the 560px example below).
+
+   Mobile (max-width), scoped near the components they affect:
+     540px  — topbar label/search-field crowding (topbar, storage badge,
+              form-row stacking)
+     560px  — deliberately not 540: tuned so the dashboard rest-day empty
+              state doesn't collide with the floating Add Task button on
+              short phones specifically (see its own comment)
+     600px  — component-level reflow (vitals strip, hero padding, Ask
+              Desk panel, greeting text size)
+     767px  — the mobile side of the 768px desktop switch below (kept at
+              767, not 768, so the two never fire on the same viewport)
+
+   Desktop (min-width), the primary layout system, all below:
+     768px  — sidebar replaces bottom-nav; base desktop spacing
+     1024px — wider content padding, topbar breathing room
+     1100px — dashboard right panel becomes a sticky 2-column layout
+     1280px — maximum comfortable padding on very wide screens
+   ============================================================ */
 /* ── Responsive — Desktop ≥768px ──────────────────────────── */
 @media (min-width: 768px) {
   .sidebar { display: flex; }
@@ -4715,42 +4775,24 @@ body::before {
   color: var(--text-secondary);
 }
 
-/* ── 3. The signature moment: Chrono Beacon becomes a real
-   stacked-paper card — two faint offset sheets peeking out
-   behind the top sheet, a soft top sheen, and a gentle
-   perspective tilt on hover. All transform-only, GPU-cheap,
-   no JS, no layout thrash. ──────────────────────────────── */
+/* ── 3. The Chrono Beacon: one clean surface with a soft paper
+   shadow and a gentle lift on hover. This used to layer two
+   rotated ::before/::after "sheets" behind the card to suggest a
+   stack of paper -- direct user feedback was that it read as
+   several overlapping cards / a rendering glitch, not a stack of
+   paper, so that's gone. The left accent border + icon badge
+   already give it enough presence next to the plain vitals tiles
+   above it without the extra layers. ──────────────────────── */
 .chrono-beacon {
-  overflow: visible;
+  overflow: hidden;
   border-left-width: 4px;
   box-shadow:
     inset 0 1px 0 var(--sheen-top),
     var(--shadow-paper-md);
-  transform: perspective(900px) rotateX(0deg) translateZ(0);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
-  will-change: transform;
-}
-.chrono-beacon::before,
-.chrono-beacon::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  z-index: -1;
-  pointer-events: none;
-}
-.chrono-beacon::before {
-  transform: rotate(-0.3deg) translate(-5px, 6px);
-  opacity: 0.6;
-}
-.chrono-beacon::after {
-  transform: rotate(0.22deg) translate(6px, 7px);
-  opacity: 0.35;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .chrono-beacon:hover {
-  transform: perspective(900px) rotateX(1.6deg) translateY(-3px) translateZ(0);
+  transform: translateY(-2px);
   box-shadow:
     inset 0 1px 0 var(--sheen-top),
     var(--shadow-paper-lg);
@@ -4758,12 +4800,7 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .chrono-beacon { transition: none; }
 }
-/* Sheets would clip against the tight mobile gutters — pull
-   them in rather than hide them, so the depth cue survives. */
 @media (max-width: 560px) {
-  .chrono-beacon::before { transform: rotate(-0.25deg) translate(-2px, 3px); }
-  .chrono-beacon::after  { transform: rotate(0.18deg) translate(3px, 4px); }
-
   /* The rest-day empty state sits right above the floating Add
      Task button on short mobile viewports — trim its padding so
      the two never touch. */
