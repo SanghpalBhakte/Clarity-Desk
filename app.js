@@ -4373,7 +4373,7 @@ function pushLocalDataToCloud(uid) {
 // ── Notice Channels (Official & WhatsApp Links) ───────────────
 // NOTE: the whatsappTitle/whatsappUrl field names predate this card's
 // current purpose (it used to open a WhatsApp class group; it's now the
-// College ERP Portal link) and are kept as-is on purpose so anyone who
+// ERP Portal link) and are kept as-is on purpose so anyone who
 // already configured a link under the old card keeps it instead of it
 // silently disappearing under a renamed key.
 function loadNoticeChannels() {
@@ -4382,14 +4382,14 @@ function loadNoticeChannels() {
     return {
       officialTitle: (saved.officialTitle || 'Official Updates').trim(),
       officialUrl:   (saved.officialUrl || '').trim(),
-      whatsappTitle: (saved.whatsappTitle || 'College ERP Portal').trim(),
+      whatsappTitle: (saved.whatsappTitle || 'ERP Portal').trim(),
       whatsappUrl:   (saved.whatsappUrl || '').trim()
     };
   }
   return {
     officialTitle: 'Official Updates',
     officialUrl:   '',
-    whatsappTitle: 'College ERP Portal',
+    whatsappTitle: 'ERP Portal',
     whatsappUrl:   ''
   };
 }
@@ -4426,7 +4426,7 @@ function showNoticeChannelModal(targetKey) {
         </div>
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">${isOfficial ? 'Card Title' : 'Portal Title'}</label>
-          <input type="text" class="form-input" id="nc-modal-title" value="${(currentTitle || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'e.g. Official Updates or Department Portal' : 'e.g. College ERP Portal'}">
+          <input type="text" class="form-input" id="nc-modal-title" value="${(currentTitle || '').replace(/"/g, '&quot;')}" placeholder="${isOfficial ? 'e.g. Official Updates or Department Portal' : 'e.g. ERP Portal'}">
         </div>
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">${isOfficial ? 'Destination Link / URL' : 'Portal Link / URL'}</label>
@@ -4459,7 +4459,7 @@ function submitNoticeChannelModal(targetKey) {
     channels.officialTitle = title || 'Official Updates';
     channels.officialUrl   = url;
   } else {
-    channels.whatsappTitle = title || 'College ERP Portal';
+    channels.whatsappTitle = title || 'ERP Portal';
     channels.whatsappUrl   = url;
   }
 
@@ -11066,7 +11066,7 @@ function renderNotices() {
 
     <!-- ── Quick-Access Notice Sources (3 Soft Linked Cards) ── -->
     <div class="notice-sources-grid">
-      <!-- College ERP Portal (configurable link) -->
+      <!-- ERP Portal (configurable link) -->
       <div class="notice-source-card tint-erp" onclick="handleNoticeSourceClick('whatsapp')" title="Open your college ERP portal">
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-erp">🎓</div>
@@ -11075,7 +11075,7 @@ function renderNotices() {
           </button>
         </div>
         <div>
-          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'College ERP Portal')}</div>
+          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'ERP Portal')}</div>
           <div class="notice-source-sub">Your student login for attendance, marks &amp; fees</div>
         </div>
         <div class="notice-source-action" style="color:var(--blue)">
@@ -11923,7 +11923,7 @@ function renderSettings() {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">ERP Portal Card Title</label>
-          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'College ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. College ERP Portal">
+          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. ERP Portal">
         </div>
         <div class="form-group">
           <label class="form-label">ERP Portal Link / URL</label>
@@ -12013,7 +12013,7 @@ function saveSettings() {
     const channels = {
       officialTitle: existingChannels.officialTitle,
       officialUrl:   existingChannels.officialUrl,
-      whatsappTitle: (waTitleEl.value || '').trim() || 'College ERP Portal',
+      whatsappTitle: (waTitleEl.value || '').trim() || 'ERP Portal',
       whatsappUrl:   (waUrlEl ? waUrlEl.value : '').trim()
     };
     saveNoticeChannels(channels);
