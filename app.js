@@ -19,6 +19,7 @@ const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
 const KEY_HIDDEN_SUBJECTS     = 'cos_hidden_subjects';
+const KEY_SUBJECT_DELETE_SILENT = 'cos_subject_delete_silent';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
@@ -7507,25 +7508,68 @@ function getSubjectList(options = {}) {
 }
 
 // Small "X" on a Subject Hub card (see renderSubjectHub) -- a direct,
-// always-available way to remove a bad card regardless of which source it
-// came from (timetable/task/quick-link/attendance-baseline), for cases
-// like a bad AI/OCR scan producing a garbled subject name that "Declutter
-// my desk" doesn't catch (that flow only targets timetable-batch/room/
-// faculty-polluted names, not arbitrary garbled ones).
-window.hideSubjectCard = function(subjectName, event) {
+// always-available way to permanently remove a bad card regardless of
+// which source it came from (timetable/task/quick-link/attendance-
+// baseline), for cases like a bad AI/OCR scan producing a garbled subject
+// name that "Declutter my desk" doesn't catch (that flow only targets
+// timetable-batch/room/faculty-polluted names, not arbitrary garbled
+// ones). The warning is shown once; the student can then choose to keep
+// seeing it on every delete or skip it from then on (KEY_SUBJECT_DELETE_SILENT).
+window.deleteSubjectCard = function(subjectName, event) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
-  if (!confirm(`Remove "${subjectName}" from Subject Hubs? This only hides the card -- any attendance or task data behind it is kept, not deleted.`)) return;
+
+  const skipWarning = safeGetStorage(KEY_SUBJECT_DELETE_SILENT, false);
+  if (!skipWarning) {
+    const proceed = confirm(`Delete "${subjectName}" permanently?\n\nThis removes its timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`);
+    if (!proceed) return;
+    const stopAsking = confirm(`Skip this warning next time you delete a subject card?\n\nOK = don't ask again. Cancel = keep asking every time.`);
+    if (stopAsking) safeSetStorage(KEY_SUBJECT_DELETE_SILENT, true);
+  }
+
+  permanentlyDeleteSubject(subjectName);
+  renderPage(state.currentPage);
+  showToast(`"${subjectName}" deleted`, 'info');
+};
+
+function permanentlyDeleteSubject(subjectName) {
   const key = getCanonicalSubjectKey(subjectName);
   if (!key) return;
+
+  // Timetable: drop every slot (any day) that belongs to this subject.
+  const tt = loadTimetable();
+  Object.keys(tt).forEach(d => {
+    tt[d] = (tt[d] || []).filter(c => getCanonicalSubjectKey(c.subject || '') !== key);
+  });
+  saveTimetable(tt);
+
+  // Student-authored tasks only -- never touches state.assignments, which
+  // is synced from the official course source, not local data a card
+  // delete should be able to wipe out.
+  state.customTasks = (state.customTasks || []).filter(t => getCanonicalSubjectKey(t.subject || '') !== key);
+  safeSetStorage(KEY_CUSTOM_TASKS, state.customTasks);
+
+  // Quick Links / Subject Vaults
+  saveCustomLinks(loadCustomLinks().filter(l => getCanonicalSubjectKey(l.subject || '') !== key));
+
+  // Attendance baseline
+  const baselines = loadAttendanceBaselines();
+  Object.keys(baselines).forEach(k => {
+    const b = baselines[k];
+    const bName = (b && typeof b === 'object') ? (b.subjectName || k) : k;
+    if (getCanonicalSubjectKey(bName) === key) delete baselines[k];
+  });
+  saveAttendanceBaselines(baselines);
+
+  // Safety net: also hide by key, in case some other stray reference
+  // (e.g. a synced assignment under the same subject text) survives.
   const hidden = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
   if (!hidden.includes(key)) {
     hidden.push(key);
     safeSetStorage(KEY_HIDDEN_SUBJECTS, hidden);
-    syncToCloud();
   }
-  renderPage(state.currentPage);
-  showToast(`"${subjectName}" removed from Subject Hubs`, 'info');
-};
+
+  syncToCloud();
+}
 
 // ── Manual Baseline & Live Attendance System ─────────────────────
 
@@ -10178,7 +10222,7 @@ function renderSubjectsOverview(el, subjects) {
 
     return `
       <div class="card attendance-subject-card" style="position:relative;padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
-        <button class="icon-btn-sm" onclick="hideSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Remove ${s.name} card" aria-label="Remove ${s.name} card" style="position:absolute;top:8px;right:8px;width:22px;height:22px;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6">✕</button>
+        <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:8px;right:8px;width:22px;height:22px;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6">✕</button>
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);padding-right:20px">${s.name}</div>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
 
