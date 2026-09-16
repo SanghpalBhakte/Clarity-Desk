@@ -3454,6 +3454,14 @@ Rules:
    in a slightly different form than the legend lists them (e.g. grid says
    "WEB DEV." while the legend lists "WD") -- match them by meaning, not
    exact string equality.
+8. Inferred times: many timetables print only a period number or a shared
+   duration label (e.g. "Lectures = 40 Min.") instead of a start/end time on
+   every row. When that happens, compute each period's time from whatever IS
+   printed -- an anchor time on one row, the stated duration, a recess
+   position -- and fill time/end normally. Computing a time this way is NOT
+   by itself a reason to set isUncertain: true; isUncertain is for when the
+   subject, day, or which period a cell belongs to is genuinely unclear from
+   the image, not for a time you derived rather than read verbatim.
 
 This is an EXAMPLE of the clean formatting style to aim for (a DIFFERENT college's timetable -- copy the STYLE and STRUCTURE below, never this content, into whatever subjects/rooms/teachers this specific photo actually shows):
 { "day": "Mon", "time": "10:00", "end": "11:00", "subject": "Data Structures (DS)", "code": "DS", "room": "SF-31", "teacher": "Prof. VJM", "type": "lecture", "isUncertain": false }
@@ -3489,7 +3497,15 @@ The attached image is a photo of the same college timetable the OCR text below w
 
 Rough OCR text (may be inaccurate):
 ${ocrResult.data.text || ''}`;
-      const visionResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt);
+      // Reuse the already-preprocessed image (deskewed, contrast-enhanced,
+      // capped at 2000px -- see preprocessImageForOCR above) instead of the
+      // raw camera upload. Phone photos are routinely 3-8MB before this;
+      // that full-size file was being base64-uploaded, unmodified, to every
+      // vision provider on every scan. Smaller payload = faster network
+      // transfer + faster model-side image processing, with no accuracy
+      // loss since it's the exact same image Tesseract itself already reads.
+      const preprocessedBase64 = preprocessedDataUrl.split(',')[1];
+      const visionResult = await AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt);
       if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
         const sanitized = sanitizeAiScheduleRows(visionResult.schedule);
         if (sanitized.length > 0) {
