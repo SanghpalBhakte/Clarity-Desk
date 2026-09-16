@@ -3253,7 +3253,13 @@ Rules:
 1. Day must be one of: Mon, Tue, Wed, Thu, Fri, Sat.
 2. time and end must be 24-hour HH:MM format (e.g. 09:00, 10:30, 14:00).
 3. Do not invent fake subjects or rooms if not present in text.
-4. If an entry is ambiguous, mark isUncertain: true.`;
+4. If an entry is ambiguous, mark isUncertain: true.
+
+This is an EXAMPLE of the clean formatting style to aim for (a DIFFERENT college's timetable -- copy the STYLE and STRUCTURE below, never this content, into whatever subjects/rooms/teachers this specific photo actually shows):
+{ "day": "Mon", "time": "10:00", "end": "11:00", "subject": "Data Structures (DS)", "code": "DS", "room": "SF-31", "teacher": "Prof. VJM", "type": "lecture", "isUncertain": false }
+{ "day": "Mon", "time": "12:00", "end": "12:45", "subject": "Recess", "code": "REC", "room": "—", "teacher": "—", "type": "off", "isUncertain": false }
+{ "day": "Tue", "time": "10:00", "end": "12:00", "subject": "Web Development Lab", "code": "WEB DEV", "room": "FF-40", "teacher": "Prof. MKP", "type": "lab", "isUncertain": false }
+Notice: full subject name with its short code in parentheses, "Prof. <initials>" for teacher when the photo only gives initials, "—" (em dash) for an unlisted room/teacher, and breaks/recess given their own row with type "off" rather than skipped.`;
 
   // Vision-first: send the actual photo to a multimodal Gemini model when
   // a Gemini key is configured -- this is the only path that can recover
