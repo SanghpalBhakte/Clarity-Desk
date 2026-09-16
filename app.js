@@ -8212,7 +8212,29 @@ async function extractAttendanceRowsFromOCR(ocrData, base64Data, mimeType) {
   const existingSubjects = getSubjectList();
   const rawOcrText = typeof ocrData === 'string' ? ocrData : (ocrData?.text || '');
 
-  // 1. First attempt: High-Precision Local Geometric Table Reconstruction
+  // 1. Vision-AI extraction is the PRIMARY path whenever any provider is
+  // configured. A confidence gate on the local geometric parser (below)
+  // was tried first and turned out untrustworthy on real ERP screenshots:
+  // it kept reporting "confident" (few isUncertain rows) even when the
+  // subject names it produced were badly OCR-garbled -- e.g. a course CODE
+  // like "MGM56VEL102" corrupted into "MGMSEVELID2" and saved as if it
+  // were the subject name, littering the student's subject list with junk
+  // cards. Sending the actual photo to a vision model, same as the
+  // timetable scanner, reads the real table instead of guessing from
+  // Tesseract's flat, error-prone word positions.
+  const hasGroqKey = !!window.CAMPUS_OS_GROQ_KEY;
+  const hasGeminiKey = !!window.CAMPUS_OS_GEMINI_KEY;
+  const hasOpenRouterKey = !!window.CAMPUS_OS_OPENROUTER_KEY;
+
+  if (hasGroqKey || hasGeminiKey || hasOpenRouterKey) {
+    const visionRows = await extractAttendanceRowsViaVision(base64Data, mimeType, rawOcrText, existingSubjects);
+    if (visionRows) return visionRows;
+  }
+
+  // 2. Fallback (no AI provider configured, or every configured one
+  // failed/errored): local geometric table reconstruction from Tesseract's
+  // word positions. Less reliable than vision AI (see above) but keeps the
+  // scanner working fully offline.
   let geometricResult = [];
   if (ocrData && typeof ocrData === 'object' && Array.isArray(ocrData.words) && ocrData.words.length > 0) {
     try {
@@ -8222,38 +8244,17 @@ async function extractAttendanceRowsFromOCR(ocrData, base64Data, mimeType) {
       console.warn('[AttendanceGeometricOCR] Geometric parse error, falling back to text regex:', geoErr);
     }
   }
+  if (geometricResult.length > 0) return geometricResult;
 
-  // Confidence gate (same bug class the timetable scanner had, fixed the
-  // same way): a non-empty geometric result isn't automatically a GOOD
-  // one. Real ERP screenshots routinely wrap a course or faculty name onto
-  // two lines -- the bounding-box solver above can split that into a bogus
-  // extra row or merge it into the wrong one, and "length > 0" alone can't
-  // tell the difference. Require a minimum row count and a low uncertain
-  // ratio before trusting it outright.
-  const geoUncertainCount = geometricResult.filter(r => r.isUncertain).length;
-  const geoUncertainRatio = geometricResult.length ? geoUncertainCount / geometricResult.length : 1;
-  const geometricIsConfident = geometricResult.length >= 3 && geoUncertainRatio < 0.4;
+  // 3. Last resort: deterministic regex-based text table parser (100% offline)
+  return parseAttendanceFromText(rawOcrText, existingSubjects);
+}
 
-  if (geometricIsConfident) {
-    return geometricResult;
-  }
-
-  // 2. Vision-AI extraction: send the actual photo (not just Tesseract's
-  // flat OCR text) to whichever providers are configured, reusing the
-  // exact same Gemini -> Groq -> OpenRouter rotation already proven on the
-  // timetable scanner (AIService.extractStructuredFromImage). This is what
-  // actually fixes wrapped course/faculty names and misread columns -- the
-  // geometry/text heuristics above only ever see word positions, never the
-  // real table structure in the photo.
-  const hasGroqKey = !!window.CAMPUS_OS_GROQ_KEY;
-  const hasGeminiKey = !!window.CAMPUS_OS_GEMINI_KEY;
-  const hasOpenRouterKey = !!window.CAMPUS_OS_OPENROUTER_KEY;
-
-  if (hasGroqKey || hasGeminiKey || hasOpenRouterKey) {
-    // Reuses extractStructuredFromImage's existing {"schedule":[...]} JSON
-    // contract (built for the timetable scanner) instead of adding a
-    // second AI-plumbing path -- "schedule" here just holds attendance rows.
-    const visionPrompt = `Extract all course attendance records from this college ERP attendance report screenshot.
+async function extractAttendanceRowsViaVision(base64Data, mimeType, rawOcrText, existingSubjects) {
+  // Reuses extractStructuredFromImage's existing {"schedule":[...]} JSON
+  // contract (built for the timetable scanner) instead of adding a second
+  // AI-plumbing path -- "schedule" here just holds attendance rows.
+  const visionPrompt = `Extract all course attendance records from this college ERP attendance report screenshot.
 Return JSON matching this exact structure:
 {
   "schedule": [
@@ -8282,29 +8283,24 @@ Rules:
    Count column when one is visible; if it doesn't add up, or a number is
    genuinely illegible, set isUncertain: true.
 5. Skip a totals/summary row at the bottom of the table -- it isn't a course.
+6. "subject" must be the actual course NAME printed in the table, never a
+   course code -- if a name is genuinely unreadable, still read the code
+   into "code" and leave "subject" as your best plain-language guess at the
+   name rather than copying or mangling the code into the subject field.
 
 Rough OCR text from a first pass (may be inaccurate, garbled, or have
 columns out of order -- treat the image as the primary source of truth):
 ${rawOcrText}`;
 
-    try {
-      const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt);
-      if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
-        return aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
-      }
-    } catch (aiErr) {
-      console.warn('[AttendancePhotoScan] Vision AI extraction failed, falling back:', aiErr);
+  try {
+    const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt);
+    if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
+      return aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
     }
+  } catch (aiErr) {
+    console.warn('[AttendancePhotoScan] Vision AI extraction failed, falling back to local OCR:', aiErr);
   }
-
-  // 3. Fall back to whatever the geometry pass found, even if not fully
-  // confident -- still better than nothing when no AI provider is
-  // configured or every configured one failed.
-  if (geometricResult.length > 0) return geometricResult;
-
-  // 4. Last resort: deterministic regex-based text table parser (100% offline)
-  const textRows = parseAttendanceFromText(rawOcrText, existingSubjects);
-  return textRows;
+  return null;
 }
 
 function extractNumericZoneTokens(words) {
