@@ -332,8 +332,12 @@ function updateSyncUI(status = null) {
 // ── Vision AI Service (Groq primary → Gemini fallback) ────────
 const AIService = {
   GROQ_MODEL: 'qwen/qwen3.6-27b',
-  MODEL: 'gemini-2.5-flash',
-  FALLBACK_MODELS: ['gemini-2.0-flash', 'gemini-1.5-flash'],
+  // 'gemini-2.5-flash', 'gemini-2.0-flash', and 'gemini-1.5-flash' were all
+  // retired by Google (404 "no longer available to new users") -- use the
+  // evergreen "-latest" aliases so this doesn't silently rot again, with one
+  // pinned model in between as a fallback in case an alias has an outage.
+  MODEL: 'gemini-flash-latest',
+  FALLBACK_MODELS: ['gemini-3.6-flash', 'gemini-flash-lite-latest'],
 
   getApiKey() {
     if (window.CAMPUS_OS_GEMINI_KEY) return window.CAMPUS_OS_GEMINI_KEY;
