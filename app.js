@@ -18,6 +18,7 @@ const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
+const KEY_HIDDEN_SUBJECTS     = 'cos_hidden_subjects';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
@@ -7494,8 +7495,37 @@ function getSubjectList(options = {}) {
     }
   });
 
+  // 5. Drop anything the student explicitly dismissed from Subject Hubs
+  // (the small X on a card) -- this only hides the merged card, it never
+  // deletes the underlying timetable/task/baseline data it was built from,
+  // so it can't corrupt attendance history for a subject that legitimately
+  // shares data with a hidden one.
+  const hiddenKeys = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
+  hiddenKeys.forEach(k => map.delete(k));
+
   return Array.from(map.values());
 }
+
+// Small "X" on a Subject Hub card (see renderSubjectHub) -- a direct,
+// always-available way to remove a bad card regardless of which source it
+// came from (timetable/task/quick-link/attendance-baseline), for cases
+// like a bad AI/OCR scan producing a garbled subject name that "Declutter
+// my desk" doesn't catch (that flow only targets timetable-batch/room/
+// faculty-polluted names, not arbitrary garbled ones).
+window.hideSubjectCard = function(subjectName, event) {
+  if (event) { event.preventDefault(); event.stopPropagation(); }
+  if (!confirm(`Remove "${subjectName}" from Subject Hubs? This only hides the card -- any attendance or task data behind it is kept, not deleted.`)) return;
+  const key = getCanonicalSubjectKey(subjectName);
+  if (!key) return;
+  const hidden = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
+  if (!hidden.includes(key)) {
+    hidden.push(key);
+    safeSetStorage(KEY_HIDDEN_SUBJECTS, hidden);
+    syncToCloud();
+  }
+  renderPage(state.currentPage);
+  showToast(`"${subjectName}" removed from Subject Hubs`, 'info');
+};
 
 // ── Manual Baseline & Live Attendance System ─────────────────────
 
@@ -10147,8 +10177,9 @@ function renderSubjectsOverview(el, subjects) {
     const attLabel = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : '—';
 
     return `
-      <div class="card attendance-subject-card" style="padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
-        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary)">${s.name}</div>
+      <div class="card attendance-subject-card" style="position:relative;padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
+        <button class="icon-btn-sm" onclick="hideSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Remove ${s.name} card" aria-label="Remove ${s.name} card" style="position:absolute;top:8px;right:8px;width:22px;height:22px;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6">✕</button>
+        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);padding-right:20px">${s.name}</div>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
 
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0">
