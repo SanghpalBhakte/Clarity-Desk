@@ -4022,6 +4022,17 @@ window.confirmSaveExtractedTimetable = function() {
 
   saveTimetable(newTT);
 
+  // Bug fix: attendance is stored per (calendar date, code+time) so the
+  // SAME recurring slot keeps its attendance history across weeks -- that's
+  // intentional. But a fresh scan/import can put a DIFFERENT class into a
+  // slot that previously had an attendance mark (e.g. an earlier scan/test,
+  // or a corrected timetable), and that old mark would silently reappear as
+  // already-answered on the new class with no way for the student to tell.
+  // Clear it so present/absent is always the student's own choice on a
+  // freshly confirmed schedule. Only future-facing (today onward) so
+  // real, already-happened attendance history is never touched.
+  clearUpcomingAttendanceForNewSchedule(newTT);
+
   // If user chose a specific batch during preview, update profile batch
   if (selectedTimetablePreviewBatch && selectedTimetablePreviewBatch !== 'all') {
     liveProfile.batch = selectedTimetablePreviewBatch;
@@ -5490,6 +5501,42 @@ function isCustomTimetableActive() {
 function saveTimetable(ttMap) {
   safeSetStorage(KEY_CUSTOM_TIMETABLE, ttMap);
   syncToCloud();
+}
+
+// See the call site in confirmSaveExtractedTimetable for why this exists.
+// Walks today's week and several weeks ahead (attendance can be viewed and
+// marked for future weeks too, via setAttendanceWeekOffset) and deletes any
+// stored attendance mark whose (date, code+time) key is about to be
+// reused by the just-confirmed schedule -- never touches a date before
+// today, so no already-happened attendance/streak history is lost.
+function clearUpcomingAttendanceForNewSchedule(newTT) {
+  const attendanceData = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  const todayStr = new Date().toISOString().split('T')[0];
+  let changed = false;
+
+  for (let weekOffset = 0; weekOffset < 8; weekOffset++) {
+    getWeekDays(weekOffset).forEach(dateObj => {
+      const dateStr = dateObj.toISOString().split('T')[0];
+      if (dateStr < todayStr) return;
+      const existing = attendanceData[dateStr];
+      if (!existing) return;
+
+      const dayClasses = newTT[dateObj.getDay()] || [];
+      const upcomingKeys = new Set(
+        dayClasses.filter(isTeachingClass).map(c => `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, ''))
+      );
+
+      Object.keys(existing).forEach(key => {
+        if (upcomingKeys.has(key)) {
+          delete existing[key];
+          changed = true;
+        }
+      });
+      if (Object.keys(existing).length === 0) delete attendanceData[dateStr];
+    });
+  }
+
+  if (changed) safeSetStorage(KEY_ATTENDANCE, attendanceData);
 }
 
 function resetTimetableToDefault() {
