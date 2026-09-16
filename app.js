@@ -8182,7 +8182,7 @@ async function handleAttendancePhotoUpload(event) {
       if (_isAttendanceScanCanceled || currentScanId !== _currentAttendanceScanId) return;
 
       updateAttendanceScanLoadingMessage('Reconstructing table columns and mapping attendance counts…');
-      const extractedRows = await extractAttendanceRowsFromOCR(ocrResult?.data, base64Data, mimeType);
+      const extractedRows = await extractAttendanceRowsFromOCR(ocrResult?.data, preprocessedDataUrl.split(',')[1], mimeType);
 
       _isOcrBusy = false;
       hideAttendanceScanLoadingModal();
@@ -8223,19 +8223,40 @@ async function extractAttendanceRowsFromOCR(ocrData, base64Data, mimeType) {
     }
   }
 
-  if (geometricResult.length > 0) {
+  // Confidence gate (same bug class the timetable scanner had, fixed the
+  // same way): a non-empty geometric result isn't automatically a GOOD
+  // one. Real ERP screenshots routinely wrap a course or faculty name onto
+  // two lines -- the bounding-box solver above can split that into a bogus
+  // extra row or merge it into the wrong one, and "length > 0" alone can't
+  // tell the difference. Require a minimum row count and a low uncertain
+  // ratio before trusting it outright.
+  const geoUncertainCount = geometricResult.filter(r => r.isUncertain).length;
+  const geoUncertainRatio = geometricResult.length ? geoUncertainCount / geometricResult.length : 1;
+  const geometricIsConfident = geometricResult.length >= 3 && geoUncertainRatio < 0.4;
+
+  if (geometricIsConfident) {
     return geometricResult;
   }
 
-  // 2. Second attempt: AI-Assisted Structured Extraction (if API key configured)
+  // 2. Vision-AI extraction: send the actual photo (not just Tesseract's
+  // flat OCR text) to whichever providers are configured, reusing the
+  // exact same Gemini -> Groq -> OpenRouter rotation already proven on the
+  // timetable scanner (AIService.extractStructuredFromImage). This is what
+  // actually fixes wrapped course/faculty names and misread columns -- the
+  // geometry/text heuristics above only ever see word positions, never the
+  // real table structure in the photo.
   const hasGroqKey = !!window.CAMPUS_OS_GROQ_KEY;
   const hasGeminiKey = !!window.CAMPUS_OS_GEMINI_KEY;
+  const hasOpenRouterKey = !!window.CAMPUS_OS_OPENROUTER_KEY;
 
-  if (hasGroqKey || hasGeminiKey) {
-    const schemaInstruction = `Extract all course attendance records from this college ERP attendance report OCR text.
-Return JSON with this exact structure:
+  if (hasGroqKey || hasGeminiKey || hasOpenRouterKey) {
+    // Reuses extractStructuredFromImage's existing {"schedule":[...]} JSON
+    // contract (built for the timetable scanner) instead of adding a
+    // second AI-plumbing path -- "schedule" here just holds attendance rows.
+    const visionPrompt = `Extract all course attendance records from this college ERP attendance report screenshot.
+Return JSON matching this exact structure:
 {
-  "rows": [
+  "schedule": [
     {
       "subject": "Data Structures",
       "code": "AID21PCL202",
@@ -8249,24 +8270,41 @@ Return JSON with this exact structure:
   ]
 }
 Rules:
-1. Extract present count, absent count, leave count, and attendance not entered.
-2. If subject name or numbers are slightly garbled by OCR, clean them up logically.
-3. Validate total = present + absent + leave + notEntered.
-4. If uncertain, set isUncertain: true.`;
+1. One row per course, in the same top-to-bottom order as the table.
+2. Course names and faculty names sometimes wrap onto two lines in the
+   photo (e.g. "Business Management and Financial" / "Accounting" is ONE
+   course, not two) -- join wrapped lines back into a single "subject"
+   value, never split one course into two rows.
+3. Extract the present count, absent count, "Leaves Applied" as leave, and
+   "Attendance Not Entered" as notEntered -- read the actual printed
+   numbers; do not compute them from the percentage column.
+4. Validate present + absent + leave + notEntered against that row's Total
+   Count column when one is visible; if it doesn't add up, or a number is
+   genuinely illegible, set isUncertain: true.
+5. Skip a totals/summary row at the bottom of the table -- it isn't a course.
+
+Rough OCR text from a first pass (may be inaccurate, garbled, or have
+columns out of order -- treat the image as the primary source of truth):
+${rawOcrText}`;
 
     try {
-      const aiResult = await AIService.generateContentFromText(rawOcrText, schemaInstruction);
-      if (aiResult && Array.isArray(aiResult.rows) && aiResult.rows.length > 0) {
-        return aiResult.rows.map(r => matchScannedRowToSubjects(r, existingSubjects));
+      const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt);
+      if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
+        return aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
       }
     } catch (aiErr) {
-      console.warn('[AttendancePhotoScan] AI extraction fallback to deterministic parser:', aiErr);
+      console.warn('[AttendancePhotoScan] Vision AI extraction failed, falling back:', aiErr);
     }
   }
 
-  // 3. Third attempt: Deterministic Text Table Parser (100% offline fallback)
+  // 3. Fall back to whatever the geometry pass found, even if not fully
+  // confident -- still better than nothing when no AI provider is
+  // configured or every configured one failed.
+  if (geometricResult.length > 0) return geometricResult;
+
+  // 4. Last resort: deterministic regex-based text table parser (100% offline)
   const textRows = parseAttendanceFromText(rawOcrText, existingSubjects);
-  return textRows.length > 0 ? textRows : geometricResult;
+  return textRows;
 }
 
 function extractNumericZoneTokens(words) {
