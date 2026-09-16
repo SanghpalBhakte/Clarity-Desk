@@ -331,16 +331,33 @@ function updateSyncUI(status = null) {
 
 // ── Vision AI Service (Groq primary → Gemini fallback) ────────
 const AIService = {
-  GROQ_MODEL: 'qwen/qwen3.6-27b',
+  // Was 'qwen/qwen3.6-27b' -- silently 404ing on Groq's current platform
+  // (verified live against api.groq.com/openai/v1/models: 3.6 isn't listed,
+  // 3.8 is, and a direct test call to 3.6 returns model_not_found). This
+  // means callGroqText/generateContentFromText's Groq leg had been dead on
+  // arrival with no visible symptom -- it just always threw and silently
+  // fell through to the Gemini leg below. Re-verify against the live
+  // /models endpoint before trusting any Groq model id here again.
+  GROQ_MODEL: 'qwen/qwen3.8-27b',
   // 'gemini-2.5-flash', 'gemini-2.0-flash', and 'gemini-1.5-flash' were all
   // retired by Google (404 "no longer available to new users") -- use the
   // evergreen "-latest" aliases so this doesn't silently rot again, with one
   // pinned model in between as a fallback in case an alias has an outage.
   MODEL: 'gemini-flash-latest',
   FALLBACK_MODELS: ['gemini-3.6-flash', 'gemini-flash-lite-latest'],
-  // Groq's llama-4-scout accepts up to 5 image inputs per request (confirmed
-  // vision-capable on Groq's own model docs) -- unlike GROQ_MODEL above,
-  // which is text-only and used only by callGroqText/generateContentFromText.
+  // Groq's own docs describe llama-4-scout as vision-capable (up to 5 image
+  // inputs), but a live test against a real key returned 404 model_not_found
+  // -- it isn't in that key's /v1/models list at all, and neither is
+  // llama-4-maverick. Every other model currently visible to that key
+  // (gpt-oss-*, groq/compound*, qwen3.8) explicitly rejects image content
+  // ("messages[0].content must be a string"). As of this check, Groq does
+  // not expose a reachable vision model on the free tier -- this entry is
+  // kept so extractStructuredFromImage's rotation picks it up automatically
+  // the moment that changes, but right now callGroqVision will always fail
+  // and fall through to OpenRouter, which is harmless (the rotation already
+  // handles a failing provider) but worth knowing rather than assuming this
+  // leg is doing anything. Re-check api.groq.com/openai/v1/models with your
+  // own key before relying on it.
   GROQ_VISION_MODEL: 'meta-llama/llama-4-scout-17b-16e-instruct',
   // OpenRouter's ":free" catalog churns often (models get added/retired), so
   // this is a short ordered list rather than one pinned id -- same reasoning
