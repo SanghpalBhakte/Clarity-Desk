@@ -396,6 +396,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
 
 <!-- Firebase Config & App Script -->
+<!-- Optional local-only file (gitignored, not deployed by default) that
+     sets window.ENV.GEMINI_API_KEY/GROQ_API_KEY before firebase-config.js
+     reads them -- see firebase-config.local.example.js. A 404 here if the
+     file doesn't exist is harmless and silent. -->
+<script src="firebase-config.local.js" onerror="this.remove()"></script>
 <script src="firebase-config.js?v=129"></script>
 <script type="module" src="app.js?v=129"></script>
 
