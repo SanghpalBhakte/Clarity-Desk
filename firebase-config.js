@@ -36,11 +36,13 @@
   const envAppId         = getEnvVal('FIREBASE_APP_ID');
   const envGeminiKey     = getEnvVal('GEMINI_API_KEY');
   const envGroqKey       = getEnvVal('GROQ_API_KEY');
+  const envOpenRouterKey = getEnvVal('OPENROUTER_API_KEY');
   const envVapidKey      = getEnvVal('FIREBASE_VAPID_KEY');
 
   // Preconfigured AI Keys (strictly from secure env config)
-  window.CAMPUS_OS_GEMINI_KEY = envGeminiKey || null;
-  window.CAMPUS_OS_GROQ_KEY   = envGroqKey   || null;
+  window.CAMPUS_OS_GEMINI_KEY     = envGeminiKey     || null;
+  window.CAMPUS_OS_GROQ_KEY       = envGroqKey       || null;
+  window.CAMPUS_OS_OPENROUTER_KEY = envOpenRouterKey || null;
 
   // If env vars are present, construct config object
   if (envApiKey && envProjectId && !envApiKey.includes('YOUR_')) {

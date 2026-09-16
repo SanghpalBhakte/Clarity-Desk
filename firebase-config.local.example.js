@@ -2,15 +2,25 @@
 // Clarity Desk — Local AI key override (NOT committed to git)
 //
 // 1. Copy this file to "firebase-config.local.js" (same folder).
-// 2. Get a FREE Gemini API key: https://aistudio.google.com/apikey
-//    (sign in with any Google account, click "Create API key" —
-//    no credit card required, generous free tier).
-// 3. Paste it below.
+// 2. Get free API keys (any one of these is enough to enable the
+//    timetable-scan AI fallback; configuring more than one lets the
+//    scanner rotate to the next provider if one is rate-limited):
+//      - Gemini:      https://aistudio.google.com/apikey
+//                     (any Google account, no credit card, generous free tier)
+//      - Groq:        https://console.groq.com/keys
+//                     (free, fast, also used for vision extraction)
+//      - OpenRouter:  https://openrouter.ai/keys
+//                     ($0, no card — pick a current ":free" vision model)
+// 3. Paste whichever you have below, and DELETE the line(s) for any key you
+//    don't have -- a leftover "PASTE_YOUR_..." placeholder string is still
+//    truthy, so it gets read as a real (but invalid) key otherwise.
 // 4. Deploy: firebase deploy --only hosting
 //
-// This file is listed in .gitignore, so your key never gets
-// committed or pushed to GitHub. It just needs to exist locally
+// This file is listed in .gitignore, so your keys never get
+// committed or pushed to GitHub. They just need to exist locally
 // on the machine you deploy from.
 // ============================================================
 window.ENV = window.ENV || {};
 window.ENV.GEMINI_API_KEY = "PASTE_YOUR_FREE_GEMINI_KEY_HERE";
+window.ENV.GROQ_API_KEY = "PASTE_YOUR_FREE_GROQ_KEY_HERE";
+window.ENV.OPENROUTER_API_KEY = "PASTE_YOUR_FREE_OPENROUTER_KEY_HERE";

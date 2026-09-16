@@ -338,6 +338,15 @@ const AIService = {
   // pinned model in between as a fallback in case an alias has an outage.
   MODEL: 'gemini-flash-latest',
   FALLBACK_MODELS: ['gemini-3.6-flash', 'gemini-flash-lite-latest'],
+  // Groq's llama-4-scout accepts up to 5 image inputs per request (confirmed
+  // vision-capable on Groq's own model docs) -- unlike GROQ_MODEL above,
+  // which is text-only and used only by callGroqText/generateContentFromText.
+  GROQ_VISION_MODEL: 'meta-llama/llama-4-scout-17b-16e-instruct',
+  // OpenRouter's ":free" catalog churns often (models get added/retired), so
+  // this is a short ordered list rather than one pinned id -- same reasoning
+  // as FALLBACK_MODELS above. Verify current free vision models at
+  // https://openrouter.ai/api/v1/models before relying on any one of these.
+  OPENROUTER_VISION_MODELS: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'inclusionai/ling-3.0-flash-vl:free'],
 
   getApiKey() {
     if (window.CAMPUS_OS_GEMINI_KEY) return window.CAMPUS_OS_GEMINI_KEY;
@@ -349,6 +358,13 @@ const AIService = {
   getGroqKey() {
     if (window.CAMPUS_OS_GROQ_KEY) return window.CAMPUS_OS_GROQ_KEY;
     const envKey = (typeof process !== 'undefined' && process.env && (process.env.VITE_GROQ_API_KEY || process.env.GROQ_API_KEY));
+    if (envKey) return envKey;
+    return null;
+  },
+
+  getOpenRouterKey() {
+    if (window.CAMPUS_OS_OPENROUTER_KEY) return window.CAMPUS_OS_OPENROUTER_KEY;
+    const envKey = (typeof process !== 'undefined' && process.env && (process.env.VITE_OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY));
     if (envKey) return envKey;
     return null;
   },
@@ -418,42 +434,18 @@ const AIService = {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
         console.log(`[AIService] Attempting extraction with Gemini model: ${model}`);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: promptText },
-                { text: "\n\nRaw OCR Text:\n" + ocrText }
-              ]
-            }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
-            }
-          })
-        });
-
-        if (!response.ok) {
-          const errObj = await response.json().catch(() => ({}));
-          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
-          throw new Error(friendlyGeminiError(response.status, rawMsg));
-        }
-
-        const resData = await response.json();
-        const candidate = resData.candidates?.[0];
-
-        const finishReason = candidate?.finishReason;
-        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
-          throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
-        }
-
-        const rawText = candidate?.content?.parts?.[0]?.text || '';
-        const parsed = safeParseGeminiJson(rawText);
-        if (!parsed) {
-          throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
-        }
+        const parsed = await this._generateContent(endpoint, {
+          contents: [{
+            parts: [
+              { text: promptText },
+              { text: "\n\nRaw OCR Text:\n" + ocrText }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        }, model);
         console.log(`[AIService] ✅ Extraction succeeded with model: ${model}`, parsed);
         return parsed;
       } catch (err) {
@@ -463,6 +455,49 @@ const AIService = {
     }
 
     throw lastError || new Error('AI service unavailable. Please try again later.');
+  },
+
+  // Shared by generateContentFromText and generateContentFromImage: posts a
+  // generateContent request and parses the response. Google's free-tier
+  // models occasionally return 503 "temporarily unavailable" under load
+  // (seen in practice minutes apart on the same key/model) -- a real
+  // outage looks the same as a momentary spike from here, so one short
+  // retry before giving up on this model is worth it: without it, a single
+  // bad moment burns through all 3 fallback models at once and the whole
+  // scan falls back to raw, uncorrected OCR text for no real reason.
+  async _generateContent(endpoint, body, model) {
+    let response;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (response.status !== 503 || attempt === 2) break;
+      console.warn(`[AIService] Model ${model} returned 503 (overloaded), retrying once...`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (!response.ok) {
+      const errObj = await response.json().catch(() => ({}));
+      const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
+      throw new Error(friendlyGeminiError(response.status, rawMsg));
+    }
+
+    const resData = await response.json();
+    const candidate = resData.candidates?.[0];
+
+    const finishReason = candidate?.finishReason;
+    if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+      throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
+    }
+
+    const rawText = candidate?.content?.parts?.[0]?.text || '';
+    const parsed = safeParseGeminiJson(rawText);
+    if (!parsed) {
+      throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
+    }
+    return parsed;
   },
 
   // True vision-based extraction: sends the actual photo to a multimodal
@@ -488,42 +523,18 @@ const AIService = {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
         console.log(`[AIService] Attempting VISION extraction with Gemini model: ${model}`);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: promptText },
-                { inline_data: { mime_type: mimeType, data: base64Data } }
-              ]
-            }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
-            }
-          })
-        });
-
-        if (!response.ok) {
-          const errObj = await response.json().catch(() => ({}));
-          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
-          throw new Error(friendlyGeminiError(response.status, rawMsg));
-        }
-
-        const resData = await response.json();
-        const candidate = resData.candidates?.[0];
-
-        const finishReason = candidate?.finishReason;
-        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
-          throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
-        }
-
-        const rawText = candidate?.content?.parts?.[0]?.text || '';
-        const parsed = safeParseGeminiJson(rawText);
-        if (!parsed) {
-          throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
-        }
+        const parsed = await this._generateContent(endpoint, {
+          contents: [{
+            parts: [
+              { text: promptText },
+              { inline_data: { mime_type: mimeType, data: base64Data } }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        }, model);
         console.log(`[AIService] ✅ Vision extraction succeeded with model: ${model}`, parsed);
         return parsed;
       } catch (err) {
@@ -533,6 +544,143 @@ const AIService = {
     }
 
     throw lastError || new Error('Vision AI service unavailable. Please try again later.');
+  },
+
+  // Second vision provider, same contract as generateContentFromImage
+  // (same schema-instruction prompt in, same {schedule:[...]} JSON out) so
+  // extractStructuredFromImage below can rotate between them without either
+  // caller knowing which provider actually answered.
+  async callGroqVision(base64Data, mimeType, promptText) {
+    const key = this.getGroqKey();
+    if (!key) throw new Error('No Groq API key configured.');
+
+    console.log(`[AIService] Attempting VISION extraction with Groq model: ${this.GROQ_VISION_MODEL}`);
+    const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: this.GROQ_VISION_MODEL,
+        messages: [
+          { role: 'user', content: [
+            { type: 'text', text: promptText },
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+          ] }
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!response.ok) {
+      const errObj = await response.json().catch(() => ({}));
+      const rawMsg = errObj.error?.message || `HTTP ${response.status} from Groq vision`;
+      throw new Error(`Groq vision (${this.GROQ_VISION_MODEL}): ${rawMsg}`);
+    }
+
+    const resData = await response.json();
+    const rawText = resData.choices?.[0]?.message?.content || '';
+    const parsed = safeParseGeminiJson(rawText);
+    if (!parsed) {
+      throw new Error('Groq vision returned unparseable content.');
+    }
+    console.log('[AIService] ✅ Vision extraction succeeded with Groq:', parsed);
+    return parsed;
+  },
+
+  // Third vision provider (OpenRouter's free-tier catalog). Tries each
+  // OPENROUTER_VISION_MODELS entry in order since any one of them can be
+  // retired or rate-limited independently of the others.
+  async callOpenRouterVision(base64Data, mimeType, promptText) {
+    const key = this.getOpenRouterKey();
+    if (!key) throw new Error('No OpenRouter API key configured.');
+
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    let lastError = null;
+
+    for (const model of this.OPENROUTER_VISION_MODELS) {
+      try {
+        console.log(`[AIService] Attempting VISION extraction with OpenRouter model: ${model}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': (typeof window !== 'undefined' && window.location) ? window.location.origin : 'https://clarity-desk.app',
+            'X-Title': 'Clarity Desk'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'user', content: [
+                { type: 'text', text: promptText },
+                { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+              ] }
+            ],
+            temperature: 0.1,
+            response_format: { type: 'json_object' }
+          })
+        });
+
+        if (!response.ok) {
+          const errObj = await response.json().catch(() => ({}));
+          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
+          throw new Error(`OpenRouter (${model}): ${rawMsg}`);
+        }
+
+        const resData = await response.json();
+        const rawText = resData.choices?.[0]?.message?.content || '';
+        const parsed = safeParseGeminiJson(rawText);
+        if (!parsed) {
+          throw new Error(`OpenRouter model ${model} returned unparseable content.`);
+        }
+        console.log(`[AIService] ✅ Vision extraction succeeded with OpenRouter model: ${model}`, parsed);
+        return parsed;
+      } catch (err) {
+        lastError = err;
+        console.warn(`[AIService] OpenRouter model ${model} failed:`, err.message || err);
+      }
+    }
+
+    throw lastError || new Error('OpenRouter vision unavailable.');
+  },
+
+  // Rotates across every vision-capable provider the user has a key for, in
+  // free-tier-friendliness order (Gemini's free tier is the most generous
+  // per-provider today, Groq is fastest, OpenRouter has the widest model
+  // selection to fall through). Stops at the first provider that returns a
+  // non-empty schedule -- a provider being out of quota (429) or briefly
+  // down no longer means the whole photo falls back to raw Tesseract text,
+  // it just means the next configured provider gets tried instead.
+  async extractStructuredFromImage(base64Data, mimeType, promptText) {
+    const attempts = [];
+    if (this.getApiKey()) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText)]);
+    if (this.getGroqKey()) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText)]);
+    if (this.getOpenRouterKey()) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText)]);
+
+    if (attempts.length === 0) {
+      throw new Error('No vision-capable AI provider configured.');
+    }
+
+    let lastError = null;
+    for (const [providerName, attempt] of attempts) {
+      try {
+        const result = await attempt();
+        if (result && Array.isArray(result.schedule) && result.schedule.length > 0) {
+          return result;
+        }
+        lastError = new Error(`${providerName} vision returned an empty schedule.`);
+      } catch (err) {
+        lastError = err;
+        console.warn(`[AIService] Vision provider ${providerName} failed, trying next:`, err.message || err);
+      }
+    }
+
+    throw lastError || new Error('All configured vision providers failed.');
   }
 };
 
@@ -3205,29 +3353,49 @@ async function extractTimetableFromImage(base64Data, mimeType) {
   }
   
   // If the deterministic parser found a confident result, return
-  // immediately -- "confident" now means both non-empty AND not mostly
-  // flagged uncertain, so a photo that produced a few rows but garbled
-  // most of them still gets a chance at AI help below instead of being
-  // silently accepted as-is.
+  // immediately -- "confident" now means non-empty, not mostly flagged
+  // uncertain, AND covering a plausible chunk of a real week, so a photo
+  // that produced a few rows but garbled most of them still gets a chance
+  // at AI help below instead of being silently accepted as-is.
+  //
+  // The distinct-day and row-count floors below exist because per-row
+  // uncertainty alone let a badly under-extracted result masquerade as
+  // "confident": if the grid parser recovered only 2 rows out of a full
+  // week and neither happened to be individually flagged, uncertainRatio
+  // was 0/2 = 0, which passed the old < 0.4 check and returned those 2 rows
+  // immediately -- AI extraction never even ran. That's the root cause a
+  // real-device test surfaced as "0-2 entries from a full weekly
+  // timetable" even though the vision fallback below already existed. A
+  // week with real classes realistically has entries on 3+ days and more
+  // than a handful of rows; anything less is itself a strong signal the
+  // grid reconstruction missed most of the photo, regardless of whether
+  // Tesseract felt confident about the few rows it did produce.
   const uncertainRowCount = (deterministicResult.schedule || []).filter(r => r.isUncertain).length;
   const uncertainRatio = deterministicResult.schedule?.length
     ? uncertainRowCount / deterministicResult.schedule.length
     : 1;
+  const distinctDaysFound = new Set((deterministicResult.schedule || []).map(r => r.day)).size;
   const deterministicIsConfident = deterministicResult.schedule
-    && deterministicResult.schedule.length > 0
-    && uncertainRatio < 0.4;
+    && deterministicResult.schedule.length >= 6
+    && uncertainRatio < 0.4
+    && distinctDaysFound >= 3;
 
   if (deterministicIsConfident) {
     return { schedule: deterministicResult.schedule, confidence: Math.max(70, deterministicResult.confidence) };
   }
-  
-  // AI structured repair fallback (only if user has configured an API key)
+
+  // AI structured repair fallback (only if user has configured an API key
+  // for at least one vision/text provider)
   const hasGroqKey = !!window.CAMPUS_OS_GROQ_KEY;
   const hasGeminiKey = !!window.CAMPUS_OS_GEMINI_KEY;
+  const hasOpenRouterKey = !!window.CAMPUS_OS_OPENROUTER_KEY;
 
-  if (!hasGroqKey && !hasGeminiKey) {
+  if (!hasGroqKey && !hasGeminiKey && !hasOpenRouterKey) {
     console.log("[ExtractionPipeline] AI Repair skipped (no API key). Using deterministic output.");
-    return deterministicResult;
+    // No AI provider to cross-check against, and this result already failed
+    // the confidence gate above -- flagged so the preview modal can warn
+    // the user to check it row-by-row instead of presenting it as reliable.
+    return { ...deterministicResult, needsReview: true };
   }
 
   updateTimetableLoadingModal("Refining ambiguous timetable entries with AI...");
@@ -3254,6 +3422,21 @@ Rules:
 2. time and end must be 24-hour HH:MM format (e.g. 09:00, 10:30, 14:00).
 3. Do not invent fake subjects or rooms if not present in text.
 4. If an entry is ambiguous, mark isUncertain: true.
+5. Merged cells: if one cell visually spans multiple consecutive periods (e.g.
+   a single "OE-1" block covering periods 3 and 4), emit ONE row whose time
+   is period 3's start and whose end is period 4's end -- do not duplicate
+   the same subject into two separate rows for the two periods.
+6. Stacked cells: if one time slot lists multiple different classes together
+   (e.g. different batches sharing the same period, printed as separate
+   lines in the same box), emit ONE row PER entry, all sharing that same
+   day/time/end, differentiated by subject/code/teacher/room. Never merge
+   them into a single row or drop all but one.
+7. Legend expansion: if a subject/faculty legend is provided below, use it to
+   expand abbreviations in the grid to their full names in "subject", and
+   keep the short form in "code". Abbreviations sometimes appear in the grid
+   in a slightly different form than the legend lists them (e.g. grid says
+   "WEB DEV." while the legend lists "WD") -- match them by meaning, not
+   exact string equality.
 
 This is an EXAMPLE of the clean formatting style to aim for (a DIFFERENT college's timetable -- copy the STYLE and STRUCTURE below, never this content, into whatever subjects/rooms/teachers this specific photo actually shows):
 { "day": "Mon", "time": "10:00", "end": "11:00", "subject": "Data Structures (DS)", "code": "DS", "room": "SF-31", "teacher": "Prof. VJM", "type": "lecture", "isUncertain": false }
@@ -3261,23 +3444,35 @@ This is an EXAMPLE of the clean formatting style to aim for (a DIFFERENT college
 { "day": "Tue", "time": "10:00", "end": "12:00", "subject": "Web Development Lab", "code": "WEB DEV", "room": "FF-40", "teacher": "Prof. MKP", "type": "lab", "isUncertain": false }
 Notice: full subject name with its short code in parentheses, "Prof. <initials>" for teacher when the photo only gives initials, "—" (em dash) for an unlisted room/teacher, and breaks/recess given their own row with type "off" rather than skipped.`;
 
-  // Vision-first: send the actual photo to a multimodal Gemini model when
-  // a Gemini key is configured -- this is the only path that can recover
-  // information Tesseract lost at the pixel level (heavy skew, poor
+  // Legends were already parsed from this same image by the Tesseract pass
+  // above (facultyLegend/subjectLegend) -- hand them to the AI as a hint
+  // instead of making it re-derive every abbreviation from pixels alone.
+  // Deliberately phrased as "may be incomplete" since this first-pass OCR
+  // read can itself be wrong; the model should verify against the photo,
+  // not trust it blindly.
+  const legendHint = (subjectLegend?.length || facultyLegend?.length)
+    ? `\n\nA prior OCR pass already read a legend from this same image (may be incomplete or contain misreads -- verify against the photo, don't trust it blindly):\nSubject abbreviations: ${JSON.stringify(subjectLegend || [])}\nFaculty codes: ${JSON.stringify(facultyLegend || [])}`
+    : '';
+
+  // Vision-first: send the actual photo to a multimodal model when any
+  // vision-capable provider is configured -- this is the only path that can
+  // recover information Tesseract lost at the pixel level (heavy skew, poor
   // lighting, handwriting), which text-only repair structurally cannot do
-  // since it never sees the picture. Falls through to the existing
-  // text-only repair below if vision isn't available (Groq-only setup) or
-  // the vision call itself fails, so nothing regresses for a
-  // Gemini-less setup or a transient vision-call error.
-  if (hasGeminiKey) {
+  // since it never sees the picture. extractStructuredFromImage rotates
+  // across every configured provider (Gemini -> Groq -> OpenRouter) so one
+  // provider being rate-limited no longer drops all the way down to
+  // text-only repair or raw Tesseract -- it just tries the next one. Falls
+  // through to text-only repair below only if no vision provider is
+  // configured, or all configured ones failed/were empty.
+  if (hasGeminiKey || hasGroqKey || hasOpenRouterKey) {
     try {
-      const visionPrompt = schemaInstruction + `
+      const visionPrompt = schemaInstruction + legendHint + `
 
 The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
 
 Rough OCR text (may be inaccurate):
 ${ocrResult.data.text || ''}`;
-      const visionResult = await AIService.generateContentFromImage(base64Data, mimeType, visionPrompt);
+      const visionResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt);
       if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
         const sanitized = sanitizeAiScheduleRows(visionResult.schedule);
         if (sanitized.length > 0) {
@@ -3285,21 +3480,29 @@ ${ocrResult.data.text || ''}`;
         }
       }
     } catch (err) {
-      console.warn("[ExtractionPipeline] Vision AI Repair failed, falling back to text-only repair:", err);
+      console.warn("[ExtractionPipeline] Vision AI Repair failed on every configured provider, falling back to text-only repair:", err);
     }
   }
 
   try {
     const rawOcrText = ocrResult.data.text;
-    const aiResult = await AIService.generateContentFromText(rawOcrText, schemaInstruction);
+    const aiResult = await AIService.generateContentFromText(rawOcrText, schemaInstruction + legendHint);
     if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
       const sanitized = sanitizeAiScheduleRows(aiResult.schedule);
-      return { schedule: sanitized.length > 0 ? sanitized : deterministicResult.schedule, confidence: 85 };
+      // sanitized.length === 0 here means the text-repair call returned
+      // *something* but every row got rejected by sanitizeAiScheduleRows --
+      // that's a raw, un-repaired deterministic result reaching the user
+      // exactly like the no-key path above, so it's flagged the same way
+      // instead of wearing the AI path's confidence: 85 it didn't earn.
+      if (sanitized.length > 0) {
+        return { schedule: sanitized, confidence: 85 };
+      }
+      return { ...deterministicResult, needsReview: true };
     }
-    return deterministicResult;
+    return { ...deterministicResult, needsReview: true };
   } catch (err) {
     console.warn("[ExtractionPipeline] AI Repair failed:", err);
-    return deterministicResult;
+    return { ...deterministicResult, needsReview: true };
   }
 }
 
@@ -3388,6 +3591,7 @@ function handleTimetableImageUpload(event) {
 
       // ✅ SUCCESS → ALWAYS show preview/edit modal with extracted entries and batch filter
       console.log('[TimetableUpload] Extraction successful. UI transitioning to showTimetablePreviewModal with', schedule.length, 'classes.');
+      pendingExtractionNeedsReview = !!result?.needsReview;
       showTimetablePreviewModal(schedule);
 
     } catch (err) {
@@ -3440,6 +3644,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
         if (!Array.isArray(schedule) || schedule.length === 0) {
           showTimetableUploadErrorModal('Still no entries found. Try a clearer photo or enter manually.', base64Data, mimeType);
         } else {
+          pendingExtractionNeedsReview = !!result?.needsReview;
           showTimetablePreviewModal(schedule);
         }
       } catch (err2) {
@@ -3463,6 +3668,13 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
 
 let pendingExtractedSchedule = [];
 let selectedTimetablePreviewBatch = 'all';
+// True when the schedule about to be previewed is a raw, un-repaired
+// deterministic OCR result that no AI provider ever got to check (no key
+// configured, or every configured provider failed/returned nothing usable).
+// Distinct from per-row isUncertain: that flags individual rows Tesseract
+// itself wasn't sure about, this flags the whole scan as never having had a
+// second opinion at all -- see extractTimetableFromImage's needsReview.
+let pendingExtractionNeedsReview = false;
 
 function showTimetablePreviewModal(schedule) {
   const currentProfileBatch = (liveProfile?.batch || '').trim().toUpperCase();
@@ -3595,6 +3807,21 @@ function renderTimetablePreviewModalContent(backdrop) {
         </div>
         <button class="modal-close" onclick="document.getElementById('tt-preview-backdrop').remove()">${icons.x()}</button>
       </div>
+
+      ${pendingExtractionNeedsReview ? `
+      <!-- Whole-scan warning: unlike the per-row ⚠️ Review badges below (which
+           flag individual rows Tesseract itself was unsure about), this means
+           NO AI provider ever got a chance to cross-check this scan against
+           the photo -- either no Gemini/Groq/OpenRouter key is configured, or
+           every configured one failed or returned nothing usable. Read as
+           "this is a raw, unverified OCR guess", not "some fields are fuzzy". -->
+      <div style="display:flex;align-items:flex-start;gap:10px;background:color-mix(in srgb, var(--yellow) 12%, var(--surface-2));border:1px solid var(--yellow);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px">
+        <span style="font-size:var(--text-md);line-height:1">⚠️</span>
+        <div style="font-size:var(--text-sm);line-height:1.4">
+          <strong>Unverified scan.</strong> This table came from local OCR only — no AI provider was available to double-check it against the photo (add a free Gemini/Groq/OpenRouter key, or check your existing key/quota). Please review every row below carefully before saving.
+        </div>
+      </div>
+      ` : ''}
 
       <!-- Batch Filter & Normalization Controls -->
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:14px;flex-wrap:wrap">
@@ -5249,6 +5476,8 @@ function loadOfficialAidsTimetable() {
   // saving -- see buildSampleTimetableSchedule() and the batch selector
   // already built into this preview modal -- rather than saving the raw
   // TIMETABLE object (with every batch's classes glued together) directly.
+  // Not an OCR result, so the unverified-scan banner never applies here.
+  pendingExtractionNeedsReview = false;
   showTimetablePreviewModal(buildSampleTimetableSchedule());
 }
 
