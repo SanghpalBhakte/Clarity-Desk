@@ -418,42 +418,18 @@ const AIService = {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
         console.log(`[AIService] Attempting extraction with Gemini model: ${model}`);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: promptText },
-                { text: "\n\nRaw OCR Text:\n" + ocrText }
-              ]
-            }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
-            }
-          })
-        });
-
-        if (!response.ok) {
-          const errObj = await response.json().catch(() => ({}));
-          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
-          throw new Error(friendlyGeminiError(response.status, rawMsg));
-        }
-
-        const resData = await response.json();
-        const candidate = resData.candidates?.[0];
-
-        const finishReason = candidate?.finishReason;
-        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
-          throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
-        }
-
-        const rawText = candidate?.content?.parts?.[0]?.text || '';
-        const parsed = safeParseGeminiJson(rawText);
-        if (!parsed) {
-          throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
-        }
+        const parsed = await this._generateContent(endpoint, {
+          contents: [{
+            parts: [
+              { text: promptText },
+              { text: "\n\nRaw OCR Text:\n" + ocrText }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        }, model);
         console.log(`[AIService] ✅ Extraction succeeded with model: ${model}`, parsed);
         return parsed;
       } catch (err) {
@@ -463,6 +439,49 @@ const AIService = {
     }
 
     throw lastError || new Error('AI service unavailable. Please try again later.');
+  },
+
+  // Shared by generateContentFromText and generateContentFromImage: posts a
+  // generateContent request and parses the response. Google's free-tier
+  // models occasionally return 503 "temporarily unavailable" under load
+  // (seen in practice minutes apart on the same key/model) -- a real
+  // outage looks the same as a momentary spike from here, so one short
+  // retry before giving up on this model is worth it: without it, a single
+  // bad moment burns through all 3 fallback models at once and the whole
+  // scan falls back to raw, uncorrected OCR text for no real reason.
+  async _generateContent(endpoint, body, model) {
+    let response;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (response.status !== 503 || attempt === 2) break;
+      console.warn(`[AIService] Model ${model} returned 503 (overloaded), retrying once...`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (!response.ok) {
+      const errObj = await response.json().catch(() => ({}));
+      const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
+      throw new Error(friendlyGeminiError(response.status, rawMsg));
+    }
+
+    const resData = await response.json();
+    const candidate = resData.candidates?.[0];
+
+    const finishReason = candidate?.finishReason;
+    if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+      throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
+    }
+
+    const rawText = candidate?.content?.parts?.[0]?.text || '';
+    const parsed = safeParseGeminiJson(rawText);
+    if (!parsed) {
+      throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
+    }
+    return parsed;
   },
 
   // True vision-based extraction: sends the actual photo to a multimodal
@@ -488,42 +507,18 @@ const AIService = {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
         console.log(`[AIService] Attempting VISION extraction with Gemini model: ${model}`);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: promptText },
-                { inline_data: { mime_type: mimeType, data: base64Data } }
-              ]
-            }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1
-            }
-          })
-        });
-
-        if (!response.ok) {
-          const errObj = await response.json().catch(() => ({}));
-          const rawMsg = errObj.error?.message || `HTTP ${response.status} from ${model}`;
-          throw new Error(friendlyGeminiError(response.status, rawMsg));
-        }
-
-        const resData = await response.json();
-        const candidate = resData.candidates?.[0];
-
-        const finishReason = candidate?.finishReason;
-        if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
-          throw new Error(`Gemini blocked the response (reason: ${finishReason}). Try a clearer image.`);
-        }
-
-        const rawText = candidate?.content?.parts?.[0]?.text || '';
-        const parsed = safeParseGeminiJson(rawText);
-        if (!parsed) {
-          throw new Error(`Model ${model} returned unparseable content. Raw: ${rawText.slice(0, 120)}`);
-        }
+        const parsed = await this._generateContent(endpoint, {
+          contents: [{
+            parts: [
+              { text: promptText },
+              { inline_data: { mime_type: mimeType, data: base64Data } }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          }
+        }, model);
         console.log(`[AIService] ✅ Vision extraction succeeded with model: ${model}`, parsed);
         return parsed;
       } catch (err) {
