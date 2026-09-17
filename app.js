@@ -4185,8 +4185,12 @@ function calculatePayloadHash(data) {
       p: data.profile,
       t: data.customTasks?.length,
       tt: data.customTimetable ? Object.keys(data.customTimetable).length : 0,
-      a: data.assignmentStatuses,
-      tm: data.theme
+      a: data.assignmentStatuses
+      // theme deliberately excluded: it's applied via initTheme()/CSS
+      // variables, never needs a dashboard rebuild, and including it here
+      // was causing every theme switch (and the first cloud echo after
+      // a refresh) to force a full renderPage() -- the visible "flicker"
+      // in the masthead/stat tiles.
     });
   } catch (e) {
     return null;
@@ -4196,6 +4200,20 @@ function calculatePayloadHash(data) {
 function subscribeUserCloudData(uid) {
   if (!db || !uid) return;
   if (cloudUnsubscribe) cloudUnsubscribe();
+
+  // Seed the dedup hash with the CURRENT local state (already rendered by
+  // the synchronous boot render) instead of leaving it null. Previously,
+  // every page refresh reset this to null, so the first cloud response
+  // (cache read or server snapshot) always looked "different" and forced
+  // a redundant renderPage() even when local storage already matched the
+  // cloud exactly -- a second, needless rebuild right after the first
+  // paint, visible as the masthead/stat tiles flickering in and out.
+  lastCloudPayloadHash = calculatePayloadHash({
+    profile: loadProfile(),
+    customTasks: state.customTasks,
+    customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+    assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {})
+  });
 
   const userRef = db.collection('users').doc(uid);
 
