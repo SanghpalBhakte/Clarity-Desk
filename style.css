@@ -491,9 +491,12 @@ img { display: block; max-width: 100%; }
   align-items: center;
   justify-content: space-between;
   padding: 0 18px;
-  background: var(--topbar-bg);
-  backdrop-filter: var(--topbar-blur);
-  -webkit-backdrop-filter: var(--topbar-blur);
+  /* Same phantom-token bug as .bottom-nav below: --topbar-bg/--topbar-blur
+     are never defined, so this used to resolve to fully transparent and
+     only looked right by luck, via a later "Topbar Chrome" override rule
+     (background: var(--color-canvas)) that happened to win the cascade.
+     Setting the real value directly here so it's correct on its own. */
+  background: var(--color-canvas);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -676,6 +679,18 @@ img { display: block; max-width: 100%; }
   }
   .topbar-search {
     min-width: 64px;
+  }
+  /* #topbar-clock-text has no white-space:nowrap and gets squeezed to
+     ~50px on narrow phones by its fixed-width siblings (theme toggle,
+     sync badge, assistant button) -- too narrow for "Sep · 4:16 PM", so
+     it wraps to 2-3 lines. .topbar/.topbar-actions both allow overflow,
+     so that wrapped text spills out past the topbar's fixed height and
+     overlaps the page content below -- the "date text sliced into the
+     icon row" bug. The phone's own status bar already shows the time,
+     so this in-app clock is redundant clutter on mobile; drop it here
+     rather than trying to shrink it further. */
+  #topbar-clock-text {
+    display: none;
   }
 }
 
@@ -924,9 +939,17 @@ img { display: block; max-width: 100%; }
   position: fixed;
   bottom: 0; left: 0; right: 0;
   height: var(--nav-h);
-  background: var(--bottomnav-bg);
-  backdrop-filter: var(--bottomnav-blur);
-  -webkit-backdrop-filter: var(--bottomnav-blur);
+  /* Was `var(--bottomnav-bg)` -- that token was never defined anywhere
+     in the theme system, so this rule silently computed to fully
+     transparent (the CSS spec's fallback for an unresolved var() with
+     no default) instead of erroring loudly. A fixed nav with no fill
+     lets whatever's scrolled underneath show straight through its
+     labels/icons -- exactly the "text bleeding into the nav bar" mess
+     reported on mobile. var(--color-canvas) matches the topbar's own
+     resolved background (it has the identical undefined-var bug, just
+     masked by a later override rule at "Topbar Chrome" that happens to
+     set a real value) so top and bottom chrome now actually match. */
+  background: var(--color-canvas);
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
