@@ -5611,6 +5611,9 @@ const icons = {
   link:        () => svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>'),
   user:        () => svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
   target:      () => svg('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
+  camera:      () => svg('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'),
+  declutter:   () => svg('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/>'),
+  chartLine:   () => svg('<path d="M3 3v18h18M7 15l4-6 3 3 5-7"/>'),
 };
 
 function sunSVG()  { return icons.sun(); }
@@ -10222,12 +10225,18 @@ function renderSubjectsOverview(el, subjects) {
 
     return `
       <div class="card attendance-subject-card" style="position:relative;padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
-        <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:8px;right:8px;width:22px;height:22px;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6">✕</button>
+        <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:-2px;right:-2px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6;background:transparent;border:none">✕</button>
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);padding-right:20px">${s.name}</div>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
 
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0">
-          <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">
+          <div style="display:flex;align-items:center;gap:8px">
+            ${att.pct !== null ? `<svg width="30" height="30" viewBox="0 0 30 30" style="transform:rotate(-90deg);flex-shrink:0">
+              <circle cx="15" cy="15" r="12" fill="none" stroke="var(--border-light, var(--border))" stroke-width="3.5"/>
+              <circle cx="15" cy="15" r="12" fill="none" stroke="${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-muted)'}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${(2*Math.PI*12).toFixed(2)}" stroke-dashoffset="${((2*Math.PI*12)*(1-Math.max(0,Math.min(100,att.exactPct!==null?att.exactPct:att.pct))/100)).toFixed(2)}"/>
+            </svg>` : ''}
+            <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
+          </div>
           <span style="font-size:var(--text-xs);color:var(--text-muted);font-weight:600">${att.pct !== null ? (att.isSafe ? 'Attendance · Safe' : 'Attendance · At risk') : 'Attendance · Not set'}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-top:1px solid var(--border-light, var(--border))">
@@ -10248,13 +10257,13 @@ function renderSubjectsOverview(el, subjects) {
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch subject cards">
-          🧹 Declutter my desk
+          ${icons.declutter()} Declutter my desk
         </button>
         <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
-          📷 Scan from Photo
+          ${icons.camera()} Scan from Photo
         </button>
         <button class="btn btn-primary" onclick="showBaselineModal(null, 'manual')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-          📊 Set Baseline
+          ${icons.chartLine()} Set Baseline
         </button>
       </div>
     </div>
