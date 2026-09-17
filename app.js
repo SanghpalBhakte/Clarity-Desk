@@ -20,7 +20,7 @@ const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
 const KEY_HIDDEN_SUBJECTS     = 'cos_hidden_subjects';
 const KEY_SUBJECT_DELETE_SILENT = 'cos_subject_delete_silent';
-const KEY_LAST_LIGHT_THEME    = 'cos_last_light_theme';
+const KEY_ACCENT              = 'cos_accent';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
@@ -4340,6 +4340,13 @@ function applyCloudDataToLocalState(data) {
       initTheme();
     }
   }
+  if (data.accent && typeof data.accent === 'string') {
+    const localAccent = localStorage.getItem(KEY_ACCENT);
+    if (!localAccent && ALL_ACCENTS.includes(data.accent)) {
+      localStorage.setItem(KEY_ACCENT, data.accent);
+      initAccent();
+    }
+  }
   if (data.notificationPrefs && typeof data.notificationPrefs === 'object') {
     safeSetStorage(KEY_NOTIF_PREFS, data.notificationPrefs);
   }
@@ -4373,6 +4380,7 @@ function pushLocalDataToCloud(uid) {
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
     attendanceLive:     safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
+    accent:             localStorage.getItem(KEY_ACCENT) || 'terracotta',
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget:          getAttendanceTarget(),
@@ -4963,21 +4971,32 @@ window.resetAssignmentFilters = function() {
   renderAssignments();
 };
 
-// ── Canonical 2-Theme System ──────────────────────────────────
-const ALL_THEMES = [
-  'paper-slate',
-  'midnight-ink',
-  'dusty-rose',
-  'honeyed-lavender',
-  'apricot-cream'
-];
+// ── Canonical 2-Mode + 4-Accent System ─────────────────────────
+// "Theme" (data-theme) is now the light/dark MODE only; "Accent"
+// (data-accent) is an independent personalization axis that works
+// in both modes, so switching mode never resets a chosen accent.
+const ALL_THEMES = ['paper-slate', 'midnight-ink'];
 
 const THEME_LABELS = {
-  'paper-slate':      'Paper Slate',
-  'midnight-ink':     'Midnight Ink',
-  'dusty-rose':       'Dusty Rose',
-  'honeyed-lavender': 'Honeyed Lavender',
-  'apricot-cream':    'Apricot Cream'
+  'paper-slate':  'Paper Slate',
+  'midnight-ink': 'Midnight Ink'
+};
+
+const ALL_ACCENTS = ['terracotta', 'rose', 'lavender', 'apricot'];
+
+const ACCENT_LABELS = {
+  'terracotta': 'Terracotta',
+  'rose':       'Rose',
+  'lavender':   'Lavender',
+  'apricot':    'Apricot'
+};
+
+// Retired flat 5-theme names (each baked mode+accent into one value)
+// migrate to: mode -> paper-slate, accent -> the mapped color.
+const LEGACY_ACCENT_THEME_MAP = {
+  'dusty-rose':       'rose',
+  'honeyed-lavender': 'lavender',
+  'apricot-cream':    'apricot'
 };
 
 const LEGACY_THEME_MAP = {
@@ -5015,32 +5034,68 @@ const LEGACY_THEME_MAP = {
 function initTheme() {
   const saved = localStorage.getItem(KEY_THEME);
   let theme   = saved;
+  let migratedAccent = null;
+  if (theme && LEGACY_ACCENT_THEME_MAP[theme]) {
+    // Old flat theme (e.g. 'dusty-rose') baked mode+accent together —
+    // split it: mode becomes Paper Slate, accent carries the color.
+    migratedAccent = LEGACY_ACCENT_THEME_MAP[theme];
+    theme = 'paper-slate';
+  }
   if (theme && LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
   if (!theme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     theme = 'midnight-ink';
   }
   theme = theme || 'paper-slate';
   if (!ALL_THEMES.includes(theme)) theme = 'paper-slate';
-  
+
   if (!saved || saved !== theme) {
     localStorage.setItem(KEY_THEME, theme);
   }
-  
+  if (migratedAccent) localStorage.setItem(KEY_ACCENT, migratedAccent);
+
   document.documentElement.setAttribute('data-theme', theme);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
   updateThemeSelector(theme);
 }
 
+function initAccent() {
+  let accent = localStorage.getItem(KEY_ACCENT);
+  if (!accent) {
+    const legacyTheme = localStorage.getItem(KEY_THEME);
+    accent = LEGACY_ACCENT_THEME_MAP[legacyTheme] || null;
+  }
+  if (!accent || !ALL_ACCENTS.includes(accent)) accent = 'terracotta';
+  localStorage.setItem(KEY_ACCENT, accent);
+  document.documentElement.setAttribute('data-accent', accent);
+}
+
+function setAccent(accent, originEvent) {
+  if (!ALL_ACCENTS.includes(accent)) return;
+  document.documentElement.setAttribute('data-accent', accent);
+  localStorage.setItem(KEY_ACCENT, accent);
+
+  // Keep any rendered accent-dot row in sync without a full renderSettings()
+  // rebuild, same efficient pattern as updateThemeSelector()'s swatch sync.
+  document.querySelectorAll('.accent-dot').forEach(dot => {
+    const isMatch = dot.getAttribute('onclick')?.includes(`'${accent}'`);
+    dot.classList.toggle('active', !!isMatch);
+    dot.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+  });
+
+  if (currentUser && db) {
+    db.collection('users').doc(currentUser.uid).set({
+      accent: accent,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(() => {});
+  }
+}
+
 function toggleTheme(originEvent) {
-  // Binary day/night shortcut: flips between Midnight Ink and whichever
-  // light theme (Paper Slate or one of the sweet variants) was last
-  // active, so a quick toggle never discards a chosen light palette.
-  let current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
-  if (LEGACY_THEME_MAP[current]) current = LEGACY_THEME_MAP[current];
-  const next = current === 'midnight-ink'
-    ? (safeGetStorage(KEY_LAST_LIGHT_THEME, 'paper-slate') || 'paper-slate')
-    : 'midnight-ink';
+  // Simple binary day/night switch. Accent is a separate, independent
+  // choice (see setAccent()) so toggling mode never touches it.
+  const current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
+  const next = current === 'midnight-ink' ? 'paper-slate' : 'midnight-ink';
   setTheme(next, originEvent);
 }
 
@@ -5055,7 +5110,6 @@ function setTheme(theme, originEvent) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
     localStorage.setItem(KEY_THEME, theme);
-    if (theme !== 'midnight-ink') safeSetStorage(KEY_LAST_LIGHT_THEME, theme);
     updateThemeSelector(theme);
     // No renderPage() here: every themed value in the page already flows
     // from CSS custom properties, so the DOM needs no rebuild on a theme
@@ -5167,9 +5221,7 @@ function updateThemeSelector(theme) {
   
   const isDark = theme === 'midnight-ink';
   const themeName = THEME_LABELS[theme] || 'Paper Slate';
-  const nextThemeName = isDark
-    ? (THEME_LABELS[safeGetStorage(KEY_LAST_LIGHT_THEME, 'paper-slate')] || 'Paper Slate')
-    : 'Midnight Ink';
+  const nextThemeName = isDark ? 'Paper Slate' : 'Midnight Ink';
   if (btn) {
     btn.setAttribute('aria-label', `Current theme: ${themeName}. Click to switch to ${nextThemeName}.`);
     btn.setAttribute('title', `Switch to ${nextThemeName}`);
@@ -11880,65 +11932,42 @@ function renderSettings() {
 
     <div class="section-heading">${icons.layers()} Appearance</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label" style="margin-bottom:6px">Workspace Environment &amp; Theme</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Five curated study atmospheres designed for maximum focus and visual calm. Saves automatically.</div>
-        <div class="theme-swatch-grid" role="group" aria-label="Theme selection options" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate theme: Warm daylight desk">
+      <div class="form-group" style="margin-bottom:20px">
+        <label class="form-label" style="margin-bottom:6px">Mode</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Light for a daytime desk, dark for focused night study.</div>
+        <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
+          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate: warm daylight desk">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#F6F1E8"></div>
               <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#7A2E3D"></div>
+              <div class="swatch-accent" style="background:#D17A5C"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Paper Slate</span>
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm daylight desk</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink theme: Focused night study">
+          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#171412"></div>
               <div class="swatch-surface" style="background:#221D19"></div>
-              <div class="swatch-accent" style="background:#C97E8C"></div>
+              <div class="swatch-accent" style="background:#DD9470"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Focused night study</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'dusty-rose' ? 'active' : ''}" onclick="setTheme('dusty-rose', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'dusty-rose'}" aria-label="Dusty Rose theme: Mellow and sweet">
-            <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#F6F1E8"></div>
-              <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#A8636A"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Dusty Rose</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Mellow and sweet</span>
-            </div>
-          </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'honeyed-lavender' ? 'active' : ''}" onclick="setTheme('honeyed-lavender', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'honeyed-lavender'}" aria-label="Honeyed Lavender theme: Cozy and soft">
-            <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#F6F1E8"></div>
-              <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#6B5A7E"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Honeyed Lavender</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Cozy and soft</span>
-            </div>
-          </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'apricot-cream' ? 'active' : ''}" onclick="setTheme('apricot-cream', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'apricot-cream'}" aria-label="Apricot Cream theme: Warm and light">
-            <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#F6F1E8"></div>
-              <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#C17F4A"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Apricot Cream</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm and light</span>
-            </div>
-          </button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" style="margin-bottom:6px">Accent color</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Your personal touch — works with either mode above.</div>
+        <div role="group" aria-label="Accent color selection" style="display:flex;gap:16px;flex-wrap:wrap">
+          <button type="button" class="accent-dot ${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta' ? 'active' : ''}" onclick="setAccent('terracotta', event)" aria-pressed="${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta'}" aria-label="Terracotta accent" title="Terracotta" style="--dot-color:#D17A5C"></button>
+          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'rose' ? 'active' : ''}" onclick="setAccent('rose', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'rose'}" aria-label="Rose accent" title="Rose" style="--dot-color:#A8636A"></button>
+          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'lavender' ? 'active' : ''}" onclick="setAccent('lavender', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'lavender'}" aria-label="Lavender accent" title="Lavender" style="--dot-color:#6B5A7E"></button>
+          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'apricot' ? 'active' : ''}" onclick="setAccent('apricot', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'apricot'}" aria-label="Apricot accent" title="Apricot" style="--dot-color:#C17F4A"></button>
         </div>
       </div>
     </div>
@@ -12195,6 +12224,7 @@ function exportData() {
     notificationPrefs:  loadNotifPrefs(),
     noticeChannels:     loadNoticeChannels(),
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
+    accent:             localStorage.getItem(KEY_ACCENT) || 'terracotta',
     exportedAt:         new Date().toISOString(),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -12234,6 +12264,10 @@ function importData(event) {
       if (data.theme) {
         localStorage.setItem(KEY_THEME, data.theme);
         initTheme();
+      }
+      if (data.accent) {
+        localStorage.setItem(KEY_ACCENT, data.accent);
+        initAccent();
       }
 
       updateTopbarProfile();
@@ -13762,6 +13796,7 @@ window.importData       = importData;
 window.confirmClearTasks = confirmClearTasks;
 window.setTheme         = setTheme;
 window.toggleTheme      = toggleTheme;
+window.setAccent        = setAccent;
 window.loginWithGoogle  = loginWithGoogle;
 window.loginWithGoogleRedirect = loginWithGoogleRedirect;
 window.logoutUser       = logoutUser;
@@ -13896,6 +13931,7 @@ window.registerBackgroundPush = registerBackgroundPush;
 // ── Init ──────────────────────────────────────────────────────
 function init() {
   initTheme();
+  initAccent();
   updateTopbarProfile();
   updateLiveClockDisplay(); // populate the topbar clock immediately, don't wait for the first 60s tick
   setupFABDrag();

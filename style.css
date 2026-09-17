@@ -14,10 +14,7 @@
 :root[data-theme="misty-mint"],
 :root[data-theme="paper"],
 :root[data-theme="light"],
-:root[data-theme="stone"],
-:root[data-theme="dusty-rose"],
-:root[data-theme="honeyed-lavender"],
-:root[data-theme="apricot-cream"] {
+:root[data-theme="stone"] {
   color-scheme: light;
 
   /* Layer 1: Primitive Theme Values */
@@ -84,9 +81,9 @@
   --color-error: var(--raw-error);
   --color-info: var(--raw-info);
 
-  --color-hover-fill: rgba(122, 46, 61, 0.06);
-  --color-pressed-fill: rgba(122, 46, 61, 0.10);
-  --color-focus-ring: #7a2e3d;
+  --color-hover-fill: rgba(140, 58, 46, 0.06);
+  --color-pressed-fill: rgba(140, 58, 46, 0.10);
+  --color-focus-ring: #8c3a2e;
   --color-selection: rgba(180, 136, 82, 0.24);
 
   --shadow-sm: var(--raw-shadow-sm);
@@ -196,9 +193,11 @@
   --space-section-gap:  var(--space-24);
 }
 
-/* ── 1b) Sweet variants — same canvas/mustard-accent/sage-success as
-   Paper Slate, only the brand (and its matching focus ring) differs. ── */
-:root[data-theme="dusty-rose"] {
+/* ── 1b) Accents (light mode) — mode is paper-slate/midnight-ink;
+   accent is an independent axis layered on top via [data-accent].
+   Terracotta is the default brand already set above, so it needs
+   no override block here. ── */
+:root[data-theme="paper-slate"][data-accent="rose"] {
   --raw-brand-1: #a8636a;
   --raw-brand-2: #8a4a52;
   --raw-brand-3: #f3dde0;
@@ -206,7 +205,7 @@
   --color-hover-fill: rgba(138, 74, 82, 0.06);
   --color-pressed-fill: rgba(138, 74, 82, 0.10);
 }
-:root[data-theme="honeyed-lavender"] {
+:root[data-theme="paper-slate"][data-accent="lavender"] {
   --raw-brand-1: #6b5a7e;
   --raw-brand-2: #52415f;
   --raw-brand-3: #e6dfec;
@@ -214,7 +213,7 @@
   --color-hover-fill: rgba(82, 65, 95, 0.06);
   --color-pressed-fill: rgba(82, 65, 95, 0.10);
 }
-:root[data-theme="apricot-cream"] {
+:root[data-theme="paper-slate"][data-accent="apricot"] {
   --raw-brand-1: #c17f4a;
   --raw-brand-2: #9c6236;
   --raw-brand-3: #f5e2cd;
@@ -242,9 +241,9 @@
   --raw-ink-3: #9e9387;
   --raw-ink-inverse: #171412;
 
-  --raw-brand-1: #c97e8c;
-  --raw-brand-2: #d494a0;
-  --raw-brand-3: #3a2229;
+  --raw-brand-1: #dd9470;
+  --raw-brand-2: #e8ac8f;
+  --raw-brand-3: #362720;
 
   --raw-accent-1: #d2a56b;
   --raw-accent-2: #e0b983;
@@ -295,9 +294,9 @@
   --color-error: var(--raw-error);
   --color-info: var(--raw-info);
 
-  --color-hover-fill: rgba(201, 126, 140, 0.10);
-  --color-pressed-fill: rgba(201, 126, 140, 0.16);
-  --color-focus-ring: #c97e8c;
+  --color-hover-fill: rgba(221, 148, 112, 0.10);
+  --color-pressed-fill: rgba(221, 148, 112, 0.16);
+  --color-focus-ring: #dd9470;
   --color-selection: rgba(210, 165, 107, 0.26);
 
   --shadow-sm: var(--raw-shadow-sm);
@@ -377,6 +376,33 @@
   --pink:   var(--color-accent);
 
   --focus-ring: var(--color-focus-ring);
+}
+
+/* ── 2b) Accents (dark mode) — Rose reuses Midnight Ink's original
+   pink hue verbatim; Lavender/Apricot are new dark-tuned values. ── */
+:root[data-theme="midnight-ink"][data-accent="rose"] {
+  --raw-brand-1: #c97e8c;
+  --raw-brand-2: #d494a0;
+  --raw-brand-3: #3a2229;
+  --color-focus-ring: #c97e8c;
+  --color-hover-fill: rgba(201, 126, 140, 0.10);
+  --color-pressed-fill: rgba(201, 126, 140, 0.16);
+}
+:root[data-theme="midnight-ink"][data-accent="lavender"] {
+  --raw-brand-1: #b49bc7;
+  --raw-brand-2: #c7b3d6;
+  --raw-brand-3: #2e2635;
+  --color-focus-ring: #b49bc7;
+  --color-hover-fill: rgba(180, 155, 199, 0.10);
+  --color-pressed-fill: rgba(180, 155, 199, 0.16);
+}
+:root[data-theme="midnight-ink"][data-accent="apricot"] {
+  --raw-brand-1: #e6b478;
+  --raw-brand-2: #efc797;
+  --raw-brand-3: #362a1c;
+  --color-focus-ring: #e6b478;
+  --color-hover-fill: rgba(230, 180, 120, 0.10);
+  --color-pressed-fill: rgba(230, 180, 120, 0.16);
 }
 
 /* ── Theme-switch wipe — consumed by setTheme() in app.js ────
@@ -2087,6 +2113,37 @@ a.card:hover,
   color: var(--text-primary);
   text-align: center;
   letter-spacing: -0.01em;
+}
+
+/* ── Accent color dots (independent of light/dark mode above) ── */
+.accent-dot {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border-btn, var(--border));
+  background: var(--dot-color);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.accent-dot:hover {
+  transform: scale(1.08);
+}
+
+.accent-dot.active {
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--dot-color);
+}
+
+.accent-dot:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accent-dot { transition: none; }
 }
 
 .task-edit-btn,
