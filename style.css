@@ -4194,6 +4194,26 @@ body {
   line-height: 1.5;
 }
 
+/* The hero greeting had no mobile-specific size anywhere -- 2.2rem
+   (35px+) applied identically from a phone up to a desktop monitor.
+   With a real name in it ("Good afternoon, Sanghpal.") that's wide
+   enough to wrap to two lines on a phone, and either way it eats a
+   disproportionate chunk of a small screen before any real content
+   (the stat tiles) comes into view. Scaled down to fit real names on
+   one line at common phone widths. */
+@media (max-width: 560px) {
+  .desk-masthead {
+    padding: 20px 0 18px;
+  }
+  .desk-greeting {
+    font-size: 1.6rem;
+    line-height: 1.18;
+  }
+  .desk-greeting-sub {
+    font-size: 0.82rem;
+  }
+}
+
 /* ── 4. Section Headings & Dividers ───────────────────────── */
 .section-heading {
   font-size: 0.72rem;
