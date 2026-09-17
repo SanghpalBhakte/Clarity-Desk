@@ -379,6 +379,40 @@
   --focus-ring: var(--color-focus-ring);
 }
 
+/* ── Theme-switch wipe — consumed by setTheme() in app.js ────
+   app.js already sets --theme-origin-x/y/--theme-radius and
+   toggles .theme-instant on every theme change, but this ruleset
+   was missing, so the switch fell back to the browser's default
+   crossfade with no transition suppression: each element's own
+   hover/press color transition (0.12s-0.3s) kept animating toward
+   its new value underneath that crossfade, so once the crossfade
+   finished a moment later everything visibly jumped/settled a
+   second time. .theme-instant kills those in-flight transitions
+   for the instant applyTheme() runs, and the keyframes replace
+   the default opacity crossfade with the circular reveal the JS
+   was already computing an origin/radius for. ────────────────── */
+.theme-instant, .theme-instant * {
+  transition: none !important;
+}
+::view-transition-group(root) {
+  animation-duration: 0.45s;
+}
+::view-transition-old(root) {
+  animation: none;
+}
+::view-transition-new(root) {
+  animation: theme-wipe-reveal 0.45s ease both;
+}
+@keyframes theme-wipe-reveal {
+  from { clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0)); }
+  to   { clip-path: circle(var(--theme-radius, 150%) at var(--theme-origin-x, 100%) var(--theme-origin-y, 0)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root), ::view-transition-new(root), ::view-transition-old(root) {
+    animation: none !important;
+  }
+}
+
 /* ── Reset & Base ───────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
