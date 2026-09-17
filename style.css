@@ -2,14 +2,9 @@
    Clarity Desk — Canonical 2-Theme Semantic Design System
    1. Paper Slate     (Warm Daylight Desk)
    2. Midnight Ink    (Focused Night Study)
-   ============================================================
-   Fonts (Fredoka, Nunito, JetBrains Mono) load via a <link> in
-   index.html/404.html <head>, not a CSS @import — @import can't be
-   discovered until the browser has already fetched and started
-   parsing this file, so it starts the font request late and makes
-   the swap-in more visible on a cold load. A <link> is discovered
-   immediately during HTML parsing and fetches in parallel instead.
    ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ── 1) Paper Slate — Canonical Daylight Theme ─────────────── */
 :root,
@@ -19,7 +14,10 @@
 :root[data-theme="misty-mint"],
 :root[data-theme="paper"],
 :root[data-theme="light"],
-:root[data-theme="stone"] {
+:root[data-theme="stone"],
+:root[data-theme="dusty-rose"],
+:root[data-theme="honeyed-lavender"],
+:root[data-theme="apricot-cream"] {
   color-scheme: light;
 
   /* Layer 1: Primitive Theme Values */
@@ -62,14 +60,14 @@
 
   --color-text-primary: var(--raw-ink-1);
   --color-text-secondary: var(--raw-ink-2);
-  --color-text-tertiary: #72685a; /* WCAG AA fix: raw-ink-3 (#9c9182) was 2.89:1 on surface, now 4.6-5.1:1 */
+  --color-text-tertiary: var(--raw-ink-3);
   --color-text-inverse: var(--raw-ink-inverse);
 
-  --color-action-primary: #b75534; /* WCAG AA fix: raw-brand-1 (#d17a5c) gave 2.95:1 with white button text, now 4.5:1 */
-  --color-action-primary-hover: #9d4c32; /* darkened to stay visually distinct from the new default above */
+  --color-action-primary: var(--raw-brand-1);
+  --color-action-primary-hover: var(--raw-brand-2);
   --color-action-primary-text: var(--raw-ink-inverse);
   --color-action-secondary: var(--raw-accent-3);
-  --color-action-secondary-hover: #f0dba8;
+  --color-action-secondary-hover: #e7d7c0;
   --color-action-secondary-text: var(--raw-ink-1);
 
   --color-accent: var(--raw-accent-1);
@@ -86,10 +84,10 @@
   --color-error: var(--raw-error);
   --color-info: var(--raw-info);
 
-  --color-hover-fill: rgba(209, 122, 92, 0.08);
-  --color-pressed-fill: rgba(209, 122, 92, 0.14);
-  --color-focus-ring: #b8593b;
-  --color-selection: rgba(217, 160, 78, 0.28);
+  --color-hover-fill: rgba(122, 46, 61, 0.06);
+  --color-pressed-fill: rgba(122, 46, 61, 0.10);
+  --color-focus-ring: #7a2e3d;
+  --color-selection: rgba(180, 136, 82, 0.24);
 
   --shadow-sm: var(--raw-shadow-sm);
   --shadow:    var(--raw-shadow-md);
@@ -97,7 +95,7 @@
   --shadow-lg: var(--raw-shadow-lg);
 
   --radius-card: 20px;
-  --radius-btn: 999px;
+  --radius-btn: 14px;
   --radius-input: 16px;
   --radius-chip: 999px;
   --radius: 18px;
@@ -175,23 +173,6 @@
   --font-mono:     'JetBrains Mono', 'SF Mono', Consolas, Monaco, monospace;
   --font:          var(--font-sans);
 
-  /* Type scale: 9 canonical steps, replacing ~40 ad-hoc inline
-     font-size values that had drifted across the app (e.g. 13
-     near-duplicate sizes crammed between 0.74rem and 0.88rem alone).
-     Chosen from the actual distribution so existing hierarchy is
-     preserved, not flattened - closely-clustered values collapse to
-     one step, while a real hierarchy (label vs. value vs. title)
-     still spans multiple steps. --text-md matches the body base size. */
-  --text-2xs:  0.65rem;
-  --text-xs:   0.72rem;
-  --text-sm:   0.78rem;
-  --text-base: 0.84rem;
-  --text-md:   0.92rem;
-  --text-lg:   1.1rem;
-  --text-xl:   1.3rem;
-  --text-2xl:  1.6rem;
-  --text-hero: 2.2rem;
-
   --sidebar-w: 240px;
   --topbar-h:  56px;
   --nav-h:     60px;
@@ -213,6 +194,33 @@
   /* Semantic aliases (dashboard-scoped for this pass) */
   --space-card-padding: var(--space-14);
   --space-section-gap:  var(--space-24);
+}
+
+/* ── 1b) Sweet variants — same canvas/mustard-accent/sage-success as
+   Paper Slate, only the brand (and its matching focus ring) differs. ── */
+:root[data-theme="dusty-rose"] {
+  --raw-brand-1: #a8636a;
+  --raw-brand-2: #8a4a52;
+  --raw-brand-3: #f3dde0;
+  --color-focus-ring: #8a4a52;
+  --color-hover-fill: rgba(138, 74, 82, 0.06);
+  --color-pressed-fill: rgba(138, 74, 82, 0.10);
+}
+:root[data-theme="honeyed-lavender"] {
+  --raw-brand-1: #6b5a7e;
+  --raw-brand-2: #52415f;
+  --raw-brand-3: #e6dfec;
+  --color-focus-ring: #52415f;
+  --color-hover-fill: rgba(82, 65, 95, 0.06);
+  --color-pressed-fill: rgba(82, 65, 95, 0.10);
+}
+:root[data-theme="apricot-cream"] {
+  --raw-brand-1: #c17f4a;
+  --raw-brand-2: #9c6236;
+  --raw-brand-3: #f5e2cd;
+  --color-focus-ring: #9c6236;
+  --color-hover-fill: rgba(156, 98, 54, 0.06);
+  --color-pressed-fill: rgba(156, 98, 54, 0.10);
 }
 
 /* ── 2) Midnight Ink — Canonical Night Study Theme ─────────── */
@@ -376,112 +384,8 @@
 
 html {
   scroll-behavior: smooth;
-}
-
-/* Suppresses every transition (hover/press states included - see the
-   scattered "transition:" rules throughout this file) for the instant a
-   View Transition-driven theme switch applies the new data-theme, so
-   every element jumps straight to its final color instead of freezing
-   mid-transition in the snapshot the circular wipe (further below)
-   reveals. See setTheme() in app.js for why that freeze happened and
-   what it looked like. Only affects the View Transition path - the
-   legacy .theme-transitioning fallback further below still uses a real,
-   brief transition of its own for browsers without View Transitions. */
-.theme-instant,
-.theme-instant *,
-.theme-instant *::before,
-.theme-instant *::after {
-  transition: none !important;
-}
-
-/* Theme switch: every themed element recolors in lockstep, so no
-   component's own hover/interaction transition (durations scattered
-   from 0.12s to 0.3s across the stylesheet) finishes at a different
-   moment than the rest - that stagger is what first read as a "flash".
-   The class is added just before data-theme flips and removed right
-   after, so normal hover/press transitions are unaffected the rest of
-   the time.
-
-   Duration and easing both matter here, and were measured on-device:
-   Paper Slate's cream and Midnight Ink's near-black are opposite ends
-   of a warm, fairly desaturated ramp, so a plain linear/ease blend at
-   220ms spent ~180ms of that window sitting on a muddy grey midpoint
-   that belongs to neither theme - THAT was the visible "flash", not a
-   re-render. A steep S-curve rushes through the middle instead of
-   dwelling on it, and a shorter 130ms run gives the muddy zone less
-   absolute time to be visible at all; measured together they cut the
-   time spent under 15% saturation from ~180ms to ~30ms. */
-.theme-transitioning,
-.theme-transitioning *,
-.theme-transitioning *::before,
-.theme-transitioning *::after {
-  transition: background-color 0.13s cubic-bezier(0.83, 0, 0.17, 1),
-              color 0.13s cubic-bezier(0.83, 0, 0.17, 1),
-              border-color 0.13s cubic-bezier(0.83, 0, 0.17, 1),
-              box-shadow 0.13s cubic-bezier(0.83, 0, 0.17, 1),
-              fill 0.13s cubic-bezier(0.83, 0, 0.17, 1),
-              stroke 0.13s cubic-bezier(0.83, 0, 0.17, 1) !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .theme-transitioning,
-  .theme-transitioning *,
-  .theme-transitioning *::before,
-  .theme-transitioning *::after {
-    transition: none !important;
-  }
-}
-
-/* Primary theme-switch transition (see setTheme() in app.js): a circular
-   wipe grown from the toggle button, not a crossfade. A plain crossfade
-   (tried first) and the CSS property transition before it both blend
-   old-color and new-color at the same pixel for a color-only swap like
-   this - there's no geometry change to distinguish the techniques. For
-   Paper Slate's cream and Midnight Ink's near-black that blend's midpoint
-   is a muddy, desaturated grey shown across the whole screen at once, and
-   no easing/duration tuning removed that "everything changes together"
-   pop, it only changed how long it took. Turning off both pseudo-elements'
-   default cross-fade animation keeps the old theme's snapshot fully opaque
-   underneath while the new theme's snapshot reveals through a growing
-   clip-path circle on top, so old and new pixels only ever meet at that
-   circle's thin edge - never blended across the full screen.
-
-   The circle is a plain CSS @keyframes animation, not a JS-driven
-   Element.animate() call on a timer. app.js only sets the three
-   --theme-origin-x/-y/-radius custom properties (from the click that
-   triggered the switch) before calling startViewTransition() - the static
-   clip-path below and the animation both apply the instant the browser
-   creates these pseudo-elements, in the same style pass, so there's no
-   window between "pseudo-elements exist" and "the circle has a shape" for
-   a slower device to paint a stray full-screen frame in. A first version
-   set the circle from JS after awaiting transition.ready and calling
-   .animate({pseudoElement}) - on a fast desktop that gap was small enough
-   to rarely paint, but on a phone it was long enough to occasionally show
-   one frame of the new theme fully un-clipped (a flash) before the reveal
-   started, which matched the "flashes more on mobile" report exactly. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-::view-transition-old(root) { z-index: 1; }
-::view-transition-new(root) {
-  z-index: 2;
-  /* Reverted from a transform:scale()-based reveal (see git history):
-     scaling the already-clipped layer doesn't just shrink the clip
-     window, it also scales the CONTENT visible through it toward the
-     origin point, since `transform` affects everything the box paints,
-     not just its clip boundary. That made the whole new-theme page look
-     like it was being zoomed/dragged in from the corner instead of a
-     stationary page being revealed through a growing porthole -- a
-     visual regression, so back to animating clip-path's radius
-     directly, which only moves the window and leaves the content itself
-     completely still underneath it. */
-  clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%));
-  animation: theme-reveal 500ms ease-in-out forwards;
-}
-@keyframes theme-reveal {
-  from { clip-path: circle(0px at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%)); }
-  to   { clip-path: circle(var(--theme-radius, 150%) at var(--theme-origin-x, 100%) var(--theme-origin-y, 0%)); }
+  /* Smooth palette swap — applied only to surface-level tokens */
+  transition: background-color 0.26s ease, color 0.26s ease;
 }
 
 body {
@@ -489,7 +393,7 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   min-height: 100vh;
-  font-size: var(--text-md);
+  font-size: 0.92rem;
   line-height: 1.58;
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
@@ -550,7 +454,7 @@ img { display: block; max-width: 100%; }
   gap: 10px;
   font-family: var(--font-editorial);
   font-weight: 700;
-  font-size: var(--text-lg);
+  font-size: 1.1rem;
   color: var(--text-primary);
   letter-spacing: -0.015em;
   flex-shrink: 0;
@@ -619,7 +523,7 @@ img { display: block; max-width: 100%; }
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-primary);
-  font-size: var(--text-base);
+  font-size: 0.875rem;
   font-family: var(--font);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   outline: none;
@@ -647,26 +551,6 @@ img { display: block; max-width: 100%; }
   gap: 8px;
 }
 
-/* ── Topbar Live Clock ─────────────────────────────────────
-   Present on every page (the topbar itself is outside per-page
-   content), not just the dashboard. Hidden on narrow screens along
-   with the other topbar text this app already sheds there (brand
-   wordmark, theme label) so it never crowds the search field. */
-.topbar-clock {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-@media (max-width: 767px) {
-  .topbar-clock {
-    display: none;
-  }
-}
-
 /* .theme-selector-topbar removed — theme picker moved to Settings */
 
 /* ── Topbar Theme Toggle Button ───────────────────────────── */
@@ -679,7 +563,7 @@ img { display: block; max-width: 100%; }
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-primary);
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   font-family: var(--font);
   cursor: pointer;
@@ -704,7 +588,7 @@ img { display: block; max-width: 100%; }
 }
 
 .theme-toggle-icon {
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -712,7 +596,7 @@ img { display: block; max-width: 100%; }
 }
 
 .theme-toggle-label {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -745,7 +629,7 @@ img { display: block; max-width: 100%; }
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.12s ease;
@@ -776,12 +660,12 @@ img { display: block; max-width: 100%; }
 }
 
 .storage-status-icon {
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   line-height: 1;
 }
 
 .storage-status-label {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -817,7 +701,7 @@ img { display: block; max-width: 100%; }
   display: grid;
   place-items: center;
   color: var(--brand-primary-text, #ffffff);
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: 700;
   flex-shrink: 0;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
@@ -847,7 +731,7 @@ img { display: block; max-width: 100%; }
 }
 
 .sidebar-section-label {
-  font-size: var(--text-2xs);
+  font-size: 0.67rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -861,7 +745,7 @@ img { display: block; max-width: 100%; }
   gap: 10px;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  font-size: var(--text-base);
+  font-size: 0.86rem;
   font-weight: 500;
   color: var(--text-secondary);
   transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
@@ -898,7 +782,7 @@ img { display: block; max-width: 100%; }
   margin-left: auto;
   background: var(--red);
   color: white;
-  font-size: var(--text-2xs);
+  font-size: 0.65rem;
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 999px;
@@ -931,7 +815,7 @@ img { display: block; max-width: 100%; }
 }
 
 .sidebar-semester {
-  font-size: var(--text-2xs);
+  font-size: 0.68rem;
   color: var(--text-muted);
   font-weight: 500;
   line-height: 1.35;
@@ -978,17 +862,18 @@ img { display: block; max-width: 100%; }
 /* ── Bottom Nav (mobile) ──────────────────────────────────── */
 .bottom-nav {
   position: fixed;
-  bottom: 10px; left: 10px; right: 10px;
+  bottom: 0; left: 0; right: 0;
   height: var(--nav-h);
-  background: var(--color-surface);
-  border-radius: 20px;
-  box-shadow: 0 8px 24px -8px rgba(74, 64, 56, 0.28);
+  background: var(--bottomnav-bg);
+  backdrop-filter: var(--bottomnav-blur);
+  -webkit-backdrop-filter: var(--bottomnav-blur);
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-around;
   z-index: 100;
-  padding: 4px 6px;
-  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .bottom-nav-item {
@@ -1000,7 +885,7 @@ img { display: block; max-width: 100%; }
   gap: 4px;
   padding: 8px 4px 6px;
   color: var(--text-muted);
-  font-size: var(--text-2xs);
+  font-size: 0.67rem;
   font-weight: 500;
   transition: color 0.16s ease, transform 0.12s ease;
   cursor: pointer;
@@ -1012,9 +897,7 @@ img { display: block; max-width: 100%; }
 
 .bottom-nav-item.active {
   color: var(--accent);
-  font-weight: 700;
-  background: var(--raw-brand-3);
-  border-radius: var(--radius-sm);
+  font-weight: 600;
 }
 
 .bottom-nav-item .bnav-dot {
@@ -1049,7 +932,7 @@ img { display: block; max-width: 100%; }
 
 .page-title {
   font-family: var(--font-editorial);
-  font-size: var(--text-xl);
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.025em;
@@ -1057,7 +940,7 @@ img { display: block; max-width: 100%; }
 }
 
 .page-subtitle {
-  font-size: var(--text-base);
+  font-size: 0.86rem;
   color: var(--text-muted);
   margin-top: 4px;
   line-height: 1.5;
@@ -1110,21 +993,21 @@ a.card:hover,
 
 .desk-greeting {
   font-family: var(--font-editorial);
-  font-size: var(--text-hero);
-  font-weight: 700;
+  font-size: 2.4rem;
+  font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.05em;
   line-height: 1.08;
 }
 
 /* Name portion of greeting gets a stronger weight marker */
 .desk-greeting .desk-greeting-name {
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .desk-greeting-sub {
-  font-size: var(--text-md);
+  font-size: 0.9rem;
   color: var(--text-secondary);
   margin-top: 8px;
   line-height: 1.52;
@@ -1147,7 +1030,7 @@ a.card:hover,
   gap: 10px;
   flex-wrap: wrap;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: 0.73rem;
   color: var(--text-muted);
   padding: 0;
   border: none;
@@ -1164,7 +1047,7 @@ a.card:hover,
 .desk-ticker-sep {
   color: var(--border-btn, var(--border));
   opacity: 0.4;
-  font-size: var(--text-xs);
+  font-size: 0.7rem;
 }
 
 /* ── Streamlined Desk Vitals Bar (Quiet Horizontal Strip) ─── */
@@ -1179,7 +1062,7 @@ a.card:hover,
   border-radius: var(--radius-sm);
   margin-top: 14px;
   margin-bottom: 20px;
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
 }
 
 .desk-vitals-pill {
@@ -1249,7 +1132,7 @@ a.card:hover,
 }
 
 .vitals-label {
-  font-size: var(--text-2xs);
+  font-size: 0.67rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1261,7 +1144,7 @@ a.card:hover,
 
 .vitals-value {
   font-family: var(--font-mono);
-  font-size: var(--text-2xl);
+  font-size: 1.8rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -1270,7 +1153,7 @@ a.card:hover,
 }
 
 .vitals-sub {
-  font-size: var(--text-xs);
+  font-size: 0.7rem;
   color: var(--text-muted);
   margin-top: 3px;
   line-height: 1.3;
@@ -1278,7 +1161,7 @@ a.card:hover,
 
 @media (max-width: 600px) {
   .vitals-strip { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .vitals-value { font-size: var(--text-xl); }
+  .vitals-value { font-size: 1.5rem; }
 }
 
 /* ── Signature Layout Moment: The Chrono Beacon ──────────── */
@@ -1322,7 +1205,7 @@ a.card:hover,
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1334,7 +1217,7 @@ a.card:hover,
 
 .chrono-beacon-time {
   font-family: var(--font-mono);
-  font-size: var(--text-lg);
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
@@ -1342,14 +1225,14 @@ a.card:hover,
 
 .chrono-beacon-title {
   font-family: var(--font-display);
-  font-size: var(--text-lg);
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
 .chrono-beacon-meta {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -1452,7 +1335,7 @@ a.card:hover,
 
 .schedule-slot-time {
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
   width: 90px;
@@ -1468,7 +1351,7 @@ a.card:hover,
 .schedule-slot-title {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: var(--text-base);
+  font-size: 0.875rem;
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
@@ -1590,13 +1473,13 @@ a.card:hover,
   background: transparent;
   outline: none;
   font-family: var(--font-sans);
-  font-size: var(--text-base);
+  font-size: 0.84rem;
   color: var(--text-primary);
 }
 
 .command-dock-kbd {
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
+  font-size: 0.65rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 3px;
@@ -1647,7 +1530,7 @@ a.card:hover,
 
 /* Panel title: slightly more weight than before — section label not micro-label */
 .panel-title {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -1658,7 +1541,7 @@ a.card:hover,
 }
 
 .panel-action {
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   font-weight: 500;
   color: var(--text-muted);
   background: none;
@@ -1727,19 +1610,19 @@ a.card:hover,
 }
 
 .stat-value {
-  font-size: var(--text-2xl);
+  font-size: 1.6rem;
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.5px;
 }
 
 .stat-label {
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   color: var(--text-muted);
   font-weight: 500;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   .dashboard-grid-2col {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -1753,12 +1636,12 @@ a.card:hover,
 @media (max-width: 600px) {
   .content-area { padding: 16px 12px calc(var(--nav-h) + var(--fab-safe)); }
   .today-hero-surface { padding: 18px 16px; }
-  .greeting-text { font-size: var(--text-xl); }
+  .greeting-text { font-size: 1.25rem; }
 }
 
 /* ── Section Heading ────────────────────────────────────────── */
 .section-heading {
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -1786,7 +1669,7 @@ a.card:hover,
 .tt-tab {
   padding: 6px 14px;
   border-radius: 999px;
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: 500;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -1845,8 +1728,8 @@ a.card:hover,
   text-align: right;
 }
 
-.tt-time-start { font-size: var(--text-base); font-weight: 700; color: var(--text-primary); }
-.tt-time-end   { font-size: var(--text-sm); color: var(--text-muted); margin-top: 2px; }
+.tt-time-start { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.tt-time-end   { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
 .tt-divider {
   width: 2px;
@@ -1861,7 +1744,7 @@ a.card:hover,
 .tt-info { flex: 1; min-width: 0; }
 .tt-subject {
   font-weight: 600;
-  font-size: var(--text-md);
+  font-size: 0.92rem;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -1869,11 +1752,11 @@ a.card:hover,
   transition: color 0.15s ease;
 }
 .tt-subject:hover { color: var(--accent); }
-.tt-meta { font-size: var(--text-sm); color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+.tt-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
 
 /* Type badges use rectangular shape to distinguish from status pills */
 .type-badge {
-  font-size: var(--text-2xs);
+  font-size: 0.64rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1886,7 +1769,7 @@ a.card:hover,
   background: color-mix(in srgb, var(--yellow) 14%, transparent);
   color: var(--yellow);
   border: 1px solid color-mix(in srgb, var(--yellow) 30%, transparent);
-  font-size: var(--text-2xs);
+  font-size: 0.68rem;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 999px;
@@ -1902,7 +1785,7 @@ a.card:hover,
 .preview-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-base);
+  font-size: 0.85rem;
 }
 
 .preview-table th,
@@ -1913,7 +1796,7 @@ a.card:hover,
 }
 
 .preview-table th {
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -1941,7 +1824,7 @@ a.card:hover,
 .filter-chip {
   padding: 5px 12px;
   border-radius: 999px;
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   font-weight: 500;
   border: 1px solid var(--border-btn, var(--border));
   background: var(--surface-2);
@@ -2036,9 +1919,9 @@ a.card:hover,
 }
 
 .assignment-body { flex: 1; min-width: 0; }
-.assignment-subject { font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.assignment-subject { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .assignment-title   {
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
   margin-top: var(--space-2);
@@ -2046,7 +1929,7 @@ a.card:hover,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.assignment-desc    { font-size: var(--text-base); color: var(--text-secondary); margin-top: var(--space-6); line-height: 1.5; }
+.assignment-desc    { font-size: 0.83rem; color: var(--text-secondary); margin-top: var(--space-6); line-height: 1.5; }
 
 .assignment-footer {
   display: flex;
@@ -2060,7 +1943,7 @@ a.card:hover,
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
@@ -2074,7 +1957,7 @@ a.card:hover,
 .due-badge.ongoing { background: color-mix(in srgb, var(--purple) 12%, var(--surface-2)); color: var(--purple); border: 1px solid color-mix(in srgb, var(--purple) 25%, transparent); }
 
 .marks-badge {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   color: var(--text-muted);
   margin-left: auto;
   opacity: 0.85;
@@ -2159,7 +2042,7 @@ a.card:hover,
 .swatch-accent { flex: 1.5; }
 
 .swatch-name {
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--text-primary);
   text-align: center;
@@ -2204,7 +2087,7 @@ a.card:hover,
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-primary);
-  font-size: var(--text-md);
+  font-size: 0.9rem;
   font-family: var(--font);
   outline: none;
   transition: border-color var(--ease), box-shadow var(--ease);
@@ -2218,12 +2101,12 @@ a.card:hover,
 /* ── Notice Sources Linked Cards ────────────────────────────── */
 .notice-sources-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 18px;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   .notice-sources-grid {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -2262,10 +2145,6 @@ a.card:hover,
   border-left: 3.5px solid #25D366;
 }
 
-.notice-source-card.tint-erp {
-  border-left: 3.5px solid var(--blue);
-}
-
 .notice-source-card.tint-devnotes {
   border-left: 3.5px solid var(--yellow);
 }
@@ -2283,7 +2162,7 @@ a.card:hover,
   border-radius: var(--radius-xs, 6px);
   display: grid;
   place-items: center;
-  font-size: var(--text-md);
+  font-size: 1rem;
   flex-shrink: 0;
 }
 
@@ -2297,11 +2176,6 @@ a.card:hover,
   color: #25D366;
 }
 
-.notice-source-icon-erp {
-  background: color-mix(in srgb, var(--blue) 14%, transparent);
-  color: var(--blue);
-}
-
 .notice-source-icon-devnotes {
   background: rgba(245, 158, 11, 0.14);
   color: var(--yellow);
@@ -2309,20 +2183,20 @@ a.card:hover,
 
 .notice-source-title {
   font-weight: 700;
-  font-size: var(--text-md);
+  font-size: 0.9rem;
   color: var(--text-primary);
   line-height: 1.25;
 }
 
 .notice-source-sub {
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   color: var(--text-muted);
   line-height: 1.35;
   margin-top: 2px;
 }
 
 .notice-source-action {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--accent);
   display: flex;
@@ -2347,10 +2221,10 @@ a.card:hover,
 .notice-card.important { border-left: 3px solid var(--red); }
 
 .notice-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.notice-title  { font-weight: 600; font-size: var(--text-md); color: var(--text-primary); }
+.notice-title  { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
 
 .cat-badge {
-  font-size: var(--text-xs); font-weight: 600; padding: 2px 8px; border-radius: 999px; flex-shrink: 0;
+  font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; flex-shrink: 0;
 }
 .cat-Exam     { background: color-mix(in srgb, var(--red) 12%, transparent);  color: var(--red);    }
 .cat-Event    { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
@@ -2360,8 +2234,8 @@ a.card:hover,
 .cat-Placement{ background: color-mix(in srgb, var(--blue) 12%, transparent); color: var(--blue);   }
 .cat-General  { background: color-mix(in srgb, var(--text-secondary) 10%, transparent); color: var(--text-secondary); }
 
-.notice-date    { font-size: var(--text-sm); color: var(--text-muted); margin-top: 6px; }
-.notice-preview { font-size: var(--text-base); color: var(--text-secondary); margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.notice-date    { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; }
+.notice-preview { font-size: 0.83rem; color: var(--text-secondary); margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Notice & Form Modals — Frosted Glass Panel */
 .modal-backdrop {
@@ -2436,7 +2310,7 @@ a.card:hover,
 }
 
 .setup-guide-title {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2445,7 +2319,7 @@ a.card:hover,
 
 .setup-guide-count {
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   color: var(--accent);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -2469,7 +2343,7 @@ a.card:hover,
   text-align: left;
   width: 100%;
   color: var(--text-secondary);
-  font-size: var(--text-base);
+  font-size: 0.86rem;
   font-weight: 500;
   transition: background 0.14s ease, color 0.14s ease;
   outline: none;
@@ -2492,7 +2366,7 @@ a.card:hover,
 }
 
 .setup-step-icon {
-  font-size: var(--text-md);
+  font-size: 0.9rem;
   flex-shrink: 0;
   width: 20px;
   text-align: center;
@@ -2504,7 +2378,7 @@ a.card:hover,
 
 .setup-step-arrow {
   color: var(--accent);
-  font-size: var(--text-base);
+  font-size: 0.82rem;
   opacity: 0.7;
   flex-shrink: 0;
 }
@@ -2553,7 +2427,7 @@ a.card:hover,
 .attendance-action-btn {
   border-radius: var(--radius-sm, 8px);
   padding: 5px 10px;
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -2642,7 +2516,7 @@ a.card:hover,
 .dev-filter-pill {
   padding: 6px 14px;
   border-radius: 999px;
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-muted);
   background: var(--surface);
@@ -2730,7 +2604,7 @@ a.card:hover,
 
 .dev-update-title {
   font-weight: 700;
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   color: var(--text-primary);
   line-height: 1.3;
   flex: 1;
@@ -2745,7 +2619,7 @@ a.card:hover,
 }
 
 .dev-update-tag {
-  font-size: var(--text-2xs);
+  font-size: 0.68rem;
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 999px;
@@ -2755,13 +2629,13 @@ a.card:hover,
 }
 
 .dev-update-date {
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   color: var(--text-muted);
   font-weight: 500;
 }
 
 .dev-update-summary {
-  font-size: var(--text-base);
+  font-size: 0.84rem;
   color: var(--text-secondary);
   line-height: 1.48;
 }
@@ -2772,7 +2646,7 @@ a.card:hover,
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -2792,7 +2666,7 @@ a.card:hover,
 .modal-close {
   float: right;
   color: var(--text-muted);
-  font-size: var(--text-xl);
+  font-size: 1.2rem;
   line-height: 1;
   transition: color var(--ease);
 }
@@ -2822,7 +2696,7 @@ a.card:hover,
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-size: var(--text-md);
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--ease);
@@ -2864,7 +2738,7 @@ a.card:hover,
   gap: 10px;
   padding: 14px 16px;
   font-weight: 700;
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2877,7 +2751,7 @@ a.card:hover,
 }
 
 .link-code {
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
   background: var(--surface-2);
@@ -2925,7 +2799,7 @@ a.card:hover,
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  font-size: var(--text-base);
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--text-primary);
   transition: all var(--ease);
@@ -2969,13 +2843,13 @@ a.card:hover,
 .icon-btn-sm {
   width: 32px;
   height: 32px;
-  font-size: var(--text-base);
+  font-size: 0.85rem;
 }
 
 .icon-btn-xs {
   width: 28px;
   height: 28px;
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
 }
 
 .icon-btn-sm:hover, .icon-btn-xs:hover {
@@ -2994,7 +2868,7 @@ a.card:hover,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent);
   background: var(--accent-dim);
@@ -3034,8 +2908,8 @@ a.card:hover,
   flex-shrink: 0;
 }
 
-.summary-text-main { font-weight: 600; font-size: var(--text-md); }
-.summary-text-sub  { font-size: var(--text-sm); color: var(--text-muted); }
+.summary-text-main { font-weight: 600; font-size: 0.88rem; }
+.summary-text-sub  { font-size: 0.78rem; color: var(--text-muted); }
 
 /* ── Progress Bar ───────────────────────────────────────────── */
 .progress-bar-wrap { background: var(--surface-2); border-radius: 999px; height: 6px; overflow: hidden; }
@@ -3045,7 +2919,7 @@ a.card:hover,
 .fab {
   position: fixed;
   right: 16px;
-  bottom: calc(var(--nav-h) + 22px);
+  bottom: calc(var(--nav-h) + 12px);
   z-index: 90;
   display: flex;
   align-items: center;
@@ -3057,7 +2931,7 @@ a.card:hover,
   color: #fff;
   border-radius: 999px;
   font-weight: 600;
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   box-shadow: 0 4px 16px rgba(23, 20, 18, 0.22);
   cursor: pointer;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), left 0.25s cubic-bezier(0.4, 0, 0.2, 1), right 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease, background 0.25s ease;
@@ -3090,7 +2964,7 @@ a.card:hover,
 }
 
 .modal-title {
-  font-size: var(--text-lg);
+  font-size: 1.05rem;
   font-weight: 700;
 }
 
@@ -3114,7 +2988,7 @@ a.card:hover,
 
 .form-label {
   display: block;
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 6px;
@@ -3138,7 +3012,7 @@ a.card:hover,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
@@ -3158,7 +3032,7 @@ a.card:hover,
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-primary);
-  font-size: var(--text-base);
+  font-size: 0.875rem;
   font-family: var(--font);
   outline: none;
   transition: border-color var(--ease), box-shadow var(--ease), background-color var(--ease);
@@ -3216,7 +3090,7 @@ a.card:hover,
   padding: 0 10px;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border);
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--ease);
@@ -3265,7 +3139,7 @@ a.card:hover,
   gap: 6px;
   padding: 8px 16px;
   border-radius: var(--radius-sm);
-  font-size: var(--text-base);
+  font-size: 0.85rem;
   font-weight: 600;
   font-family: var(--font);
   cursor: pointer;
@@ -3302,13 +3176,13 @@ button:disabled {
 
 .btn-sm {
   padding: 5px 12px;
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   border-radius: var(--radius-xs, 6px);
 }
 
 .btn-xs {
   padding: 3px 8px;
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   border-radius: var(--radius-xs, 6px);
 }
 
@@ -3318,18 +3192,18 @@ button:disabled {
   color: var(--brand-primary-text, #ffffff) !important;
   border-color: transparent;
   border-radius: var(--radius-btn, 12px);
-  box-shadow: 0 1px 3px rgba(74, 64, 56, 0.14), 0 4px 12px -2px rgba(74, 64, 56, 0.16);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 3px 8px rgba(0, 0, 0, 0.08);
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
   color: var(--brand-primary-text, #ffffff) !important;
-  box-shadow: 0 3px 10px -1px rgba(74, 64, 56, 0.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
 }
 
 .btn-primary:active {
   transform: translateY(0.5px) scale(0.97);
-  box-shadow: 0 1px 3px rgba(74, 64, 56, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   filter: brightness(0.96);
 }
 
@@ -3415,27 +3289,6 @@ button:disabled {
 
 .btn-icon:active { transform: scale(0.92); }
 
-/* ============================================================
-   Breakpoint Scale — canonical values, don't add new ones without
-   a documented reason (see the 560px example below).
-
-   Mobile (max-width), scoped near the components they affect:
-     540px  — topbar label/search-field crowding (topbar, storage badge,
-              form-row stacking)
-     560px  — deliberately not 540: tuned so the dashboard rest-day empty
-              state doesn't collide with the floating Add Task button on
-              short phones specifically (see its own comment)
-     600px  — component-level reflow (vitals strip, hero padding, Ask
-              Desk panel, greeting text size)
-     767px  — the mobile side of the 768px desktop switch below (kept at
-              767, not 768, so the two never fire on the same viewport)
-
-   Desktop (min-width), the primary layout system, all below:
-     768px  — sidebar replaces bottom-nav; base desktop spacing
-     1024px — wider content padding, topbar breathing room
-     1100px — dashboard right panel becomes a sticky 2-column layout
-     1280px — maximum comfortable padding on very wide screens
-   ============================================================ */
 /* ── Responsive — Desktop ≥768px ──────────────────────────── */
 @media (min-width: 768px) {
   .sidebar { display: flex; }
@@ -3513,7 +3366,7 @@ button:disabled {
 /* Right panel attendance figure: large printed number, not a card widget */
 .att-stat-figure {
   font-family: var(--font-mono);
-  font-size: var(--text-hero);
+  font-size: 2.4rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -3529,7 +3382,7 @@ button:disabled {
 }
 
 .att-stat-label {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -3538,7 +3391,7 @@ button:disabled {
 }
 
 .att-stat-message {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   color: var(--text-secondary);
   line-height: 1.5;
   margin-top: 6px;
@@ -3551,8 +3404,8 @@ button:disabled {
 .gap-3 { gap: 12px; }
 .mt-1 { margin-top: 4px; }
 .mt-2 { margin-top: 8px; }
-.text-sm { font-size: var(--text-base); }
-.text-xs { font-size: var(--text-sm); }
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
 .text-muted { color: var(--text-muted); }
 .text-accent { color: var(--accent); }
 .font-bold { font-weight: 700; }
@@ -3607,7 +3460,7 @@ button:disabled {
   color: var(--text-primary);
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: var(--text-sm);
+  font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -3652,7 +3505,7 @@ button:disabled {
   gap: 10px;
   padding: 11px 18px;
   border-radius: var(--radius-sm, 8px);
-  font-size: var(--text-base);
+  font-size: 0.85rem;
   font-weight: 600;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   pointer-events: auto;
@@ -3712,14 +3565,14 @@ button:disabled {
 
 .empty-state-title {
   font-weight: 700;
-  font-size: var(--text-lg);
+  font-size: 1.02rem;
   color: var(--text-primary);
   letter-spacing: -0.015em;
   line-height: 1.3;
 }
 
 .empty-state-desc {
-  font-size: var(--text-base);
+  font-size: 0.86rem;
   max-width: 440px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -3734,7 +3587,7 @@ button:disabled {
   border-radius: 999px;
   background: rgba(245, 158, 11, 0.15);
   color: var(--yellow);
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
 }
 
@@ -3815,13 +3668,13 @@ button:disabled {
 }
 .cd-assistant-title {
   font-weight: 700;
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   color: var(--text-primary);
   letter-spacing: -0.2px;
   line-height: 1.2;
 }
 .cd-assistant-subtitle {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 400;
   margin-top: 2px;
@@ -3877,7 +3730,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -3895,14 +3748,14 @@ button:disabled {
   box-shadow: 0 0 0 2px var(--accent-dim);
 }
 .cd-welcome-title {
-  font-size: var(--text-lg);
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.2px;
   line-height: 1.3;
 }
 .cd-welcome-sub {
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -3941,13 +3794,13 @@ button:disabled {
   height: 16px;
 }
 .cd-starter-btn strong {
-  font-size: var(--text-base);
+  font-size: 0.82rem;
   color: var(--text-primary);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 .cd-starter-btn span {
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -3968,7 +3821,7 @@ button:disabled {
 .cd-bubble {
   max-width: 90%;
   padding: 10px 14px;
-  font-size: var(--text-base);
+  font-size: 0.84rem;
   line-height: 1.55;
   word-break: break-word;
 }
@@ -3987,21 +3840,6 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
-/* Dark themes: light-on-dark body copy reads thinner than the same
-   weight does on paper, and the sitewide -0.011em tracking (tuned for
-   large headings) tightens it further at this bubble's small size.
-   Normal tracking + antialiased smoothing keeps the strokes their
-   full weight instead of looking wispy. */
-:root[data-theme="midnight-ink"] .cd-bubble,
-:root[data-theme="espresso-desk"] .cd-bubble,
-:root[data-theme="quiet-dark"] .cd-bubble,
-:root[data-theme="dark"] .cd-bubble,
-:root[data-theme="cafe-night"] .cd-bubble {
-  letter-spacing: normal;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
 .cd-bubble .cd-list {
   margin: 10px 0 0;
   padding: 0;
@@ -4015,16 +3853,16 @@ button:disabled {
   background: var(--surface);
   border-radius: var(--radius-sm, 8px);
   border: 1px solid var(--border);
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
-.cd-item-label { font-weight: 600; color: var(--text-primary); display: block; font-size: var(--text-base); }
-.cd-item-meta  { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; display: block; }
+.cd-item-label { font-weight: 600; color: var(--text-primary); display: block; font-size: 0.82rem; }
+.cd-item-meta  { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; display: block; }
 
 .cd-tag {
   display: inline-flex;
   align-items: center;
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
@@ -4088,7 +3926,7 @@ button:disabled {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -4119,7 +3957,7 @@ button:disabled {
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-primary);
-  font-size: var(--text-base);
+  font-size: 0.85rem;
   font-family: inherit;
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
@@ -4129,7 +3967,7 @@ button:disabled {
   box-shadow: 0 0 0 3px var(--accent-dim);
   background: var(--surface);
 }
-.cd-input::placeholder { color: var(--text-muted); font-size: var(--text-base); }
+.cd-input::placeholder { color: var(--text-muted); font-size: 0.82rem; }
 
 .cd-send-btn {
   width: 38px; height: 38px;
@@ -4157,7 +3995,7 @@ button:disabled {
   background: var(--surface-2);
   color: var(--text-secondary);
   border: 1px solid var(--border);
-  font-size: var(--text-sm);
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s ease;
@@ -4190,7 +4028,7 @@ button:disabled {
 
 /* ── 1. Text Smoothing & High-Legibility Body ─────────────── */
 body {
-  font-size: var(--text-md);
+  font-size: 0.92rem;
   line-height: 1.56;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -4200,14 +4038,14 @@ body {
 
 /* ── 2. Page Header & Editorial Titles ────────────────────── */
 .page-title {
-  font-size: var(--text-xl);
+  font-size: 1.38rem;
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.25;
 }
 
 .page-subtitle {
-  font-size: var(--text-base);
+  font-size: 0.82rem;
   color: var(--color-text-secondary);
   margin-top: 3px;
   line-height: 1.45;
@@ -4224,13 +4062,13 @@ body {
 }
 
 .desk-greeting {
-  font-size: var(--text-hero);
-  letter-spacing: -0.01em;
+  font-size: 2.2rem;
+  letter-spacing: -0.04em;
   line-height: 1.12;
 }
 
 .desk-greeting-sub {
-  font-size: var(--text-base);
+  font-size: 0.86rem;
   color: var(--color-text-secondary);
   margin-top: 6px;
   line-height: 1.5;
@@ -4238,7 +4076,7 @@ body {
 
 /* ── 4. Section Headings & Dividers ───────────────────────── */
 .section-heading {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -4257,7 +4095,7 @@ body {
 }
 
 .panel-title {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -4266,7 +4104,7 @@ body {
 
 /* ── 5. Sidebar Navigation & Zone Rhythm ──────────────────── */
 .sidebar-section-label {
-  font-size: var(--text-2xs);
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -4275,7 +4113,7 @@ body {
 }
 
 .nav-item {
-  font-size: var(--text-base);
+  font-size: 0.86rem;
   font-weight: 500;
   color: var(--color-text-secondary);
 }
@@ -4285,14 +4123,14 @@ body {
 }
 
 .nav-item.active {
-  background: var(--color-surface);
+  background: var(--color-hover-fill);
   color: var(--color-action-primary);
-  font-weight: 700;
+  font-weight: 600;
   border-left-color: var(--color-action-primary);
 }
 
 .sidebar-semester {
-  font-size: var(--text-xs);
+  font-size: 0.70rem;
   color: var(--color-text-tertiary);
 }
 
@@ -4311,7 +4149,7 @@ body {
   border: 1px solid var(--color-border-subtle);
   border-radius: 999px;
   color: var(--color-text-secondary);
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s ease;
@@ -4336,7 +4174,7 @@ body {
 }
 
 .filter-chip {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--color-text-secondary);
 }
@@ -4348,7 +4186,7 @@ body {
 }
 
 .desk-vitals-pill {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
@@ -4366,7 +4204,7 @@ body {
 
 /* ── 8. Task Cards & Completed States ─────────────────────── */
 .assignment-subject {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-text-tertiary);
   text-transform: uppercase;
@@ -4374,7 +4212,7 @@ body {
 }
 
 .assignment-title {
-  font-size: var(--text-md);
+  font-size: 0.94rem;
   font-weight: 600;
   margin-top: var(--space-2);
 }
@@ -4389,26 +4227,26 @@ body {
 
 /* ── 9. Timetable Schedule & Day Tabs ─────────────────────── */
 .tt-meta {
-  font-size: var(--text-sm);
+  font-size: 0.78rem;
   color: var(--color-text-secondary);
   margin-top: 2px;
   line-height: 1.35;
 }
 
 .tt-subject {
-  font-size: var(--text-md);
+  font-size: 0.92rem;
   font-weight: 600;
 }
 
 .type-badge {
-  font-size: var(--text-2xs);
+  font-size: 0.64rem;
   font-weight: 700;
   padding: var(--space-2) var(--space-6);
   letter-spacing: 0.06em;
 }
 
 .tt-tab {
-  font-size: var(--text-sm);
+  font-size: 0.80rem;
   font-weight: 500;
   color: var(--color-text-secondary);
 }
@@ -4433,22 +4271,22 @@ body {
 }
 
 .notice-title {
-  font-size: var(--text-md);
+  font-size: 0.92rem;
   font-weight: 600;
 }
 
 .notice-date {
-  font-size: var(--text-xs);
+  font-size: 0.74rem;
   color: var(--color-text-tertiary);
 }
 
 .link-subject-header {
-  font-size: var(--text-md);
+  font-size: 0.92rem;
   font-weight: 700;
 }
 
 .link-code {
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--color-text-tertiary);
   letter-spacing: 0.04em;
@@ -4458,20 +4296,20 @@ body {
 
 /* ── 11. Right-Rail Attendance Stats ──────────────────────── */
 .att-stat-figure {
-  font-size: var(--text-hero);
+  font-size: 2.2rem;
   font-weight: 700;
   letter-spacing: -0.04em;
 }
 
 .att-stat-label {
-  font-size: var(--text-xs);
+  font-size: 0.70rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--color-text-tertiary);
 }
 
 .att-stat-message {
-  font-size: var(--text-sm);
+  font-size: 0.80rem;
   color: var(--color-text-secondary);
   line-height: 1.45;
 }
@@ -4480,7 +4318,7 @@ body {
 .fab {
   background: var(--color-action-primary);
   color: var(--color-action-primary-text);
-  font-size: var(--text-md);
+  font-size: 0.90rem;
   font-weight: 600;
   padding: 10px 18px;
   box-shadow: var(--shadow-md);
@@ -4501,18 +4339,18 @@ body {
 }
 
 .chrono-beacon-title {
-  font-size: var(--text-lg);
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .chrono-beacon-meta {
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   color: var(--color-text-secondary);
 }
 
 .form-label {
-  font-size: var(--text-sm);
+  font-size: 0.80rem;
   font-weight: 600;
   color: var(--color-text-secondary);
 }
@@ -4526,7 +4364,7 @@ body {
 
 .tt-time-start {
   font-family: var(--font-sans);
-  font-size: var(--text-base);
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -4535,7 +4373,7 @@ body {
 
 .tt-time-end {
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
+  font-size: 0.72rem;
   color: var(--color-text-tertiary);
   margin-top: 2px;
   white-space: nowrap;
@@ -4543,7 +4381,7 @@ body {
 
 .schedule-slot-time {
   font-family: var(--font-sans);
-  font-size: var(--text-sm);
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--color-text-secondary);
   width: 145px;
@@ -4554,7 +4392,7 @@ body {
 
 .chrono-beacon-time {
   font-family: var(--font-sans);
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.015em;
@@ -4733,35 +4571,6 @@ body::before {
   font-variation-settings: 'opsz' 20;
 }
 
-/* Dark themes: the paper "sheen" emboss (bright highlight below +
-   dark shadow above) was tuned for Paper Slate's muted ink - on
-   near-white hero text over a near-black ground it reads as a
-   doubled, blurred edge instead of a subtle bevel. Bold editorial
-   headings also carry their full 700 weight worse here: light
-   strokes on a dark ground optically swell (irradiation), closing
-   up Fredoka's already-round counters. Drop the sheen and ease the
-   weight back a notch so characters stay distinct. */
-:root[data-theme="midnight-ink"] .desk-greeting,
-:root[data-theme="espresso-desk"] .desk-greeting,
-:root[data-theme="quiet-dark"] .desk-greeting,
-:root[data-theme="dark"] .desk-greeting,
-:root[data-theme="cafe-night"] .desk-greeting {
-  text-shadow: none;
-  font-weight: 600;
-}
-:root[data-theme="midnight-ink"] .chrono-beacon-title,
-:root[data-theme="espresso-desk"] .chrono-beacon-title,
-:root[data-theme="quiet-dark"] .chrono-beacon-title,
-:root[data-theme="dark"] .chrono-beacon-title,
-:root[data-theme="cafe-night"] .chrono-beacon-title,
-:root[data-theme="midnight-ink"] .page-title,
-:root[data-theme="espresso-desk"] .page-title,
-:root[data-theme="quiet-dark"] .page-title,
-:root[data-theme="dark"] .page-title,
-:root[data-theme="cafe-night"] .page-title {
-  font-weight: 600;
-}
-
 /* A quiet italic cut for the context line under the greeting —
    gives the sub-line an editorial "caption" voice instead of
    reading as a generic muted paragraph. */
@@ -4771,28 +4580,46 @@ body::before {
   font-variation-settings: 'opsz' 14;
   font-style: italic;
   font-weight: 500;
-  font-size: var(--text-md);
+  font-size: 0.95rem;
   color: var(--text-secondary);
 }
 
-/* ── 3. The Chrono Beacon: one clean surface with a soft paper
-   shadow and a gentle lift on hover. This used to layer two
-   rotated ::before/::after "sheets" behind the card to suggest a
-   stack of paper -- direct user feedback was that it read as
-   several overlapping cards / a rendering glitch, not a stack of
-   paper, so that's gone. The left accent border + icon badge
-   already give it enough presence next to the plain vitals tiles
-   above it without the extra layers. ──────────────────────── */
+/* ── 3. The signature moment: Chrono Beacon becomes a real
+   stacked-paper card — two faint offset sheets peeking out
+   behind the top sheet, a soft top sheen, and a gentle
+   perspective tilt on hover. All transform-only, GPU-cheap,
+   no JS, no layout thrash. ──────────────────────────────── */
 .chrono-beacon {
-  overflow: hidden;
+  overflow: visible;
   border-left-width: 4px;
   box-shadow:
     inset 0 1px 0 var(--sheen-top),
     var(--shadow-paper-md);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transform: perspective(900px) rotateX(0deg) translateZ(0);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  will-change: transform;
+}
+.chrono-beacon::before,
+.chrono-beacon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  z-index: -1;
+  pointer-events: none;
+}
+.chrono-beacon::before {
+  transform: rotate(-0.3deg) translate(-5px, 6px);
+  opacity: 0.6;
+}
+.chrono-beacon::after {
+  transform: rotate(0.22deg) translate(6px, 7px);
+  opacity: 0.35;
 }
 .chrono-beacon:hover {
-  transform: translateY(-2px);
+  transform: perspective(900px) rotateX(1.6deg) translateY(-3px) translateZ(0);
   box-shadow:
     inset 0 1px 0 var(--sheen-top),
     var(--shadow-paper-lg);
@@ -4800,7 +4627,12 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .chrono-beacon { transition: none; }
 }
+/* Sheets would clip against the tight mobile gutters — pull
+   them in rather than hide them, so the depth cue survives. */
 @media (max-width: 560px) {
+  .chrono-beacon::before { transform: rotate(-0.25deg) translate(-2px, 3px); }
+  .chrono-beacon::after  { transform: rotate(0.18deg) translate(3px, 4px); }
+
   /* The rest-day empty state sits right above the floating Add
      Task button on short mobile viewports — trim its padding so
      the two never touch. */
@@ -4855,7 +4687,7 @@ body::before {
 }
 .nav-item.active {
   border-left-color: transparent;
-  box-shadow: var(--shadow-paper-sm);
+  box-shadow: inset 0 1px 0 var(--sheen-top);
 }
 .nav-item.active::before {
   content: '';
@@ -4866,7 +4698,6 @@ body::before {
   width: 3px;
   border-radius: 999px;
   background: var(--accent);
-  display: none;
 }
 
 .topbar {

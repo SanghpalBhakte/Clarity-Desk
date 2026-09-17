@@ -20,6 +20,7 @@ const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
 const KEY_HIDDEN_SUBJECTS     = 'cos_hidden_subjects';
 const KEY_SUBJECT_DELETE_SILENT = 'cos_subject_delete_silent';
+const KEY_LAST_LIGHT_THEME    = 'cos_last_light_theme';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
@@ -4947,8 +4948,19 @@ window.resetAssignmentFilters = function() {
 // ── Canonical 2-Theme System ──────────────────────────────────
 const ALL_THEMES = [
   'paper-slate',
-  'midnight-ink'
+  'midnight-ink',
+  'dusty-rose',
+  'honeyed-lavender',
+  'apricot-cream'
 ];
+
+const THEME_LABELS = {
+  'paper-slate':      'Paper Slate',
+  'midnight-ink':     'Midnight Ink',
+  'dusty-rose':       'Dusty Rose',
+  'honeyed-lavender': 'Honeyed Lavender',
+  'apricot-cream':    'Apricot Cream'
+};
 
 const LEGACY_THEME_MAP = {
   // Retired theme remapping
@@ -5003,10 +5015,14 @@ function initTheme() {
 }
 
 function toggleTheme(originEvent) {
+  // Binary day/night shortcut: flips between Midnight Ink and whichever
+  // light theme (Paper Slate or one of the sweet variants) was last
+  // active, so a quick toggle never discards a chosen light palette.
   let current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
   if (LEGACY_THEME_MAP[current]) current = LEGACY_THEME_MAP[current];
-  const nextIdx = (ALL_THEMES.indexOf(current) + 1) % ALL_THEMES.length;
-  const next    = ALL_THEMES[nextIdx];
+  const next = current === 'midnight-ink'
+    ? (safeGetStorage(KEY_LAST_LIGHT_THEME, 'paper-slate') || 'paper-slate')
+    : 'midnight-ink';
   setTheme(next, originEvent);
 }
 
@@ -5021,6 +5037,7 @@ function setTheme(theme, originEvent) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
     localStorage.setItem(KEY_THEME, theme);
+    if (theme !== 'midnight-ink') safeSetStorage(KEY_LAST_LIGHT_THEME, theme);
     updateThemeSelector(theme);
     // No renderPage() here: every themed value in the page already flows
     // from CSS custom properties, so the DOM needs no rebuild on a theme
@@ -5131,8 +5148,10 @@ function updateThemeSelector(theme) {
   const label = document.getElementById('theme-toggle-label');
   
   const isDark = theme === 'midnight-ink';
-  const themeName = isDark ? 'Midnight Ink' : 'Paper Slate';
-  const nextThemeName = isDark ? 'Paper Slate' : 'Midnight Ink';
+  const themeName = THEME_LABELS[theme] || 'Paper Slate';
+  const nextThemeName = isDark
+    ? (THEME_LABELS[safeGetStorage(KEY_LAST_LIGHT_THEME, 'paper-slate')] || 'Paper Slate')
+    : 'Midnight Ink';
   if (btn) {
     btn.setAttribute('aria-label', `Current theme: ${themeName}. Click to switch to ${nextThemeName}.`);
     btn.setAttribute('title', `Switch to ${nextThemeName}`);
@@ -11845,7 +11864,7 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label" style="margin-bottom:6px">Workspace Environment &amp; Theme</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Two curated study atmospheres designed for maximum focus and visual calm. Saves automatically.</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Five curated study atmospheres designed for maximum focus and visual calm. Saves automatically.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Theme selection options" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
           <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate theme: Warm daylight desk">
             <div class="swatch-preview" aria-hidden="true">
@@ -11867,6 +11886,39 @@ function renderSettings() {
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Focused night study</span>
+            </div>
+          </button>
+          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'dusty-rose' ? 'active' : ''}" onclick="setTheme('dusty-rose', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'dusty-rose'}" aria-label="Dusty Rose theme: Mellow and sweet">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:#F6F1E8"></div>
+              <div class="swatch-surface" style="background:#FFFDFC"></div>
+              <div class="swatch-accent" style="background:#A8636A"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">Dusty Rose</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Mellow and sweet</span>
+            </div>
+          </button>
+          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'honeyed-lavender' ? 'active' : ''}" onclick="setTheme('honeyed-lavender', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'honeyed-lavender'}" aria-label="Honeyed Lavender theme: Cozy and soft">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:#F6F1E8"></div>
+              <div class="swatch-surface" style="background:#FFFDFC"></div>
+              <div class="swatch-accent" style="background:#6B5A7E"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">Honeyed Lavender</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Cozy and soft</span>
+            </div>
+          </button>
+          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'apricot-cream' ? 'active' : ''}" onclick="setTheme('apricot-cream', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'apricot-cream'}" aria-label="Apricot Cream theme: Warm and light">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:#F6F1E8"></div>
+              <div class="swatch-surface" style="background:#FFFDFC"></div>
+              <div class="swatch-accent" style="background:#C17F4A"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">Apricot Cream</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm and light</span>
             </div>
           </button>
         </div>
