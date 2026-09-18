@@ -6,8 +6,8 @@
   "id": "/clarity-desk",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#F6F1E8",
-  "theme_color": "#F6F1E8",
+  "background_color": "#171412",
+  "theme_color": "#171412",
   "icons": [
     {
       "src": "./icon-192.png",

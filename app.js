@@ -10380,6 +10380,51 @@ function confirmExecuteRestore() {
   }
 }
 
+// Manual bulk-select delete: the garbled-name heuristic is intentionally
+// conservative (see isLikelyGarbledSubjectName) and will always miss some
+// real-world OCR garbage -- dictionary-word collisions, mis-stitched OCR
+// fragments, near-duplicate codes for the same subject. Auto-detection
+// ("Declutter my desk") can't be made to catch every case without a real
+// subject dictionary, so this gives a direct, reliable way to wipe any
+// card(s) regardless of what pattern they match, reusing the same safe
+// per-subject deletion permanentlyDeleteSubject() already uses.
+let subjectManageMode = false;
+
+window.toggleSubjectManageMode = function() {
+  subjectManageMode = !subjectManageMode;
+  renderPage(state.currentPage);
+};
+
+window.toggleSubjectCheckbox = function(event, cardEl) {
+  const checkbox = cardEl.querySelector('.subject-select-checkbox');
+  if (!checkbox) return;
+  if (event.target !== checkbox) checkbox.checked = !checkbox.checked;
+  cardEl.style.outline = checkbox.checked ? '2px solid var(--accent)' : 'none';
+  cardEl.style.outlineOffset = checkbox.checked ? '-2px' : '0';
+  const count = document.querySelectorAll('.subject-select-checkbox:checked').length;
+  const bar = document.getElementById('subject-bulk-actionbar');
+  if (bar) {
+    const label = bar.querySelector('.subject-bulk-count');
+    if (label) label.textContent = `${count} selected`;
+    const btn = bar.querySelector('.subject-bulk-delete-btn');
+    if (btn) btn.disabled = count === 0;
+  }
+};
+
+window.deleteSelectedSubjects = function() {
+  const checked = Array.from(document.querySelectorAll('.subject-select-checkbox:checked'));
+  if (!checked.length) return;
+  const names = checked.map(c => c.getAttribute('data-subject'));
+  const proceed = confirm(`Delete ${names.length} subject${names.length !== 1 ? 's' : ''} permanently?\n\n${names.join(', ')}\n\nThis removes each one's timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`);
+  if (!proceed) return;
+
+  names.forEach(n => permanentlyDeleteSubject(n));
+
+  subjectManageMode = false;
+  renderPage(state.currentPage);
+  showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
+};
+
 function renderSubjects() {
   const el = document.getElementById('page-subjects');
   if (!el) return;
@@ -10437,8 +10482,12 @@ function renderSubjectsOverview(el, subjects) {
     const attLabel = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : '—';
 
     return `
-      <div class="card attendance-subject-card" style="position:relative;padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="openSubjectHub('${s.name}')" title="Open ${s.name} Hub">
-        <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:-2px;right:-2px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6;background:transparent;border:none">✕</button>
+      <div class="card attendance-subject-card" style="position:relative;padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
+        ${subjectManageMode ? `
+          <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))" style="position:absolute;top:10px;right:10px;width:22px;height:22px;cursor:pointer;accent-color:var(--accent)">
+        ` : `
+          <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:-2px;right:-2px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6;background:transparent;border:none">✕</button>
+        `}
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);padding-right:20px">${s.name}</div>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
 
@@ -10472,6 +10521,9 @@ function renderSubjectsOverview(el, subjects) {
         <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch subject cards">
           ${icons.declutter()} Declutter my desk
         </button>
+        <button class="btn btn-secondary" onclick="toggleSubjectManageMode()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Manually select any subject card(s) to remove -- use this for garbled scan text auto-detection misses">
+          ${subjectManageMode ? '✕ Cancel selecting' : '☑️ Select to remove'}
+        </button>
         <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
           ${icons.camera()} Scan from Photo
         </button>
@@ -10480,6 +10532,18 @@ function renderSubjectsOverview(el, subjects) {
         </button>
       </div>
     </div>
+
+    ${subjectManageMode ? `
+      <div id="subject-bulk-actionbar" class="card" style="padding:10px 16px;margin-bottom:14px;background:var(--surface-2);border-left:3px solid var(--accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="font-size:var(--text-sm);color:var(--text-secondary)">
+          Tap any card below to select it &mdash; works for any garbage text, not just what auto-detect catches. <span class="subject-bulk-count" style="font-weight:700;color:var(--text-primary)">0 selected</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-secondary" onclick="toggleSubjectManageMode()">Cancel</button>
+          <button class="subject-bulk-delete-btn btn btn-sm btn-primary" onclick="deleteSelectedSubjects()" disabled style="background:var(--status-error, #c0392b);border-color:var(--status-error, #c0392b)">🗑️ Delete Selected</button>
+        </div>
+      </div>
+    ` : ''}
 
     ${hasPollution ? `
       <div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--surface-2);border-left:3px solid var(--yellow);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
