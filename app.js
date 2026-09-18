@@ -300,6 +300,25 @@ function showToast(msg, type = 'info') {
   }, 3200);
 }
 
+// One-tap "a new version is ready" banner, shown when the service worker
+// detects an update -- unlike showToast() this does not auto-dismiss,
+// since the user should decide when it's a good moment to reload.
+function showUpdateAvailableBanner() {
+  if (document.getElementById('update-available-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'update-available-banner';
+  banner.setAttribute('role', 'status');
+  banner.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h, 60px) + 12px);z-index:9999;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 4px 18px rgba(0,0,0,0.18);font-size:0.875rem;color:var(--text-primary)';
+  banner.innerHTML = `
+    <span>✨ A new version of Clarity Desk is ready.</span>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button type="button" onclick="document.getElementById('update-available-banner')?.remove()" style="background:none;border:none;color:var(--text-muted);font-size:0.875rem;padding:4px 8px;cursor:pointer">Later</button>
+      <button type="button" onclick="window.location.reload()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;padding:6px 14px;font-size:0.875rem;cursor:pointer">Refresh</button>
+    </div>
+  `;
+  document.body.appendChild(banner);
+}
+
 function updateSyncUI(status = null) {
   const icon = document.getElementById('sync-icon');
   const text = document.getElementById('sync-text');
@@ -14045,6 +14064,22 @@ function init() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       reg.update();
+
+      // A new SW version can finish installing while this page is still
+      // open (common on mobile, where the app is backgrounded rather than
+      // fully closed for long stretches) -- without this, the update just
+      // sits ready-but-inactive until the user happens to fully close and
+      // reopen the app. Surface a one-tap "Refresh" banner instead, so a
+      // fresh deploy never requires an uninstall/reinstall.
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateAvailableBanner();
+          }
+        });
+      });
     }).catch(err => {
       console.warn('ServiceWorker registration skipped or failed:', err);
     });
