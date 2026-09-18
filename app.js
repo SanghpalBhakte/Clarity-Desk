@@ -4568,8 +4568,17 @@ function handleNoticeSourceClick(targetKey) {
 function loadCustomLinks() {
   const saved = safeGetStorage(KEY_CUSTOM_LINKS, null);
   if (Array.isArray(saved)) return saved;
-  // Seed defaults from data.js on first load
-  return JSON.parse(JSON.stringify(QUICK_LINKS));
+  // QUICK_LINKS in data.js is this app's own author's personal SY-AIDS
+  // resource bookmarks -- only seed it for a user who explicitly opted
+  // into that same official timetable during onboarding (reuses the same
+  // flag loadTimetable() checks). Previously this seeded every visitor
+  // regardless of course, showing one student's own subjects/links to
+  // everyone who installs the app.
+  const choice = safeGetStorage(KEY_TIMETABLE_CHOICE, null);
+  if (choice === 'aids') {
+    return JSON.parse(JSON.stringify(QUICK_LINKS));
+  }
+  return [];
 }
 
 function saveCustomLinks(links) {
@@ -7559,6 +7568,11 @@ function getSubjectList(options = {}) {
     if (!cleanRaw || /^(off|lunch|break|holiday|recess|free)$/i.test(cleanRaw)) return null;
 
     const canonicalName = getCanonicalSubjectName(cleanRaw);
+    // Applied once here so every source below (timetable, tasks, quick
+    // links, attendance baselines) is protected the same way -- a garbled
+    // OCR name that got saved via any of those paths (not just a scanned
+    // timetable slot) is kept out of the picker just the same.
+    if (isLikelyGarbledSubjectName(canonicalName)) return null;
     const canonicalCode = getCanonicalSubjectCode(cleanRaw, rawCode);
     const key = getCanonicalSubjectKey(canonicalName);
     if (!key) return null;
@@ -7585,11 +7599,9 @@ function getSubjectList(options = {}) {
   if (includeTimetable) {
     [1, 2, 3, 4, 5, 6, 0].forEach(d => {
       (liveTT[d] || []).forEach(c => {
-        // Scanned/OCR timetable slots are the entry point for garbled
-        // subject names (see isLikelyGarbledSubjectName). Manually
-        // created tasks/quick-links/baselines below are never filtered
-        // here, so hand-entered subjects keep working exactly as before.
-        if (isTeachingClass(c) && c.subject && !isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) {
+        // Garbled-name filtering now happens once, inside getOrCreateSubject
+        // itself, so it covers every source below uniformly.
+        if (isTeachingClass(c) && c.subject) {
           const item = getOrCreateSubject(c.subject, c.code, c.type, c.teacher, c.room, c.color);
           if (item) {
             item.slots.push({
