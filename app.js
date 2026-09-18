@@ -9840,6 +9840,7 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
   const archivedSlots = [];
   const subjectMap = new Map();
   const remappedBaselines = [];
+  const droppedGarbledBaselines = [];
   const mergedSubjects = new Map();
   // Real existing-subject list (not []) so this normalization pass can
   // reconcile OCR/typo variants against subjects the user already has.
@@ -9917,10 +9918,19 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
   Object.entries(liveBaselines || {}).forEach(([oldKey, oldVal]) => {
     const rawSubj = oldVal.subjectName || oldKey;
     const norm = normalizeSubjectIdentity(rawSubj, survivingList);
-    const matched = survivingList.find(s => 
-      s.name.toLowerCase() === norm.canonicalName.toLowerCase() || 
+    const matched = survivingList.find(s =>
+      s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
       (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
     );
+
+    // A baseline that doesn't match any real surviving subject AND whose
+    // own name is garbled OCR noise (see isLikelyGarbledSubjectName) is
+    // an attendance count for a subject that never really existed --
+    // drop it instead of remapping it under an equally garbled key.
+    if (!matched && isLikelyGarbledSubjectName(norm.canonicalName || rawSubj)) {
+      droppedGarbledBaselines.push({ oldKey, subjectName: rawSubj });
+      return;
+    }
 
     const targetKey = matched ? (matched.code || matched.name) : (norm.canonicalCode || norm.canonicalName || oldKey);
     const targetName = matched ? matched.name : (norm.canonicalName || rawSubj);
@@ -10032,9 +10042,14 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
 
   const links = safeGetStorage(KEY_CUSTOM_LINKS, []);
   let affectedLinksCount = 0;
+  const removedGarbledLinks = [];
   if (Array.isArray(links)) {
     links.forEach(l => {
       if (!l.subject) return;
+      if (isLikelyGarbledSubjectName(getCanonicalSubjectName(l.subject))) {
+        removedGarbledLinks.push({ subject: l.subject });
+        return;
+      }
       const norm = normalizeSubjectIdentity(l.subject, survivingList);
       const matched = survivingList.find(s => 
         s.name.toLowerCase() === l.subject.toLowerCase() || 
@@ -10054,11 +10069,13 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
     archivedSlots,
     mergedSubjects: Array.from(mergedSubjects.entries()).map(([k, v]) => ({ canonicalName: k, rawSources: Array.from(v) })),
     remappedBaselines,
+    droppedGarbledBaselines,
     remappedDailyLogs,
     unmatchedDailyLogs,
     totalDailyLogsCount,
     affectedTasksCount,
-    affectedLinksCount
+    affectedLinksCount,
+    removedGarbledLinks
   };
 }
 
@@ -10159,6 +10176,18 @@ function renderDeclutterPreviewModal(plan, userBatch) {
             🛡️ <strong>Data Safety:</strong> ${plan.unmatchedDailyLogs.length} unassociated check-in logs were safely retained without modification.
           </div>
         ` : ''}
+
+        ${(plan.removedGarbledLinks && plan.removedGarbledLinks.length > 0) || (plan.droppedGarbledBaselines && plan.droppedGarbledBaselines.length > 0) ? `
+          <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
+            ⚠️ Garbled Scan Data Removed
+          </div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
+            ${plan.removedGarbledLinks.length > 0 ? `${plan.removedGarbledLinks.length} quick link${plan.removedGarbledLinks.length !== 1 ? 's' : ''} filed under unreadable scan text (e.g. "${plan.removedGarbledLinks[0].subject}")` : ''}
+            ${plan.removedGarbledLinks.length > 0 && plan.droppedGarbledBaselines.length > 0 ? ' and ' : ''}
+            ${plan.droppedGarbledBaselines.length > 0 ? `${plan.droppedGarbledBaselines.length} attendance baseline${plan.droppedGarbledBaselines.length !== 1 ? 's' : ''} for an unreadable subject name` : ''}
+            will be removed. Your other quick links, tasks, and attendance stay untouched.
+          </div>
+        ` : ''}
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--border)">
@@ -10228,20 +10257,24 @@ function executeDeclutterPlan(plan, userBatch) {
     safeSetStorage(KEY_CUSTOM_TASKS, updatedTasks);
   }
 
-  // 6. Remap custom links
+  // 6. Remap custom links, dropping garbled-name ones entirely (a
+  // resource bookmark filed under OCR noise like "ADzeame" is not
+  // recoverable data -- it never pointed at a real subject).
   const links = safeGetStorage(KEY_CUSTOM_LINKS, []);
   if (Array.isArray(links) && links.length > 0) {
-    const updatedLinks = links.map(l => {
-      if (!l.subject) return l;
-      const norm = normalizeSubjectIdentity(l.subject, plan.survivingSubjects);
-      const matched = plan.survivingSubjects.find(s => 
-        s.name.toLowerCase() === l.subject.toLowerCase() || 
-        (s.code && s.code.toLowerCase() === l.subject.toLowerCase()) ||
-        s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
-        (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
-      );
-      return matched ? { ...l, subject: matched.name } : l;
-    });
+    const updatedLinks = links
+      .filter(l => !(l.subject && isLikelyGarbledSubjectName(getCanonicalSubjectName(l.subject))))
+      .map(l => {
+        if (!l.subject) return l;
+        const norm = normalizeSubjectIdentity(l.subject, plan.survivingSubjects);
+        const matched = plan.survivingSubjects.find(s =>
+          s.name.toLowerCase() === l.subject.toLowerCase() ||
+          (s.code && s.code.toLowerCase() === l.subject.toLowerCase()) ||
+          s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
+          (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
+        );
+        return matched ? { ...l, subject: matched.name } : l;
+      });
     safeSetStorage(KEY_CUSTOM_LINKS, updatedLinks);
   }
 
