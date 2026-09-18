@@ -1421,6 +1421,41 @@ function getCanonicalSubjectKey(rawText) {
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Detects a canonical subject NAME that is almost certainly OCR/scan
+// garbage rather than a real course name, using cheap, conservative
+// signals chosen to avoid flagging genuine (if unusual) subject names:
+//  - a word with an internal capital-then-lowercase run that is neither
+//    Title Case ("Data Structures") nor an all-caps acronym ("DBMS"),
+//    e.g. "ADzeame" -- this pattern essentially never occurs in a
+//    human-typed subject name.
+//  - a 4+ letter word with no vowels at all -- essentially never a real
+//    English word or subject fragment.
+//  - a very short (<=2 char) name that isn't all-caps -- a genuine short
+//    subject label is written in caps ("PE", "GK"); lowercase/mixed short
+//    strings like "ee" are leftover OCR noise.
+// This deliberately does NOT try to catch every garbled string (two real
+// dictionary words mis-stitched together, or an all-caps blob that still
+// contains a vowel) -- that would need a subject dictionary and risks
+// flagging real subjects. Anything this misses stays reachable through
+// the per-card delete ("X") on a Subject Hub card and through the
+// "Declutter my desk" preview, both already safe/non-destructive.
+function isLikelyGarbledSubjectName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const clean = name.trim();
+  if (!clean) return false;
+
+  if (clean.length <= 2 && clean !== clean.toUpperCase()) return true;
+
+  const words = clean.split(/\s+/);
+  for (const w of words) {
+    const letters = w.replace(/[^a-zA-Z]/g, '');
+    if (!letters) continue;
+    if (/[A-Z]{2,}[a-z]/.test(letters)) return true;
+    if (letters.length >= 4 && !/[aeiouAEIOU]/.test(letters)) return true;
+  }
+  return false;
+}
+
 function getCanonicalSubjectCode(rawName, rawCode) {
   if (rawCode && rawCode.trim() && !/lab|theory|batch/i.test(rawCode)) {
     return rawCode.trim().toUpperCase();
@@ -7531,7 +7566,11 @@ function getSubjectList(options = {}) {
   if (includeTimetable) {
     [1, 2, 3, 4, 5, 6, 0].forEach(d => {
       (liveTT[d] || []).forEach(c => {
-        if (isTeachingClass(c) && c.subject) {
+        // Scanned/OCR timetable slots are the entry point for garbled
+        // subject names (see isLikelyGarbledSubjectName). Manually
+        // created tasks/quick-links/baselines below are never filtered
+        // here, so hand-entered subjects keep working exactly as before.
+        if (isTeachingClass(c) && c.subject && !isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) {
           const item = getOrCreateSubject(c.subject, c.code, c.type, c.teacher, c.room, c.color);
           if (item) {
             item.slots.push({
@@ -9643,6 +9682,17 @@ function clearSubjectBaseline() {
 // ── Declutter & Subject Recovery Engine ──────────────────────────
 
 function detectDeskPollution() {
+  // Checked against the RAW timetable (not getSubjectList(), which already
+  // hides garbled OCR names from pickers) so the "Declutter my desk"
+  // prompt still offers to actually clean up the underlying scanned data,
+  // not just its own already-filtered view of it.
+  const rawTT = loadTimetable();
+  for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+    for (const c of (rawTT[d] || [])) {
+      if (c && c.subject && isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) return true;
+    }
+  }
+
   const subjects = getSubjectList();
   if (!subjects || !subjects.length) return false;
 
@@ -9701,6 +9751,7 @@ function showDeclutterDeskModal() {
           <li><strong>General lectures</strong> with no batch markers will be kept for everyone.</li>
           <li><strong>Practical lab sessions</strong> will only be kept if they match your specific batch.</li>
           <li>Duplicate variations and OCR noise will be merged into clean canonical Subject Hub cards.</li>
+          <li>Garbled/unreadable scan text (e.g. "ADzeame") will be removed from your subject list.</li>
           <li>Attendance baselines, daily check-in logs, and tasks will be safely remapped.</li>
         </ul>
       </div>
@@ -9780,7 +9831,16 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
 
       const shouldKeep = shouldKeepClassForUserBatch(c, userBatch);
       if (!shouldKeep) {
-        archivedSlots.push({ day: d, time: c.time, subject: c.subject, batches: c.batches || extractBatchTags(c.subject) });
+        archivedSlots.push({ day: d, time: c.time, subject: c.subject, batches: c.batches || extractBatchTags(c.subject), reason: 'other-batch' });
+        return;
+      }
+
+      // Garbled OCR scan noise (see isLikelyGarbledSubjectName) never
+      // becomes a canonical Subject Hub card -- archived (not deleted:
+      // recoverable via the existing backup/restore) same as any other
+      // slot this pass removes.
+      if (isLikelyGarbledSubjectName(getCanonicalSubjectName(rawName))) {
+        archivedSlots.push({ day: d, time: c.time, subject: c.subject, reason: 'garbled-ocr' });
         return;
       }
 
@@ -9990,9 +10050,9 @@ function renderDeclutterPreviewModal(plan, userBatch) {
   const archivedHTML = plan.archivedSlots.length > 0 ? plan.archivedSlots.map(a => `
     <div style="font-size:var(--text-sm);color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between">
       <span>${a.subject}</span>
-      <span style="color:var(--yellow)">Batch: ${(a.batches || []).join(', ') || 'Other'}</span>
+      <span style="color:var(--yellow)">${a.reason === 'garbled-ocr' ? '⚠️ Garbled scan text' : `Batch: ${(a.batches || []).join(', ') || 'Other'}`}</span>
     </div>
-  `).join('') : '<div style="font-size:var(--text-sm);color:var(--text-muted)">No other-batch classes found to remove.</div>';
+  `).join('') : '<div style="font-size:var(--text-sm);color:var(--text-muted)">No other-batch or garbled-scan classes found to remove.</div>';
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -10015,7 +10075,7 @@ function renderDeclutterPreviewModal(plan, userBatch) {
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
           <div style="font-size:var(--text-lg);font-weight:700;color:var(--yellow)">${plan.archivedSlots.length}</div>
-          <div style="font-size:var(--text-xs);color:var(--text-muted)">Other Batches Removed</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Sessions Removed</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
           <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${plan.remappedDailyLogs.length}</div>
@@ -10040,7 +10100,7 @@ function renderDeclutterPreviewModal(plan, userBatch) {
 
         ${plan.archivedSlots.length > 0 ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
-            🗑️ Other-Batch Sessions Removed (${plan.archivedSlots.length})
+            🗑️ Sessions Removed (${plan.archivedSlots.length})
           </div>
           ${archivedHTML}
         ` : ''}

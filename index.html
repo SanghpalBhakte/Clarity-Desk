@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- theme-color must be declared BEFORE the inline script below: the
+       script queries this meta tag synchronously during parsing, and a
+       tag declared later in <head> would still be null at that point. -->
+  <meta name="theme-color" content="#F6F1E8" />
   <script>
     (function() {
       try {
@@ -47,7 +51,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
   <!-- PWA & Mobile -->
-  <meta name="theme-color" content="#F6F1E8" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Clarity Desk" />
@@ -56,13 +59,13 @@
 
   <!-- Favicon & App Icons -->
   <link rel="icon" href="favicon.ico" sizes="any" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=140" />
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=140" />
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=140" />
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=140" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=141" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=141" />
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=141" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=141" />
 
   <!-- Styles -->
-  <link rel="stylesheet" href="style.css?v=140" />
+  <link rel="stylesheet" href="style.css?v=141" />
 </head>
 <body>
 
@@ -399,8 +402,8 @@
      reads them -- see firebase-config.local.example.js. A 404 here if the
      file doesn't exist is harmless and silent. -->
 <script src="firebase-config.local.js" onerror="this.remove()"></script>
-<script src="firebase-config.js?v=140"></script>
-<script type="module" src="app.js?v=140"></script>
+<script src="firebase-config.js?v=141"></script>
+<script type="module" src="app.js?v=141"></script>
 
 </body>
 </html>
