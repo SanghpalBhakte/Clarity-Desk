@@ -5094,6 +5094,26 @@ const LEGACY_THEME_MAP = {
   'midnight-executive': 'midnight-ink'
 };
 
+// Installed Android PWAs bake the status bar's actual BACKGROUND color once
+// from manifest.json's theme_color -- it never tracks this live meta tag.
+// But Chrome still reads this live tag to pick the status bar's ICON color
+// (light icons on an assumed-dark bg, dark icons on an assumed-light bg).
+// Letting this tag flip with the in-app theme therefore picks icon color
+// for the WRONG assumed background once installed: toggling to the light
+// theme sets this tag light, so Chrome picks dark icons -- but the real,
+// fixed native background is dark (manifest.json), so dark-on-dark is
+// unreadable. Toggling to dark theme has the same problem in reverse.
+// Pin the tag to the manifest's actual fixed dark background for the
+// installed app (so icon color is always computed against the real bg,
+// always readable) -- a plain browser tab has no separate baked
+// background, so it still gets the live per-theme tint there.
+function applyThemeColorMeta(theme) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  meta.setAttribute('content', isStandalone ? '#171412' : (theme === 'midnight-ink' ? '#171412' : '#F6F1E8'));
+}
+
 function initTheme() {
   const saved = localStorage.getItem(KEY_THEME);
   let theme   = saved;
@@ -5117,8 +5137,7 @@ function initTheme() {
   if (migratedAccent) localStorage.setItem(KEY_ACCENT, migratedAccent);
 
   document.documentElement.setAttribute('data-theme', theme);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
+  applyThemeColorMeta(theme);
   updateThemeSelector(theme);
 }
 
@@ -5170,8 +5189,7 @@ function setTheme(theme, originEvent) {
 
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', theme);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'midnight-ink' ? '#171412' : '#F6F1E8');
+    applyThemeColorMeta(theme);
     localStorage.setItem(KEY_THEME, theme);
     updateThemeSelector(theme);
     // No renderPage() here: every themed value in the page already flows
