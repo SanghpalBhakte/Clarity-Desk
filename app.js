@@ -6540,7 +6540,6 @@ window.showOnboardingModal = function() {
             <h2 style="margin:0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.02em;color:var(--text-primary)">Profile Setup</h2>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Personalizes your timetable and countdown</div>
           </div>
-          <span style="font-size:var(--text-xs);color:var(--text-muted);background:var(--surface-2);padding:3px 8px;border-radius:999px;border:1px solid var(--border)">Step 1 of 1</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
           <div class="form-group" style="margin-bottom:0">
