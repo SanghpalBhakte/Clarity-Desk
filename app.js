@@ -7528,9 +7528,10 @@ function renderTimetable() {
         <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
           📷 Scan Timetable
         </button>
-        <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch sessions">
-          🧹 Declutter Schedule
-        </button>
+        ${detectDeskPollution() ? `
+          <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch sessions">
+            🧹 Declutter Schedule
+          </button>` : ''}
         <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Load sample schedule template">
           📋 Sample Schedule
         </button>
