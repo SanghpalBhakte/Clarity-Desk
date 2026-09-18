@@ -7525,16 +7525,18 @@ function renderTimetable() {
         <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:7px 14px">
           ${icons.plus()} Add Class
         </button>
-        <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
-          📷 Scan Timetable
-        </button>
+        ${classes.length ? `
+          <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
+            📷 Scan Timetable
+          </button>` : ''}
         ${detectDeskPollution() ? `
           <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch sessions">
             🧹 Declutter Schedule
           </button>` : ''}
-        <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Load sample schedule template">
-          📋 Sample Schedule
-        </button>
+        ${classes.length ? `
+          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Load sample schedule template">
+            📋 Sample Schedule
+          </button>` : ''}
         ${isCustom ? `
           <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:var(--text-xs);padding:4px 10px;color:var(--text-muted)">
             Clear Schedule
