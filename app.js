@@ -5563,12 +5563,44 @@ function timeToMinutes(t) {
   return parts[0] * 60 + parts[1];
 }
 
-function greetingWord() {
+// A varied, time-(and occasionally situation-)aware dashboard greeting,
+// instead of one fixed "Good morning/afternoon/evening/night" per time
+// bucket. Each bucket has a few alternate phrasings; which one shows picks
+// deterministically off the date+hour (so it doesn't change mid-visit on a
+// re-render, but does vary day to day) rather than fully at random.
+// Returns ready-to-insert HTML (name pre-wrapped in the existing
+// .desk-greeting-name accent span) so the render site can drop it straight
+// into .desk-greeting with no extra punctuation glued on afterward.
+function getDynamicGreeting(firstName, opts = {}) {
+  const overdue = opts.overdue || 0;
   const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'Good morning';
-  if (h >= 12 && h < 17) return 'Good afternoon';
-  if (h >= 17 && h < 22) return 'Good evening';
-  return 'Good night';
+  const has = !!firstName;
+
+  let pool;
+  if (h < 5) {
+    // Late night: acknowledge unfinished work if there's any, otherwise
+    // just the "still up" vibe -- both read as company, not a nag.
+    pool = overdue > 0
+      ? [['Still up, {n}?', 'Still up?'], ['Burning the midnight oil, {n}?', 'Burning the midnight oil?'], ['Late night catch-up, {n}.', 'Late night catch-up.']]
+      : [['Up late, {n}?', 'Up late?'], ['Night owl mode, {n}.', 'Night owl mode.'], ['Still awake, {n}?', 'Still awake?']];
+  } else if (h < 8) {
+    pool = [['Up early, {n}.', 'Up early.'], ['Rise and shine, {n}.', 'Rise and shine.'], ['Early start, {n}.', 'Early start.']];
+  } else if (h < 12) {
+    pool = [['Good morning, {n}.', 'Good morning.'], ['Morning, {n}.', 'Morning.'], ["Let's get into it, {n}.", "Let's get into it."]];
+  } else if (h < 17) {
+    pool = [['Good afternoon, {n}.', 'Good afternoon.'], ['Afternoon, {n}.', 'Afternoon.'], ['Midday check-in, {n}.', 'Midday check-in.']];
+  } else if (h < 21) {
+    pool = [['Good evening, {n}.', 'Good evening.'], ['Evening, {n}.', 'Evening.'], ['Winding down, {n}?', 'Winding down?']];
+  } else {
+    pool = [['Good night, {n}.', 'Good night.'], ['Working late, {n}?', 'Working late?'], ['Still going, {n}?', 'Still going?']];
+  }
+
+  const seed = new Date().getDate() + h;
+  const [withName, withoutName] = pool[seed % pool.length];
+
+  if (!has) return withoutName;
+  const nameHtml = `<span class="desk-greeting-name">${escHtml_cd(firstName)}</span>`;
+  return withName.replace('{n}', nameHtml);
 }
 
 // Returns user's configured attendance target (default 75)
@@ -6951,7 +6983,7 @@ function renderDashboard() {
 
   const displayName = getDisplayName();
   const firstName = displayName ? displayName.split(' ')[0] : '';
-  const greeting = greetingWord();
+  const greeting = getDynamicGreeting(firstName, { overdue });
   const needsSetup = !displayName;
   const hasAttendanceData = totalMarked > 0;
 
@@ -7211,7 +7243,7 @@ function renderDashboard() {
     <div class="desk-masthead">
       <div class="desk-masthead-top">
         <div>
-          <div class="desk-greeting">${greeting}${firstName ? `, <span class="desk-greeting-name">${firstName}</span>` : ''}.${needsSetup ? '' : ''}</div>
+          <div class="desk-greeting">${greeting}</div>
           <div class="desk-greeting-sub">${contextLine}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
