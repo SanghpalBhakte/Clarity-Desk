@@ -3709,13 +3709,13 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
   backdrop.id = 'tt-upload-error-backdrop';
   backdrop.innerHTML = `
     <div class="modal" style="max-width:400px;text-align:center;padding:28px 24px">
-      <div style="font-size:var(--text-hero);margin-bottom:12px">⚠️</div>
+      <div style="font-size:var(--text-hero);margin-bottom:12px">${icons.alert()}</div>
       <div style="font-weight:700;font-size:var(--text-md);margin-bottom:8px">Timetable Extraction Failed</div>
       <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:20px;line-height:1.5">${reason}</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${canRetry ? `<button class="btn-primary" id="tt-error-retry-btn">🔄 Retry with Same Image</button>` : ''}
         <button class="btn-secondary" id="tt-error-upload-btn">📷 Upload a Different Image</button>
-        <button class="btn-secondary" id="tt-error-manual-btn">✏️ Enter Timetable Manually</button>
+        <button class="btn-secondary" id="tt-error-manual-btn">${icons.edit()} Enter Timetable Manually</button>
         <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--text-sm);margin-top:4px"
                 onclick="document.getElementById('tt-upload-error-backdrop')?.remove()">Dismiss</button>
       </div>
@@ -4496,7 +4496,7 @@ function showNoticeChannelModal(targetKey) {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;width:92vw">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:var(--text-xl)">${isOfficial ? '📢' : '🎓'}</span>
+          <span style="font-size:var(--text-xl)">${isOfficial ? icons.bell() : icons.graduation()}</span>
           <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure ERP Portal Link'}</span>
         </div>
         <button class="modal-close" onclick="document.getElementById('notice-channel-modal-backdrop')?.remove()">${icons.x()}</button>
@@ -5472,7 +5472,7 @@ function renderPage(page) {
     if (targetEl) {
       targetEl.innerHTML = `
         <div class="card" style="text-align:center;padding:40px 20px;margin-top:20px;border-left:3px solid var(--red)">
-          <div style="font-size:var(--text-hero);margin-bottom:10px">⚠️</div>
+          <div style="font-size:var(--text-hero);margin-bottom:10px">${icons.alert()}</div>
           <div style="font-weight:700;font-size:var(--text-lg);margin-bottom:6px">Unable to render section</div>
           <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:16px">${err.message || 'An unexpected rendering error occurred.'}</div>
           <button class="btn-primary" onclick="location.reload()" style="font-size:var(--text-base)">Reload Campus OS</button>
@@ -6594,7 +6594,7 @@ window.showOnboardingModal = function() {
               Add your current attended and missed class counts once. Clarity Desk will track continuously from there.
             </div>
             <button type="button" class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:var(--text-sm);padding:5px 12px;display:inline-flex;align-items:center;gap:6px">
-              📊 Set attendance counts →
+              ${icons.chartLine()} Set attendance counts →
             </button>
           </div>
 
@@ -7448,8 +7448,8 @@ function renderTimetable() {
         <div class="empty-state-desc">No classes scheduled for this day. You can add class slots manually, scan your class timetable photo, or load a sample template.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px">
           <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="font-size:var(--text-base);padding:6px 14px">+ Add Class Entry</button>
-          <button class="btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:6px 14px">📷 Scan Photo</button>
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:6px 14px">📋 Load Sample Template</button>
+          <button class="btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:6px 14px">${icons.camera()} Scan Photo</button>
+          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:6px 14px">${icons.filetext()} Load Sample Template</button>
         </div>
       </div>`;
   } else {
@@ -7472,14 +7472,14 @@ function renderTimetable() {
                   title="Mark ${c.subject} Attended" aria-label="Mark ${c.subject} as attended" aria-pressed="${isAttended}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isAttended ? 'background:var(--green);border-color:var(--green);color:var(--text-inverse);' : ''}">
-            ✓
+            ${icons.check()}
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
                   title="Mark ${c.subject} as skipped" aria-label="Mark ${c.subject} as skipped" aria-pressed="${isSkipped}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isSkipped ? 'background:var(--red);border-color:var(--red);color:var(--text-inverse);' : ''}">
-            ✕
+            ${icons.x()}
           </button>
         </div>` : '';
 
@@ -7508,7 +7508,7 @@ function renderTimetable() {
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             ${attendanceControlsHTML}
-            <button class="icon-btn-sm" onclick="showTimetableEntryModal(${day}, ${idx})" title="Edit class" aria-label="Edit class">✏️</button>
+            <button class="icon-btn-sm" onclick="showTimetableEntryModal(${day}, ${idx})" title="Edit class" aria-label="Edit class">${icons.edit()}</button>
           </div>
         </div>
       `;
@@ -7527,15 +7527,15 @@ function renderTimetable() {
         </button>
         ${classes.length ? `
           <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
-            📷 Scan Timetable
+            ${icons.camera()} Scan Timetable
           </button>` : ''}
         ${detectDeskPollution() ? `
           <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch sessions">
-            🧹 Declutter Schedule
+            ${icons.declutter()} Declutter Schedule
           </button>` : ''}
         ${classes.length ? `
           <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Load sample schedule template">
-            📋 Sample Schedule
+            ${icons.filetext()} Sample Schedule
           </button>` : ''}
         ${isCustom ? `
           <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:var(--text-xs);padding:4px 10px;color:var(--text-muted)">
@@ -9325,7 +9325,7 @@ function showAttendanceScanReviewModal(rows = []) {
 
       ${hasUncertain ? `
         <div style="background:var(--surface-2);border-left:3px solid var(--yellow);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:var(--text-sm);color:var(--text-secondary);display:flex;align-items:center;gap:8px">
-          <span>⚠️</span>
+          <span>${icons.alert()}</span>
           <span>Couldn’t match a few rows directly. You can select your subject or keep the detected name below.</span>
         </div>
       ` : ''}
@@ -9386,7 +9386,7 @@ function renderReviewRowsHTML(rows, subjects) {
             <span class="type-badge" id="row-badge-${idx}" style="font-size:var(--text-xs);padding:3px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
               ${total > 0 ? `${pct}% · ${isSafe ? 'Safe Zone' : 'Needs Recovery'}` : 'Attendance not set'}
             </span>
-            <button type="button" onclick="deleteReviewRow(${idx})" class="btn-icon" style="color:var(--text-muted);font-size:var(--text-md)" title="Remove row">✕</button>
+            <button type="button" onclick="deleteReviewRow(${idx})" class="btn-icon" style="color:var(--text-muted);font-size:var(--text-md)" title="Remove row">${icons.x()}</button>
           </div>
         </div>
 
@@ -9462,7 +9462,7 @@ function addScanReviewRow() {
         <span class="type-badge" id="row-badge-${newIdx}" style="font-size:var(--text-xs);padding:3px 8px;background:var(--surface-2);color:var(--text-muted)">
           Attendance not set
         </span>
-        <button type="button" onclick="deleteReviewRow(${newIdx})" class="btn-icon" style="color:var(--text-muted);font-size:var(--text-md)" title="Remove row">✕</button>
+        <button type="button" onclick="deleteReviewRow(${newIdx})" class="btn-icon" style="color:var(--text-muted);font-size:var(--text-md)" title="Remove row">${icons.x()}</button>
       </div>
     </div>
 
@@ -10482,9 +10482,9 @@ function renderSubjectsOverview(el, subjects) {
         <div class="empty-state-title">No Subjects Set Up Yet</div>
         <div class="empty-state-desc">Import your timetable schedule or enter an initial attendance baseline to automatically create your Subject Hubs.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
-          <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:7px 14px">📷 Scan Timetable Photo</button>
-          <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:7px 14px">📊 Set Attendance Baseline</button>
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:7px 14px">📋 Sample Template</button>
+          <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:7px 14px">${icons.camera()} Scan Timetable Photo</button>
+          <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:7px 14px">${icons.chartLine()} Set Attendance Baseline</button>
+          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:7px 14px">${icons.filetext()} Sample Template</button>
         </div>
       </div>
     `;
@@ -10506,7 +10506,7 @@ function renderSubjectsOverview(el, subjects) {
         ${subjectManageMode ? `
           <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))" style="position:absolute;top:10px;right:10px;width:22px;height:22px;cursor:pointer;accent-color:var(--accent)">
         ` : `
-          <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:-2px;right:-2px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6;background:transparent;border:none">✕</button>
+          <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:-2px;right:-2px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6;background:transparent;border:none">${icons.x()}</button>
         `}
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);padding-right:20px">${s.name}</div>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
@@ -10560,7 +10560,7 @@ function renderSubjectsOverview(el, subjects) {
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-sm btn-secondary" onclick="toggleSubjectManageMode()">Cancel</button>
-          <button class="subject-bulk-delete-btn btn btn-sm btn-primary" onclick="deleteSelectedSubjects()" disabled style="background:var(--status-error, #c0392b);border-color:var(--status-error, #c0392b)">🗑️ Delete Selected</button>
+          <button class="subject-bulk-delete-btn btn btn-sm btn-primary" onclick="deleteSelectedSubjects()" disabled style="background:var(--status-error, #c0392b);border-color:var(--status-error, #c0392b)">${icons.trash()} Delete Selected</button>
         </div>
       </div>
     ` : ''}
@@ -10574,7 +10574,7 @@ function renderSubjectsOverview(el, subjects) {
           </div>
         </div>
         <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-base);padding:6px 14px;white-space:nowrap">
-          🧹 Clean Up Desk →
+          ${icons.declutter()} Clean Up Desk →
         </button>
       </div>
     ` : anyMissingBaseline ? `
@@ -10587,10 +10587,10 @@ function renderSubjectsOverview(el, subjects) {
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'scan')" style="font-size:var(--text-base);padding:6px 12px;white-space:nowrap">
-            📷 Scan Photo
+            ${icons.camera()} Scan Photo
           </button>
           <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:6px 14px;white-space:nowrap">
-            📊 Set Counts
+            ${icons.chartLine()} Set Counts
           </button>
         </div>
       </div>
@@ -10697,7 +10697,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
               ${att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}% Attendance (${att.attended}/${att.total})` : 'Attendance not set yet'}
             </span>
             <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal('${subj.code || subj.name}')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
-              📊 ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
+              ${icons.chartLine()} ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
             </button>
           </div>
         </div>
@@ -11446,7 +11446,7 @@ function renderNotices() {
       <!-- ERP Portal (configurable link) -->
       <div class="notice-source-card tint-erp" onclick="handleNoticeSourceClick('whatsapp')" title="Open your college ERP portal">
         <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-erp">🎓</div>
+          <div class="notice-source-icon-wrap notice-source-icon-erp">${icons.graduation()}</div>
           <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit ERP portal link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit ERP portal link">
             ✏️
           </button>
@@ -11586,7 +11586,7 @@ function renderLinksContent(container) {
         <span class="link-subject-title" title="${s.subject}">${s.subject}</span>
         <span class="link-code">${s.code}</span>
         <div class="link-subject-actions">
-          <button class="icon-btn-sm" onclick="editLinkSubject(${si})" title="Edit subject" aria-label="Edit subject">✏️</button>
+          <button class="icon-btn-sm" onclick="editLinkSubject(${si})" title="Edit subject" aria-label="Edit subject">${icons.edit()}</button>
           <button class="icon-btn-sm icon-btn-danger" onclick="deleteLinkSubject(${si})" title="Delete subject" aria-label="Delete subject">🗑</button>
         </div>
       </div>
@@ -11605,8 +11605,8 @@ function renderLinksContent(container) {
               ${isUploaded ? `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--accent)">📥</span>` : `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--text-muted)">↗</span>`}
             </a>
             <div class="resource-actions">
-              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">✏️</button>
-              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">✕</button>
+              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
+              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
             </div>
           </div>`;
         }).join('')}
@@ -11688,7 +11688,7 @@ function showLinkSubjectModal(si, existing) {
     <div class="modal" style="max-width:400px;width:92vw">
       <div class="modal-header">
         <span class="modal-title">${isNew ? 'Create Subject Vault' : 'Edit Subject Vault'}</span>
-        <button class="modal-close" onclick="document.getElementById('link-subject-modal-backdrop')?.remove()">✕</button>
+        <button class="modal-close" onclick="document.getElementById('link-subject-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
         <div>
@@ -11809,7 +11809,7 @@ function showLinkResourceModal(si, ri, existing) {
     <div class="modal" style="max-width:440px;width:92vw" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="modal-title">${isNew ? 'Add Vault Material' : 'Edit Vault Material'}</span>
-        <button class="modal-close" onclick="document.getElementById('link-resource-modal-backdrop')?.remove()">✕</button>
+        <button class="modal-close" onclick="document.getElementById('link-resource-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
 
       <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--surface-2);padding:4px;border-radius:var(--radius-sm)">
@@ -12080,7 +12080,7 @@ function renderSettings() {
           Clear Timetable (Start Clean)
         </button>
         <button class="btn btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-          📋 Load Sample SY AI-DS Template
+          ${icons.filetext()} Load Sample SY AI-DS Template
         </button>
       </div>
     </div>
@@ -12091,7 +12091,7 @@ function renderSettings() {
         Started using Clarity Desk mid-semester? Manually enter your current college portal / ERP attendance counts per subject. Future attendance marked in your timetable will calculate continuously from this baseline.
       </div>
       <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-        📊 Configure Attendance Baselines →
+        ${icons.chartLine()} Configure Attendance Baselines →
       </button>
     </div>
 
@@ -12102,7 +12102,7 @@ function renderSettings() {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px">
-          🧹 Declutter my desk →
+          ${icons.declutter()} Declutter my desk →
         </button>
         ${(() => {
           const b = loadDeclutterBackup();
@@ -12525,7 +12525,7 @@ function showNotice(id) {
           <span>💬</span> Share to Class Group ↗
         </a>
         <button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText('${n.title.replace(/'/g, "\\'")}\\n\\n${n.content.replace(/'/g, "\\'")}').then(() => showToast('Notice copied to clipboard ✓', 'success'))" style="font-size:var(--text-sm);padding:6px 12px">
-          📋 Copy Notice
+          ${icons.filetext()} Copy Notice
         </button>
       </div>
     </div>
@@ -12930,13 +12930,13 @@ const ClarityAssistant = (() => {
       issues.push({
         title: 'Timetable Import Pending',
         desc: 'No timetable data found. Your schedule has not been imported yet.',
-        action: `<button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">📷 Scan Timetable Photo →</button>`
+        action: `<button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">${icons.camera()} Scan Timetable Photo →</button>`
       });
     } else if (isPolluted) {
       issues.push({
         title: 'Timetable Multi-Batch Sessions Found',
         desc: 'Extracted timetable contains other-batch practicals or duplicate merged slots that need batch filtering confirmation.',
-        action: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">🧹 Review &amp; Filter Batch →</button>`
+        action: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">${icons.declutter()} Review &amp; Filter Batch →</button>`
       });
     }
 
@@ -12951,7 +12951,7 @@ const ClarityAssistant = (() => {
         issues.push({
           title: `Attendance Baselines (${unverified.length} Unverified)`,
           desc: `${unverified.map(s => s.name).slice(0, 3).join(', ')}${unverified.length > 3 ? ` and ${unverified.length - 3} more` : ''} need starting attendance counts confirmed.`,
-          action: `<button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">📊 Confirm Baselines →</button>`
+          action: `<button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:3px 10px;margin-top:4px">${icons.chartLine()} Confirm Baselines →</button>`
         });
       }
     }
@@ -12989,7 +12989,7 @@ const ClarityAssistant = (() => {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">Cleanup Incomplete</div><br>
       Your desk still has duplicate cards or mixed practical batches from an earlier timetable scan.<br><br>
       <strong>Next step:</strong> Select your practical batch to remove other-batch classes and merge duplicate cards safely.<br><br>
-      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:6px 14px">🧹 Run Declutter &amp; Recovery →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:6px 14px">${icons.declutter()} Run Declutter &amp; Recovery →</button>`;
     }
 
     const labSubjects = subjects.filter(s => s.isLab || /lab\b/i.test(s.name));
@@ -13150,8 +13150,8 @@ const ClarityAssistant = (() => {
       return `<div class="cd-tag is-accent" style="margin-bottom:8px">Timetable Setup</div><br>
       You don't have a schedule set up yet. You can scan an image of your timetable or load our official sample schedule template.<br><br>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan Timetable Photo</button>
-        <button class="btn btn-sm btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-sm);padding:5px 12px">📋 Sample Template</button>
+        <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan Timetable Photo</button>
+        <button class="btn btn-sm btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-sm);padding:5px 12px">${icons.filetext()} Sample Template</button>
         <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:var(--text-sm);padding:5px 12px">Open Timetable →</button>
       </div>`;
     }
@@ -13176,7 +13176,7 @@ const ClarityAssistant = (() => {
     if (subjects.length === 0) {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">No Subjects Found</div><br>
       Set up your timetable schedule first so Clarity Desk can automatically create your Subject Hubs for tracking attendance.<br><br>
-      <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan Timetable Photo →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan Timetable Photo →</button>`;
     }
 
     if (missing.length > 0) {
@@ -13192,7 +13192,7 @@ const ClarityAssistant = (() => {
     return `<div class="cd-tag cd-tag-safe" style="margin-bottom:8px">Baselines Active</div><br>
     All your active Subject Hubs have baseline counts configured. You can update counts at any time or log daily attendance directly in the timetable.<br><br>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:var(--text-sm);padding:5px 12px">📊 Edit Baseline Counts</button>
+      <button class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:var(--text-sm);padding:5px 12px">${icons.chartLine()} Edit Baseline Counts</button>
       <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">Subject Hubs →</button>
     </div>`;
   }
@@ -13208,12 +13208,12 @@ const ClarityAssistant = (() => {
         <li>Merge duplicate variations into clean canonical cards</li>
         <li>Safely reassign all attendance baselines &amp; tasks without data loss</li>
       </ul>
-      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:6px 14px">🧹 Declutter my desk →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:6px 14px">${icons.declutter()} Declutter my desk →</button>`;
     }
 
     return `<div class="cd-tag cd-tag-safe" style="margin-bottom:8px">Clean Desk</div><br>
     Your Subject Hubs and timetable structure are already normalized and clean! If you ever need to change your practical batch or re-filter sessions, you can launch cleanup anytime.<br><br>
-    <button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:5px 12px">🧹 Open Declutter Tool →</button>`;
+    <button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-sm);padding:5px 12px">${icons.declutter()} Open Declutter Tool →</button>`;
   }
 
   function buildSubjectHubs() {
@@ -13479,7 +13479,7 @@ const ClarityAssistant = (() => {
       gaps.push({
         title: 'Timetable Schedule',
         desc: 'No classes imported yet. Add or scan your schedule to unlock daily timetable intelligence.',
-        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">📷 Scan Timetable →</button>`
+        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">${icons.camera()} Scan Timetable →</button>`
       });
     }
 
@@ -13494,7 +13494,7 @@ const ClarityAssistant = (() => {
         gaps.push({
           title: 'Attendance Baselines',
           desc: `${missingBaselines.length} of ${subjects.length} subjects missing initial attendance counts.`,
-          btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">📊 Set Baselines →</button>`
+          btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">${icons.chartLine()} Set Baselines →</button>`
         });
       }
     }
@@ -13516,7 +13516,7 @@ const ClarityAssistant = (() => {
       gaps.push({
         title: 'Schedule Decluttering',
         desc: 'Detected duplicate or other-batch subject cards from an earlier timetable scan.',
-        btn: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">🧹 Declutter Desk →</button>`
+        btn: `<button class="btn btn-sm btn-secondary" onclick="showDeclutterDeskModal()" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">${icons.declutter()} Declutter Desk →</button>`
       });
     }
 
