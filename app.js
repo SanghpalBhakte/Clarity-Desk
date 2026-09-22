@@ -12460,7 +12460,16 @@ function exportData() {
   const data = {
     profile:            loadProfile(),
     customTasks:        state.customTasks,
+    customTimetable:    safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+    timetableChoice:    safeGetStorage(KEY_TIMETABLE_CHOICE, null),
+    customLinks:        safeGetStorage(KEY_CUSTOM_LINKS, null),
     assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
+    attendance:         safeGetStorage(KEY_ATTENDANCE, {}),
+    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
+    attendanceLive:     safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
+    hiddenSubjects:     safeGetStorage(KEY_HIDDEN_SUBJECTS, []),
+    userBatch:          safeGetStorage(KEY_USER_BATCH, ''),
+    attTarget:          getAttendanceTarget(),
     notificationPrefs:  loadNotifPrefs(),
     noticeChannels:     loadNoticeChannels(),
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
@@ -12491,6 +12500,15 @@ function importData(event) {
         state.customTasks = data.customTasks;
         saveCustomTasks();
       }
+      if (data.customTimetable) safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
+      if (data.timetableChoice) safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
+      if (data.customLinks) safeSetStorage(KEY_CUSTOM_LINKS, data.customLinks);
+      if (data.attendance) safeSetStorage(KEY_ATTENDANCE, data.attendance);
+      if (data.attendanceBaseline) safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
+      if (data.attendanceLive) safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
+      if (Array.isArray(data.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, data.hiddenSubjects);
+      if (data.userBatch) safeSetStorage(KEY_USER_BATCH, data.userBatch);
+      if (data.attTarget) safeSetStorage(KEY_ATT_TARGET, data.attTarget);
       if (data.assignmentStatuses) {
         safeSetStorage(KEY_ASSIGNMENTS, data.assignmentStatuses);
         state.assignments = loadAssignments();
@@ -12513,6 +12531,7 @@ function importData(event) {
       updateTopbarProfile();
       setupFABDrag();
       updateNavBadges();
+      syncToCloud();
       showToast('Desk data restored ✓', 'success');
       renderSettings();
     } catch (err) {
