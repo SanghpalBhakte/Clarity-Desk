@@ -2876,8 +2876,34 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
 
   // 1. Identify Day Tokens and Time Tokens with coordinates
   const tokenDetection = detectDayAndTimeTokens(words);
-  const { dayTokens } = tokenDetection;
   let { timeTokens } = tokenDetection;
+
+  // De-duplicate and confidence-gate day tokens before anything below uses
+  // them. detectDayAndTimeTokens matches ANY word in the whole photo that
+  // reads as a day abbreviation, with no requirement that it actually sits
+  // in the header row/column -- so a garbled body-cell word (a room code,
+  // a teacher's initials, anything OCR misreads as e.g. "Tue" under
+  // real-world lighting/glare/skew) is indistinguishable from a genuine
+  // header label at this point. Left unfiltered, that spurious extra token
+  // gets its own day-band interval below and either splits a real day's
+  // row/column in two or pulls a neighboring day's content under the wrong
+  // label -- this is the "Tuesday shows Monday's classes plus random other
+  // classes" bug. A genuinely printed day header should read with
+  // reasonable confidence (40 is the same floor Stage D above already
+  // trusts for a recovered day label), and a real timetable prints each
+  // day exactly once, so keeping only the single highest-confidence
+  // candidate per weekday removes both a stray low-confidence misread and
+  // a rarer same-day double-read, without needing to know the grid's
+  // orientation yet.
+  const bestDayTokenByDay = new Map();
+  tokenDetection.dayTokens.forEach(t => {
+    if ((t.word.conf || 0) <= 40) return;
+    const existing = bestDayTokenByDay.get(t.stdDay);
+    if (!existing || (t.word.conf || 0) > (existing.word.conf || 0)) {
+      bestDayTokenByDay.set(t.stdDay, t);
+    }
+  });
+  const dayTokens = Array.from(bestDayTokenByDay.values());
 
   // 2. Detect Orientation:
   // Layout A: Rows = Days (stacked vertically), Columns = Times (spread horizontally)
