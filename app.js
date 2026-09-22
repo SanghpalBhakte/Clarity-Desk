@@ -1554,6 +1554,22 @@ function formatTeacherName(teacher) {
   return `Prof. ${t}`;
 }
 
+// A class like an Open Elective ("OE-1", "OE-2") often has no separate
+// catalogued full name -- the raw code IS the subject name, so
+// normalizeSubjectIdentity ends up setting both `subject` and `code` to the
+// identical string. Any "{subject} · {code}" display then shows the exact
+// same text twice ("OE-2 · OE-2"), which reads as a glitch even though both
+// fields are individually correct. This only suppresses the code suffix
+// when it adds no new information; a genuinely different code (e.g. "Data
+// Structures · DS") still displays normally.
+function subjectCodeSuffix(subject, code) {
+  const c = (code || '').trim();
+  if (!c) return '';
+  const s = (subject || '').trim();
+  if (c.toLowerCase() === s.toLowerCase()) return '';
+  return '· ' + c;
+}
+
 // ── Bounded Fuzzy Matching for Existing-Subject Reconciliation ──
 // Conservative, name-only (never applied to codes -- codes are short
 // structured tokens where ratio-based fuzzing is dangerous). Used solely to
@@ -7637,7 +7653,7 @@ function renderTimetable() {
           <div class="tt-info">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
               <div class="tt-subject" onclick="openSubjectHub('${c.subject}')" style="cursor:pointer;font-weight:700" title="Open ${c.subject} Hub">
-                ${c.subject} ${c.code ? '· ' + c.code : ''}
+                ${c.subject} ${subjectCodeSuffix(c.subject, c.code)}
               </div>
               <div style="display:flex;align-items:center;gap:6px">
                 <span class="type-badge type-${c.type || 'lecture'}">${c.type || 'lecture'}</span>
@@ -11248,7 +11264,7 @@ function renderAssignments() {
         </div>
         <div class="assignment-body">
           <div class="assignment-subject" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span onclick="openSubjectHub('${a.subject}')" style="cursor:pointer;font-weight:700" title="Open ${a.subject} Hub">${a.subject} ${a.code ? '· ' + a.code : ''}</span>
+            <span onclick="openSubjectHub('${a.subject}')" style="cursor:pointer;font-weight:700" title="Open ${a.subject} Hub">${a.subject} ${subjectCodeSuffix(a.subject, a.code)}</span>
             <span class="type-badge type-${taskType}">${taskType === 'mission' ? '🚀 Mission' : taskType}</span>
             ${isCustom ? '<span class="session-badge">My task</span>' : ''}
           </div>
