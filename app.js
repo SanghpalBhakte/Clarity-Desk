@@ -2065,7 +2065,8 @@ function normalizeSubjectIdentity(rawText, existingSubjects = [], forceType = nu
     isLab: classType === 'lab',
     normalization_confidence: confidence,
     resolvedFromScanLegend,
-    digitConfusionCorrected
+    digitConfusionCorrected,
+    fuzzyMatchApplied
   };
 }
 
@@ -2825,6 +2826,66 @@ async function reOcrCellRegion(preprocessedDataUrl, worker, bboxFullImage) {
     .filter(w => (w.text || '').trim().length > 0);
 }
 
+// A real printed timetable sometimes has one cell visually merged across
+// two (or more) consecutive period columns -- e.g. a single "Community
+// Engagement" block spanning periods 3 and 4 with no divider inside it.
+// When that merged cell's text is unusually dense (several batch codes and
+// a teacher code crammed together), the column-splitting heuristics above
+// can occasionally cut it into two side-by-side clusters instead of
+// recognizing it as one span, and each half independently resolves through
+// the SAME normalization step -- so a single real class can come out as
+// two adjacent rows that agree on subject/teacher/room/batches but each
+// only cover one period. This collapses exactly that shape back into one
+// row per day, spanning the full contiguous time range, rather than
+// leaving a real class duplicated across periods. It never touches rows
+// that differ in subject, teacher, room, type, or batches -- including two
+// genuinely separate classes that happen to share a subject name but have
+// a different teacher/room -- so it only ever removes a duplicate, never a
+// real distinct class.
+function mergeAdjacentDuplicatePeriods(schedule) {
+  if (!schedule || schedule.length < 2) return schedule || [];
+
+  const sameCell = (a, b) => {
+    const norm = s => (s || '').trim().toLowerCase();
+    if (norm(a.subject) !== norm(b.subject)) return false;
+    if (norm(a.teacher) !== norm(b.teacher)) return false;
+    if (norm(a.room) !== norm(b.room)) return false;
+    if ((a.type || 'lecture') !== (b.type || 'lecture')) return false;
+    const batchKey = item => (item.batches || []).slice().sort().join(',');
+    return batchKey(a) === batchKey(b);
+  };
+
+  const dayOrder = [];
+  const byDay = new Map();
+  schedule.forEach(item => {
+    if (!byDay.has(item.day)) { byDay.set(item.day, []); dayOrder.push(item.day); }
+    byDay.get(item.day).push(item);
+  });
+
+  const merged = [];
+  dayOrder.forEach(day => {
+    const items = byDay.get(day).slice().sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+    let i = 0;
+    while (i < items.length) {
+      let curr = items[i];
+      let j = i + 1;
+      while (j < items.length && items[j].time === curr.end && sameCell(curr, items[j])) {
+        curr = {
+          ...curr,
+          end: items[j].end,
+          endSlot: items[j].endSlot !== undefined ? items[j].endSlot : curr.endSlot,
+          isUncertain: !!(curr.isUncertain || items[j].isUncertain),
+          subjectInferred: !!(curr.subjectInferred || items[j].subjectInferred)
+        };
+        j++;
+      }
+      merged.push(curr);
+      i = j;
+    }
+  });
+  return merged;
+}
+
 // ── Table-Aware 2D Grid Reconstructor ────────────────────────────
 function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegend = {}, subjectLegend = {}) {
   if (!ocrData || !ocrData.words || ocrData.words.length === 0) {
@@ -3020,7 +3081,19 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
             || span.borderline
             || guardrailDeclinedSplit
             || lineSplitFallback
-            || looksLikeUnresolvedCodeResidue(norm.canonicalName);
+            || looksLikeUnresolvedCodeResidue(norm.canonicalName)
+            // A fuzzy match means the raw OCR text didn't cleanly resolve to
+            // any known subject and normalizeSubjectIdentity substituted the
+            // closest EXISTING subject name it could find instead -- a real
+            // college timetable's dense, multi-batch cells (e.g. "Community
+            // Engagement- AI-A2,B2,C2,D2(SDJ)") are exactly the kind of text
+            // that garbles under real-world OCR, and a garbled fragment can
+            // land closest to a totally unrelated existing subject. That
+            // guess was previously trusted at the same confidence as a clean
+            // exact match, so a wrong substitution could sail straight into
+            // the saved timetable unflagged. Now it's always surfaced in the
+            // preview modal for the student to confirm or fix before saving.
+            || !!norm.fuzzyMatchApplied;
 
           schedule.push({
             day: dInt.day,
@@ -3124,7 +3197,19 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
             || span.borderline
             || guardrailDeclinedSplit
             || lineSplitFallback
-            || looksLikeUnresolvedCodeResidue(norm.canonicalName);
+            || looksLikeUnresolvedCodeResidue(norm.canonicalName)
+            // A fuzzy match means the raw OCR text didn't cleanly resolve to
+            // any known subject and normalizeSubjectIdentity substituted the
+            // closest EXISTING subject name it could find instead -- a real
+            // college timetable's dense, multi-batch cells (e.g. "Community
+            // Engagement- AI-A2,B2,C2,D2(SDJ)") are exactly the kind of text
+            // that garbles under real-world OCR, and a garbled fragment can
+            // land closest to a totally unrelated existing subject. That
+            // guess was previously trusted at the same confidence as a clean
+            // exact match, so a wrong substitution could sail straight into
+            // the saved timetable unflagged. Now it's always surfaced in the
+            // preview modal for the student to confirm or fix before saving.
+            || !!norm.fuzzyMatchApplied;
 
           schedule.push({
             day: dInt.day,
@@ -3147,8 +3232,9 @@ function reconstructTimetable2DGrid(ocrData, existingSubjects = [], facultyLegen
     });
   }
 
-  const confidence = Math.min(98, 75 + schedule.length * 5);
-  return { schedule, confidence, ambiguous: schedule.length === 0, lowConfidenceClusters };
+  const dedupedSchedule = mergeAdjacentDuplicatePeriods(schedule);
+  const confidence = Math.min(98, 75 + dedupedSchedule.length * 5);
+  return { schedule: dedupedSchedule, confidence, ambiguous: dedupedSchedule.length === 0, lowConfidenceClusters };
 }
 
 // ── Multi-Strategy Timetable Parser (2D Grid + Geometric Rows + Text Stream) ───
