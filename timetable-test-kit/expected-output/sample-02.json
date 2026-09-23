@@ -1,0 +1,110 @@
+{
+  "source_image": "sample-02_sy-aids_spreadsheet-revision_wef-2026-07-30.jpg",
+  "confidence": "medium",
+  "diff_from": "sample-01.json",
+  "diff_notes": "This is a revision of the same SY-AIDS/SF-31 timetable, one week later. The source is a spreadsheet screenshot where the preparer colored the CHANGED cells red and left unchanged cells black -- that's a built-in ground-truth diff signal a real pipeline should read (font color), not just re-OCR the grid from scratch every week. 'changed' below mirrors the red/black coloring seen in the source image.",
+  "institution": {
+    "university": "Mahatma Gandhi Mission University",
+    "college": "Jawaharlal Nehru Engineering College",
+    "address": "N-6, Cidco City: Aurangabad"
+  },
+  "department": "Electronics and Telecommunication",
+  "class_label": "SY-AIDS",
+  "lecture_hall": "SF-31",
+  "effective_from": "2026-07-30",
+  "periods": [
+    { "period": 1, "type": "class", "start": "10:00 AM", "end": "11:00 AM" },
+    { "period": 2, "type": "class", "start": "11:00 AM", "end": "12:00 PM" },
+    { "period": "recess1", "type": "recess", "start": null, "end": null },
+    { "period": 3, "type": "class", "start": "12:45 PM", "end": "1:45 PM" },
+    { "period": 4, "type": "class", "start": "1:45 PM", "end": "2:45 PM" },
+    { "period": "recess2", "type": "recess", "start": null, "end": null },
+    { "period": 5, "type": "class", "start": "3:00 PM", "end": "4:00 PM" },
+    { "period": 6, "type": "class", "start": "4:00 PM", "end": "5:00 PM" }
+  ],
+  "grid": {
+    "monday": [
+      { "periods": [1], "changed": false, "entries": [{ "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP VAK" }] },
+      { "periods": [2], "changed": false, "entries": [{ "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS VJM" }] },
+      { "periods": ["recess1"], "changed": false, "entries": [] },
+      { "periods": [3, 4], "changed": false, "entries": [{ "subject_abbr": "OE-1", "faculty_code": null, "raw_text": "OE-1" }] },
+      { "periods": ["recess2"], "changed": false, "entries": [] },
+      { "periods": [5, 6], "changed": false, "entries": [{ "subject_abbr": "MDM", "faculty_code": null, "raw_text": "MDM" }] }
+    ],
+    "tuesday": [
+      { "periods": [1, 2], "changed": false, "entries": [
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-AI-A2(VJM)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-AI-C2(MKP)" }
+      ] },
+      { "periods": ["recess1"], "changed": false, "entries": [] },
+      { "periods": [3, 4], "changed": false, "entries": [{ "subject_abbr": "OE-2", "faculty_code": null, "raw_text": "OE-2" }] },
+      { "periods": ["recess2"], "changed": false, "entries": [] },
+      { "periods": [5, 6], "changed": true, "entries": [{ "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-D2(VAK)" }] }
+    ],
+    "wednesday": [
+      { "periods": [1, 2], "changed": false, "entries": [{ "subject_abbr": "Community Engagement", "faculty_code": "SDJ", "raw_text": "Community Engagement-AI-C2,D2(SDJ)" }] },
+      { "periods": ["recess1"], "changed": false, "entries": [] },
+      { "periods": [3], "changed": false, "entries": [{ "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS VJM" }] },
+      { "periods": [4], "changed": false, "entries": [{ "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP VAK" }] },
+      { "periods": ["recess2"], "changed": false, "entries": [] },
+      { "periods": [5, 6], "changed": true, "entries": [
+        { "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-A2(VAK)" },
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-AI-B2(VJM)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-AI-D2(MKP)" }
+      ] }
+    ],
+    "thursday": [
+      { "periods": [1, 2], "changed": false, "entries": [
+        { "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-B2(VAK)" },
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-AI-C2(VJM)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-AI-A2(MKP)" }
+      ] },
+      { "periods": ["recess1"], "changed": false, "entries": [] },
+      { "periods": [3], "changed": true, "entries": [{ "subject_abbr": "PBST", "faculty_code": "SDJ", "raw_text": "PBST SDJ" }] },
+      { "periods": [4], "changed": true, "entries": [{ "subject_abbr": "PBST", "faculty_code": "SDJ", "raw_text": "PBST SDJ" }] },
+      { "periods": ["recess2"], "changed": false, "entries": [] },
+      { "periods": [5, 6], "changed": false, "entries": [] }
+    ],
+    "friday": [
+      { "periods": [1, 2], "changed": false, "entries": [
+        { "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-C2(VAK)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-B2(MKP)" },
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-D2(VJM)" }
+      ] },
+      { "periods": ["recess1"], "changed": false, "entries": [] },
+      { "periods": [3], "changed": true, "entries": [{ "subject_abbr": "BMFA", "faculty_code": null, "raw_text": "BMFA" }] },
+      { "periods": [4], "changed": true, "entries": [{ "subject_abbr": "BMFA", "faculty_code": null, "raw_text": "BMFA" }] },
+      { "periods": ["recess2"], "changed": false, "entries": [] },
+      { "periods": [5, 6], "changed": true, "entries": [{ "subject_abbr": "Community Engagement", "faculty_code": "SDJ", "raw_text": "Community Engagement-AI-A2,B2,C2,D2(SDJ)" }] }
+    ],
+    "saturday": [
+      { "periods": [1], "changed": false, "entries": [{ "subject_abbr": "COI", "faculty_code": null, "raw_text": "COI Adv. Vrushali Joshi" }] },
+      { "periods": [2], "changed": false, "entries": [{ "subject_abbr": "COI", "faculty_code": null, "raw_text": "COI Adv. Vrushali Joshi" }] },
+      { "periods": ["recess1"], "changed": false, "entries": [] },
+      { "periods": [3, 4], "changed": true, "entries": [{ "subject_abbr": "Community Engagement", "faculty_code": "SDJ", "raw_text": "Community Engagement-AI-A2,B2(SDJ)" }] },
+      { "periods": ["recess2"], "changed": false, "entries": [] },
+      { "periods": [5, 6], "changed": false, "entries": [] }
+    ]
+  },
+  "subject_legend": [
+    { "abbr": "DEMP", "subject": "Digital Electronics & Microprocessor", "lab": "DMP Lab", "hall": "FF-38" },
+    { "abbr": "WD", "subject": "Web Development", "lab": "Data Science", "hall": "FF-40" },
+    { "abbr": "DS", "subject": "Data Structure", "lab": "PL Lab - I", "hall": "FF-28" },
+    { "abbr": "COI", "subject": "Constitution of India", "lab": null, "hall": null },
+    { "abbr": "BMFA", "subject": "Business management & financial Accounting", "lab": null, "hall": null },
+    { "abbr": "PBST", "subject": "Probability & Statistics", "lab": null, "hall": null }
+  ],
+  "faculty_legend": [
+    { "code": "VAK", "name": "Prof. V. A. Kulkarni" },
+    { "code": "VJM", "name": "Dr. V. J. Murambikar" },
+    { "code": "SDJ", "name": "Prof. S. D. Jadhav" },
+    { "code": "MKP", "name": "Prof. M. K. Pawar" }
+  ],
+  "batches": [],
+  "signed_by": null,
+  "notes": [
+    "Legend/faculty tables are cropped out of this screenshot (only the grid was captured) -- carried over unchanged from sample-01 here since it's the same class/department, but a real pipeline should NOT assume that; it should either re-read the legend or explicitly mark it 'inherited, unverified'.",
+    "Friday 3-4 lost the faculty code in this revision (source just says 'BMFA' with no initials, unlike sample-01 which paired it with SF-32/room ref via context) -- transcribed as printed rather than backfilled from the prior version.",
+    "This image is the single best real-world test case in this kit for 'detect what changed week-to-week and alert the user' -- a feature worth considering for Clarity-Desk, since the source documents already encode that signal via color."
+  ]
+}

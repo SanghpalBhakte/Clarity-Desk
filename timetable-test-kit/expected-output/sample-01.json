@@ -1,0 +1,107 @@
+{
+  "source_image": "sample-01_sy-aids_printed_wef-2026-07-20.jpg",
+  "confidence": "high",
+  "institution": {
+    "university": "Mahatma Gandhi Mission University",
+    "college": "Jawaharlal Nehru Engineering College",
+    "address": "N-6, Cidco City: Aurangabad"
+  },
+  "department": "Electronics and Telecommunication",
+  "class_label": "SY-AIDS",
+  "lecture_hall": "SF-31",
+  "effective_from": "2026-07-20",
+  "periods": [
+    { "period": 1, "type": "class", "start": "10:00 AM", "end": "11:00 AM" },
+    { "period": 2, "type": "class", "start": "11:00 AM", "end": "12:00 PM" },
+    { "period": "recess1", "type": "recess", "start": null, "end": null },
+    { "period": 3, "type": "class", "start": "12:45 PM", "end": "1:45 PM" },
+    { "period": 4, "type": "class", "start": "1:45 PM", "end": "2:45 PM" },
+    { "period": "recess2", "type": "recess", "start": null, "end": null },
+    { "period": 5, "type": "class", "start": "3:00 PM", "end": "4:00 PM" },
+    { "period": 6, "type": "class", "start": "4:00 PM", "end": "5:00 PM" }
+  ],
+  "grid": {
+    "monday": [
+      { "periods": [1], "entries": [{ "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP VAK" }] },
+      { "periods": [2], "entries": [{ "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS VJM" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3, 4], "entries": [{ "subject_abbr": "OE-1", "faculty_code": null, "raw_text": "OE-1" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "MDM", "faculty_code": null, "raw_text": "MDM" }] }
+    ],
+    "tuesday": [
+      { "periods": [1, 2], "entries": [
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-AI-A2(VJM)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-AI-C2(MKP)" }
+      ] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3, 4], "entries": [{ "subject_abbr": "OE-2", "faculty_code": null, "raw_text": "OE-2" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-D2(VAK)" }] }
+    ],
+    "wednesday": [
+      { "periods": [1, 2], "entries": [{ "subject_abbr": "Community Engagement", "faculty_code": "SDJ", "raw_text": "Community Engagement-AI-C2,D2(SDJ)" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS VJM" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP VAK" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [
+        { "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-A2(VAK)" },
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-AI-B2(VJM)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-AI-D2(MKP)" }
+      ] }
+    ],
+    "thursday": [
+      { "periods": [1, 2], "entries": [
+        { "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-B2(VAK)" },
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-AI-C2(VJM)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-AI-A2(MKP)" }
+      ] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3, 4], "entries": [{ "subject_abbr": "Community Engagement", "faculty_code": "SDJ", "raw_text": "Community Engagement-AI-A2,B2,C2,D2(SDJ)" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [] }
+    ],
+    "friday": [
+      { "periods": [1, 2], "entries": [
+        { "subject_abbr": "DEMP", "faculty_code": "VAK", "raw_text": "DEMP-AI-C2(VAK)" },
+        { "subject_abbr": "WEB DEV.", "faculty_code": "MKP", "raw_text": "WEB DEV.-B2(MKP)" },
+        { "subject_abbr": "DS", "faculty_code": "VJM", "raw_text": "DS-D2(VJM)" }
+      ] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "PBST", "faculty_code": "SDJ", "raw_text": "PBST SDJ" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "PBST", "faculty_code": "SDJ", "raw_text": "PBST SDJ" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "Community Engagement", "faculty_code": "SDJ", "raw_text": "Community Engagement-AI-A2,B2(SDJ)" }] }
+    ],
+    "saturday": [
+      { "periods": [1], "entries": [{ "subject_abbr": "COI", "faculty_code": null, "raw_text": "COI Adv. Vrushali Joshi" }] },
+      { "periods": [2], "entries": [{ "subject_abbr": "COI", "faculty_code": null, "raw_text": "COI Adv. Vrushali Joshi" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "BMFA", "faculty_code": "SDJ", "raw_text": "BMFA SF-32" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "BMFA", "faculty_code": "SDJ", "raw_text": "BMFA SF-32" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [] }
+    ]
+  },
+  "subject_legend": [
+    { "abbr": "DEMP", "subject": "Digital Electronics & Microprocessor", "lab": "DMP Lab", "hall": "FF-38" },
+    { "abbr": "WD", "subject": "Web Development", "lab": "Data Science", "hall": "FF-40" },
+    { "abbr": "DS", "subject": "Data Structure", "lab": "PL Lab - I", "hall": "FF-28" },
+    { "abbr": "COI", "subject": "Constitution of India", "lab": null, "hall": null },
+    { "abbr": "BMFA", "subject": "Business management & financial Accounting", "lab": null, "hall": null },
+    { "abbr": "PBST", "subject": "Probability & Statistics", "lab": null, "hall": null }
+  ],
+  "faculty_legend": [
+    { "code": "VAK", "name": "Prof. V. A. Kulkarni" },
+    { "code": "VJM", "name": "Dr. V. J. Murambikar" },
+    { "code": "SDJ", "name": "Prof. S. D. Jadhav" },
+    { "code": "MKP", "name": "Prof. M. K. Pawar" }
+  ],
+  "batches": [],
+  "signed_by": "HOD, ECT",
+  "notes": [
+    "'WD' appears in the legend table but never appears as a standalone abbreviation in the grid — the grid always writes it out as 'WEB DEV.' instead of 'WD'. A real extractor needs to alias these.",
+    "Legend abbreviation 'WEB DEV.' in the grid vs 'WD' in the legend table is a real-world inconsistency this exact source document has — useful edge case, don't 'fix' it away."
+  ]
+}

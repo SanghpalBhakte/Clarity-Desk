@@ -1,0 +1,27 @@
+{
+  "$comment": "Target structure for a digitized college timetable. Design notes: (1) a class cell can span multiple periods (merged cell, e.g. OE-1 across periods 3-4) -> represented by 'periods': [3,4] on one slot object, not duplicated per period. (2) a cell can hold multiple stacked entries (different batches sharing a slot) -> 'entries' is always an array, length 1 in the common case. (3) recess/break columns are real slots with type='recess' and no entries, so the grid stays rectangular and renderable as a table. (4) legends (subject abbreviations, faculty initials, batch roll ranges) are separate lookup tables referenced by code, not inlined, so the same legend can be reused across terms.",
+  "type": "object",
+  "properties": {
+    "source_image": "string - filename in images/",
+    "confidence": "high | medium | low - OCR/extraction confidence for this whole document",
+    "institution": { "university": "string", "college": "string", "address": "string" },
+    "department": "string",
+    "class_label": "string - e.g. 'SY-AIDS'",
+    "lecture_hall": "string",
+    "effective_from": "YYYY-MM-DD, parsed from W.E.F.",
+    "periods": [
+      { "period": "1 | 2 | 3 ... or 'recess1'/'recess2' for breaks", "type": "class | recess", "start": "HH:MM AM/PM or null", "end": "HH:MM AM/PM or null" }
+    ],
+    "grid": {
+      "monday": [
+        { "periods": [1], "entries": [ { "subject_abbr": "string", "faculty_code": "string or null", "raw_text": "string as printed" } ], "changed": "bool, only present on revision documents, true if the source highlighted this cell as different from the prior version" }
+      ],
+      "...": "tuesday..saturday, same shape"
+    },
+    "subject_legend": [ { "abbr": "string", "subject": "string", "lab": "string or null", "hall": "string or null" } ],
+    "faculty_legend": [ { "code": "string", "name": "string" } ],
+    "batches": [ { "code": "string", "roll_range": "string" } ],
+    "signed_by": "string or null",
+    "notes": [ "string - anything the extractor is unsure about, so a human can verify" ]
+  }
+}

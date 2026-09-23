@@ -1,0 +1,111 @@
+{
+  "source_image": "sample-03_fy-aids_whatsapp-photo_wef-2025-12-22.jpg",
+  "confidence": "low",
+  "confidence_reason": "WhatsApp re-compression of a phone photo of a laminated/glossy printed sheet: visible glare band across the top rows, mild perspective warp, and the header/legend edges are partly cut off by the screenshot's own chat-UI frame. Treat every field below as best-effort, not ground truth, until a human confirms it against the original notice board sheet.",
+  "institution": {
+    "university": "Mahatma Gandhi Mission University",
+    "college": "Jawaharlal Nehru Engineering College",
+    "address": "N-6, Cidco City: Aurangabad"
+  },
+  "department": "Electronics and Telecommunication",
+  "class_label": "FY-AIDS",
+  "lecture_hall": "TF-32",
+  "effective_from": "2025-12-22",
+  "periods": [
+    { "period": 1, "type": "class", "start": "10:00 AM", "end": "11:00 AM" },
+    { "period": 2, "type": "class", "start": "11:00 AM", "end": "12:00 PM" },
+    { "period": "recess1", "type": "recess", "start": null, "end": null },
+    { "period": 3, "type": "class", "start": "12:45 PM", "end": "1:45 PM" },
+    { "period": 4, "type": "class", "start": "1:45 PM", "end": "2:45 PM" },
+    { "period": "recess2", "type": "recess", "start": null, "end": null },
+    { "period": 5, "type": "class", "start": "3:00 PM", "end": "4:00 PM" },
+    { "period": 6, "type": "class", "start": "4:00 PM", "end": "5:00 PM" }
+  ],
+  "grid": {
+    "monday": [
+      { "periods": [1], "entries": [{ "subject_abbr": "LADE", "faculty_code": "ABN", "raw_text": "LADE ABN" }] },
+      { "periods": [2], "entries": [{ "subject_abbr": "EM", "faculty_code": "VGJ", "raw_text": "EM VGJ" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "IKS", "faculty_code": "ARS", "raw_text": "IKS ARS" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "EC", "faculty_code": "JGG", "raw_text": "EC JGG" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "BPCL", "faculty_code": null, "raw_text": "BPCL- D1,D2(SBM,SAD) L1" }] }
+    ],
+    "tuesday": [
+      { "periods": [1], "entries": [{ "subject_abbr": "EC", "faculty_code": "JGG", "raw_text": "EC JGG" }] },
+      { "periods": [2], "entries": [{ "subject_abbr": "BEEE", "faculty_code": "CBI", "raw_text": "BEEE CBI" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3, 4], "entries": [{ "subject_abbr": "WORKSHOP", "faculty_code": null, "raw_text": "WORKSHOP K P Fegade" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [
+        { "subject_abbr": "EC", "faculty_code": null, "raw_text": "EC-D1 (SBS) EC-D2(JGG) TF-16" },
+        { "subject_abbr": "BEEE", "faculty_code": null, "raw_text": "BEEE - D3(CBI/VAK)GF-27/FF-30" }
+      ] }
+    ],
+    "wednesday": [
+      { "periods": [1], "entries": [{ "subject_abbr": "EM", "faculty_code": "VGJ", "raw_text": "EM VGJ" }] },
+      { "periods": [2], "entries": [{ "subject_abbr": "EC", "faculty_code": "JGG", "raw_text": "EC JGG" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "LADE", "faculty_code": "ABN", "raw_text": "LADE ABN" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "BPCL", "faculty_code": "SVS", "raw_text": "BPCL SVS" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "BPCL", "faculty_code": "SAD", "raw_text": "BPCL-D3(SAD) CC LAB" }] }
+    ],
+    "thursday": [
+      { "periods": [1, 2], "entries": [{ "subject_abbr": "WORKSHOP", "faculty_code": null, "raw_text": "WORKSHOP K P Fegade" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "EM", "faculty_code": "VGJ", "raw_text": "EM VGJ" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "LADE", "faculty_code": "ABN", "raw_text": "LADE ABN" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "Library", "faculty_code": null, "raw_text": "Library" }] }
+    ],
+    "friday": [
+      { "periods": [1, 2], "entries": [{ "subject_abbr": "BEEE", "faculty_code": null, "raw_text": "BEEE D1,D2 (CBI/MAM)GF-27/FF-30" }] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3], "entries": [{ "subject_abbr": "IKS", "faculty_code": "ARS", "raw_text": "IKS ARS" }] },
+      { "periods": [4], "entries": [{ "subject_abbr": "BEEE", "faculty_code": "MAM", "raw_text": "BEEE MAM" }] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "CCA", "faculty_code": null, "raw_text": "CCA" }] }
+    ],
+    "saturday": [
+      { "periods": [1], "entries": [] },
+      { "periods": [2], "entries": [] },
+      { "periods": ["recess1"], "entries": [] },
+      { "periods": [3, 4], "entries": [
+        { "subject_abbr": "EM", "faculty_code": "LGK", "raw_text": "EM-D1(LGK) GF-11" },
+        { "subject_abbr": "EM", "faculty_code": "VGJ", "raw_text": "EM-D2(VGJ)GF-11" },
+        { "subject_abbr": "EC", "faculty_code": "MMR", "raw_text": "EC-D3(MMR)TF-16" }
+      ] },
+      { "periods": ["recess2"], "entries": [] },
+      { "periods": [5, 6], "entries": [{ "subject_abbr": "CCA", "faculty_code": null, "raw_text": "CCA" }] }
+    ]
+  },
+  "subject_legend": [
+    { "abbr": "EM", "subject": "Engineering mechanics", "lab": null, "hall": null },
+    { "abbr": "EC", "subject": "Engineering Chemistry", "lab": null, "hall": null },
+    { "abbr": "LADE", "subject": "Linear Algebra and Differential Equations", "lab": null, "hall": null },
+    { "abbr": "BEEE", "subject": "Basics of Electrical and Electronics Engineering", "lab": null, "hall": null },
+    { "abbr": "IKS", "subject": "Indian Knowledge System", "lab": null, "hall": null },
+    { "abbr": "BPCL", "subject": "Basic Programming in C Language", "lab": null, "hall": null }
+  ],
+  "faculty_legend": [
+    { "code": "VGJ", "name": "Prof. V. G. Jadhav" },
+    { "code": "JGG", "name": "Dr. J. G. Gawai" },
+    { "code": "ABN", "name": "Prof. A. B. Nale" },
+    { "code": "CBI", "name": "Prof. C. B. Ingole" },
+    { "code": "MAM", "name": "Prof. M. A. Mulay" },
+    { "code": "ARS", "name": "Dr. A. R. Salunke" },
+    { "code": "SVS", "name": "Prof. S. V. Chavan" }
+  ],
+  "batches": [
+    { "code": "D1", "roll_range": "1250602-1250623", "confidence": "low, glare over this row" },
+    { "code": "D2", "roll_range": "1250624-1250650", "confidence": "low, glare over this row" },
+    { "code": "D2_or_D3", "roll_range": "1250651-1250675", "confidence": "low -- the batch-code column for this third row reads as 'D2' again in the source, which is very likely a misread of 'D3' (there IS a 'D3' used throughout the grid, e.g. Tuesday and Wednesday 5-6, with no batch table row for it otherwise); flagged rather than silently 'corrected'" }
+  ],
+  "signed_by": "HOD, ECT",
+  "notes": [
+    "BEEE has two faculty codes in the legend ('Prof. C. B. Ingole/ Prof. M. A. Mulay') mapped to one abbreviation -- schema currently assumes one name per code; this source needs faculty_legend to allow multiple names per abbreviation OR the grid's own per-cell faculty code (CBI vs MAM) to disambiguate, which it does do correctly in practice.",
+    "Monday 5-6 and Tuesday 5-6 both reference 'SBM'/'SBS' as a faculty-like code that never appears in the visible faculty_legend table -- likely cropped out of frame at the point the WhatsApp screenshot was taken. Needs the full original image, not this forwarded screenshot, to resolve.",
+    "This sample is the right one to stress-test 'graceful degradation': a pipeline should be able to say 'I'm not confident about the batch roll-number table, please verify' for the low-quality regions while still being fully confident about the clean, high-contrast weekday grid -- rather than a single confidence score for the whole document."
+  ]
+}
