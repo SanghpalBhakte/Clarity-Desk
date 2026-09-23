@@ -367,25 +367,25 @@ const AIService = {
   // pinned model in between as a fallback in case an alias has an outage.
   MODEL: 'gemini-flash-latest',
   FALLBACK_MODELS: ['gemini-3.6-flash', 'gemini-flash-lite-latest'],
-  // Groq's own docs describe llama-4-scout as vision-capable (up to 5 image
-  // inputs), but a live test against a real key returned 404 model_not_found
-  // -- it isn't in that key's /v1/models list at all, and neither is
-  // llama-4-maverick. Every other model currently visible to that key
-  // (gpt-oss-*, groq/compound*, qwen3.8) explicitly rejects image content
-  // ("messages[0].content must be a string"). As of this check, Groq does
-  // not expose a reachable vision model on the free tier -- this entry is
-  // kept so extractStructuredFromImage's rotation picks it up automatically
-  // the moment that changes, but right now callGroqVision will always fail
-  // and fall through to OpenRouter, which is harmless (the rotation already
-  // handles a failing provider) but worth knowing rather than assuming this
-  // leg is doing anything. Re-check api.groq.com/openai/v1/models with your
-  // own key before relying on it.
-  GROQ_VISION_MODEL: 'meta-llama/llama-4-scout-17b-16e-instruct',
+  // Re-verified live against the real key: llama-4-scout (the previous
+  // value) returns "model does not exist" -- it isn't in the key's
+  // /v1/models list -- so this Groq leg always failed. qwen/qwen3.8-27b IS
+  // listed and now accepts image input (an earlier check found it rejecting
+  // images; that has changed): on the SY-AIDS test-kit timetable it
+  // answered in ~5s in the requested grid format at 78% recall / 82%
+  // precision -- weaker than Gemini (98%/100%) but a working, fast fallback
+  // when Gemini is overloaded or out of free quota. Re-check
+  // api.groq.com/openai/v1/models with your own key if this starts failing.
+  GROQ_VISION_MODEL: 'qwen/qwen3.8-27b',
   // OpenRouter's ":free" catalog churns often (models get added/retired), so
   // this is a short ordered list rather than one pinned id -- same reasoning
-  // as FALLBACK_MODELS above. Verify current free vision models at
+  // as FALLBACK_MODELS above. inclusionai/ling-3.0-flash-vl:free was
+  // retired (no longer in the free vision list); qwen3.8-27b:free is listed
+  // as image-capable. Note OpenRouter's free pool is shared and often
+  // returns 429 "rate-limited upstream" for all of these at once -- it's a
+  // last resort, not a dependable leg. Verify current free vision models at
   // https://openrouter.ai/api/v1/models before relying on any one of these.
-  OPENROUTER_VISION_MODELS: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'inclusionai/ling-3.0-flash-vl:free'],
+  OPENROUTER_VISION_MODELS: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'qwen/qwen3.8-27b:free'],
 
   getApiKey() {
     if (window.CAMPUS_OS_GEMINI_KEY) return window.CAMPUS_OS_GEMINI_KEY;
@@ -419,7 +419,7 @@ const AIService = {
     console.log(`[AIService] Attempting extraction with Groq model: ${this.GROQ_MODEL}`);
     const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
     
-    const response = await fetch(endpoint, {
+    const response = await fetchWithTimeout(endpoint, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${key}`,
@@ -507,7 +507,7 @@ const AIService = {
   async _generateContent(endpoint, body, model) {
     let response;
     for (let attempt = 1; attempt <= 2; attempt++) {
-      response = await fetch(endpoint, {
+      response = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -596,7 +596,7 @@ const AIService = {
     console.log(`[AIService] Attempting VISION extraction with Groq model: ${this.GROQ_VISION_MODEL}`);
     const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
-    const response = await fetch(endpoint, {
+    const response = await fetchWithTimeout(endpoint, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${key}`,
@@ -644,7 +644,7 @@ const AIService = {
     for (const model of this.OPENROUTER_VISION_MODELS) {
       try {
         console.log(`[AIService] Attempting VISION extraction with OpenRouter model: ${model}`);
-        const response = await fetch(endpoint, {
+        const response = await fetchWithTimeout(endpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${key}`,
@@ -726,6 +726,26 @@ const AIService = {
 
 // Strips markdown code fences (```json ... ```) that Gemini sometimes wraps around JSON responses,
 // then safely attempts JSON.parse. Returns null (not throws) if content is unparseable.
+// Every AI provider call goes through this. Without a timeout, one
+// provider that accepts the connection but never answers (free endpoints
+// under load do this) left the scan spinner running forever instead of
+// moving on to the next provider/model. 60s is well above a normal vision
+// response (5-40s measured on the test-kit images) so it only cuts off
+// genuinely stuck calls; the abort surfaces as an ordinary error, which
+// every caller's existing provider/model rotation already handles.
+async function fetchWithTimeout(url, options = {}, ms = 60000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw new Error(`No response within ${Math.round(ms / 1000)}s`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function safeParseGeminiJson(text) {
   if (!text || typeof text !== 'string') return null;
   let cleaned = text.trim();
@@ -4090,7 +4110,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
       <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:20px;line-height:1.5">${reason}</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${canRetry ? `<button class="btn-primary" id="tt-error-retry-btn">🔄 Retry with Same Image</button>` : ''}
-        <button class="btn-secondary" id="tt-error-upload-btn">📷 Upload a Different Image</button>
+        <button class="btn-secondary" id="tt-error-upload-btn">${icons.camera()} Upload a Different Image</button>
         <button class="btn-secondary" id="tt-error-manual-btn">${icons.edit()} Enter Timetable Manually</button>
         <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--text-sm);margin-top:4px"
                 onclick="document.getElementById('tt-upload-error-backdrop')?.remove()">Dismiss</button>
@@ -6579,8 +6599,8 @@ function renderReview() {
                   <div class="text-xs text-muted">${a.subject} · Due: ${formatDate(a.dueDate)}</div>
                 </div>
                 <div style="display:flex;gap:6px">
-                  <button class="btn btn-sm btn-secondary" style="color:var(--green);font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">✓ Done</button>
-                  <button class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">📅 Reschedule</button>
+                  <button class="btn btn-sm btn-secondary" style="color:var(--green);font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">${icons.check()} Done</button>
+                  <button class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">${icons.calendar()} Reschedule</button>
                 </div>
               </div>
             `).join('')}
@@ -6872,25 +6892,25 @@ function renderWeeklyAttendanceTracker() {
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px;margin-bottom:12px">
-          <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
+          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${totalAttended}</div>
             <div style="font-size:var(--text-xs);color:var(--text-muted)">Attended</div>
           </div>
-          <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
+          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:var(--red)">${totalSkipped}</div>
             <div style="font-size:var(--text-xs);color:var(--text-muted)">Missed / Skipped</div>
           </div>
-          <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
+          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? guidance.pct + '%' : '0%'}</div>
             <div style="font-size:var(--text-xs);color:var(--text-muted)">Current Rate</div>
           </div>
-          <div style="background:var(--background);padding:10px;border-radius:6px;text-align:center">
+          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.isSafe ? guidance.safeSkips : guidance.classesToAttend}</div>
             <div style="font-size:var(--text-xs);color:var(--text-muted)">${guidance.isSafe ? 'Safe Skips' : 'Classes Needed'}</div>
           </div>
         </div>
 
-        <div style="font-size:var(--text-base);color:var(--text-primary);background:var(--background);padding:10px 12px;border-radius:6px;line-height:1.45;border:1px solid var(--border)">
+        <div style="font-size:var(--text-base);color:var(--text-primary);background:var(--surface-2);padding:10px 12px;border-radius:6px;line-height:1.45;border:1px solid var(--border)">
           💡 ${guidance.message}
         </div>
 
@@ -8782,7 +8802,13 @@ function preprocessAttendanceImageForOCR(base64Data, mimeType) {
 
       ctx.putImageData(imageData, 0, 0);
 
-      const resultDataUrl = canvas.toDataURL(mimeType, 0.92);
+      // Lossless PNG for OCR, same fix and reason as preprocessImageForOCR
+      // (v158): toDataURL(mimeType, 0.92) re-compressed every JPEG upload
+      // (phone photos, WhatsApp-forwarded screenshots) right after the
+      // contrast/sharpen pass, blurring small table text before Tesseract
+      // read it. The vision-AI upload is re-encoded back to the original
+      // format by the caller, so that payload is unchanged.
+      const resultDataUrl = canvas.toDataURL('image/png');
       canvas.width = 1;
       canvas.height = 1;
 
@@ -8846,7 +8872,8 @@ async function handleAttendancePhotoUpload(event) {
       if (_isAttendanceScanCanceled || currentScanId !== _currentAttendanceScanId) return;
 
       updateAttendanceScanLoadingMessage('Reconstructing table columns and mapping attendance counts…');
-      const extractedRows = await extractAttendanceRowsFromOCR(ocrResult?.data, preprocessedDataUrl.split(',')[1], mimeType);
+      const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
+      const extractedRows = await extractAttendanceRowsFromOCR(ocrResult?.data, visionDataUrl.split(',')[1], mimeType);
 
       _isOcrBusy = false;
       hideAttendanceScanLoadingModal();
@@ -9959,7 +9986,7 @@ function showAttendanceScanErrorModal(message) {
           Close
         </button>
         <button type="button" class="btn-primary" onclick="document.getElementById('ab-scan-error-backdrop')?.remove(); showBaselineModal(null, 'manual');" style="font-size:var(--text-base);padding:7px 16px">
-          ✍️ Enter Counts Manually
+          ${icons.edit()} Enter Counts Manually
         </button>
       </div>
     </div>
@@ -11995,7 +12022,7 @@ function renderLinksContent(container) {
         <span class="link-code">${s.code}</span>
         <div class="link-subject-actions">
           <button class="icon-btn-sm" onclick="editLinkSubject(${si})" title="Edit subject" aria-label="Edit subject">${icons.edit()}</button>
-          <button class="icon-btn-sm icon-btn-danger" onclick="deleteLinkSubject(${si})" title="Delete subject" aria-label="Delete subject">🗑</button>
+          <button class="icon-btn-sm icon-btn-danger" onclick="deleteLinkSubject(${si})" title="Delete subject" aria-label="Delete subject">${icons.trash()}</button>
         </div>
       </div>
 
@@ -12221,8 +12248,8 @@ function showLinkResourceModal(si, ri, existing) {
       </div>
 
       <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--surface-2);padding:4px;border-radius:var(--radius-sm)">
-        <button type="button" class="btn btn-sm ${!isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-url-btn" onclick="setResourceInputMode('url')" style="flex:1;padding:6px;font-size:var(--text-sm)">🔗 Web / Cloud Link</button>
-        <button type="button" class="btn btn-sm ${isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-file-btn" onclick="setResourceInputMode('file')" style="flex:1;padding:6px;font-size:var(--text-sm)">📁 Upload Document</button>
+        <button type="button" class="btn btn-sm ${!isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-url-btn" onclick="setResourceInputMode('url')" style="flex:1;padding:6px;font-size:var(--text-sm)">${icons.link()} Web / Cloud Link</button>
+        <button type="button" class="btn btn-sm ${isUpload ? 'btn-primary' : 'btn-secondary'}" id="lrm-mode-file-btn" onclick="setResourceInputMode('file')" style="flex:1;padding:6px;font-size:var(--text-sm)">${icons.filetext()} Upload Document</button>
       </div>
 
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
@@ -13560,8 +13587,8 @@ const ClarityAssistant = (() => {
     <strong>${escHtml(top.subject.name)}</strong> needs the most attention right now because ${top.signals.join(' and ')}.<br><br>
     <strong>Priority Breakdown:</strong><ul class="cd-list" style="margin-top:6px">${items}</ul>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-primary" onclick="sendAssistantMessage('Help me plan tonight')" style="font-size:var(--text-sm);padding:4px 10px">🎯 Plan Study for Today</button>
-      <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${top.subject.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:4px 10px">✍️ Add Task</button>
+      <button class="btn btn-sm btn-primary" onclick="sendAssistantMessage('Help me plan tonight')" style="font-size:var(--text-sm);padding:4px 10px">${icons.target()} Plan Study for Today</button>
+      <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${top.subject.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.edit()} Add Task</button>
     </div>`;
   }
 
@@ -13586,7 +13613,7 @@ const ClarityAssistant = (() => {
     return `<div class="cd-tag cd-tag-safe" style="margin-bottom:8px">Timetable Active</div><br>
     You currently have <strong>${totalSlots} class slot${totalSlots!==1?'s':''}</strong> active on your timetable. You can scan a new photo to replace/update it or add individual classes manually.<br><br>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan New Photo</button>
+      <button class="btn btn-sm btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan New Photo</button>
       <button class="btn btn-sm btn-secondary" onclick="navigate('timetable')" style="font-size:var(--text-sm);padding:5px 12px">View Full Schedule →</button>
     </div>`;
   }
@@ -13610,8 +13637,8 @@ const ClarityAssistant = (() => {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Baseline</div><br>
       <strong>${missing.length} of ${subjects.length} subjects</strong> are missing initial attendance counts. Entering your portal counts once gives you instant % calculations and safe skip guidance.<br><br>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'scan')" style="font-size:var(--text-sm);padding:5px 12px">📷 Scan Portal Screenshot</button>
-        <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">✍️ Enter Counts Manually</button>
+        <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'scan')" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan Portal Screenshot</button>
+        <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">${icons.edit()} Enter Counts Manually</button>
         <button class="btn btn-sm btn-secondary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">Subject Hubs →</button>
       </div>`;
     }
@@ -13650,7 +13677,7 @@ const ClarityAssistant = (() => {
       <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">Open Subject Hubs →</button>`;
     }
     return `You have <strong>${subjects.length} active Subject Hub${subjects.length !== 1 ? 's' : ''}</strong> configured with attendance, course resources, and faculty metadata.<br><br>
-    <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:6px 14px">📚 Open Subject Hubs →</button>`;
+    <button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:6px 14px">${icons.book()} Open Subject Hubs →</button>`;
   }
 
   function buildCreateTask(query) {
@@ -13670,7 +13697,7 @@ const ClarityAssistant = (() => {
     if (matching.length === 1) {
       const foundSubj = matching[0];
       return `Open the Task Creator for <strong>${escHtml(foundSubj.name)}</strong> in <a href="javascript:void(0)" onclick="navigate('assignments')" style="color:var(--accent);font-weight:600">Tasks &amp; Deadlines</a>:<br><br>
-      <button class="btn btn-sm btn-primary" onclick="showAddTaskModal(null, '${foundSubj.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:6px 14px">✍️ Create Task for ${escHtml(foundSubj.name)} →</button>`;
+      <button class="btn btn-sm btn-primary" onclick="showAddTaskModal(null, '${foundSubj.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:6px 14px">${icons.edit()} Create Task for ${escHtml(foundSubj.name)} →</button>`;
     } else if (matching.length > 1) {
       const buttons = matching.map(s =>
         `<button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${s.name.replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:4px 10px">${escHtml(s.name)}</button>`
@@ -13680,7 +13707,7 @@ const ClarityAssistant = (() => {
     }
 
     return `To create or schedule an assignment, open the Task Creator in <a href="javascript:void(0)" onclick="navigate('assignments')" style="color:var(--accent);font-weight:600">Tasks &amp; Deadlines</a>:<br><br>
-    <button class="btn btn-sm btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-sm);padding:6px 14px">✍️ Open Task Creator →</button>`;
+    <button class="btn btn-sm btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-sm);padding:6px 14px">${icons.edit()} Open Task Creator →</button>`;
   }
 
   function buildStudyPlan() {
@@ -13850,7 +13877,7 @@ const ClarityAssistant = (() => {
   function buildAttendanceGeneral() {
     const { attended, skipped, total } = getOverallAttendance();
     if (total === 0) {
-      return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Setup Incomplete</div><br>No attendance recorded yet. Enter your starting portal baseline counts in <a href="javascript:void(0)" onclick="showBaselineModal(null, 'manual')" style="color:var(--accent);font-weight:600">Subject Hubs</a> to unlock percentage tracking and safe skip guidance.<br><br><button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">📊 Set Baseline Counts →</button>`;
+      return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Setup Incomplete</div><br>No attendance recorded yet. Enter your starting portal baseline counts in <a href="javascript:void(0)" onclick="showBaselineModal(null, 'manual')" style="color:var(--accent);font-weight:600">Subject Hubs</a> to unlock percentage tracking and safe skip guidance.<br><br><button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">${icons.chartLine()} Set Baseline Counts →</button>`;
     }
     const pct = Math.round((attended / total) * 100);
     const target = getAttendanceTarget();
@@ -13934,7 +13961,7 @@ const ClarityAssistant = (() => {
       gaps.push({
         title: 'Student Profile',
         desc: `Add your ${missingProfile.join(' and ')} for personalized headers and batch filtering.`,
-        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('settings')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">⚙️ Profile Settings →</button>`
+        btn: `<button class="btn btn-sm btn-secondary" onclick="navigate('settings')" style="margin-top:4px;font-size:var(--text-sm);padding:3px 10px">${icons.settings()} Profile Settings →</button>`
       });
     }
 

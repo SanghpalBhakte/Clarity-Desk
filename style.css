@@ -170,6 +170,27 @@
   --font-mono:     'Spline Sans Mono', 'JetBrains Mono', 'SF Mono', Consolas, Monaco, monospace;
   --font:          var(--font-sans);
 
+  /* Type scale: 9 canonical steps, replacing ~40 ad-hoc inline
+     font-size values that had drifted across the app (e.g. 13
+     near-duplicate sizes crammed between 0.74rem and 0.88rem alone).
+     Chosen from the actual distribution so existing hierarchy is
+     preserved, not flattened - closely-clustered values collapse to
+     one step, while a real hierarchy (label vs. value vs. title)
+     still spans multiple steps. --text-md matches the body base size.
+     Restored exactly as introduced in c9c5134: the theme-block rework in
+     08d746f deleted these definitions while app.js kept ~446 inline
+     font-size:var(--text-*) references, so every one of those sizes was
+     silently discarded and the text inherited its parent's size. */
+  --text-2xs:  0.65rem;
+  --text-xs:   0.72rem;
+  --text-sm:   0.78rem;
+  --text-base: 0.84rem;
+  --text-md:   0.92rem;
+  --text-lg:   1.1rem;
+  --text-xl:   1.3rem;
+  --text-2xl:  1.6rem;
+  --text-hero: 2.2rem;
+
   --sidebar-w: 240px;
   --topbar-h:  56px;
   --nav-h:     60px;
@@ -3576,7 +3597,7 @@ button:disabled {
   top: -36px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-card);
+  background: var(--card-bg);
   color: var(--text-primary);
   padding: 4px 10px;
   border-radius: 6px;
@@ -3584,7 +3605,7 @@ button:disabled {
   font-weight: 500;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--card-border);
   pointer-events: auto;
   cursor: pointer;
   animation: bounceHint 2s infinite ease-in-out;
@@ -3597,9 +3618,9 @@ button:disabled {
   transform: translateX(-50%) rotate(45deg);
   width: 8px;
   height: 8px;
-  background: var(--bg-card);
-  border-right: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-right: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--card-border);
 }
 @keyframes bounceHint {
   0%, 100% { transform: translateX(-50%) translateY(0); }
