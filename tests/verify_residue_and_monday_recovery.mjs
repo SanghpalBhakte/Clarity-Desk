@@ -174,7 +174,7 @@ await check('A4. Empty/falsy canonicalName still returns true (residue / untrust
 
 // ── PART B: missing leading day (Monday) recovery ───────────────────
 
-await check('B1. A missing leading day token is recovered via a narrow crop retry, and its orphaned row content is captured', async () => {
+await check('B1. A missing leading day token is recovered via a sparse-text (PSM 11) full-page retry, and its orphaned row content is captured', async () => {
   const mod = createSandbox();
   let recognizeCalls = 0;
   const paramCalls = [];
@@ -205,13 +205,13 @@ await check('B1. A missing leading day token is recovered via a narrow crop retr
             }
           };
         }
-        // Second pass: the narrow day-label-column crop retry. Returned
-        // bbox is in the crop's own upscaled space; reOcrCellRegion remaps
-        // it back to (30,150)-(140,180) in full-image space -- squarely
-        // inside the estimated one-row-height band above Tue.
+        // Second pass: the sparse-text (PSM 11) full-page retry. Returned
+        // bbox is already in full-image space (no crop remap): MONDAY sits
+        // in the day-label column, level with the orphaned Physics cell
+        // (cy=150) and above Tue -- inside the day-column search window.
         return {
           data: {
-            words: [{ text: 'MONDAY', bbox: { x0: 60, y0: 232, x1: 280, y1: 292 }, confidence: 92 }],
+            words: [{ text: 'MONDAY', bbox: { x0: 20, y0: 140, x1: 70, y1: 160 }, confidence: 92 }],
             text: 'MONDAY'
           }
         };
@@ -222,8 +222,8 @@ await check('B1. A missing leading day token is recovered via a narrow crop retr
   const result = await mod.extractTimetableFromImage('ZmFrZQ==', 'image/png');
 
   if (recognizeCalls !== 2) return `expected exactly 2 recognize() calls (1 first pass + 1 leading-day retry), got ${recognizeCalls}`;
-  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '3' }])) {
-    return `expected PSM set to 6 then reset to 3, got ${JSON.stringify(paramCalls)}`;
+  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '11' }, { tessedit_pageseg_mode: '6' }])) {
+    return `expected PSM set to 11 for the sparse retry then reset to Tesseract.js's default (6), got ${JSON.stringify(paramCalls)}`;
   }
   const days = (result.schedule || []).map(r => r.day);
   if (!days.includes('Mon')) return `expected a recovered Monday row, got days: ${JSON.stringify(days)}`;

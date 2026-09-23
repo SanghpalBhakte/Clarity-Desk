@@ -882,60 +882,81 @@ function detectSkewAngle(sourceCanvas) {
   smallCanvas.height = searchH;
   const sctx = smallCanvas.getContext('2d');
   sctx.drawImage(sourceCanvas, 0, 0, searchW, searchH);
-
-  const rotCanvas = document.createElement('canvas');
-  const rotCtx = rotCanvas.getContext('2d');
-
-  let bestAngle = 0;
-  let bestScore = -Infinity;
-
-  for (let angleDeg = -12; angleDeg <= 12; angleDeg += 0.5) {
-    const rad = angleDeg * Math.PI / 180;
-    const absCos = Math.abs(Math.cos(rad));
-    const absSin = Math.abs(Math.sin(rad));
-    const rotW = Math.max(1, Math.round(searchW * absCos + searchH * absSin));
-    const rotH = Math.max(1, Math.round(searchW * absSin + searchH * absCos));
-    rotCanvas.width = rotW;
-    rotCanvas.height = rotH;
-    rotCtx.save();
-    rotCtx.fillStyle = '#ffffff';
-    rotCtx.fillRect(0, 0, rotW, rotH);
-    rotCtx.translate(rotW / 2, rotH / 2);
-    rotCtx.rotate(rad);
-    rotCtx.drawImage(smallCanvas, -searchW / 2, -searchH / 2);
-    rotCtx.restore();
-
-    const { data: rotData } = rotCtx.getImageData(0, 0, rotW, rotH);
-    const rowSums = new Float64Array(rotH);
-    for (let y = 0; y < rotH; y++) {
-      let sum = 0;
-      const rowOffset = y * rotW * 4;
-      for (let x = 0; x < rotW; x++) {
-        const i = rowOffset + x * 4;
-        const luminance = 0.299 * rotData[i] + 0.587 * rotData[i + 1] + 0.114 * rotData[i + 2];
-        sum += 255 - luminance;
-      }
-      rowSums[y] = sum;
-    }
-    const mean = rowSums.reduce((a, b) => a + b, 0) / rotH;
-    let variance = 0;
-    for (let y = 0; y < rotH; y++) {
-      const d = rowSums[y] - mean;
-      variance += d * d;
-    }
-    variance /= rotH;
-
-    if (variance > bestScore) {
-      bestScore = variance;
-      bestAngle = angleDeg;
-    }
-  }
-
-  rotCanvas.width = 1;
-  rotCanvas.height = 1;
+  const { data } = sctx.getImageData(0, 0, searchW, searchH);
   smallCanvas.width = 1;
   smallCanvas.height = 1;
 
+  // Scored on the coordinates of "ink" pixels only, projected at each
+  // candidate angle -- NOT by rotating the image itself. The previous
+  // version rotated the downscaled image onto a white-filled canvas and
+  // scored row-darkness variance over the whole rotated canvas; on a real
+  // scan the paper is light grey, not white, so the white corner triangles
+  // that grow with every degree of rotation (and the canvas itself growing)
+  // added fake variance that rose monotonically with |angle|. Verified on
+  // the real SY-AIDS test-kit scan (tilted ~1deg): it returned the edge of
+  // the search range (12deg) and the whole page went to Tesseract rotated
+  // ~13deg, so day rows ran diagonally across each other -- the root cause
+  // of garbled text, missing day labels, and one day's classes being filed
+  // under another. Rotating a fixed set of points has no fill and no
+  // changing canvas size, so nothing but real text/rule alignment affects
+  // the score.
+  //
+  // Ink = pixels far from the dominant (median) background luminance in
+  // either direction, so dark-on-light scans and light-on-dark screenshots
+  // both work (skew detection runs before the auto-invert step).
+  const lum = new Uint8Array(searchW * searchH);
+  const hist = new Uint32Array(256);
+  for (let i = 0, j = 0; j < lum.length; i += 4, j++) {
+    const l = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    lum[j] = l;
+    hist[l]++;
+  }
+  let acc = 0, bg = 0;
+  for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= lum.length / 2) { bg = v; break; } }
+
+  const xs = [], ys = [];
+  const cx = searchW / 2, cy = searchH / 2;
+  for (let y = 0; y < searchH; y++) {
+    for (let x = 0; x < searchW; x++) {
+      if (Math.abs(lum[y * searchW + x] - bg) > 60) { xs.push(x - cx); ys.push(y - cy); }
+    }
+  }
+  if (xs.length < 50) return 0;
+
+  const diag = Math.ceil(Math.hypot(searchW, searchH));
+  const bins = new Float64Array(diag * 2 + 2);
+  // Same convention as rotateCanvasByAngle (canvas ctx.rotate): a point's
+  // row after rotating by `rad` is y' = x*sin(rad) + y*cos(rad).
+  const scoreAt = (angleDeg) => {
+    const rad = angleDeg * Math.PI / 180;
+    const s = Math.sin(rad), c = Math.cos(rad);
+    bins.fill(0);
+    for (let k = 0; k < xs.length; k++) {
+      bins[Math.round(xs[k] * s + ys[k] * c) + diag]++;
+    }
+    let energy = 0;
+    for (let b = 0; b < bins.length; b++) energy += bins[b] * bins[b];
+    return energy;
+  };
+
+  const straightScore = scoreAt(0);
+  let bestAngle = 0;
+  let bestScore = straightScore;
+  for (let angleDeg = -12; angleDeg <= 12; angleDeg += 0.5) {
+    const score = scoreAt(angleDeg);
+    if (score > bestScore) { bestScore = score; bestAngle = angleDeg; }
+  }
+  // Refine to 0.1deg around the coarse winner.
+  const coarse = bestAngle;
+  for (let angleDeg = coarse - 0.4; angleDeg <= coarse + 0.4 + 1e-9; angleDeg += 0.1) {
+    const a = Math.round(angleDeg * 10) / 10;
+    const score = scoreAt(a);
+    if (score > bestScore) { bestScore = score; bestAngle = a; }
+  }
+
+  // Never rotate an already-straight page on a marginal difference: the
+  // chosen angle must beat "no rotation" by a real margin.
+  if (bestScore < straightScore * 1.03) return 0;
   return bestAngle;
 }
 
@@ -1205,7 +1226,19 @@ function preprocessImageForOCR(base64Data, mimeType) {
       const trimmedCtx = trimmedCanvas.getContext('2d');
       trimmedCtx.drawImage(canvas, left, top, trimW, trimH, 0, 0, trimW, trimH);
 
-      const resultDataUrl = trimmedCanvas.toDataURL(mimeType, 0.92);
+      // Always lossless PNG, never the upload's own format. This used to be
+      // toDataURL(mimeType, 0.92): for a JPEG upload -- every phone photo
+      // and WhatsApp image -- the freshly sharpened, contrast-boosted page
+      // was re-compressed as a lossy JPEG right before Tesseract read it,
+      // smearing thin strokes into ringing artifacts. Verified on the real
+      // SY-AIDS test-kit scan: the same preprocessed pixels read the time
+      // header cleanly as PNG ("12:45PM | 1:45PM |Rece| 3:00PM") but as
+      // garbage after the JPEG round-trip ("rzasem | tase | soar]"),
+      // dropping three period start times and shifting every column after
+      // them. The cell re-OCR crops below already use PNG for this reason.
+      // The vision-AI upload re-encodes this back to the original format
+      // (see reencodeDataUrl), so its payload is unchanged.
+      const resultDataUrl = trimmedCanvas.toDataURL('image/png');
 
       // Free buffers immediately to avoid memory leaks
       canvas.width = 1;
@@ -1217,6 +1250,29 @@ function preprocessImageForOCR(base64Data, mimeType) {
     };
     img.onerror = () => reject(new Error("Failed to load image for timetable preprocessing"));
     img.src = `data:${mimeType};base64,${base64Data}`;
+  });
+}
+
+// Re-encodes an image data URL into another format/quality. Used to turn
+// the lossless PNG from preprocessImageForOCR back into the upload's own
+// format for the vision-AI call, so that upload stays exactly as compact as
+// it was before OCR input switched to PNG (PNG round-trip is lossless, so
+// the resulting bytes match what the old direct toDataURL(mimeType) gave).
+function reencodeDataUrl(dataUrl, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width;
+      c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const out = c.toDataURL(mimeType, quality);
+      c.width = 1;
+      c.height = 1;
+      resolve(out);
+    };
+    img.onerror = () => reject(new Error('Failed to re-encode preprocessed image'));
+    img.src = dataUrl;
   });
 }
 
@@ -2733,7 +2789,13 @@ async function reOcrHeaderBandForTimeTokens(preprocessedDataUrl, worker, dayToke
   } finally {
     // Always restore the default segmentation mode so nothing leaks into
     // later scans, even if the crop recognize() call above threw.
-    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    // Tesseract.js's own default is '6' (SINGLE_BLOCK), not native
+    // Tesseract's '3' -- verified: an untouched worker's output is
+    // byte-identical to PSM 6 on the test-kit scans. Restoring '3' left the
+    // shared, cached worker in a different, worse mode for every later scan
+    // in the session (re-scans, attendance scans): on the SY-AIDS scan PSM 3
+    // found 4 time labels vs 12 at PSM 6.
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
   }
 
   const cropWords = mapRawOcrWordsForDetection(cropResult?.data?.words);
@@ -2825,7 +2887,13 @@ async function reOcrCellRegion(preprocessedDataUrl, worker, bboxFullImage) {
   } finally {
     // Always restore the default segmentation mode so nothing leaks into
     // later scans, even if the crop recognize() call above threw.
-    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    // Tesseract.js's own default is '6' (SINGLE_BLOCK), not native
+    // Tesseract's '3' -- verified: an untouched worker's output is
+    // byte-identical to PSM 6 on the test-kit scans. Restoring '3' left the
+    // shared, cached worker in a different, worse mode for every later scan
+    // in the session (re-scans, attendance scans): on the SY-AIDS scan PSM 3
+    // found 4 time labels vs 12 at PSM 6.
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
   }
 
   return (cropResult?.data?.words || [])
@@ -3472,42 +3540,98 @@ async function extractTimetableFromImage(base64Data, mimeType) {
   // estimated one-row-height band above the topmost known day avoids that
   // and reliably recovers the label. Requires >=2 day tokens so a row
   // spacing can be estimated; degrades to a no-op otherwise.
+  //
+  // Generalized from "missing Monday only": the first pass can drop ANY
+  // day label, not just a leading one. Verified on the real SY-AIDS
+  // test-kit scan: PSM 6 read WEDNESD/THURSDAY/FRIDAY/SATURDAY but dropped
+  // both MONDAY and TUESDAY (each sits vertically centred between two
+  // lines of cell text), so the old one-row band above Wednesday only ever
+  // saw TUESDAY -- which it ignored for not being Monday -- and both rows'
+  // classes were lost. Now the whole day-label column is re-read, spanning
+  // as many rows above the topmost / below the bottommost known day as
+  // weekdays could be missing there, and every weekday not already found is
+  // added back, subject to the same >40 confidence bar plus a weekday-order
+  // check against the days already found (so a stray substring match in
+  // the wrong place can't be adopted).
   try {
+    const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const postHeaderWords = mapRawOcrWordsForDetection(ocrResult.data?.words);
     const { dayTokens: postHeaderDayTokens } = detectDayAndTimeTokens(postHeaderWords);
-    if (postHeaderDayTokens.length >= 2 && !postHeaderDayTokens.some(d => d.stdDay === 'Mon')) {
-      const sortedDays = [...postHeaderDayTokens].sort((a, b) => a.cy - b.cy);
-      const topmost = sortedDays[0];
-      if (topmost.stdDay !== 'Mon') {
-        const rowSpacing = sortedDays[1].cy - sortedDays[0].cy;
-        if (rowSpacing > 10) {
-          const dayLabelWidth = Math.max(...postHeaderDayTokens.map(d => d.word.bbox.x1));
-          const candidateBbox = {
-            x0: 0,
-            y0: topmost.word.bbox.y0 - rowSpacing - 20,
-            x1: dayLabelWidth + 40,
-            y1: topmost.word.bbox.y0 - 10
-          };
-          if (candidateBbox.y0 >= 0 && candidateBbox.y1 > candidateBbox.y0) {
-            updateTimetableLoadingModal("Re-scanning for a missing leading day row...");
-            const recoveredDayWords = await reOcrCellRegion(preprocessedDataUrl, worker, candidateBbox);
-            const mondayWord = recoveredDayWords.find(w => {
-              const cleanWord = (w.text || '').toLowerCase().replace(/[^a-z]/g, '');
-              return standardizeTimetableDay(cleanWord) === 'Mon' && (w.confidence || 0) > 40;
+    const known = new Map();
+    postHeaderDayTokens.forEach(d => {
+      const prev = known.get(d.stdDay);
+      if (!prev || (d.word.conf || 0) > (prev.word.conf || 0)) known.set(d.stdDay, d);
+    });
+    // Only days missing BEFORE the last day found (leading or middle gaps)
+    // trigger this. A missing trailing day (e.g. Saturday on a Mon-Fri
+    // timetable) is ambiguous and never guessed at, so a normal scan pays
+    // no extra OCR pass.
+    const bottomIdx = Math.max(...[...known.keys()].map(d => WEEK.indexOf(d)));
+    const missingDays = WEEK.filter((d, i) => !known.has(d) && i < bottomIdx);
+    if (known.size >= 2 && missingDays.length > 0) {
+      const sortedDays = [...known.values()].sort((a, b) => a.cy - b.cy);
+      const ySpread = sortedDays[sortedDays.length - 1].cy - sortedDays[0].cy;
+      const xSpread = Math.max(...sortedDays.map(d => d.cx)) - Math.min(...sortedDays.map(d => d.cx));
+      const gaps = sortedDays.slice(1).map((d, i) => d.cy - sortedDays[i].cy).filter(g => g > 10);
+      const rowSpacing = gaps.length ? Math.min(...gaps) : 0;
+      // Days stacked vertically (Layout A) only -- same effective condition
+      // the old version had via its rowSpacing > 10 guard.
+      if (rowSpacing > 10 && ySpread > xSpread) {
+        const topmost = sortedDays[0];
+        const bottommost = sortedDays[sortedDays.length - 1];
+        const rowsAbove = Math.max(0, WEEK.indexOf(topmost.stdDay));
+        const dayLabelWidth = Math.max(...sortedDays.map(d => d.word.bbox.x1));
+        const candidateBbox = {
+          x0: 0,
+          y0: Math.max(0, topmost.word.bbox.y0 - rowsAbove * rowSpacing - 20),
+          x1: dayLabelWidth + 40,
+          y1: bottommost.word.bbox.y1 + 20
+        };
+        if (candidateBbox.y1 > candidateBbox.y0) {
+          updateTimetableLoadingModal("Re-scanning the day column for missing day rows...");
+          // A full-page sparse-text (PSM 11) pass, filtered to the day-label
+          // column window below -- NOT a cropped re-OCR. Verified on the
+          // real SY-AIDS scan: a crop of that column, at any bounds or PSM,
+          // read only "SATURDAY" (the boxed cells read as non-text once
+          // isolated and upscaled), while the full-page PSM 11 pass read all
+          // six labels at their true positions (MONDAY@96, TUESDAY@96...).
+          let sparseWords = [];
+          try {
+            await worker.setParameters({ tessedit_pageseg_mode: '11' });
+            const sparse = await worker.recognize(preprocessedDataUrl);
+            sparseWords = sparse?.data?.words || [];
+          } finally {
+            await worker.setParameters({ tessedit_pageseg_mode: '6' });
+          }
+          const recoveredDayWords = sparseWords
+            .map(w => ({ text: w.text, bbox: w.bbox, confidence: w.confidence }))
+            .filter(w => w.bbox && isBboxInsideRegion(w.bbox, candidateBbox));
+          const bestRecovered = new Map();
+          recoveredDayWords.forEach(w => {
+            const cleanWord = (w.text || '').toLowerCase().replace(/[^a-z]/g, '');
+            const std = cleanWord.length >= 3 ? standardizeTimetableDay(cleanWord) : '';
+            if (!std || !missingDays.includes(std) || (w.confidence || 0) <= 40) return;
+            const cy = ((w.bbox?.y0 || 0) + (w.bbox?.y1 || 0)) / 2;
+            const orderOk = [...known.values()].every(k => {
+              const ki = WEEK.indexOf(k.stdDay), si = WEEK.indexOf(std);
+              return ki < si ? k.cy < cy : k.cy > cy;
             });
-            if (mondayWord) {
-              // Prepended for the same reason Stage A prepends recovered
-              // time tokens: a clean, self-validating recovered word
-              // should never be at risk of an unrelated neighbor's
-              // lookahead window absorbing it.
-              ocrResult.data.words = [mondayWord, ...(ocrResult.data.words || [])];
-            }
+            if (!orderOk) return;
+            const prev = bestRecovered.get(std);
+            if (!prev || (w.confidence || 0) > (prev.confidence || 0)) bestRecovered.set(std, w);
+          });
+          if (bestRecovered.size > 0) {
+            // Prepended for the same reason Stage A prepends recovered
+            // time tokens: a clean, self-validating recovered word
+            // should never be at risk of an unrelated neighbor's
+            // lookahead window absorbing it.
+            ocrResult.data.words = [...bestRecovered.values(), ...(ocrResult.data.words || [])];
           }
         }
       }
     }
   } catch (err) {
-    console.warn("[TimetableParser] Leading day-row retry OCR failed, continuing with prior data:", err);
+    console.warn("[TimetableParser] Day-column retry OCR failed, continuing with prior data:", err);
   }
 
   updateTimetableLoadingModal("Reconstructing schedule rows and matching subjects...");
@@ -3676,7 +3800,15 @@ Notice: full subject name with its short code in parentheses, "Prof. <initials>"
   // configured, or all configured ones failed/were empty.
   if (hasGeminiKey || hasGroqKey || hasOpenRouterKey) {
     try {
-      const visionPrompt = schemaInstruction + legendHint + `
+      // The vision call asks for the GRID (which header columns each cell
+      // covers), not clock times per row: the app computes times itself from
+      // the printed header (expandGridCellsToScheduleRows). Measured on the
+      // real SY-AIDS test-kit scan with the same model: the flat "time/end per
+      // row" format read every cell correctly but cut most two-period merged
+      // cells (MDM 3-5, the 10-12 lab blocks) to their first hour -- 74%
+      // recall -- because the model had to derive each merged cell's end
+      // time itself. The text-only repair path below keeps the flat format.
+      const visionPrompt = VISION_GRID_INSTRUCTION + legendHint + `
 
 The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
 
@@ -3689,10 +3821,23 @@ ${ocrResult.data.text || ''}`;
       // vision provider on every scan. Smaller payload = faster network
       // transfer + faster model-side image processing, with no accuracy
       // loss since it's the exact same image Tesseract itself already reads.
-      const preprocessedBase64 = preprocessedDataUrl.split(',')[1];
+      const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
+      const preprocessedBase64 = visionDataUrl.split(',')[1];
       const visionResult = await AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt);
       if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
-        const sanitized = sanitizeAiScheduleRows(visionResult.schedule);
+        // Grid-cell response (the requested format) -> rows with times from
+        // the header; a model that ignored it and returned flat rows is
+        // still accepted exactly as before.
+        const isGridCells = Array.isArray(visionResult.periods)
+          && visionResult.schedule.some(c => c && Array.isArray(c.periods) && Array.isArray(c.entries));
+        const visionRows = isGridCells
+          ? expandGridCellsToScheduleRows(visionResult.periods, visionResult.schedule)
+          : visionResult.schedule;
+        // Same back-to-back duplicate merge the on-device grid path already
+        // applies (v156) -- e.g. two printed PBST periods become one 2-hour
+        // block. Previously only the on-device path got this, so it never
+        // reached AI-path scans, which is what real scans use.
+        const sanitized = mergeAdjacentDuplicatePeriods(sanitizeAiScheduleRows(visionRows));
         if (sanitized.length > 0) {
           return { schedule: sanitized, confidence: 88 };
         }
@@ -3744,6 +3889,109 @@ function sanitizeAiScheduleRows(rawRows) {
       isUncertain: !!item.isUncertain || !item.subject
     };
   }).filter(r => r.subject.length > 0);
+}
+
+// Vision-AI prompt: asks for the table's structure (which header columns
+// each cell spans) instead of per-row clock times. See the comment at the
+// vision call in extractTimetableFromImage for the measured reason.
+// `schedule` holds CELLS so AIService.extractStructuredFromImage's existing
+// "non-empty schedule" acceptance check works unchanged.
+const VISION_GRID_INSTRUCTION = `Read the weekly college class timetable in the attached image and return its GRID STRUCTURE as JSON matching exactly:
+{
+  "periods": [ { "n": 1, "start": "10:00 AM", "end": "11:00 AM" } ],
+  "schedule": [
+    { "day": "Mon", "periods": [1], "entries": [
+      { "subject": "Data Structures", "code": "DS", "teacher": "Prof. VJM", "room": "", "batch": "", "type": "lecture", "isUncertain": false }
+    ] }
+  ]
+}
+
+Rules:
+1. "periods" = the CLASS columns of the header, numbered 1, 2, 3... from left to right (use the column numbers printed in the header when there are any), each with its start and end time exactly as printed. Do NOT include recess/break/lunch columns and do not give them a number.
+2. "schedule" = one object per non-empty class cell, for every day row, left to right. "day" is one of Mon, Tue, Wed, Thu, Fri, Sat.
+3. "periods" on a cell = EVERY class-column number that cell covers. A cell merged across two or more columns (no vertical line between them) lists all of them, e.g. [3, 4] or [5, 6]; a single-column cell lists one number. Look at the column borders of every cell, especially lab blocks, cells in the last columns of the day, and cells directly after a recess column.
+4. A cell listing several classes (different batches sharing the slot, one per line) gets one entry per class, all in that one cell object.
+5. Skip empty cells and recess/break cells entirely.
+6. "subject": the full subject name, expanded from the legend table when the grid uses an abbreviation (match by meaning -- the grid may write "WEB DEV." where the legend says "WD"). "code": the short form as printed. "batch": the batch/division exactly as printed in the cell (e.g. "AI-B2" or "A2,B2,C2,D2"), or "" if none. "teacher": "Prof. <initials>" when only initials are printed, or "". "room": the room printed in that cell, or "".
+7. "type": "lab" for labs/practicals, "project" for projects/community work, otherwise "lecture".
+8. Never invent subjects, rooms or teachers that are not in the image. Set "isUncertain": true only when a cell's subject, day or column span is genuinely unclear.
+9. If the header prints only period numbers or a shared duration instead of times, compute each period's start/end from what IS printed.
+
+Example of the shape only (a DIFFERENT college -- never copy this content):
+{ "periods": [ { "n": 1, "start": "9:00 AM", "end": "10:00 AM" }, { "n": 2, "start": "10:00 AM", "end": "11:00 AM" }, { "n": 3, "start": "11:15 AM", "end": "12:15 PM" }, { "n": 4, "start": "12:15 PM", "end": "1:15 PM" } ],
+  "schedule": [
+    { "day": "Mon", "periods": [1], "entries": [ { "subject": "Operating Systems", "code": "OS", "teacher": "Prof. RKS", "room": "", "batch": "", "type": "lecture", "isUncertain": false } ] },
+    { "day": "Mon", "periods": [3, 4], "entries": [
+      { "subject": "Computer Networks Lab", "code": "CN", "teacher": "Prof. ABM", "room": "L-2", "batch": "B1", "type": "lab", "isUncertain": false },
+      { "subject": "Operating Systems Lab", "code": "OS", "teacher": "Prof. RKS", "room": "L-3", "batch": "B2", "type": "lab", "isUncertain": false } ] }
+  ] }`;
+
+// Converts the grid-cell vision response into the flat rows the rest of the
+// app uses. Each cell's time is derived from the header: start of its first
+// covered period, end of its last -- so a merged cell always gets its full
+// span. Recess rows are added for gaps between consecutive header periods
+// that fall inside a day's classes (the flat format used to return these as
+// rows too). The batch is appended in brackets so the existing batch filter
+// (extractBatchTags) picks it up exactly as it does for on-device scans.
+function expandGridCellsToScheduleRows(periodsHeader, cells) {
+  const header = (periodsHeader || [])
+    .map(p => {
+      const n = parseInt(p && p.n, 10);
+      const t = normalizeTimetableTime(`${(p && p.start) || ''} - ${(p && p.end) || ''}`);
+      return { n, time: t.isValid ? t.time : '', end: t.isValid && t.isRangeMatch ? t.end : '' };
+    })
+    .filter(p => Number.isFinite(p.n) && p.time)
+    .sort((a, b) => a.n - b.n);
+  header.forEach((p, i) => {
+    if (!p.end) p.end = header[i + 1] ? header[i + 1].time : '';
+  });
+  const byNum = new Map(header.filter(p => p.end).map(p => [p.n, p]));
+  if (byNum.size === 0) return [];
+
+  const rows = [];
+  const dayBounds = new Map();
+  (cells || []).forEach(cell => {
+    const nums = (Array.isArray(cell && cell.periods) ? cell.periods : [])
+      .map(x => parseInt(x, 10))
+      .filter(x => byNum.has(x));
+    if (!nums.length || !Array.isArray(cell.entries)) return;
+    const first = byNum.get(Math.min(...nums));
+    const last = byNum.get(Math.max(...nums));
+    cell.entries.forEach(e => {
+      if (!e || !(e.subject || e.code)) return;
+      const batch = (e.batch || '').trim();
+      rows.push({
+        day: cell.day,
+        time: first.time,
+        end: last.end,
+        subject: `${(e.subject || e.code || '').trim()}${batch ? ` (${batch})` : ''}`,
+        code: e.code || '',
+        room: e.room || '',
+        teacher: e.teacher || '',
+        type: e.type || 'lecture',
+        isUncertain: !!e.isUncertain
+      });
+    });
+    const b = dayBounds.get(cell.day) || { start: Infinity, end: -Infinity };
+    b.start = Math.min(b.start, timeToMinutes(first.time));
+    b.end = Math.max(b.end, timeToMinutes(last.end));
+    dayBounds.set(cell.day, b);
+  });
+
+  const gaps = [];
+  for (let i = 0; i + 1 < header.length; i++) {
+    if (header[i].end && timeToMinutes(header[i + 1].time) - timeToMinutes(header[i].end) >= 5) {
+      gaps.push({ time: header[i].end, end: header[i + 1].time });
+    }
+  }
+  dayBounds.forEach((b, day) => {
+    gaps.forEach(g => {
+      if (timeToMinutes(g.time) >= b.start && timeToMinutes(g.end) <= b.end) {
+        rows.push({ day, time: g.time, end: g.end, subject: 'Recess', code: 'REC', room: '—', teacher: '—', type: 'off', isUncertain: false });
+      }
+    });
+  });
+  return rows;
 }
 
 function triggerTimetableImport() {

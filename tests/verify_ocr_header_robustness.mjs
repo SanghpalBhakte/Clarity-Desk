@@ -249,8 +249,8 @@ await check('4. Real failing-photo pattern: header-band retry triggers, PSM set 
   const result = await mod.extractTimetableFromImage(base64Data, 'image/png');
 
   if (recognizeCalls !== 2) return `expected the header-band retry to trigger (2 recognize() calls), got ${recognizeCalls}`;
-  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '3' }])) {
-    return `expected PSM set to 6 then reset to 3, got ${JSON.stringify(paramCalls)}`;
+  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '6' }])) {
+    return `expected PSM set to 6 then reset to Tesseract.js's default (6), got ${JSON.stringify(paramCalls)}`;
   }
   if (!result.schedule || result.schedule.length === 0) {
     return `expected the recovered time tokens to yield at least one real row, got 0`;
@@ -299,8 +299,8 @@ await check('5. Crop-pass failure still resets PSM and degrades safely (no crash
   const base64Data = 'ZmFrZQ==';
   const result = await mod.extractTimetableFromImage(base64Data, 'image/png');
   if (recognizeCalls !== 2) return `expected the retry to still be attempted, got ${recognizeCalls} recognize() calls`;
-  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '3' }])) {
-    return `expected PSM to be reset to 3 even after the crop pass threw, got ${JSON.stringify(paramCalls)}`;
+  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '6' }])) {
+    return `expected PSM to be reset to Tesseract.js's default (6) even after the crop pass threw, got ${JSON.stringify(paramCalls)}`;
   }
   if (!result || typeof result.schedule === 'undefined') return `expected a graceful result object, got ${JSON.stringify(result)}`;
   return true;

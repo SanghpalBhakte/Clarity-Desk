@@ -213,8 +213,8 @@ await check('3. Orchestration: a flagged cell region is retried and the recovere
   const result = await mod.extractTimetableFromImage('ZmFrZQ==', 'image/png');
 
   if (recognizeCalls !== 2) return `expected exactly 2 recognize() calls (1 first pass + 1 cell retry), got ${recognizeCalls}`;
-  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '3' }])) {
-    return `expected PSM set to 6 then reset to 3, got ${JSON.stringify(paramCalls)}`;
+  if (JSON.stringify(paramCalls) !== JSON.stringify([{ tessedit_pageseg_mode: '6' }, { tessedit_pageseg_mode: '6' }])) {
+    return `expected PSM set to 6 then reset to Tesseract.js's default (6), got ${JSON.stringify(paramCalls)}`;
   }
   const row = (result.schedule || []).find(r => r.subject === 'Web Development');
   if (!row) return `expected a recovered 'Web Development' row, got subjects: ${JSON.stringify((result.schedule || []).map(r => r.subject))}`;
