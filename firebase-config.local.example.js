@@ -1,6 +1,12 @@
 // ============================================================
 // Clarity Desk — Local AI key override (NOT committed to git)
 //
+// NOTE: the live site gets AI through the AI proxy (ai-proxy/ folder,
+// AI_PROXY_URL in firebase-config.js), which keeps keys on the server.
+// Keys put in firebase-config.local.js ARE deployed with the site and
+// readable by anyone -- only use this file for offline experiments with
+// AI_PROXY_URL cleared, and never deploy it with keys in it.
+//
 // 1. Copy this file to "firebase-config.local.js" (same folder).
 // 2. Get free API keys (any one of these is enough to enable the
 //    timetable-scan AI fallback; configuring more than one lets the

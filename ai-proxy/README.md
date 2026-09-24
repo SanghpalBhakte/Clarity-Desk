@@ -63,17 +63,12 @@ leaked:
 3. Delete the three key lines from `firebase-config.local.js` and redeploy the site.
 4. Delete the old keys in each provider's console.
 
-## Test locally
+## Test
 
-Create `ai-proxy/.dev.vars` (ignored by git and by Firebase Hosting) with your
-keys and a localhost origin:
+`npm run test:ocr-kit:ai` (repo root) scans the timetable test kit through the
+live proxy. It uses a few AI calls per image from the shared free quota.
 
-```
-GEMINI_API_KEY=...
-GROQ_API_KEY=...
-OPENROUTER_API_KEY=...
-ALLOWED_ORIGINS=http://127.0.0.1:*,http://localhost:*
-```
-
-Then run `npx wrangler@latest dev` and, in another terminal from the repo root,
+To test Worker changes before deploying, `ai-proxy/.dev.vars` (ignored by git and
+by Firebase Hosting) holds keys for local runs. Run `npx wrangler@latest dev` in
+this folder and, in another terminal from the repo root,
 `npm run test:ocr-kit -- --proxy http://127.0.0.1:8787`.

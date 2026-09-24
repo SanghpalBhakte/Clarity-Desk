@@ -13,7 +13,7 @@
     "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts --project=chromium-desktop",
     "test:smoke": "playwright test tests/post-deploy-smoke.spec.ts --project=chromium-desktop",
     "test:ocr-kit": "node tests/verify_ocr_test_kit.mjs",
-    "test:ocr-kit:ai": "node tests/verify_ocr_test_kit.mjs --ai",
+    "test:ocr-kit:ai": "node tests/verify_ocr_test_kit.mjs --proxy https://clarity-desk-ai.sanghapal2006.workers.dev",
     "release:check": "node tests/release-check.mjs",
     "clear:pwa-cache": "node tests/clear-pwa-cache.mjs",
     "clear:pwa-cache:full": "node tests/clear-pwa-cache.mjs --full",

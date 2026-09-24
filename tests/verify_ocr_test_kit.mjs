@@ -18,10 +18,11 @@
 //   npm run test:ocr-kit:ai   full pipeline incl. the vision-AI fallback,
 //                             using the keys in firebase-config.local.js
 //                             (spends a few AI calls per image)
+//   npm run test:ocr-kit:ai   full pipeline through the live AI proxy
+//                             (ai-proxy/ Cloudflare Worker); no keys are
+//                             loaded into the page at all
 //   npm run test:ocr-kit -- --proxy http://127.0.0.1:8787
-//                             full pipeline through the ai-proxy Worker
-//                             (`npx wrangler dev` in ai-proxy/); no keys
-//                             are loaded into the page at all
+//                             same, against `npx wrangler dev` in ai-proxy/
 //   extra flags: --only sample-01   run one image
 //                --verbose          stream AI provider log lines (keys redacted)
 //
@@ -178,7 +179,19 @@ page.on('console', m => {
   logs.push(t);
   if (VERBOSE && /\[AIService\]|\[ExtractionPipeline\]/.test(t)) console.log('   · ' + redact(t.split('\n')[0]).slice(0, 180));
 });
-await page.goto(`http://127.0.0.1:${server.address().port}/`);
+if (PROXY) {
+  // Open the page at the real site address (served from this local server)
+  // so the proxy sees the same Origin a student's browser sends -- the live
+  // proxy never has to allow localhost.
+  const SITE = 'https://campusos-83365.web.app';
+  await page.route(`${SITE}/**`, async (route) => {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}${new URL(route.request().url()).pathname}`);
+    await route.fulfill({ status: r.status, headers: { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream' }, body: Buffer.from(await r.arrayBuffer()) });
+  });
+  await page.goto(`${SITE}/`);
+} else {
+  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+}
 
 const samples = fs.readdirSync(path.join(KIT, 'expected-output'))
   .filter(f => /^sample-\d+\.json$/.test(f))
