@@ -24,6 +24,11 @@
 //   npm run test:ocr-kit -- --proxy http://127.0.0.1:8787
 //                             same, against `npx wrangler dev` in ai-proxy/
 //   extra flags: --only sample-01   run one image
+//                --provider workersai --models @cf/google/gemma-4-26b-a4b-it
+//                                   score ONE vision provider (gemini, groq,
+//                                   openrouter, workersai), optionally with
+//                                   its model list replaced -- for comparing
+//                                   free models as the catalogs change
 //                --verbose          stream AI provider log lines (keys redacted)
 //
 // Needs internet (Tesseract.js loads from jsDelivr, exactly as the app
@@ -44,6 +49,9 @@ const AI_MODE = process.argv.includes('--ai') || !!PROXY;
 const VERBOSE = process.argv.includes('--verbose');                  // stream AI provider log lines
 const onlyIdx = process.argv.indexOf('--only');                        // e.g. --only sample-01
 const ONLY = onlyIdx !== -1 ? process.argv[onlyIdx + 1] : null;
+const argAfter = (flag) => { const i = process.argv.indexOf(flag); return i !== -1 ? process.argv[i + 1] : null; };
+const FORCE_PROVIDER = argAfter('--provider');
+const FORCE_MODELS = argAfter('--models') ? argAfter('--models').split(',') : null;
 // Never let an API key reach the terminal, even in --verbose.
 const redact = (s) => String(s)
   .replace(/key=[^&\s"']+/gi, 'key=<redacted>').replace(/AIza[0-9A-Za-z_-]{20,}/g, '<redacted>')
@@ -193,6 +201,26 @@ if (PROXY) {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
 }
 
+if (FORCE_PROVIDER) {
+  await page.evaluate(([provider, models]) => {
+    const AI = window.__ocr.AIService;
+    // Every other vision leg (and the text-only repair fallback) is switched
+    // off, so a score always belongs to the chosen provider alone.
+    const legs = { gemini: 'generateContentFromImage', groq: 'callGroqVision', openrouter: 'callOpenRouterVision', workersai: 'callWorkersAIVision' };
+    if (!legs[provider]) throw new Error(`--provider must be one of ${Object.keys(legs).join(', ')}`);
+    const off = async () => { throw new Error('skipped (--provider)'); };
+    for (const [name, method] of Object.entries(legs)) if (name !== provider) AI[method] = off;
+    AI.generateContentFromText = off;
+    if (models) {
+      if (provider === 'gemini') AI.getModelsList = () => models;
+      if (provider === 'groq') AI.GROQ_VISION_MODEL = models[0];
+      if (provider === 'openrouter') AI.OPENROUTER_VISION_MODELS = models;
+      if (provider === 'workersai') AI.WORKERS_AI_VISION_MODELS = models;
+    }
+  }, [FORCE_PROVIDER, FORCE_MODELS]);
+  console.log(`(vision limited to ${FORCE_PROVIDER}${FORCE_MODELS ? ': ' + FORCE_MODELS.join(', ') : ''})`);
+}
+
 const samples = fs.readdirSync(path.join(KIT, 'expected-output'))
   .filter(f => /^sample-\d+\.json$/.test(f))
   .filter(f => !ONLY || f.startsWith(ONLY))
@@ -217,7 +245,7 @@ for (const file of samples) {
   }
   const s = score(expected, result?.schedule || []);
   const okLine = logs.find(l => /Vision extraction succeeded with/.test(l)) || '';
-  const model = okLine.match(/model: ([\w.:/-]+)/) || (okLine.includes('with Groq') ? [null, 'Groq'] : null);
+  const model = okLine.match(/model: ([@\w.:/-]+)/) || (okLine.includes('with Groq') ? [null, 'Groq'] : null);
   const floor = FLOORS[id] || { recall: 0, precision: 0 };
   const ok = s.recall >= floor.recall && s.precision >= floor.precision;
   const line = `${id}: recall ${s.matched}/${s.totalE} = ${(s.recall * 100).toFixed(0)}% (floor ${(floor.recall * 100).toFixed(0)}%), precision ${(s.precision * 100).toFixed(0)}% (floor ${(floor.precision * 100).toFixed(0)}%) -- ${((Date.now() - t0) / 1000).toFixed(1)}s${model ? `, AI model ${model[1]}` : AI_MODE ? ', AI not used/failed' : ''}`;

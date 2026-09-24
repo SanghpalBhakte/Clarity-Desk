@@ -13,6 +13,15 @@ FIREBASE_PROJECT_ID = "campusos-83365"
 # "true": students who haven't signed in can still scan (limited per network).
 # "false": AI scanning requires Google sign-in.
 ALLOW_GUESTS = "true"
+# Cloudflare AI models the app may use through /v1/workersai (vision-capable).
+# Anything not listed is refused, so the shared daily allowance can't be
+# spent on an expensive model.
+WORKERS_AI_MODELS = "@cf/mistralai/mistral-small-3.1-24b-instruct,@cf/google/gemma-4-26b-a4b-it"
+
+# Cloudflare's own AI models. Free plan: 10,000 "neurons" a day for the whole
+# app; once used up, calls fail until midnight UTC -- they are never billed.
+[ai]
+binding = "AI"
 
 # Signed-in students: 20 AI calls per minute per account. One scan uses 1-3.
 [[ratelimits]]

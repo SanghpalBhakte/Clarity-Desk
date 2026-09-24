@@ -9,6 +9,8 @@
 //   POST /v1/gemini/<model>  -> Gemini generateContent
 //   POST /v1/groq            -> Groq chat/completions
 //   POST /v1/openrouter      -> OpenRouter chat/completions (":free" models only)
+//   POST /v1/workersai       -> Cloudflare's own AI models via the AI binding
+//                               (no key; free plan = 10,000 neurons a day)
 //   GET  /v1/health          -> which providers have a key configured
 //
 // Who may call it:
@@ -19,9 +21,13 @@
 // The body is forwarded as raw bytes and never JSON-parsed: a timetable
 // photo is several MB, and parsing it could exceed the free plan's 10 ms
 // CPU budget. Time spent waiting on the provider is not CPU time.
+// Workers AI is the exception (the binding needs an object), so its body
+// is capped lower: parsing ~570 KB (a typical scan) takes ~3 ms.
 // =====================================================================
 
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
+const WORKERS_AI_MAX_BODY_BYTES = 1.5 * 1024 * 1024;
+const WORKERS_AI_MAX_TOKENS = 6000;
 const GEMINI_MODEL = /^(gemini|gemma)-[a-z0-9][a-z0-9.-]{0,63}$/;
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 
@@ -29,6 +35,7 @@ const PROVIDERS = {
   gemini: { label: 'Gemini', secret: 'GEMINI_API_KEY' },
   groq: { label: 'Groq', secret: 'GROQ_API_KEY', url: 'https://api.groq.com/openai/v1/chat/completions' },
   openrouter: { label: 'OpenRouter', secret: 'OPENROUTER_API_KEY', url: 'https://openrouter.ai/api/v1/chat/completions' },
+  workersai: { label: 'Cloudflare Workers AI', binding: 'AI' },
 };
 
 export default {
@@ -41,7 +48,7 @@ export default {
       return new Response(null, { status: cors ? 204 : 403, headers: cors || {} });
     }
     if (url.pathname === '/v1/health' && request.method === 'GET') {
-      const providers = Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, !!env[p.secret]]));
+      const providers = Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, !!env[p.binding || p.secret]]));
       return json(200, { ok: true, providers }, cors);
     }
     if (!cors) return json(403, errorBody('This site is not allowed to use the Clarity Desk AI proxy.'), null);
@@ -59,14 +66,15 @@ export default {
     }
 
     const provider = PROVIDERS[route.provider];
-    const key = env[provider.secret];
-    if (!key) return json(501, errorBody(`The AI proxy has no ${provider.label} key configured.`), cors);
+    const key = env[provider.binding || provider.secret];
+    if (!key) return json(501, errorBody(`The AI proxy has no ${provider.label} ${provider.binding ? 'binding' : 'key'} configured.`), cors);
 
     if (!/^application\/json\b/i.test(request.headers.get('Content-Type') || '')) {
       return json(415, errorBody('Send the request as application/json.'), cors);
     }
-    if (Number(request.headers.get('Content-Length') || 0) > MAX_BODY_BYTES) return tooLarge(cors);
-    const body = await readCapped(request.body, MAX_BODY_BYTES);
+    const maxBytes = route.provider === 'workersai' ? WORKERS_AI_MAX_BODY_BYTES : MAX_BODY_BYTES;
+    if (Number(request.headers.get('Content-Length') || 0) > maxBytes) return tooLarge(cors);
+    const body = await readCapped(request.body, maxBytes);
     if (body === null) return tooLarge(cors);
     if (body.byteLength === 0) return json(400, errorBody('Empty request body.'), cors);
 
@@ -79,6 +87,7 @@ export default {
       if (route.provider === 'openrouter' && !model.endsWith(':free')) {
         return json(403, errorBody('Only OpenRouter ":free" models are allowed through this proxy.'), cors);
       }
+      if (route.provider === 'workersai') return runWorkersAI(model, body, env, cors);
     }
 
     const target = route.provider === 'gemini'
@@ -113,7 +122,7 @@ function matchRoute(pathname) {
     const model = decodeURIComponent(gemini[1]);
     return GEMINI_MODEL.test(model) ? { provider: 'gemini', model } : null;
   }
-  const chat = pathname.match(/^\/v1\/(groq|openrouter)$/);
+  const chat = pathname.match(/^\/v1\/(groq|openrouter|workersai)$/);
   return chat ? { provider: chat[1] } : null;
 }
 
@@ -176,6 +185,41 @@ async function readCapped(stream, max) {
     offset += chunk.byteLength;
   }
   return bytes;
+}
+
+// Workers AI: only models listed in WORKERS_AI_MODELS (wrangler.toml), so
+// nobody can spend the shared daily neurons on an expensive model. The
+// answer is reshaped into the same chat-completions form Groq returns.
+async function runWorkersAI(model, bytes, env, cors) {
+  const allowed = String(env.WORKERS_AI_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!allowed.includes(model)) return json(403, errorBody(`Workers AI model ${model} is not enabled on this proxy.`), cors);
+  let input;
+  try {
+    input = JSON.parse(new TextDecoder().decode(bytes));
+  } catch (_) {
+    return json(400, errorBody('Request body is not valid JSON.'), cors);
+  }
+  delete input.model;
+  delete input.max_completion_tokens;
+  input.max_tokens = Math.min(Number(input.max_tokens) || 4096, WORKERS_AI_MAX_TOKENS);
+  let result;
+  try {
+    result = await env.AI.run(model, input);
+  } catch (err) {
+    const message = String((err && err.message) || err).slice(0, 300);
+    // 3036 = daily free neurons used up, 3040 = model busy.
+    const limited = /3036|3040|neuron|allocation|capacity|rate.?limit/i.test(message);
+    return json(limited ? 429 : 502, errorBody(`Workers AI (${model}): ${message}`), cors);
+  }
+  const content = result?.choices?.[0]?.message?.content ?? result?.response;
+  if (content === undefined || content === null || content === '') {
+    return json(502, errorBody(`Workers AI (${model}) returned no answer.`), cors);
+  }
+  return json(200, {
+    model,
+    choices: [{ index: 0, message: { role: 'assistant', content: typeof content === 'string' ? content : JSON.stringify(content) } }],
+    usage: result.usage || null,
+  }, cors);
 }
 
 function leadingModel(bytes) {

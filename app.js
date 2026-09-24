@@ -386,6 +386,26 @@ const AIService = {
   // last resort, not a dependable leg. Verify current free vision models at
   // https://openrouter.ai/api/v1/models before relying on any one of these.
   OPENROUTER_VISION_MODELS: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'qwen/qwen3.8-27b:free'],
+  // Cloudflare's own vision models, reachable only through the AI proxy
+  // (the Worker's AI binding -- no key). Free plan: 10,000 "neurons" a day
+  // shared by the whole app; once used up the call fails (never billed)
+  // and the next provider is tried. Each id must also be listed in
+  // WORKERS_AI_MODELS in ai-proxy/wrangler.toml.
+  // Test-kit scores (recall/precision, 2026-09-24, one run each):
+  //   mistral-small-3.1-24b  61/100  61/100  48/50  (~45 s, ~230 neurons)
+  //   gemma-4-26b (no think)  78/69   76/85   8/6   (~30 s, ~70 neurons)
+  //   llama-4-scout-17b       46/75   39/82  timed out
+  // Mistral is kept: it almost never invents a class (a wrong class is
+  // worse than a missing one) and was the only one to read the WhatsApp
+  // photo. All are below Gemini/Groq, so this leg comes after them.
+  WORKERS_AI_VISION_MODELS: ['@cf/mistralai/mistral-small-3.1-24b-instruct'],
+  // Per-model request extras. Gemma 4 "thinks" before answering by default,
+  // which on a full timetable used the whole output budget and returned no
+  // answer; with thinking off a short reply took 33 tokens instead of 306.
+  // (Mistral on Workers AI rejects this option, so it is not sent globally.)
+  WORKERS_AI_MODEL_OPTIONS: {
+    '@cf/google/gemma-4-26b-a4b-it': { chat_template_kwargs: { enable_thinking: false } }
+  },
 
   getApiKey() {
     if (window.CAMPUS_OS_GEMINI_KEY) return window.CAMPUS_OS_GEMINI_KEY;
@@ -420,6 +440,7 @@ const AIService = {
 
   hasProvider(provider) {
     if (this.getProxyUrl()) return true;
+    if (provider === 'workersai') return false; // proxy-only
     if (provider === 'gemini') return !!this.getApiKey();
     if (provider === 'groq') return !!this.getGroqKey();
     if (provider === 'openrouter') return !!this.getOpenRouterKey();
@@ -449,6 +470,7 @@ const AIService = {
       if (!key) throw new Error('No Gemini API key configured.');
       return { url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, headers };
     }
+    if (provider === 'workersai') throw new Error('Cloudflare Workers AI is only available through the AI proxy.');
     if (provider === 'groq') {
       const key = this.getGroqKey();
       if (!key) throw new Error('No Groq API key configured.');
@@ -727,6 +749,56 @@ const AIService = {
     throw lastError || new Error('OpenRouter vision unavailable.');
   },
 
+  // Fourth vision provider: Cloudflare Workers AI through the proxy. Same
+  // contract as the others; tries each WORKERS_AI_VISION_MODELS entry.
+  async callWorkersAIVision(base64Data, mimeType, promptText) {
+    const route = await this._route('workersai');
+    let lastError = null;
+
+    for (const model of this.WORKERS_AI_VISION_MODELS) {
+      try {
+        console.log(`[AIService] Attempting VISION extraction with Workers AI model: ${model}`);
+        // 90 s, not the usual 60: these models took ~45 s on a full timetable,
+        // and this leg only runs after Gemini and Groq have already failed.
+        const response = await fetchWithTimeout(route.url, {
+          method: 'POST',
+          headers: route.headers,
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'user', content: [
+                { type: 'text', text: promptText },
+                { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+              ] }
+            ],
+            temperature: 0.1,
+            max_tokens: 4096,
+            response_format: { type: 'json_object' },
+            ...(this.WORKERS_AI_MODEL_OPTIONS[model] || {})
+          })
+        }, 90000);
+
+        if (!response.ok) {
+          const errObj = await response.json().catch(() => ({}));
+          throw new Error(errObj.error?.message || `HTTP ${response.status} from Workers AI ${model}`);
+        }
+
+        const resData = await response.json();
+        const parsed = safeParseGeminiJson(resData.choices?.[0]?.message?.content || '');
+        if (!parsed) {
+          throw new Error(`Workers AI model ${model} returned unparseable content.`);
+        }
+        console.log(`[AIService] ✅ Vision extraction succeeded with Workers AI model: ${model}`, parsed, resData.usage || '');
+        return parsed;
+      } catch (err) {
+        lastError = err;
+        console.warn(`[AIService] Workers AI model ${model} failed:`, err.message || err);
+      }
+    }
+
+    throw lastError || new Error('Workers AI vision unavailable.');
+  },
+
   // Rotates across every vision-capable provider the user has a key for, in
   // free-tier-friendliness order (Gemini's free tier is the most generous
   // per-provider today, Groq is fastest, OpenRouter has the widest model
@@ -738,6 +810,7 @@ const AIService = {
     const attempts = [];
     if (this.hasProvider('gemini')) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText)]);
     if (this.hasProvider('groq')) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText)]);
+    if (this.hasProvider('workersai')) attempts.push(['Workers AI', () => this.callWorkersAIVision(base64Data, mimeType, promptText)]);
     if (this.hasProvider('openrouter')) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText)]);
 
     if (attempts.length === 0) {

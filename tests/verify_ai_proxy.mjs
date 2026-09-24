@@ -8,6 +8,8 @@
 //   - Firebase sign-in tokens are verified (signature, project, expiry)
 //     and pick the per-account limit; anything else is a guest
 //   - OpenRouter is limited to ":free" models; oversize bodies are refused
+//   - Workers AI only runs allow-listed models, caps output length, and
+//     answers in the same chat-completions shape as Groq
 //   - with CAMPUS_OS_AI_PROXY set, the app sends no key at all; without it
 //     the direct-key calls are unchanged
 // ==================================================================
@@ -62,10 +64,27 @@ function makeLimiter(allow = true) {
   const calls = [];
   return { calls, limit: async ({ key }) => { calls.push(key); return { success: allow }; } };
 }
+function makeAI(behaviour = 'ok') {
+  const calls = [];
+  return {
+    calls,
+    run: async (model, input) => {
+      calls.push({ model, input });
+      if (behaviour === 'neurons') throw new Error('3036: Account limited: you have used up your daily free allocation of 10,000 neurons');
+      if (behaviour === 'broken') throw new Error('5006: Error: required properties at \'/\' are \'messages\'');
+      if (behaviour === 'object') return { response: { schedule: [{ day: 'Wed' }] }, usage: { prompt_tokens: 10, completion_tokens: 5 } };
+      return { response: '{"schedule":[{"day":"Thu"}]}', usage: { prompt_tokens: 3100, completion_tokens: 900 } };
+    }
+  };
+}
+// The real allow-list from ai-proxy/wrangler.toml, so a model the app lists
+// but the deployed proxy would refuse is caught here.
+const WAI_MODELS = (fs.readFileSync(path.join(ROOT, 'ai-proxy', 'wrangler.toml'), 'utf8').match(/^WORKERS_AI_MODELS\s*=\s*"([^"]+)"/m) || [])[1];
+if (!WAI_MODELS) throw new Error('WORKERS_AI_MODELS not found in ai-proxy/wrangler.toml');
 function makeEnv(extra = {}) {
   return {
     ...KEYS, ALLOWED_ORIGINS: `${SITE},https://campusos-83365.firebaseapp.com,http://127.0.0.1:*`,
-    FIREBASE_PROJECT_ID: PROJECT, ALLOW_GUESTS: 'true',
+    FIREBASE_PROJECT_ID: PROJECT, ALLOW_GUESTS: 'true', AI: makeAI(), WORKERS_AI_MODELS: WAI_MODELS,
     USER_LIMITER: makeLimiter(), GUEST_LIMITER: makeLimiter(), ...extra
   };
 }
@@ -120,7 +139,7 @@ await scenario('Health check reports configured providers without revealing keys
   const res = await worker.fetch(new Request('https://w.dev/v1/health'), makeEnv({ OPENROUTER_API_KEY: '' }));
   const text = await res.text(); const data = JSON.parse(text);
   if (res.status !== 200 || !data.ok) return `status ${res.status}`;
-  if (data.providers.gemini !== true || data.providers.groq !== true || data.providers.openrouter !== false) return text;
+  if (data.providers.gemini !== true || data.providers.groq !== true || data.providers.openrouter !== false || data.providers.workersai !== true) return text;
   return containsSecret(text) ? 'key leaked in health output' : true;
 });
 
@@ -181,6 +200,45 @@ await scenario('Missing provider key -> 501; provider unreachable -> 502', async
   upstreamMode = 'down';
   const down = await worker.fetch(post('/v1/groq', chatBody('m')), makeEnv());
   return noKey.status === 501 && down.status === 502 ? true : `${noKey.status}/${down.status}`;
+});
+
+// ── Worker: Workers AI route ─────────────────────────────────────────
+await scenario('Workers AI: allow-listed model runs on the binding, answer comes back in Groq shape', async () => {
+  const env = makeEnv();
+  const res = await worker.fetch(post('/v1/workersai', JSON.stringify({ model: '@cf/google/gemma-4-26b-a4b-it', messages: [{ role: 'user', content: 'x' }], max_tokens: 99999, max_completion_tokens: 99999 })), env);
+  const data = await res.json();
+  const call = env.AI.calls[0];
+  if (res.status !== 200 || !call) return `status ${res.status}`;
+  if (call.model !== '@cf/google/gemma-4-26b-a4b-it' || 'model' in call.input) return 'model not passed as the binding argument';
+  if (call.input.max_tokens !== 6000 || 'max_completion_tokens' in call.input) return `output not capped: ${JSON.stringify(call.input)}`;
+  if (data.choices?.[0]?.message?.content !== '{"schedule":[{"day":"Thu"}]}') return JSON.stringify(data);
+  if (data.usage?.completion_tokens !== 900) return 'usage missing';
+  return upstreamCalls.length === 0 ? true : 'an outside provider was called';
+});
+await scenario('Workers AI: models not in WORKERS_AI_MODELS are refused', async () => {
+  const env = makeEnv();
+  const res = await worker.fetch(post('/v1/workersai', JSON.stringify({ model: '@cf/moonshotai/kimi-k2', messages: [] })), env);
+  return res.status === 403 && env.AI.calls.length === 0 ? true : `status ${res.status}, calls ${env.AI.calls.length}`;
+});
+await scenario('Workers AI: structured answers are returned as JSON text', async () => {
+  const res = await worker.fetch(post('/v1/workersai', JSON.stringify({ model: '@cf/google/gemma-4-26b-a4b-it', messages: [] })), makeEnv({ AI: makeAI('object') }));
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content === '{"schedule":[{"day":"Wed"}]}' ? true : JSON.stringify(data);
+});
+await scenario('Workers AI: daily allowance used up -> 429; other failures -> 502; no binding -> 501', async () => {
+  const body = JSON.stringify({ model: '@cf/google/gemma-4-26b-a4b-it', messages: [] });
+  const used = await worker.fetch(post('/v1/workersai', body), makeEnv({ AI: makeAI('neurons') }));
+  const broken = await worker.fetch(post('/v1/workersai', body), makeEnv({ AI: makeAI('broken') }));
+  const none = await worker.fetch(post('/v1/workersai', body), makeEnv({ AI: undefined }));
+  return used.status === 429 && broken.status === 502 && none.status === 501 ? true : `${used.status}/${broken.status}/${none.status}`;
+});
+await scenario('Workers AI: bodies over 1.5 MB are refused before parsing (free-plan CPU limit)', async () => {
+  const env = makeEnv();
+  const big = JSON.stringify({ model: '@cf/google/gemma-4-26b-a4b-it', messages: [{ role: 'user', content: 'x'.repeat(1.6 * 1024 * 1024) }] });
+  const res = await worker.fetch(post('/v1/workersai', big), env);
+  const other = await worker.fetch(post('/v1/groq', JSON.stringify({ model: 'm', pad: 'x'.repeat(1.6 * 1024 * 1024) })), makeEnv());
+  if (res.status !== 413 || env.AI.calls.length) return `workersai ${res.status}`;
+  return other.status === 200 ? true : `other providers should still take 1.6 MB: ${other.status}`;
 });
 
 // ── Worker: identity + rate limits ───────────────────────────────────
@@ -285,10 +343,28 @@ await scenario('Proxy mode: signed-in student sends a Firebase token; Groq and O
     return env.USER_LIMITER.calls.length === 3 && env.USER_LIMITER.calls.every(k => k === 'user:student-uid-42') ? true : JSON.stringify(env.USER_LIMITER.calls);
   } finally { restore(); }
 });
+await scenario('Proxy mode: Workers AI leg routes through the proxy and is tried after Gemini and Groq fail', async () => {
+  const env = makeEnv({ GEMINI_API_KEY: '', GROQ_API_KEY: '' });
+  const { seen, appFetch, restore } = routeFetchThroughWorker(env);
+  globalThis.fetch = appFetch;
+  try {
+    const AI = loadAIService({ CAMPUS_OS_AI_PROXY: 'https://proxy.test', location: { origin: SITE } }, null);
+    const out = await AI.extractStructuredFromImage('iVBORw0KGgo=', 'image/png', 'read it');
+    if (out?.schedule?.[0]?.day !== 'Thu') return `unexpected result ${JSON.stringify(out)}`;
+    const waiCall = env.AI.calls[0];
+    if (!waiCall || waiCall.model !== AI.WORKERS_AI_VISION_MODELS[0]) return 'Workers AI not called with the first listed model';
+    const img = waiCall.input.messages?.[0]?.content?.find(c => c.type === 'image_url');
+    if (!img || !img.image_url.url.startsWith('data:image/png;base64,')) return 'image not passed to Workers AI';
+    const listed = WAI_MODELS.split(',');
+    if (!AI.WORKERS_AI_VISION_MODELS.every(m => listed.includes(m))) return 'app lists a Workers AI model the proxy would refuse -- keep WORKERS_AI_MODELS in wrangler.toml in sync';
+    return seen.some(c => c.url === 'https://proxy.test/v1/workersai') ? true : 'no /v1/workersai call';
+  } finally { restore(); }
+});
 await scenario('Direct mode (no proxy set) is unchanged: same endpoints and key placement as before', async () => {
   upstreamCalls = [];
   const AI = loadAIService({ CAMPUS_OS_GEMINI_KEY: 'gem-local', CAMPUS_OS_GROQ_KEY: 'groq-local', location: { origin: SITE } }, null);
   if (AI.hasProvider('openrouter')) return 'openrouter reported without key or proxy';
+  if (AI.hasProvider('workersai')) return 'workersai reported without the proxy';
   await AI.generateContentFromImage('iVBORw0KGgo=', 'image/png', 'read it');
   await AI.callGroqVision('iVBORw0KGgo=', 'image/png', 'read it');
   const [gem, groq] = upstreamCalls;
@@ -298,7 +374,7 @@ await scenario('Direct mode (no proxy set) is unchanged: same endpoints and key 
 });
 await scenario('No proxy and no keys: every provider reports unavailable (scan stays on-device)', async () => {
   const AI = loadAIService({ location: { origin: SITE } }, null);
-  if (['gemini', 'groq', 'openrouter'].some(p => AI.hasProvider(p))) return 'provider reported available';
+  if (['gemini', 'groq', 'openrouter', 'workersai'].some(p => AI.hasProvider(p))) return 'provider reported available';
   try { await AI.extractStructuredFromImage('x', 'image/png', 'p'); return 'expected a throw'; }
   catch (e) { return /No vision-capable AI provider configured/.test(e.message) ? true : e.message; }
 });
