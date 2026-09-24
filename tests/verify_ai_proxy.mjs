@@ -56,6 +56,13 @@ globalThis.fetch = async (url, init = {}) => {
   if (upstreamMode === 'down') throw new TypeError('network down');
   const body = init.body instanceof Uint8Array ? init.body : new Uint8Array(await new Response(init.body).arrayBuffer());
   upstreamCalls.push({ url, headers: { ...init.headers }, body });
+  if (upstreamMode === 'busy') {
+    return new Response(JSON.stringify({ error: { code: 503, message: 'This model is currently experiencing high demand.', status: 'UNAVAILABLE' } }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (upstreamMode === 'quota-day' || upstreamMode === 'quota-minute') {
+    const quotaId = upstreamMode === 'quota-day' ? 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' : 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier';
+    return new Response(JSON.stringify({ error: { code: 429, message: 'You exceeded your current quota', status: 'RESOURCE_EXHAUSTED', details: [{ violations: [{ quotaId, quotaValue: '20' }] }] } }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+  }
   return new Response(JSON.stringify({ echoedUrl: url, candidates: [{ content: { parts: [{ text: '{"schedule":[{"day":"Mon"}]}' }] }, finishReason: 'STOP' }], choices: [{ message: { content: '{"schedule":[{"day":"Tue"}]}' } }] }),
     { status: 200, headers: { 'Content-Type': 'application/json' } });
 };
@@ -202,6 +209,59 @@ await scenario('Missing provider key -> 501; provider unreachable -> 502', async
   return noKey.status === 501 && down.status === 502 ? true : `${noKey.status}/${down.status}`;
 });
 
+// ── Worker: Gemini daily-quota memory ────────────────────────────────
+await scenario('Gemini daily quota used up: later calls to that model are answered 429 without calling Google', async () => {
+  upstreamMode = 'quota-day';
+  const first = await worker.fetch(post('/v1/gemini/gemini-quota-test-a', geminiBody), makeEnv());
+  const firstText = await first.text();
+  if (first.status !== 429 || !/exceeded your current quota/.test(firstText)) return `first call should pass Google's 429 through: ${first.status}`;
+  upstreamMode = 'ok';
+  const calls = upstreamCalls.length;
+  const second = await worker.fetch(post('/v1/gemini/gemini-quota-test-a', geminiBody), makeEnv());
+  const data = await second.json();
+  if (second.status !== 429 || upstreamCalls.length !== calls) return `second call reached Google (status ${second.status})`;
+  if (!/used its free requests for today/.test(data.error?.message || '')) return data.error?.message;
+  if (second.headers.get('Access-Control-Allow-Origin') !== SITE) return 'no CORS on the skip answer';
+  const other = await worker.fetch(post('/v1/gemini/gemini-quota-test-b', geminiBody), makeEnv());
+  return other.status === 200 ? true : `another model was blocked too: ${other.status}`;
+});
+await scenario('Per-minute Gemini limits are not remembered (they clear by themselves)', async () => {
+  upstreamMode = 'quota-minute';
+  await worker.fetch(post('/v1/gemini/gemini-quota-test-c', geminiBody), makeEnv());
+  upstreamMode = 'ok';
+  const again = await worker.fetch(post('/v1/gemini/gemini-quota-test-c', geminiBody), makeEnv());
+  return again.status === 200 ? true : `still blocked: ${again.status}`;
+});
+await scenario('A remembered daily limit lifts after the midnight-Pacific reset', async () => {
+  upstreamMode = 'quota-day';
+  await worker.fetch(post('/v1/gemini/gemini-quota-test-d', geminiBody), makeEnv());
+  upstreamMode = 'ok';
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 24 * 3600 * 1000 + 1000;
+    const res = await worker.fetch(post('/v1/gemini/gemini-quota-test-d', geminiBody), makeEnv());
+    return res.status === 200 ? true : `still blocked a day later: ${res.status}`;
+  } finally { Date.now = realNow; }
+});
+
+await scenario('Overloaded Gemini model: one 503 still reaches Google again, two in a row skip it for a minute', async () => {
+  upstreamMode = 'busy';
+  await worker.fetch(post('/v1/gemini/gemini-busy-test', geminiBody), makeEnv());
+  const retry = await worker.fetch(post('/v1/gemini/gemini-busy-test', geminiBody), makeEnv());   // the app's one retry
+  if (upstreamCalls.length !== 2) return `the app's retry should still reach Google (calls: ${upstreamCalls.length})`;
+  upstreamMode = 'ok';
+  const next = await worker.fetch(post('/v1/gemini/gemini-busy-test', geminiBody), makeEnv());
+  if (next.status !== 503 || upstreamCalls.length !== 2) return `third call should be skipped: ${next.status}, calls ${upstreamCalls.length}`;
+  if (next.headers.get('X-Proxy-Skipped') !== 'busy') return 'skip header missing';
+  const pre = await worker.fetch(new Request('https://w.dev/v1/gemini/x', { method: 'OPTIONS', headers: { Origin: SITE } }), makeEnv());
+  if (!/X-Proxy-Skipped/.test(pre.headers.get('Access-Control-Expose-Headers') || '')) return 'browser cannot read the skip header (not exposed)';
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 61_000;
+    const later = await worker.fetch(post('/v1/gemini/gemini-busy-test', geminiBody), makeEnv());
+    return later.status === 200 ? true : `still skipped after a minute: ${later.status}`;
+  } finally { Date.now = realNow; }
+});
 // ── Worker: Workers AI route ─────────────────────────────────────────
 await scenario('Workers AI: allow-listed model runs on the binding, answer comes back in Groq shape', async () => {
   const env = makeEnv();
@@ -318,7 +378,7 @@ await scenario('Proxy mode: scan goes through the proxy and the page sends no pr
     const AI = loadAIService(win, null);
     const out = await AI.extractStructuredFromImage('iVBORw0KGgo=', 'image/png', 'read it');
     if (!out?.schedule?.length) return 'no schedule returned';
-    if (!seen.length || !seen[0].url.startsWith('https://proxy.test/v1/gemini/gemini-flash-latest')) return `first call ${seen[0]?.url}`;
+    if (!seen.length || !seen[0].url.startsWith(`https://proxy.test/v1/gemini/${AI.getModelsList()[0]}`)) return `first call ${seen[0]?.url}`;
     if (seen.some(c => /LOCAL-KEY|key=/.test(c.url + JSON.stringify(c.headers)))) return 'a key left the page';
     if (!upstreamCalls[0] || upstreamCalls[0].headers['x-goog-api-key'] !== KEYS.GEMINI_API_KEY) return 'worker did not add its own key';
     return env.GUEST_LIMITER.calls.length === 1 ? true : 'expected one guest call';
@@ -360,6 +420,26 @@ await scenario('Proxy mode: Workers AI leg routes through the proxy and is tried
     return seen.some(c => c.url === 'https://proxy.test/v1/workersai') ? true : 'no /v1/workersai call';
   } finally { restore(); }
 });
+await scenario('App does not retry a 503 the proxy answered itself', async () => {
+  const env = makeEnv();
+  const { seen, appFetch, restore } = routeFetchThroughWorker(env);
+  // (own model name, so the busy mark can't leak into other scenarios)
+  upstreamMode = 'busy';
+  globalThis.fetch = appFetch;
+  try {
+    await worker.fetch(post('/v1/gemini/gemini-busy-app-test', geminiBody), env);
+    await worker.fetch(post('/v1/gemini/gemini-busy-app-test', geminiBody), env);
+    upstreamMode = 'ok';
+    const AI = loadAIService({ CAMPUS_OS_AI_PROXY: 'https://proxy.test', location: { origin: SITE } }, null);
+    AI.getModelsList = () => ['gemini-busy-app-test', 'gemini-flash-lite-latest'];
+    const t0 = Date.now();
+    await AI.generateContentFromImage('iVBORw0KGgo=', 'image/png', 'read it');
+    const flashCalls = seen.filter(c => c.url.endsWith('/v1/gemini/gemini-busy-app-test')).length;
+    if (flashCalls !== 1) return `expected 1 call to the skipped model, got ${flashCalls}`;
+    return Date.now() - t0 < 1000 ? true : `waited ${Date.now() - t0} ms (retry delay not skipped)`;
+  } finally { restore(); upstreamMode = 'ok'; }
+});
+
 await scenario('Direct mode (no proxy set) is unchanged: same endpoints and key placement as before', async () => {
   upstreamCalls = [];
   const AI = loadAIService({ CAMPUS_OS_GEMINI_KEY: 'gem-local', CAMPUS_OS_GROQ_KEY: 'groq-local', location: { origin: SITE } }, null);
@@ -368,7 +448,7 @@ await scenario('Direct mode (no proxy set) is unchanged: same endpoints and key 
   await AI.generateContentFromImage('iVBORw0KGgo=', 'image/png', 'read it');
   await AI.callGroqVision('iVBORw0KGgo=', 'image/png', 'read it');
   const [gem, groq] = upstreamCalls;
-  if (gem.url !== 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=gem-local') return gem.url;
+  if (gem.url !== `https://generativelanguage.googleapis.com/v1beta/models/${AI.getModelsList()[0]}:generateContent?key=gem-local`) return gem.url;
   if (groq.url !== 'https://api.groq.com/openai/v1/chat/completions' || groq.headers.Authorization !== 'Bearer groq-local') return 'groq direct call changed';
   return true;
 });

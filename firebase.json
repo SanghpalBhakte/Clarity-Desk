@@ -4,11 +4,26 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      "**/.*/**",
       "**/node_modules/**",
       "firestore.rules",
       "task.md",
       "public/**",
-      "ai-proxy/**"
+      "ai-proxy/**",
+      "**/*.md",
+      "**/*.pptx",
+      "**/*.zip",
+      "Claude outputs/**",
+      "tests/**",
+      "timetable-test-kit/**",
+      "attendance-practice-kit/**",
+      "scripts/**",
+      "playwright-report/**",
+      "test-results/**",
+      "package.json",
+      "package-lock.json",
+      "playwright.config.ts",
+      "firebase-config.local.example.js"
     ],
     "rewrites": [
       {
@@ -17,6 +32,12 @@
       }
     ],
     "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" }
+        ]
+      },
       {
         "source": "/",
         "headers": [

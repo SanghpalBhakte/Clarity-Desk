@@ -90,6 +90,16 @@ export default {
       if (route.provider === 'workersai') return runWorkersAI(model, body, env, cors);
     }
 
+    if (route.provider === 'gemini') {
+      const now = Date.now();
+      if (now < (geminiDailyLimit.get(route.model) || 0)) {
+        return json(429, { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: `Gemini ${route.model} has used its free requests for today (skipped by the proxy until the daily reset).` } }, cors, { 'X-Proxy-Skipped': 'daily-limit' });
+      }
+      if (now < (geminiBusy.get(route.model)?.until || 0)) {
+        return json(503, { error: { code: 503, status: 'UNAVAILABLE', message: `Gemini ${route.model} is overloaded right now (skipped by the proxy for a minute).` } }, cors, { 'X-Proxy-Skipped': 'busy' });
+      }
+    }
+
     const target = route.provider === 'gemini'
       ? `https://generativelanguage.googleapis.com/v1beta/models/${route.model}:generateContent`
       : provider.url;
@@ -107,14 +117,49 @@ export default {
     } catch (_) {
       return json(502, errorBody(`Could not reach ${provider.label}. Try again in a moment.`), cors);
     }
+    let upstreamBody = upstream.body;
+    if (route.provider === 'gemini' && upstream.status === 429) {
+      // A per-DAY quota answer means every further call today fails the same
+      // way; remember it so later scans skip this model instantly instead of
+      // spending a round trip to Google first. Per-minute limits are not
+      // remembered -- they clear on their own within a minute.
+      upstreamBody = await upstream.text();
+      if (/PerDay/i.test(upstreamBody)) geminiDailyLimit.set(route.model, Date.now() + msUntilPacificMidnight());
+    }
+    if (route.provider === 'gemini' && upstream.status === 503) {
+      // Google's "high demand" 503s come in waves. The app retries a 503
+      // once, so the first one still goes through to Google; two within
+      // 30 s means a real overload, and the model is skipped for a minute.
+      const now = Date.now();
+      const last = geminiBusy.get(route.model);
+      geminiBusy.set(route.model, (last && now - last.at < 30_000) ? { at: now, until: now + 60_000 } : { at: now, until: 0 });
+    }
     const out = new Headers(cors);
     out.set('Content-Type', upstream.headers.get('Content-Type') || 'application/json');
     out.set('Cache-Control', 'no-store');
     const retryAfter = upstream.headers.get('Retry-After');
     if (retryAfter) out.set('Retry-After', retryAfter);
-    return new Response(upstream.body, { status: upstream.status, headers: out });
+    return new Response(upstreamBody, { status: upstream.status, headers: out });
   },
 };
+
+// Gemini models whose free daily quota is used up -> time it resets.
+// Kept in this Worker instance's memory only (no storage to set up):
+// instances are per region and get recycled, so at worst a model is
+// tried once more after a restart and gets remembered again.
+const geminiDailyLimit = new Map();
+// Gemini models Google just reported as overloaded -> { at, until }.
+const geminiBusy = new Map();
+
+// Gemini's daily quotas reset at midnight Pacific time.
+function msUntilPacificMidnight(now = Date.now()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles', hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(now));
+  const get = (type) => Number(parts.find(p => p.type === type).value);
+  const secondsIntoDay = (get('hour') % 24) * 3600 + get('minute') * 60 + get('second');
+  return (86400 - secondsIntoDay) * 1000;
+}
 
 function matchRoute(pathname) {
   const gemini = pathname.match(/^\/v1\/gemini\/([^/]+)$/);
@@ -144,6 +189,7 @@ function corsHeaders(origin) {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Access-Control-Max-Age': '86400',
+    'Access-Control-Expose-Headers': 'X-Proxy-Skipped',
     'Vary': 'Origin',
   };
 }

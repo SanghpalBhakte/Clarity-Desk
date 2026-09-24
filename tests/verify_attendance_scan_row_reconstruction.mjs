@@ -56,7 +56,7 @@ let codeToRun = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, 
 const sandboxCode = `
   ${codeToRun}
 
-  return { reconstructAttendanceTableFromGrid };
+  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects };
 `;
 
 function createSandbox() {
@@ -243,6 +243,29 @@ check('C. A wrapped course name ending in "Lab" survives even when sessions-colu
   }
   if (rows[0].present !== 9 || rows[0].absent !== 3) return `expected P=9/A=3 unaffected by the name fix, got P=${rows[0].present}/A=${rows[0].absent}`;
   return true;
+});
+
+// v163: the ERP's printed "Total Count" is now read by the scan and used as
+// a cross-check. Real failure it catches (attendance test kit, Groq): one
+// course picked up the NEXT course's counts -- 17/7 instead of 7/6 --
+// which is invisible unless the row's own Total Count (13) is compared.
+const rowMod = createSandbox();
+check('Scanned row whose counts do not add up to its printed Total Count is flagged for review', () => {
+  const row = rowMod.matchScannedRowToSubjects({ subject: 'Digital Electronics and Microprocessors Lab', code: 'AID21PCP201', present: 17, absent: 7, leave: 0, notEntered: 0, totalSessions: 30, totalCount: 13 }, []);
+  return row.isUncertain === true ? true : 'expected isUncertain for 17+7 != 13';
+});
+check('Scanned row whose counts match its printed Total Count is not flagged', () => {
+  const row = rowMod.matchScannedRowToSubjects({ subject: 'Community Engagement', code: 'AID21CEP206', present: 13, absent: 5, leave: 0, notEntered: 1, totalSessions: 30, totalCount: 19 }, []);
+  return row.isUncertain === false ? true : 'expected a consistent row to stay unflagged';
+});
+check('Counts returned as text ("0"/"0") are still caught as an empty row', () => {
+  const row = rowMod.matchScannedRowToSubjects({ subject: 'Constitution of India', code: 'MGM56VEL102', present: '0', absent: '0', leave: '0', notEntered: '0', totalSessions: '60' }, []);
+  return row.isUncertain === true && row.present === 0 ? true : `expected a text 0/0 row to be flagged, got ${JSON.stringify(row)}`;
+});
+check('The printed Total Count is only a check -- it is not added to the saved row', () => {
+  const row = rowMod.matchScannedRowToSubjects({ subject: 'Data Structures', code: 'AID21PCL202', present: 13, absent: 12, leave: 0, notEntered: 0, totalSessions: 60, totalCount: 25 }, []);
+  const keys = Object.keys(row).sort().join(',');
+  return keys === 'absent,code,isUncertain,leave,notEntered,present,subject,totalSessions' ? true : `row shape changed: ${keys}`;
 });
 
 console.log('\n========================================');

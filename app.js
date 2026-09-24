@@ -365,8 +365,17 @@ const AIService = {
   // retired by Google (404 "no longer available to new users") -- use the
   // evergreen "-latest" aliases so this doesn't silently rot again, with one
   // pinned model in between as a fallback in case an alias has an outage.
-  MODEL: 'gemini-flash-latest',
-  FALLBACK_MODELS: ['gemini-3.6-flash', 'gemini-flash-lite-latest'],
+  //
+  // gemini-3.1-flash-lite goes FIRST (v163). Test-kit scores through the
+  // live proxy on 2026-09-24 (recall/precision): 100/100, 98/100 (twice),
+  // 95/88 on the three timetables and 100% on the attendance sample, in
+  // ~10-20 s. flash-lite-latest (3.5) swung between 70% and 93% on the same
+  // spreadsheet timetable, and the two flash models answered "overloaded"
+  // on every attempt that day while allowing only 20 free requests each.
+  // Google counts free quota per model, so each model in this list adds its
+  // own daily allowance; the AI proxy skips ones already used up.
+  MODEL: 'gemini-3.1-flash-lite',
+  FALLBACK_MODELS: ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-flash-lite-latest'],
   // Re-verified live against the real key: llama-4-scout (the previous
   // value) returns "model does not exist" -- it isn't in the key's
   // /v1/models list -- so this Groq leg always failed. qwen/qwen3.8-27b IS
@@ -587,7 +596,9 @@ const AIService = {
         headers: route.headers,
         body: JSON.stringify(body)
       });
-      if (response.status !== 503 || attempt === 2) break;
+      // A 503 the AI proxy answered itself (model known to be overloaded)
+      // would only be answered the same way again -- move on instead.
+      if (response.status !== 503 || attempt === 2 || response.headers.get('X-Proxy-Skipped')) break;
       console.warn(`[AIService] Model ${model} returned 503 (overloaded), retrying once...`);
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
@@ -9069,6 +9080,7 @@ Return JSON matching this exact structure:
       "leave": 0,
       "notEntered": 0,
       "totalSessions": 60,
+      "totalCount": 18,
       "isUncertain": false
     }
   ]
@@ -9082,9 +9094,11 @@ Rules:
 3. Extract the present count, absent count, "Leaves Applied" as leave, and
    "Attendance Not Entered" as notEntered -- read the actual printed
    numbers; do not compute them from the percentage column.
-4. Validate present + absent + leave + notEntered against that row's Total
-   Count column when one is visible; if it doesn't add up, or a number is
-   genuinely illegible, set isUncertain: true.
+4. Two different "total" columns: "Total Sessions" (sessions planned for
+   the term, often 30 or 60) goes in totalSessions; "Total Count" (sessions
+   held so far) goes in totalCount. Never put one in the other's place.
+   present + absent + leave + notEntered should equal totalCount; if it
+   doesn't add up, or a number is genuinely illegible, set isUncertain: true.
 5. Skip a totals/summary row at the bottom of the table -- it isn't a course.
 6. "subject" must be the actual course NAME printed in the table, never a
    course code -- if a name is genuinely unreadable, still read the code
@@ -9670,6 +9684,7 @@ function parseRowWithIntervals(rowWords, intervals) {
     leave,
     notEntered,
     totalSessions,
+    totalCount: total,
     isUncertain: !clean.subject || (present + absent === 0)
   };
 }
@@ -9838,15 +9853,28 @@ function matchScannedRowToSubjects(rawRow, existingSubjects = []) {
   const finalCode = bestMatch ? bestMatch.code : targetCode;
   const isSubjectValid = finalSubject && finalSubject !== 'General Subject' && finalSubject.length >= 3;
 
+  const present = Math.max(0, parseInt(rawRow.present) || 0);
+  const absent = Math.max(0, parseInt(rawRow.absent) || 0);
+  const leave = Math.max(0, parseInt(rawRow.leave) || 0);
+  const notEntered = Math.max(0, parseInt(rawRow.notEntered) || 0);
+  // The ERP prints a "Total Count" that must equal the four counts added
+  // up. The scan's own reading of it is not saved -- it's only a check: a
+  // mismatch means a number (or a whole row) was misread, e.g. one course
+  // picking up the next course's counts.
+  const printedTotal = parseInt(rawRow.totalCount);
+  const countsDisagree = Number.isFinite(printedTotal) && printedTotal > 0 && present + absent + leave + notEntered !== printedTotal;
+
   return {
     subject: finalSubject,
     code: finalCode,
-    present: Math.max(0, parseInt(rawRow.present) || 0),
-    absent: Math.max(0, parseInt(rawRow.absent) || 0),
-    leave: Math.max(0, parseInt(rawRow.leave) || 0),
-    notEntered: Math.max(0, parseInt(rawRow.notEntered) || 0),
+    present,
+    absent,
+    leave,
+    notEntered,
     totalSessions: Math.max(0, parseInt(rawRow.totalSessions) || 0),
-    isUncertain: !isSubjectValid || (rawRow.present + rawRow.absent === 0) || !!rawRow.isUncertain
+    // (parsed numbers here: the AI can return "0"/"0" as text, and
+    // "0" + "0" === 0 is false, so a 0/0 row slipped through unflagged)
+    isUncertain: !isSubjectValid || (present + absent === 0) || countsDisagree || !!rawRow.isUncertain
   };
 }
 

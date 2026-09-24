@@ -17,6 +17,8 @@ Desktop.ini
 firebase-config.local.js
 ai-proxy/.dev.vars
 .wrangler/
+# Real student attendance + faculty names -- keep local only
+attendance-practice-kit/
 
 # Dependencies
 node_modules/
