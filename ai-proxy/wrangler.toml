@@ -1,0 +1,39 @@
+# Clarity Desk AI proxy -- Cloudflare Workers free plan (100,000 requests/day).
+# Deploy steps: see README.md in this folder.
+name = "clarity-desk-ai"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Pages allowed to call the proxy, comma-separated. "http://localhost:*"
+# style entries match any port -- add one only while testing locally.
+ALLOWED_ORIGINS = "https://campusos-83365.web.app,https://campusos-83365.firebaseapp.com"
+# Firebase project whose sign-in tokens are accepted.
+FIREBASE_PROJECT_ID = "campusos-83365"
+# "true": students who haven't signed in can still scan (limited per network).
+# "false": AI scanning requires Google sign-in.
+ALLOW_GUESTS = "true"
+
+# Signed-in students: 20 AI calls per minute per account. One scan uses 1-3.
+[[ratelimits]]
+name = "USER_LIMITER"
+namespace_id = "7301"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
+
+# Guests: 30 AI calls per minute per network (IP). Set higher than the
+# per-account limit because a whole classroom on college Wi-Fi shares one IP.
+[[ratelimits]]
+name = "GUEST_LIMITER"
+namespace_id = "7302"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
+# API keys are secrets, never written here. Set them with:
+#   npx wrangler@latest secret put GEMINI_API_KEY
+#   npx wrangler@latest secret put GROQ_API_KEY
+#   npx wrangler@latest secret put OPENROUTER_API_KEY

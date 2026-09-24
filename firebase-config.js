@@ -44,6 +44,13 @@
   window.CAMPUS_OS_GROQ_KEY       = envGroqKey       || null;
   window.CAMPUS_OS_OPENROUTER_KEY = envOpenRouterKey || null;
 
+  // Server-side AI proxy (ai-proxy/ folder, a free Cloudflare Worker). When
+  // set, AI scans go through it and the provider keys above are not used, so
+  // they never need to be shipped to the browser. Paste the URL that
+  // `npx wrangler deploy` prints. Not a secret.
+  const AI_PROXY_URL = '';
+  window.CAMPUS_OS_AI_PROXY = getEnvVal('AI_PROXY_URL') || AI_PROXY_URL || null;
+
   // If env vars are present, construct config object
   if (envApiKey && envProjectId && !envApiKey.includes('YOUR_')) {
     window.CAMPUS_OS_FIREBASE_CONFIG = {

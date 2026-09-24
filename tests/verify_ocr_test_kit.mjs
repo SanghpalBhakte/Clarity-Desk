@@ -18,6 +18,10 @@
 //   npm run test:ocr-kit:ai   full pipeline incl. the vision-AI fallback,
 //                             using the keys in firebase-config.local.js
 //                             (spends a few AI calls per image)
+//   npm run test:ocr-kit -- --proxy http://127.0.0.1:8787
+//                             full pipeline through the ai-proxy Worker
+//                             (`npx wrangler dev` in ai-proxy/); no keys
+//                             are loaded into the page at all
 //   extra flags: --only sample-01   run one image
 //                --verbose          stream AI provider log lines (keys redacted)
 //
@@ -33,7 +37,9 @@ import { chromium } from '@playwright/test';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const KIT = path.join(ROOT, 'timetable-test-kit');
-const AI_MODE = process.argv.includes('--ai');
+const proxyIdx = process.argv.indexOf('--proxy');                    // e.g. --proxy http://127.0.0.1:8787
+const PROXY = proxyIdx !== -1 ? process.argv[proxyIdx + 1] : null;
+const AI_MODE = process.argv.includes('--ai') || !!PROXY;
 const VERBOSE = process.argv.includes('--verbose');                  // stream AI provider log lines
 const onlyIdx = process.argv.indexOf('--only');                        // e.g. --only sample-01
 const ONLY = onlyIdx !== -1 ? process.argv[onlyIdx + 1] : null;
@@ -69,7 +75,9 @@ const pipelineJs = [
   appLines.slice(ttm, ttm + 6).join('\n'),
   'window.__ocr = { extractTimetableFromImage, AIService };'
 ].join('\n');
-const keyScript = AI_MODE
+const keyScript = PROXY
+  ? `<script>window.CAMPUS_OS_AI_PROXY = ${JSON.stringify(PROXY)};</script>`
+  : AI_MODE
   ? `<script src="/firebase-config.local.js"></script>
      <script>
        window.CAMPUS_OS_GEMINI_KEY = (window.ENV || {}).GEMINI_API_KEY || null;
@@ -79,7 +87,7 @@ const keyScript = AI_MODE
   : '';
 const pageHtml = `<!doctype html><html><head><meta charset="utf-8"></head><body>${keyScript}<script src="/__pipeline.js"></script></body></html>`;
 
-if (AI_MODE && !fs.existsSync(path.join(ROOT, 'firebase-config.local.js'))) {
+if (AI_MODE && !PROXY && !fs.existsSync(path.join(ROOT, 'firebase-config.local.js'))) {
   console.error('✗ --ai needs firebase-config.local.js with your AI keys.');
   process.exit(1);
 }
@@ -91,7 +99,7 @@ const server = http.createServer((req, res) => {
   const send = (type, body) => { res.writeHead(200, { 'Content-Type': type }); res.end(body); };
   if (url === '/') return send('text/html', pageHtml);
   if (url === '/__pipeline.js') return send('text/javascript', pipelineJs);
-  if (AI_MODE && url === '/firebase-config.local.js') return send('text/javascript', fs.readFileSync(path.join(ROOT, 'firebase-config.local.js')));
+  if (AI_MODE && !PROXY && url === '/firebase-config.local.js') return send('text/javascript', fs.readFileSync(path.join(ROOT, 'firebase-config.local.js')));
   const m = url.match(/^\/images\/([\w.-]+\.(jpe?g|png))$/i);
   if (m && fs.existsSync(path.join(KIT, 'images', m[1]))) {
     return send(/png$/i.test(m[1]) ? 'image/png' : 'image/jpeg', fs.readFileSync(path.join(KIT, 'images', m[1])));
@@ -158,7 +166,7 @@ function score(expected, schedule) {
 
 // ── Run ─────────────────────────────────────────────────────────────
 console.log('==================================================================');
-console.log(`🔬 OCR TEST-KIT ACCURACY: ${AI_MODE ? 'full pipeline incl. vision AI' : 'on-device scanner only (no AI calls)'}`);
+console.log(`🔬 OCR TEST-KIT ACCURACY: ${PROXY ? `full pipeline via AI proxy ${PROXY}` : AI_MODE ? 'full pipeline incl. vision AI' : 'on-device scanner only (no AI calls)'}`);
 console.log('==================================================================');
 
 await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -195,7 +203,8 @@ for (const file of samples) {
     console.error(`✗ [FAIL] ${id}: pipeline threw -- ${err.message}`); failed++; continue;
   }
   const s = score(expected, result?.schedule || []);
-  const model = (logs.find(l => l.includes('Vision extraction succeeded with model')) || '').match(/model: ([\w.:/-]+)/);
+  const okLine = logs.find(l => /Vision extraction succeeded with/.test(l)) || '';
+  const model = okLine.match(/model: ([\w.:/-]+)/) || (okLine.includes('with Groq') ? [null, 'Groq'] : null);
   const floor = FLOORS[id] || { recall: 0, precision: 0 };
   const ok = s.recall >= floor.recall && s.precision >= floor.precision;
   const line = `${id}: recall ${s.matched}/${s.totalE} = ${(s.recall * 100).toFixed(0)}% (floor ${(floor.recall * 100).toFixed(0)}%), precision ${(s.precision * 100).toFixed(0)}% (floor ${(floor.precision * 100).toFixed(0)}%) -- ${((Date.now() - t0) / 1000).toFixed(1)}s${model ? `, AI model ${model[1]}` : AI_MODE ? ', AI not used/failed' : ''}`;

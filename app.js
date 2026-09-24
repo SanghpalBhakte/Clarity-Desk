@@ -408,23 +408,77 @@ const AIService = {
     return null;
   },
 
+  // Optional server-side proxy (ai-proxy/, a free Cloudflare Worker) that
+  // holds the provider keys so they never ship to the browser. When
+  // window.CAMPUS_OS_AI_PROXY is set (firebase-config.js), every provider
+  // call goes through it; otherwise the direct-key calls work as before.
+  getProxyUrl() {
+    const raw = typeof window !== 'undefined' ? window.CAMPUS_OS_AI_PROXY : null;
+    if (typeof raw !== 'string' || !/^https?:\/\/\S+$/i.test(raw.trim())) return null;
+    return raw.trim().replace(/\/+$/, '');
+  },
+
+  hasProvider(provider) {
+    if (this.getProxyUrl()) return true;
+    if (provider === 'gemini') return !!this.getApiKey();
+    if (provider === 'groq') return !!this.getGroqKey();
+    if (provider === 'openrouter') return !!this.getOpenRouterKey();
+    return false;
+  },
+
+  // Where one provider call goes and with which headers. Throws when the
+  // provider has neither the proxy nor a key -- every caller already treats
+  // a throw as "try the next model/provider".
+  async _route(provider, model) {
+    const headers = { 'Content-Type': 'application/json' };
+    const proxy = this.getProxyUrl();
+    if (proxy) {
+      // Signed-in students get the proxy's per-account limit; without a
+      // token the proxy treats the call as a guest (per-network limit).
+      try {
+        const user = typeof currentUser !== 'undefined' ? currentUser : null;
+        if (user && typeof user.getIdToken === 'function') {
+          headers['Authorization'] = `Bearer ${await user.getIdToken()}`;
+        }
+      } catch (_) { /* no token: guest */ }
+      const path = provider === 'gemini' ? `gemini/${encodeURIComponent(model)}` : provider;
+      return { url: `${proxy}/v1/${path}`, headers };
+    }
+    if (provider === 'gemini') {
+      const key = this.getApiKey();
+      if (!key) throw new Error('No Gemini API key configured.');
+      return { url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, headers };
+    }
+    if (provider === 'groq') {
+      const key = this.getGroqKey();
+      if (!key) throw new Error('No Groq API key configured.');
+      return { url: 'https://api.groq.com/openai/v1/chat/completions', headers: { ...headers, 'Authorization': `Bearer ${key}` } };
+    }
+    const key = this.getOpenRouterKey();
+    if (!key) throw new Error('No OpenRouter API key configured.');
+    return {
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      headers: {
+        ...headers,
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': (typeof window !== 'undefined' && window.location) ? window.location.origin : 'https://clarity-desk.app',
+        'X-Title': 'Clarity Desk'
+      }
+    };
+  },
+
   getModelsList() {
     return [this.MODEL, ...this.FALLBACK_MODELS];
   },
 
   async callGroqText(ocrText, promptText) {
-    const key = this.getGroqKey();
-    if (!key) throw new Error('No Groq API key configured.');
+    const route = await this._route('groq');
     
     console.log(`[AIService] Attempting extraction with Groq model: ${this.GROQ_MODEL}`);
-    const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
     
-    const response = await fetchWithTimeout(endpoint, {
+    const response = await fetchWithTimeout(route.url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json'
-      },
+      headers: route.headers,
       body: JSON.stringify({
         model: this.GROQ_MODEL,
         messages: [
@@ -463,17 +517,16 @@ const AIService = {
       console.warn(`[AIService] Groq text failed:`, err.message || err);
     }
 
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
+    if (!this.hasProvider('gemini')) {
       throw new Error(lastError ? lastError.message : 'No AI API key configured.');
     }
 
     const models = this.getModelsList();
     for (const model of models) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
+        const route = await this._route('gemini', model);
         console.log(`[AIService] Attempting extraction with Gemini model: ${model}`);
-        const parsed = await this._generateContent(endpoint, {
+        const parsed = await this._generateContent(route, {
           contents: [{
             parts: [
               { text: promptText },
@@ -504,12 +557,12 @@ const AIService = {
   // retry before giving up on this model is worth it: without it, a single
   // bad moment burns through all 3 fallback models at once and the whole
   // scan falls back to raw, uncorrected OCR text for no real reason.
-  async _generateContent(endpoint, body, model) {
+  async _generateContent(route, body, model) {
     let response;
     for (let attempt = 1; attempt <= 2; attempt++) {
-      response = await fetchWithTimeout(endpoint, {
+      response = await fetchWithTimeout(route.url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: route.headers,
         body: JSON.stringify(body)
       });
       if (response.status !== 503 || attempt === 2) break;
@@ -550,8 +603,7 @@ const AIService = {
   // itself is a bigger privacy step than sending text, so this must never
   // run without that same key already present.
   async generateContentFromImage(base64Data, mimeType, promptText) {
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
+    if (!this.hasProvider('gemini')) {
       throw new Error('No Gemini API key configured for vision extraction.');
     }
 
@@ -559,10 +611,10 @@ const AIService = {
     let lastError = null;
 
     for (const model of models) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
+        const route = await this._route('gemini', model);
         console.log(`[AIService] Attempting VISION extraction with Gemini model: ${model}`);
-        const parsed = await this._generateContent(endpoint, {
+        const parsed = await this._generateContent(route, {
           contents: [{
             parts: [
               { text: promptText },
@@ -590,18 +642,13 @@ const AIService = {
   // extractStructuredFromImage below can rotate between them without either
   // caller knowing which provider actually answered.
   async callGroqVision(base64Data, mimeType, promptText) {
-    const key = this.getGroqKey();
-    if (!key) throw new Error('No Groq API key configured.');
+    const route = await this._route('groq');
 
     console.log(`[AIService] Attempting VISION extraction with Groq model: ${this.GROQ_VISION_MODEL}`);
-    const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
-    const response = await fetchWithTimeout(endpoint, {
+    const response = await fetchWithTimeout(route.url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json'
-      },
+      headers: route.headers,
       body: JSON.stringify({
         model: this.GROQ_VISION_MODEL,
         messages: [
@@ -635,23 +682,15 @@ const AIService = {
   // OPENROUTER_VISION_MODELS entry in order since any one of them can be
   // retired or rate-limited independently of the others.
   async callOpenRouterVision(base64Data, mimeType, promptText) {
-    const key = this.getOpenRouterKey();
-    if (!key) throw new Error('No OpenRouter API key configured.');
-
-    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    const route = await this._route('openrouter');
     let lastError = null;
 
     for (const model of this.OPENROUTER_VISION_MODELS) {
       try {
         console.log(`[AIService] Attempting VISION extraction with OpenRouter model: ${model}`);
-        const response = await fetchWithTimeout(endpoint, {
+        const response = await fetchWithTimeout(route.url, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': (typeof window !== 'undefined' && window.location) ? window.location.origin : 'https://clarity-desk.app',
-            'X-Title': 'Clarity Desk'
-          },
+          headers: route.headers,
           body: JSON.stringify({
             model,
             messages: [
@@ -697,9 +736,9 @@ const AIService = {
   // it just means the next configured provider gets tried instead.
   async extractStructuredFromImage(base64Data, mimeType, promptText) {
     const attempts = [];
-    if (this.getApiKey()) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText)]);
-    if (this.getGroqKey()) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText)]);
-    if (this.getOpenRouterKey()) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText)]);
+    if (this.hasProvider('gemini')) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText)]);
+    if (this.hasProvider('groq')) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText)]);
+    if (this.hasProvider('openrouter')) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText)]);
 
     if (attempts.length === 0) {
       throw new Error('No vision-capable AI provider configured.');
@@ -3732,9 +3771,9 @@ async function extractTimetableFromImage(base64Data, mimeType) {
 
   // AI structured repair fallback (only if user has configured an API key
   // for at least one vision/text provider)
-  const hasGroqKey = !!window.CAMPUS_OS_GROQ_KEY;
-  const hasGeminiKey = !!window.CAMPUS_OS_GEMINI_KEY;
-  const hasOpenRouterKey = !!window.CAMPUS_OS_OPENROUTER_KEY;
+  const hasGroqKey = AIService.hasProvider('groq');
+  const hasGeminiKey = AIService.hasProvider('gemini');
+  const hasOpenRouterKey = AIService.hasProvider('openrouter');
 
   if (!hasGroqKey && !hasGeminiKey && !hasOpenRouterKey) {
     console.log("[ExtractionPipeline] AI Repair skipped (no API key). Using deterministic output.");
@@ -8913,9 +8952,9 @@ async function extractAttendanceRowsFromOCR(ocrData, base64Data, mimeType) {
   // cards. Sending the actual photo to a vision model, same as the
   // timetable scanner, reads the real table instead of guessing from
   // Tesseract's flat, error-prone word positions.
-  const hasGroqKey = !!window.CAMPUS_OS_GROQ_KEY;
-  const hasGeminiKey = !!window.CAMPUS_OS_GEMINI_KEY;
-  const hasOpenRouterKey = !!window.CAMPUS_OS_OPENROUTER_KEY;
+  const hasGroqKey = AIService.hasProvider('groq');
+  const hasGeminiKey = AIService.hasProvider('gemini');
+  const hasOpenRouterKey = AIService.hasProvider('openrouter');
 
   if (hasGroqKey || hasGeminiKey || hasOpenRouterKey) {
     const visionRows = await extractAttendanceRowsViaVision(base64Data, mimeType, rawOcrText, existingSubjects);
