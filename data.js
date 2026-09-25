@@ -78,7 +78,7 @@ export const ASSIGNMENTS = [];
 export const NOTICES = [
   {
     id: "n1",
-    title: "End-Semester Examination — Set Your Exam Date",
+    title: "End-Semester Exam: Set Your Exam Date",
     category: "Exam",
     date: "2026-07-20",
     content: "Go to Settings and enter your end-semester exam date. A live countdown will appear on your dashboard.",
@@ -89,7 +89,7 @@ export const NOTICES = [
   },
   {
     id: "n2",
-    title: "Timetable Updated — Effective 30/07/2026 (SY-AIDS)",
+    title: "Timetable Updated, Effective 30/07/2026 (SY-AIDS)",
     category: "Academic",
     date: "2026-07-28",
     content: "Your official SY-AIDS timetable effective 30/07/2026 (Lecture Hall SF-31) has been updated with DEMP, DS, WEB DEV, PBST, MDM, COI, BMFA, OE-1, OE-2, and Community Engagement modules.",

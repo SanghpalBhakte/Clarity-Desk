@@ -332,7 +332,7 @@ function updateSyncUI(status = null) {
     if (icon) icon.textContent = '🔒';
     if (text) text.textContent = 'Sync denied';
     if (dot) dot.style.background = 'var(--red)';
-    if (btn) btn.title = 'Access Denied — check cloud Firestore permissions in Settings';
+    if (btn) btn.title = 'Access denied. Check the cloud Firestore permissions in Settings.';
   } else if (status === 'offline' || !isOnline) {
     if (icon) icon.textContent = '💾';
     if (text) text.textContent = 'Offline · Saved';
@@ -4372,7 +4372,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       <td>
         <div style="display:flex;align-items:center;gap:4px">
           <input type="text" class="form-input ${!item.subject ? 'error' : ''}" id="preview-subject-${originalIdx}" style="padding:4px 6px;font-size:var(--text-sm);width:100%" value="${(item.subject || '').replace(/"/g, '&quot;')}" placeholder="Subject name *" onchange="updatePreviewEntry(${originalIdx}, 'subject', this.value)">
-          ${item.subjectInferred ? '<span title="Resolved from this scan\'s legend/OCR-correction, not read directly off the grid — please double-check" style="font-size:var(--text-xs);color:var(--text-muted);white-space:nowrap">✨ inferred</span>' : ''}
+          ${item.subjectInferred ? '<span title="Resolved from this scan\'s legend/OCR-correction, not read directly off the grid. Please double-check it." style="font-size:var(--text-xs);color:var(--text-muted);white-space:nowrap">✨ inferred</span>' : ''}
         </div>
       </td>
       <td>
@@ -4427,7 +4427,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       <div style="display:flex;align-items:flex-start;gap:10px;background:color-mix(in srgb, var(--yellow) 12%, var(--surface-2));border:1px solid var(--yellow);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px">
         <span style="font-size:var(--text-md);line-height:1">⚠️</span>
         <div style="font-size:var(--text-sm);line-height:1.4">
-          <strong>Unverified scan.</strong> This table came from local OCR only — no AI provider was available to double-check it against the photo (add a free Gemini/Groq/OpenRouter key, or check your existing key/quota). Please review every row below carefully before saving.
+          <strong>Unverified scan.</strong> This table came from local OCR only. No AI provider was available to double-check it against the photo (add a free Gemini/Groq/OpenRouter key, or check your existing key/quota). Please review every row below carefully before saving.
         </div>
       </div>
       ` : ''}
@@ -5024,7 +5024,7 @@ function showNoticeChannelModal(targetKey) {
         <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">
           ${isOfficial 
             ? 'Set your college portal link, class channel, or department notice page URL.' 
-            : 'Add your college ERP / student portal URL — attendance, marks, fees, exam forms. Tapping the card opens it directly.'}
+            : 'Add your college ERP or student portal link for attendance, marks, fees and exam forms. Tapping the card opens it directly.'}
         </div>
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">${isOfficial ? 'Card Title' : 'Portal Title'}</label>
@@ -5036,7 +5036,7 @@ function showNoticeChannelModal(targetKey) {
         </div>
         ${!isOfficial ? `
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-xs,6px);padding:8px 10px;line-height:1.4">
-            💡 <strong>Tip:</strong> This just opens your portal in a new tab — you sign in there as usual, Clarity Desk never sees your ERP credentials.
+            💡 <strong>Tip:</strong> This just opens your portal in a new tab. You sign in there as usual, and Clarity Desk never sees your ERP password.
           </div>
         ` : ''}
       </div>
@@ -5439,7 +5439,7 @@ function checkScheduledNotifications() {
     if (currentHHMM >= prefs.dailySummaryTime && !notifiedMap[summaryKey]) {
       const pendingCountVal = tasks.length;
       const dueTodayCount = tasks.filter(t => t.dueDate === today).length;
-      dispatchNotification(`Clarity Desk — Daily Summary`, {
+      dispatchNotification(`Clarity Desk: Daily Summary`, {
         body: `You have ${pendingCountVal} pending task${pendingCountVal !== 1 ? 's' : ''} (${dueTodayCount} due today).`,
         tag: summaryKey,
         data: { url: './#dashboard' }
@@ -6137,7 +6137,7 @@ function buildDashboardContextLine(opts = {}) {
 
   // Attendance at risk — highest urgency, surfaces immediately
   if (attendancePct !== null && attendancePct < attTarget) {
-    return `Attendance at <strong>${attendancePct}%</strong> — below your ${attTarget}% target. Attend today's classes.`;
+    return `Attendance at <strong>${attendancePct}%</strong>, below your ${attTarget}% target. Try not to miss today's classes.`;
   }
 
   // Overdue tasks — second priority
@@ -6154,7 +6154,7 @@ function buildDashboardContextLine(opts = {}) {
 
   // Weekend or free day with no tasks
   if (isWeekend && pending === 0) {
-    return 'No classes today. A clear desk — use it well.';
+    return 'No classes today. Good time to get ahead on tasks.';
   }
 
   // Normal day with classes remaining
@@ -7075,9 +7075,9 @@ window.showOnboardingModal = function() {
           </svg>
         </div>
         <h2 style="margin:0 0 6px 0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.025em;color:var(--text-primary)">Welcome to Clarity Desk</h2>
-        <div style="font-size:var(--text-base);font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Your calm, unified student workspace</div>
+        <div style="font-size:var(--text-base);font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Everything for your college day in one place</div>
         <div style="font-size:var(--text-md);color:var(--text-secondary);line-height:1.6;margin-bottom:24px">
-          Manage your class schedule, monitor attendance safety, track tasks, and access study notes with zero clutter.
+          Keep your timetable, attendance, tasks and study notes together, so you always know what's next.
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <button class="btn-primary" onclick="showOnboardingStep2()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">Set up profile →</button>
@@ -7399,7 +7399,7 @@ function answerOverdueTasks() {
   const tsks = allTasks().filter(t => isTaskOverdue(t));
   let html = `<div style="font-weight:600;margin-bottom:8px">Overdue Tasks</div>`;
   if (tsks.length === 0) {
-    html += `<div style="font-size:var(--text-base)">You have no overdue tasks — all clear!</div>`;
+    html += `<div style="font-size:var(--text-base)">You have no overdue tasks. All clear!</div>`;
   } else {
     html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${tsks.length} overdue task(s):</div>`;
     html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
@@ -7820,7 +7820,7 @@ function renderDashboard() {
                 <button class="setup-inline-link" onclick="navigateTo('timetable')">Add your schedule →</button>
               ` : `
                 <div class="empty-state-title">No classes today</div>
-                <div class="empty-state-desc">A free day on your desk — good time to get ahead on tasks.</div>
+                <div class="empty-state-desc">A free day. Good time to get ahead on tasks.</div>
               `}
             </div>
           `}
@@ -10762,7 +10762,7 @@ function renderDeclutterPreviewModal(plan, userBatch) {
             📅 Daily Attendance Logs Remapped (${plan.remappedDailyLogs.length})
           </div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
-            Past attendance marks from uncleaned subject keys will now link seamlessly to their canonical timetable slots.
+            Attendance you marked under the old subject names will now count toward the matching subjects in your timetable.
           </div>
         ` : ''}
 
@@ -11665,7 +11665,7 @@ function renderAssignments() {
     if (done) {
       stateBadge = `<span class="due-badge">Completed ✓</span>`;
     } else if (isOngoing) {
-      stateBadge = `<span class="due-badge ongoing" title="Always active — stays visible until completed"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor"></span> Ongoing · No deadline</span>`;
+      stateBadge = `<span class="due-badge ongoing" title="Always active. Stays visible until you complete it."><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor"></span> Ongoing · No deadline</span>`;
     } else if (days !== null) {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due Today' : days === 1 ? 'Due Tomorrow' : `${days}d left`;
       const cls   = days < 0 ? 'overdue' : days === 0 ? 'today' : days <= 3 ? 'soon' : '';
@@ -12515,7 +12515,7 @@ function renderSummaryContent(container) {
               <div class="summary-text-sub">${a.subject} · ${a.marks > 0 ? a.marks + ' marks' : 'Academic task'}</div>
             </div>
           </div>`).join('')
-      : '<div class="card" style="text-align:center;padding:20px;color:var(--text-muted)">🌿 No tasks due today — all clear!</div>'
+      : '<div class="card" style="text-align:center;padding:20px;color:var(--text-muted)">🌿 No tasks due today. All clear!</div>'
     }
 
     ${ongoingMissions.length ? `
@@ -12600,7 +12600,7 @@ function renderSettings() {
         <div>
           <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-            ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your desk data stays in your browser storage. Sign in with Google to sync seamlessly across devices.'}
+            ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your data stays in this browser. Sign in with Google to sync it across your devices.'}
           </div>
         </div>
         <div>
@@ -12745,7 +12745,7 @@ function renderSettings() {
       </div>
       <div class="form-group" style="margin-bottom:0">
         <label class="form-label" style="margin-bottom:6px">Accent color</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Your personal touch — works with either mode above.</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Pick any colour. It works with both modes above.</div>
         <div role="group" aria-label="Accent color selection" style="display:flex;gap:16px;flex-wrap:wrap">
           <button type="button" class="accent-dot ${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta' ? 'active' : ''}" onclick="setAccent('terracotta', event)" aria-pressed="${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta'}" aria-label="Terracotta accent" title="Terracotta" style="--dot-color:#D17A5C"></button>
           <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'rose' ? 'active' : ''}" onclick="setAccent('rose', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'rose'}" aria-label="Rose accent" title="Rose" style="--dot-color:#A8636A"></button>
@@ -12893,7 +12893,7 @@ function renderSettings() {
         </div>
       </div>
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
-        💡 The ERP link just opens your portal in a new tab — you sign in there as usual.
+        💡 The ERP link just opens your portal in a new tab. You sign in there as usual.
       </div>
     </div>
 
@@ -13641,7 +13641,7 @@ const ClarityAssistant = (() => {
       const overdueTag = overdueTasks.length > 0 ? ` (<strong>${overdueTasks.length} overdue</strong>)` : '';
       sections.push(`<li><strong>Academic Deadlines:</strong> <strong>${thisWeekTasks.length + overdueTasks.length} task${(thisWeekTasks.length+overdueTasks.length)!==1?'s':''}</strong>${overdueTag} needing focus, led by <em>${escHtml(topTask.title)}</em> (${escHtml(topTask.subject || 'Task')}).</li>`);
     } else {
-      sections.push(`<li><strong>Academic Deadlines:</strong> Clear desk — no overdue or upcoming assignments due this week.</li>`);
+      sections.push(`<li><strong>Academic Deadlines:</strong> Nothing overdue and nothing due this week.</li>`);
     }
 
     // 3. Attendance Targets
@@ -13908,7 +13908,7 @@ const ClarityAssistant = (() => {
     const dueToday = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate === todayISO());
 
     if (isSunday) {
-      let msg = `Today is <strong>Sunday</strong> — no scheduled classes.`;
+      let msg = `Today is <strong>Sunday</strong>, so there are no classes.`;
       if (pendingOverdue.length > 0 || dueToday.length > 0) {
         msg += `<br><br>💡 You have <strong>${pendingOverdue.length + dueToday.length}</strong> urgent/due tasks to catch up on before Monday.`;
       } else {
@@ -13940,7 +13940,7 @@ const ClarityAssistant = (() => {
       guidance = `<div style="margin-top:10px;font-size:var(--text-sm);color:var(--green);border-top:1px dashed var(--border);padding-top:8px">✓ All classes for today completed!</div>`;
     }
 
-    return `<strong>${dayName}</strong> — ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>${guidance}`;
+    return `<strong>${dayName}</strong>, ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>${guidance}`;
   }
 
   function buildNextClass() {
@@ -14162,7 +14162,7 @@ const ClarityAssistant = (() => {
       return `<li><span class="cd-item-label">${escHtml(c.subject)}</span><span class="cd-item-meta">${timeStr}</span></li>`;
     }).join('');
 
-    return `<strong>${dayName}</strong> — ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>`;
+    return `<strong>${dayName}</strong>, ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>`;
   }
 
   function buildTasksWeek() {
@@ -14234,14 +14234,14 @@ const ClarityAssistant = (() => {
   }
 
   function buildUnknown() {
-    return `I didn't quite get that. I can answer questions and trigger helpful actions grounded in your real desk data. Try:
+    return `I didn't get that. Try asking one of these:
       <ul class="cd-list" style="margin-top:6px">
-        <li><strong>Plan my week</strong> — Weekly academic roadmap &amp; load rebalancing</li>
-        <li><strong>Which subject needs the most attention</strong> — Academic focus radar</li>
-        <li><strong>Review timetable import</strong> — Check unconfirmed imports or staging</li>
-        <li><strong>What changed after cleanup</strong> — Post-declutter status &amp; recovery</li>
-        <li><strong>Help me plan tonight</strong> — 3-block study schedule</li>
-        <li><strong>Show my day</strong> — Today's classes &amp; tasks</li>
+        <li><strong>Plan my week</strong>: a plan for the week ahead</li>
+        <li><strong>Which subject needs the most attention</strong>: the subject you're falling behind in</li>
+        <li><strong>Review timetable import</strong>: imports you haven't confirmed yet</li>
+        <li><strong>What changed after cleanup</strong>: what was removed and how to get it back</li>
+        <li><strong>Help me plan tonight</strong>: a 3-part study plan for tonight</li>
+        <li><strong>Show my day</strong>: today's classes and tasks</li>
       </ul>`;
   }
 
@@ -14810,11 +14810,11 @@ function init() {
 
   // Network connectivity status listeners
   window.addEventListener('online', () => {
-    showToast('Back online — cloud sync active ✓', 'success');
+    showToast('Back online. Cloud sync is on ✓', 'success');
     updateSyncUI();
   });
   window.addEventListener('offline', () => {
-    showToast('Offline mode — changes saved locally to your device', 'info');
+    showToast('You’re offline. Changes are saved on this device.', 'info');
     updateSyncUI('offline');
   });
 }
