@@ -421,6 +421,17 @@
 <script src="firebase-config.js?v=164"></script>
 <script type="module" src="app.js?v=164"></script>
 
+<!-- Cloudflare Web Analytics. Only loads on the live site, so local runs and tests aren't counted. -->
+<script>
+  if (location.hostname === 'campusos-83365.web.app' || location.hostname === 'campusos-83365.firebaseapp.com') {
+    var cfBeacon = document.createElement('script');
+    cfBeacon.defer = true;
+    cfBeacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+    cfBeacon.setAttribute('data-cf-beacon', '{"token": "273caa4281d14d7ab6eca4e31af9c116"}');
+    document.body.appendChild(cfBeacon);
+  }
+</script>
+
 </body>
 </html>
 
