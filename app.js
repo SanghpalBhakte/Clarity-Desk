@@ -5335,7 +5335,7 @@ function checkScheduledNotifications() {
   const today = todayStr();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const tomorrowStr = localDateKey(tomorrow);
   const now = new Date();
   const currentMin = currentTimeMinutes();
   const currentHHMM = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -6574,7 +6574,7 @@ window.handleQuickAdd = function() {
       };
     }
   } else {
-    finalizeQuickAdd(dueDate.toISOString().split('T')[0]);
+    finalizeQuickAdd(localDateKey(dueDate));
   }
 };
 
@@ -6658,14 +6658,14 @@ function renderReview() {
   const now = new Date();
   
   const last7 = new Date(); last7.setDate(now.getDate() - 7);
-  const lookbackStr = last7.toISOString().split('T')[0];
+  const lookbackStr = localDateKey(last7);
   const todayS = todayStr();
   
   const tasksCompleted = allTasks().filter(t => t.status === 'submitted' && t.dueDate && t.dueDate >= lookbackStr && t.dueDate <= todayS);
   const tasksRolledOver = allTasks().filter(t => isTaskOverdue(t) && t.dueDate >= lookbackStr);
   
   const next7 = new Date(); next7.setDate(now.getDate() + 7);
-  const lookaheadStr = next7.toISOString().split('T')[0];
+  const lookaheadStr = localDateKey(next7);
   
   const upcomingTasks = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= todayS && t.dueDate <= lookaheadStr);
   const upcomingNotices = getVisibleNotices().filter(n => n.date >= todayS && n.date <= lookaheadStr);
@@ -6674,7 +6674,7 @@ function renderReview() {
   const next7Days = {};
   for(let i=0; i<=7; i++) {
     const d = new Date(); d.setDate(now.getDate() + i);
-    next7Days[d.toISOString().split('T')[0]] = { date: d, items: [] };
+    next7Days[localDateKey(d)] = { date: d, items: [] };
   }
   
   upcomingTasks.forEach(t => {
@@ -7428,14 +7428,14 @@ function answerTodaySummary() {
 function answerSubjectTasks(subject, window) {
   const todayS = todayStr();
   const next7 = new Date(); next7.setDate(new Date().getDate() + 7);
-  const next7Str = next7.toISOString().split('T')[0];
+  const next7Str = localDateKey(next7);
   
   let tsks = allTasks().filter(a => a.status === 'pending' && a.code === subject);
   if (window === 'this-week') {
     tsks = tsks.filter(a => a.dueDate >= todayS && a.dueDate <= next7Str);
   } else {
     const next14 = new Date(); next14.setDate(new Date().getDate() + 14);
-    tsks = tsks.filter(a => a.dueDate > next7Str && a.dueDate <= next14.toISOString().split('T')[0]);
+    tsks = tsks.filter(a => a.dueDate > next7Str && a.dueDate <= localDateKey(next14));
   }
   
   let html = `<div style="font-weight:600;margin-bottom:8px">${subject} Tasks (${window.replace('-', ' ')})</div>`;
@@ -8569,8 +8569,14 @@ function getSubjectAttendance(subjItem) {
   const notEntered = baseline.notEntered;
 
   const attended = present;
-  const skipped = absent + leave + notEntered;
-  const total = present + absent + leave + notEntered;
+  // Percentages follow the college ERP: "Attendance Not Entered" sessions
+  // (held, but not yet marked by the teacher) are left out of a course's
+  // percentage -- 6 present, 1 absent, 1 not entered is 6/7 = 85.71%, as
+  // the ERP shows, not 6/8 = 75%. Leave still counts as a missed session.
+  // `held` keeps every session held, for counts and the overall figure.
+  const held = present + absent + leave + notEntered;
+  const skipped = absent + leave;
+  const total = present + absent + leave;
 
   const pct = total > 0 ? Math.round((present / total) * 100) : null;
   const exactPct = total > 0 ? parseFloat(((present / total) * 100).toFixed(2)) : null;
@@ -8605,6 +8611,7 @@ function getSubjectAttendance(subjItem) {
     attended,
     skipped,
     total,
+    held,
     pct,
     exactPct,
     isSafe,
@@ -8628,11 +8635,13 @@ function getOverallAttendance() {
   let totalCount = 0;
   let hasAnyData = false;
 
+  // Matches the ERP's totals row: total present / every session held,
+  // "Not Entered" included (unlike the per-course percentage above).
   subjects.forEach(s => {
     const att = getSubjectAttendance(s);
-    if (att.total > 0) {
+    if (att.held > 0) {
       totalAttended += att.attended;
-      totalCount += att.total;
+      totalCount += att.held;
       hasAnyData = true;
     }
   });
@@ -10018,7 +10027,8 @@ function renderReviewRowsHTML(rows, subjects) {
   const targetPct = getAttendanceTarget();
 
   return rows.map((r, idx) => {
-    const total = (parseInt(r.present) || 0) + (parseInt(r.absent) || 0) + (parseInt(r.leave) || 0) + (parseInt(r.notEntered) || 0);
+    // Not Entered is left out of the percentage, as on the ERP.
+    const total = (parseInt(r.present) || 0) + (parseInt(r.absent) || 0) + (parseInt(r.leave) || 0);
     const pct = total > 0 ? (((parseInt(r.present) || 0) / total) * 100).toFixed(1) : '0.0';
     const isSafe = parseFloat(pct) >= targetPct;
 
@@ -10077,7 +10087,7 @@ function onReviewRowInputChange(idx) {
   const n = Math.max(0, parseInt(document.getElementById(`row-not-entered-${idx}`)?.value) || 0);
 
   const targetPct = getAttendanceTarget();
-  const total = p + a + l + n;
+  const total = p + a + l;   // Not Entered left out of the percentage, as on the ERP
   const pct = total > 0 ? ((p / total) * 100).toFixed(1) : '0.0';
   const isSafe = parseFloat(pct) >= targetPct;
 
@@ -10273,8 +10283,9 @@ function updateBaselinePreview() {
   const totalSessionsVal = parseInt(document.getElementById('ab-total-sessions')?.value) || 0;
 
   const targetPct = getAttendanceTarget();
-  const totalCount = presentVal + absentVal + leaveVal + notEnteredVal;
-  const pct = totalCount > 0 ? ((presentVal / totalCount) * 100) : 0;
+  const totalCount = presentVal + absentVal + leaveVal + notEnteredVal;   // sessions held
+  const countedForPct = presentVal + absentVal + leaveVal;                // Not Entered left out, as on the ERP
+  const pct = countedForPct > 0 ? ((presentVal / countedForPct) * 100) : 0;
   const pctFormatted = pct.toFixed(2);
   const isSafe = pct >= targetPct;
 
@@ -10287,12 +10298,12 @@ function updateBaselinePreview() {
     return;
   }
 
-  const guidance = calculateSmartAttendanceGuidance(presentVal, absentVal + leaveVal + notEnteredVal, targetPct);
+  const guidance = calculateSmartAttendanceGuidance(presentVal, absentVal + leaveVal, targetPct);
 
   previewEl.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px 10px;margin-bottom:8px;flex-wrap:wrap">
       <div style="font-size:var(--text-base);font-weight:600;color:var(--text-primary);flex:1 1 170px">
-        Conducted: <strong>${totalCount}</strong> sessions (${presentVal} attended)
+        Conducted: <strong>${totalCount}</strong> sessions (${presentVal} attended${notEnteredVal ? `, ${notEnteredVal} not entered` : ''})
       </div>
       <span class="type-badge" style="font-size:var(--text-sm);padding:2px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
         ${isSafe ? 'Safe Zone' : 'Needs Recovery'} · ${pctFormatted}%
@@ -10347,7 +10358,8 @@ function saveSubjectBaselineFromModal() {
   const totalSessions = Math.max(0, parseInt(document.getElementById('ab-total-sessions')?.value) || 0);
 
   const totalCount = present + absent + leave + notEntered;
-  const pct = totalCount > 0 ? ((present / totalCount) * 100).toFixed(1) : '0.0';
+  const countedForPct = present + absent + leave;   // Not Entered left out, as on the ERP
+  const pct = countedForPct > 0 ? ((present / countedForPct) * 100).toFixed(1) : '0.0';
 
   const baselines = loadAttendanceBaselines();
   const storageKey = (subjCode || subjName).trim();
@@ -11361,7 +11373,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
 
         ${att.hasBaseline ? `
           <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-            <div>ERP baseline: <strong>${att.baseline.present} / ${att.baseline.totalCount}</strong> (${att.baseline.totalCount > 0 ? ((att.baseline.present/att.baseline.totalCount)*100).toFixed(2) : 0}%)</div>
+            <div>ERP baseline: <strong>${att.baseline.present} / ${att.baseline.totalCount - att.baseline.notEntered}</strong> (${(att.baseline.totalCount - att.baseline.notEntered) > 0 ? ((att.baseline.present/(att.baseline.totalCount - att.baseline.notEntered))*100).toFixed(2) : 0}%)${att.baseline.notEntered ? ` · ${att.baseline.notEntered} not entered` : ''}</div>
             <div>${(att.dailyAttended > 0 || att.dailySkipped > 0 || att.liveAdj.present > 0 || att.liveAdj.missed > 0) ? `Live marked: <strong>+${att.dailyAttended + att.liveAdj.present}</strong> attended, <strong>+${att.dailySkipped + att.liveAdj.missed}</strong> missed` : 'Live tracking active from baseline'}</div>
           </div>
         ` : ''}
@@ -11818,7 +11830,7 @@ window.showAssignmentModal = function(id = null, prefilledSubject = null, defaul
 function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultType = null) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultDate = tomorrow.toISOString().split('T')[0];
+  const defaultDate = localDateKey(tomorrow);
 
   const editTask = editTaskId ? state.customTasks.find(t => t.id === editTaskId) : null;
   const initialType = editTask ? editTask.taskType : (defaultType || 'assignment');
