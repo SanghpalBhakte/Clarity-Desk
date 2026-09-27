@@ -24,6 +24,9 @@ const KEY_ACCENT              = 'cos_accent';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
+// Local-only (never synced): the date-key repair below -- see fixShiftedAttendanceDates().
+const KEY_ATT_DATEFIX_CUTOFF  = 'cos_att_datefix_cutoff';
+const KEY_ATT_DATEFIX_BACKUP  = 'cos_att_datefix_backup';
 const KEY_PUSH_REGISTERED     = 'cos_push_registered';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
@@ -4881,6 +4884,7 @@ function applyCloudDataToLocalState(data) {
   }
   if (data.attendance && typeof data.attendance === 'object') {
     safeSetStorage(KEY_ATTENDANCE, data.attendance);
+    if (fixShiftedAttendanceDates() > 0) syncToCloud();
   }
   if (data.attendanceBaseline && typeof data.attendanceBaseline === 'object') {
     safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
@@ -6067,8 +6071,86 @@ function isTaskOverdue(task) {
 }
 
 function todayStr() {
-  const d = new Date();
+  return localDateKey(new Date());
+}
+
+// Calendar date (YYYY-MM-DD) of `d` in the student's own timezone -- the key
+// attendance marks are stored under. Never use d.toISOString().split('T')[0]
+// for this: that is the UTC date, and for a local-midnight Date east of UTC
+// (India is UTC+5:30) it is the PREVIOUS day. The timetable page did exactly
+// that, so a Tuesday tab read Monday's marks and "Monday's attendance
+// carried over" into the next day, while Today used the correct date.
+function localDateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// Repairs marks saved under that wrong (previous-day) key before this fix.
+// A mark is moved one day forward only when its class is NOT on the stored
+// date's weekday but IS on the next day's -- i.e. it can only belong to the
+// next day. Anything ambiguous (same class and time on both days) is left
+// alone, as is every mark dated on/after the day this repair first ran, so
+// marks saved with the correct key are never touched. Re-runs after a
+// cloud sync or backup import (either can bring the old keys back) and is
+// a no-op once repaired. The untouched original is kept locally in
+// KEY_ATT_DATEFIX_BACKUP. Returns the number of marks moved.
+function fixShiftedAttendanceDates() {
+  // Only timezones east of UTC produced the shifted keys.
+  if (new Date().getTimezoneOffset() >= 0) return 0;
+  let cutoff = safeGetStorage(KEY_ATT_DATEFIX_CUTOFF, null);
+  if (typeof cutoff !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) {
+    cutoff = todayStr();
+    safeSetStorage(KEY_ATT_DATEFIX_CUTOFF, JSON.stringify(cutoff));
+  }
+  const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  const tt = loadTimetable();
+  const classKeysOn = (weekday) => new Set((tt[weekday] || []).filter(isTeachingClass)
+    .map(c => `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, '')));
+  const original = JSON.stringify(data);
+  let moved = 0;
+
+  Object.keys(data).sort().forEach(dateKey => {
+    const dayObj = data[dateKey];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || dateKey >= cutoff || !dayObj || typeof dayObj !== 'object') return;
+    const day = new Date(`${dateKey}T00:00:00`);
+    const next = new Date(day);
+    next.setDate(day.getDate() + 1);
+    const nextKey = localDateKey(next);
+    const onThisDay = classKeysOn(day.getDay());
+    const onNextDay = classKeysOn(next.getDay());
+    Object.keys(dayObj).forEach(classKey => {
+      if (onThisDay.has(classKey) || !onNextDay.has(classKey)) return;
+      if (!data[nextKey]) data[nextKey] = {};
+      // A mark already saved correctly for that class (from Today) wins;
+      // the shifted copy was the same class counted twice.
+      if (!(classKey in data[nextKey])) data[nextKey][classKey] = dayObj[classKey];
+      delete dayObj[classKey];
+      moved++;
+    });
+    if (Object.keys(dayObj).length === 0) delete data[dateKey];
+  });
+
+  if (moved > 0) {
+    if (!safeGetStorage(KEY_ATT_DATEFIX_BACKUP, null)) localStorage.setItem(KEY_ATT_DATEFIX_BACKUP, original);
+    safeSetStorage(KEY_ATTENDANCE, data);
+    console.info(`[Attendance] Moved ${moved} mark(s) saved under the previous day's date to the right day.`);
+  }
+  return moved;
+}
+
+// Re-renders date-dependent pages once the calendar day changes while the
+// app stays open (PWAs are often resumed hours later): Today's schedule and
+// the timetable's Present/Absent state are keyed by date, so without this
+// they kept showing the previous day until a manual reload.
+let lastRenderedDayKey = todayStr();
+function refreshIfDayChanged() {
+  const nowKey = todayStr();
+  if (nowKey === lastRenderedDayKey) return false;
+  const previousWeekday = new Date(`${lastRenderedDayKey}T00:00:00`).getDay();
+  lastRenderedDayKey = nowKey;
+  // The timetable follows "today" unless the student had picked another day.
+  if (state.ttDay === previousWeekday) state.ttDay = new Date().getDay();
+  if (['dashboard', 'timetable', 'review'].includes(state.currentPage)) renderPage(state.currentPage);
+  return true;
 }
 
 function currentTimeMinutes() {
@@ -6235,13 +6317,13 @@ function saveTimetable(ttMap) {
 // today, so no already-happened attendance/streak history is lost.
 function clearUpcomingAttendanceForNewSchedule(newTT) {
   const attendanceData = safeGetStorage(KEY_ATTENDANCE, {}) || {};
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayKey = todayStr();
   let changed = false;
 
   for (let weekOffset = 0; weekOffset < 8; weekOffset++) {
     getWeekDays(weekOffset).forEach(dateObj => {
-      const dateStr = dateObj.toISOString().split('T')[0];
-      if (dateStr < todayStr) return;
+      const dateStr = localDateKey(dateObj);
+      if (dateStr < todayKey) return;
       const existing = attendanceData[dateStr];
       if (!existing) return;
 
@@ -6895,7 +6977,7 @@ function renderWeeklyAttendanceTracker() {
   let hasAnyClassesInWeek = false;
 
   weekDays.forEach(d => {
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = localDateKey(d);
     const dayIdx = d.getDay();
     const dayClasses = (ttData[dayIdx] || []).filter(isTeachingClass);
     
@@ -6960,7 +7042,7 @@ function renderWeeklyAttendanceTracker() {
   const weekSelectorHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div style="font-size:var(--text-base);color:var(--text-muted);font-weight:500">
-        ${formatDate(weekDays[0].toISOString().split('T')[0])} – ${formatDate(weekDays[6].toISOString().split('T')[0])}
+        ${formatDate(localDateKey(weekDays[0]))} – ${formatDate(localDateKey(weekDays[6]))}
       </div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-sm ${weekOffset === 0 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(0)" aria-pressed="${weekOffset === 0}" style="padding:4px 12px;font-size:var(--text-sm)">This Week</button>
@@ -7985,7 +8067,7 @@ function renderTimetable() {
   const attendanceData = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   const weekDays   = getWeekDays(0);
   const targetDayObj = weekDays.find(d => d.getDay() === day) || new Date();
-  const dateStr    = targetDayObj.toISOString().split('T')[0];
+  const dateStr    = localDateKey(targetDayObj);
 
   const tabs = [1,2,3,4,5,6,0].map(d => `
     <button class="tt-tab ${d===day?'active':''}" onclick="setTTDay(${d})">${DAY_SHORT[d]}${d===today?' ·':''}</button>
@@ -13043,7 +13125,10 @@ function importData(event) {
       if (data.customTimetable) safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
       if (data.timetableChoice) safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
       if (data.customLinks) safeSetStorage(KEY_CUSTOM_LINKS, data.customLinks);
-      if (data.attendance) safeSetStorage(KEY_ATTENDANCE, data.attendance);
+      if (data.attendance) {
+        safeSetStorage(KEY_ATTENDANCE, data.attendance);
+        fixShiftedAttendanceDates();
+      }
       if (data.attendanceBaseline) safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
       if (data.attendanceLive) safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
       if (Array.isArray(data.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, data.hiddenSubjects);
@@ -14729,6 +14814,7 @@ window.registerBackgroundPush = registerBackgroundPush;
 
 // ── Init ──────────────────────────────────────────────────────
 function init() {
+  try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
   initTheme();
   initAccent();
   updateTopbarProfile();
@@ -14774,7 +14860,12 @@ function init() {
     checkScheduledNotifications();
     checkNoticeNotifications();
     updateLiveClockDisplay();
+    refreshIfDayChanged();
   }, 60000);
+  // A backgrounded PWA's timers are paused; check the date as soon as it's shown again.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfDayChanged(); });
+  window.addEventListener('focus', refreshIfDayChanged);
+  window.addEventListener('pageshow', refreshIfDayChanged);
 
   // Initialize Firebase Auth & Firestore sync
   initFirebase();
