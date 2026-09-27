@@ -284,7 +284,8 @@ function showToast(msg, type = 'info') {
   iconSpan.textContent = type === 'success' ? '✓' : type === 'error' ? '⚠️' : 'ℹ️';
   
   const textSpan = document.createElement('span');
-  textSpan.textContent = msg;
+  // Success toasts already get a ✓ icon; drop a trailing ✓ from the text so it isn't shown twice.
+  textSpan.textContent = type === 'success' ? String(msg).replace(/\s*✓\s*$/, '') : msg;
 
   toast.appendChild(iconSpan);
   toast.appendChild(textSpan);
@@ -7034,7 +7035,7 @@ function renderWeeklyAttendanceTracker() {
         </div>
 
         <div style="font-size:var(--text-base);color:var(--text-primary);background:var(--surface-2);padding:10px 12px;border-radius:6px;line-height:1.45;border:1px solid var(--border)">
-          💡 ${guidance.message}
+          ${guidance.message}
         </div>
 
         ${subjectBreakdownHTML ? `
@@ -8017,20 +8018,20 @@ function renderTimetable() {
       const isSkipped  = status === 'skipped';
 
       const attendanceControlsHTML = isTeaching ? `
-        <div style="display:flex;align-items:center;gap:4px;margin-right:2px">
+        <div class="tt-att" style="display:flex;align-items:center;gap:4px;margin-right:2px">
           <button class="btn btn-sm ${isAttended ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')"
                   title="Mark ${c.subject} Attended" aria-label="Mark ${c.subject} as attended" aria-pressed="${isAttended}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isAttended ? 'background:var(--green);border-color:var(--green);color:var(--text-inverse);' : ''}">
-            ${icons.check()}
+            ${icons.check()}<span class="tt-att-label">Present</span>
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
                   title="Mark ${c.subject} as skipped" aria-label="Mark ${c.subject} as skipped" aria-pressed="${isSkipped}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isSkipped ? 'background:var(--red);border-color:var(--red);color:var(--text-inverse);' : ''}">
-            ${icons.x()}
+            ${icons.x()}<span class="tt-att-label">Absent</span>
           </button>
         </div>` : '';
 
@@ -8057,7 +8058,7 @@ function renderTimetable() {
               ${c.notes ? ` · <span style="font-style:italic">${c.notes}</span>` : ''}
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px">
+          <div class="tt-actions ${isTeaching ? 'has-att' : ''}" style="display:flex;align-items:center;gap:6px">
             ${attendanceControlsHTML}
             <button class="icon-btn-sm" onclick="showTimetableEntryModal(${day}, ${idx})" title="Edit class" aria-label="Edit class">${icons.edit()}</button>
           </div>
@@ -8599,7 +8600,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
     <div class="modal baseline-dialog" onclick="event.stopPropagation()" style="max-width:540px;padding:24px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Set your current attendance</h2>
+          <h2 class="modal-title" style="margin:0;font-size:clamp(var(--text-lg), 5vw, var(--text-xl));font-weight:700">Set your current attendance</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Add your present and absent counts once. Clarity Desk will continue from there.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('baseline-modal-backdrop')?.remove()">${icons.x()}</button>
@@ -8608,17 +8609,17 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
       <!-- Mode Selector Tabs: Set Manually | Scan from Photo -->
       <div style="display:flex;gap:8px;background:var(--surface-2);padding:4px;border-radius:8px;margin-bottom:16px">
         <button type="button" id="ab-tab-manual-btn" class="btn btn-sm ${initialTab==='manual'?'btn-primary':'btn-secondary'}" onclick="switchBaselineModalTab('manual')" style="flex:1;font-size:var(--text-sm);padding:6px 12px;border:none">
-          ✍️ Set Manually
+          ${icons.edit()} Set Manually
         </button>
         <button type="button" id="ab-tab-scan-btn" class="btn btn-sm ${initialTab==='scan'?'btn-primary':'btn-secondary'}" onclick="switchBaselineModalTab('scan')" style="flex:1;font-size:var(--text-sm);padding:6px 12px;border:none">
-          📷 Scan from Photo
+          ${icons.camera()} Scan from Photo
         </button>
       </div>
 
       <!-- TAB 1: MANUAL SETUP FORM -->
       <div id="ab-manual-section" style="${initialTab==='manual'?'display:block':'display:none'}">
         <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
-          💡 Set your current attendance to calculate from the right starting point. Future attendance actions update automatically from this baseline.
+          Set your current attendance to calculate from the right starting point. Future attendance actions update automatically from this baseline.
         </div>
 
         <div class="form-group" style="margin-bottom:14px">
@@ -8642,7 +8643,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
           `}
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div class="baseline-count-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label" style="display:flex;align-items:center;gap:6px">
               <span style="color:var(--green)">●</span> Present Count <span style="color:var(--red)">*</span>
@@ -8657,13 +8658,13 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label" style="display:flex;align-items:center;gap:6px">
-              <span style="color:var(--yellow)">●</span> Leave Count <span style="color:var(--text-muted);font-weight:normal">(optional)</span>
+              <span style="color:var(--yellow)">●</span> Leave Count <span class="form-label-hint">optional</span>
             </label>
             <input type="number" id="ab-leave" min="0" class="form-input" value="${baseline.hasBaseline ? baseline.leave : ''}" placeholder="0" oninput="updateBaselinePreview()">
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label" style="display:flex;align-items:center;gap:6px">
-              <span style="color:var(--text-muted)">●</span> Attendance Not Entered <span style="color:var(--text-muted);font-weight:normal">(optional)</span>
+              <span style="color:var(--text-muted)">●</span> Not Entered <span class="form-label-hint">optional</span>
             </label>
             <input type="number" id="ab-not-entered" min="0" class="form-input" value="${baseline.hasBaseline ? baseline.notEntered : ''}" placeholder="0" oninput="updateBaselinePreview()">
           </div>
@@ -8676,7 +8677,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
 
         <div id="ab-preview-card" style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px"></div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div class="baseline-actions" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
           <button type="button" class="btn btn-sm btn-secondary" id="ab-clear-btn" onclick="clearSubjectBaseline()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent);font-size:var(--text-base);${baseline.hasBaseline ? '' : 'display:none'}">
             Clear Baseline
           </button>
@@ -8692,7 +8693,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
         <input type="file" id="ab-scan-file-input" accept="image/*" style="display:none" onchange="handleAttendancePhotoUpload(event)">
         
         <div class="attendance-scan-zone" onclick="document.getElementById('ab-scan-file-input')?.click()">
-          <div style="font-size:var(--text-hero);margin-bottom:8px">📷</div>
+          <div class="scan-zone-icon">${icons.camera()}</div>
           <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);margin-bottom:4px">
             Upload your attendance screenshot and we’ll fill this in for you.
           </div>
@@ -8700,12 +8701,11 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
             Supports portal screenshots, PDF exports, and camera photos from MGM JUNO ERP, ERP portals, or Excel sheets.
           </div>
           <button type="button" class="btn-primary" style="font-size:var(--text-base);padding:8px 18px;display:inline-flex;align-items:center;gap:6px">
-            📁 Choose Photo / Screenshot
+            ${icons.plus()} Choose Photo / Screenshot
           </button>
         </div>
 
         <div style="margin-top:16px;background:var(--surface-2);border-radius:8px;padding:10px 14px;font-size:var(--text-sm);color:var(--text-muted);display:flex;align-items:center;gap:8px">
-          <span>🔒</span>
           <span>Photos are scanned locally in your browser. You can review and adjust every subject count before saving.</span>
         </div>
       </div>
@@ -9892,7 +9892,7 @@ function showAttendanceScanReviewModal(rows = []) {
     <div class="modal attendance-review-dialog" onclick="event.stopPropagation()" style="max-width:680px;padding:24px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">We found your subject counts. Review once before saving.</h2>
+          <h2 class="modal-title" style="margin:0;font-size:clamp(var(--text-lg), 5vw, var(--text-xl));font-weight:700">We found your subject counts. Review once before saving.</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Check the scanned numbers below and make any quick corrections.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('ab-review-modal-backdrop')?.remove()">${icons.x()}</button>
@@ -9905,11 +9905,11 @@ function showAttendanceScanReviewModal(rows = []) {
         </div>
       ` : ''}
 
-      <div id="ab-review-rows-container" style="max-height:55vh;overflow-y:auto;padding-right:4px;margin-bottom:16px">
+      <div id="ab-review-rows-container" class="attendance-review-list">
         ${renderReviewRowsHTML(rows, subjects)}
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="review-footer" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border)">
         <button type="button" class="btn-secondary" onclick="addScanReviewRow()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:6px 12px">
           ${icons.plus()} Add Subject Row
         </button>
@@ -9965,7 +9965,7 @@ function renderReviewRowsHTML(rows, subjects) {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(80px, 1fr));gap:8px">
+        <div class="review-counts-grid">
           <div>
             <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--status-success)">Present *</label>
             <input type="number" min="0" class="form-input review-present" id="row-present-${idx}" value="${r.present}" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
@@ -10116,7 +10116,7 @@ function showAttendanceScanErrorModal(message) {
   backdrop.id = 'ab-scan-error-backdrop';
   backdrop.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;padding:26px 22px;text-align:center">
-      <div style="font-size:var(--text-hero);margin-bottom:10px">📷</div>
+      <div class="scan-zone-icon">${icons.camera()}</div>
       <h3 style="margin:0 0 8px 0;font-size:var(--text-lg);font-weight:700;color:var(--text-primary)">We couldn’t read this screenshot clearly.</h3>
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:20px;line-height:1.45">
         ${message || 'The image may be blurry, low contrast, or not showing table columns. You can still enter your counts manually.'}
@@ -10208,8 +10208,8 @@ function updateBaselinePreview() {
   const guidance = calculateSmartAttendanceGuidance(presentVal, absentVal + leaveVal + notEnteredVal, targetPct);
 
   previewEl.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-      <div style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px 10px;margin-bottom:8px;flex-wrap:wrap">
+      <div style="font-size:var(--text-base);font-weight:600;color:var(--text-primary);flex:1 1 170px">
         Conducted: <strong>${totalCount}</strong> sessions (${presentVal} attended)
       </div>
       <span class="type-badge" style="font-size:var(--text-sm);padding:2px 8px;background:${isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
@@ -10217,7 +10217,7 @@ function updateBaselinePreview() {
       </span>
     </div>
     <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
-      💡 ${guidance.message}
+      ${guidance.message}
     </div>
     ${totalSessionsVal > 0 ? `
       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:6px;border-top:1px dashed var(--border);padding-top:6px">
@@ -11117,7 +11117,7 @@ function renderSubjectsOverview(el, subjects) {
           ${icons.declutter()} Declutter my desk
         </button>
         <button class="btn btn-secondary" onclick="toggleSubjectManageMode()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Manually select any subject card(s) to remove -- use this for garbled scan text auto-detection misses">
-          ${subjectManageMode ? '✕ Cancel selecting' : '☑️ Select to remove'}
+          ${subjectManageMode ? '✕ Cancel selecting' : 'Select to remove'}
         </button>
         <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
           ${icons.camera()} Scan from Photo
@@ -11143,7 +11143,7 @@ function renderSubjectsOverview(el, subjects) {
     ${hasPollution ? `
       <div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--surface-2);border-left:3px solid var(--yellow);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
-          <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary)">✨ Declutter your personalized desk</div>
+          <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary)">Declutter your personalized desk</div>
           <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:2px">
             We detected duplicate or batch-specific subject cards from an earlier timetable import. Clean them up to match your specific practical batch.
           </div>
@@ -11279,7 +11279,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
 
         ${att.hasBaseline ? `
           <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-            <div>📌 ERP Baseline: <strong>${att.baseline.present} / ${att.baseline.totalCount}</strong> (${att.baseline.totalCount > 0 ? ((att.baseline.present/att.baseline.totalCount)*100).toFixed(2) : 0}%)</div>
+            <div>ERP baseline: <strong>${att.baseline.present} / ${att.baseline.totalCount}</strong> (${att.baseline.totalCount > 0 ? ((att.baseline.present/att.baseline.totalCount)*100).toFixed(2) : 0}%)</div>
             <div>${(att.dailyAttended > 0 || att.dailySkipped > 0 || att.liveAdj.present > 0 || att.liveAdj.missed > 0) ? `Live marked: <strong>+${att.dailyAttended + att.liveAdj.present}</strong> attended, <strong>+${att.dailySkipped + att.liveAdj.missed}</strong> missed` : 'Live tracking active from baseline'}</div>
           </div>
         ` : ''}
@@ -11295,9 +11295,6 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
           </button>
           <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction('${subj.code || subj.name}', 'leave')" style="color:var(--status-warning);border-color:color-mix(in srgb, var(--status-warning) 35%, transparent)">
             Leave (+1)
-          </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="showBaselineModal('${subj.code || subj.name}')" style="margin-left:auto">
-            Edit Baseline
           </button>
           ${(att.liveAdj.present > 0 || att.liveAdj.missed > 0 || att.liveAdj.leave > 0) ? `
             <button class="btn btn-xs btn-secondary" onclick="undoSubjectAttendanceAction('${subj.code || subj.name}')" title="Reset live manual adjustments" style="color:var(--text-muted);font-size:var(--text-xs);padding:3px 7px">
@@ -11327,11 +11324,11 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
 
         ${att.pct !== null ? `
           <div style="font-size:var(--text-sm);color:var(--text-primary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;border-left:3px solid ${att.isSafe ? 'var(--green)' : 'var(--red)'}">
-            💡 ${att.insightMessage}
+            ${att.insightMessage}
           </div>
         ` : `
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px">
-            💡 Add your current counts once so future attendance stays accurate from the right starting point.
+            Add your current counts once so future attendance stays accurate from the right starting point.
           </div>
         `}
       </div>

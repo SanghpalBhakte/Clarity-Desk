@@ -11,6 +11,7 @@
     "test:visual": "playwright test tests/clarity-visual-verification.spec.ts",
     "test:visual:update": "playwright test tests/clarity-visual-verification.spec.ts --update-snapshots",
     "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts --project=chromium-desktop",
+    "test:mobile": "playwright test tests/mobile-layout.spec.ts --project=chromium-mobile",
     "test:smoke": "playwright test tests/post-deploy-smoke.spec.ts --project=chromium-desktop",
     "test:ocr-kit": "node tests/verify_ocr_test_kit.mjs",
     "test:ocr-kit:ai": "node tests/verify_ocr_test_kit.mjs --proxy https://clarity-desk-ai.sanghapal2006.workers.dev",
