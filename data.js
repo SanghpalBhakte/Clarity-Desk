@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u21",
+    date: "2026-09-29",
+    title: "Today fits phones and opens at the top, attendance syncs between devices, new status-bar icon (v168)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today fits phones and opens at the top, attendance syncs between devices, new status-bar icon (v168)",
+    points: [
+      "Today fits phones and opens at the top, attendance syncs between devices, new status-bar icon (v168)"
+    ]
+  },
+  {
     id: "u20",
     date: "2026-09-27",
     title: "Attendance Now Matches the ERP",
