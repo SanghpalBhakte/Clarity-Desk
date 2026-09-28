@@ -4756,13 +4756,30 @@ function sanitizeTask(t) {
 
 let lastCloudPayloadHash = null;
 
+// JSON with object keys sorted at every level. Firestore hands maps back
+// with their keys in its own order, so a plain JSON.stringify of the same
+// data could differ from what this device wrote and look like a "change".
+function stableStringify(v) {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+
 function calculatePayloadHash(data) {
   try {
-    return JSON.stringify({
+    return stableStringify({
       p: data.profile,
       t: data.customTasks?.length,
-      tt: data.customTimetable ? Object.keys(data.customTimetable).length : 0,
-      a: data.assignmentStatuses
+      // Full timetable and attendance, not just a day count: a mark or a
+      // timetable edit made on another device must reach this one (it used
+      // to be ignored until something else changed, even across reloads).
+      tt: data.customTimetable || null,
+      a: data.assignmentStatuses,
+      att: data.attendance || null,
+      attB: data.attendanceBaseline || null,
+      attL: data.attendanceLive || null
       // theme deliberately excluded: it's applied via initTheme()/CSS
       // variables, never needs a dashboard rebuild, and including it here
       // was causing every theme switch (and the first cloud echo after
@@ -4789,7 +4806,10 @@ function subscribeUserCloudData(uid) {
     profile: loadProfile(),
     customTasks: state.customTasks,
     customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
-    assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {})
+    assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
+    attendance: safeGetStorage(KEY_ATTENDANCE, {}),
+    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
+    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, {})
   });
 
   const userRef = db.collection('users').doc(uid);
@@ -4937,7 +4957,7 @@ function applyCloudDataToLocalState(data) {
   updateTopbarProfile();
   setupFABDrag();
   updateNavBadges();
-  if (['settings', 'assignments', 'dashboard', 'notices'].includes(state.currentPage)) {
+  if (['settings', 'assignments', 'dashboard', 'notices', 'timetable', 'review', 'subjects'].includes(state.currentPage)) {
     renderPage(state.currentPage);
   }
 }
@@ -5891,7 +5911,13 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   });
 
   updateBackButtonUI();
+  if (page !== current) dashboardSettled = false;   // arriving: greeting settles in once
   renderPage(page);
+  // A new page starts at the top. Without this, Today opened at whatever
+  // offset the previous page was scrolled to, so on a phone the greeting
+  // and stat tiles were already scrolled out of view.
+  // ('instant': html has scroll-behavior: smooth, which would glide there.)
+  if (current && page !== current) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 
   // The Tasks & Deadlines page already has its own persistent "+ Add Task"
   // header button doing the exact same thing, so the floating quick-add FAB
@@ -6080,6 +6106,14 @@ function todayStr() {
 // (India is UTC+5:30) it is the PREVIOUS day. The timetable page did exactly
 // that, so a Tuesday tab read Monday's marks and "Monday's attendance
 // carried over" into the next day, while Today used the correct date.
+// The one key a class's Present/Absent mark is stored under, for a given
+// date. Today, the Next Up card, the timetable, the weekly review and the
+// date-key repair all read and write marks through this, so a mark made in
+// one place is the same record everywhere else.
+function attendanceKeyFor(c) {
+  return `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, '');
+}
+
 function localDateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
@@ -6104,7 +6138,7 @@ function fixShiftedAttendanceDates() {
   const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   const tt = loadTimetable();
   const classKeysOn = (weekday) => new Set((tt[weekday] || []).filter(isTeachingClass)
-    .map(c => `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, '')));
+    .map(c => attendanceKeyFor(c)));
   const original = JSON.stringify(data);
   let moved = 0;
 
@@ -6329,7 +6363,7 @@ function clearUpcomingAttendanceForNewSchedule(newTT) {
 
       const dayClasses = newTT[dateObj.getDay()] || [];
       const upcomingKeys = new Set(
-        dayClasses.filter(isTeachingClass).map(c => `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, ''))
+        dayClasses.filter(isTeachingClass).map(c => attendanceKeyFor(c))
       );
 
       Object.keys(existing).forEach(key => {
@@ -6988,7 +7022,7 @@ function renderWeeklyAttendanceTracker() {
     const isToday = dateStr === todayStr();
 
     let classListHTML = dayClasses.map(c => {
-      const classKey = `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, '');
+      const classKey = attendanceKeyFor(c);
       const status = attendanceData[dateStr]?.[classKey] || 'unset';
       const isLab = c.type === 'lab';
       const subjKey = `${c.subject} ${isLab ? '(Lab)' : ''}`;
@@ -7522,6 +7556,11 @@ function answerUnknown() {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
+// Once the greeting has played its settle-in animation, re-renders of the
+// same visit (a Present tap, a cloud sync) must not replay it -- that replay
+// is what made the top of Today look like it kept refreshing.
+let dashboardSettled = false;
+
 function renderDashboard() {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
@@ -7708,7 +7747,7 @@ function renderDashboard() {
   // Signature Chrono Beacon (Active lecture, next slot, day complete, or free day)
   let beaconHTML = '';
   if (activeClass) {
-    const classKey = `${activeClass.code || activeClass.subject}_${activeClass.time}`.replace(/[^a-zA-Z0-9_]/g, '');
+    const classKey = attendanceKeyFor(activeClass);
     const status = attendanceData[dateStr]?.[classKey] || 'unset';
     beaconHTML = `
       <div class="chrono-beacon is-live" role="region" aria-label="Current class in session">
@@ -7842,7 +7881,7 @@ function renderDashboard() {
 
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
-    <div class="desk-masthead">
+    <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
           <div class="desk-greeting">${greeting}</div>
@@ -7876,7 +7915,7 @@ function renderDashboard() {
           ${dayClasses.length > 0 ? `
             <div class="schedule-ledger">
               ${dayClasses.map(c => {
-                const classKey = `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, '');
+                const classKey = attendanceKeyFor(c);
                 const status = attendanceData[dateStr]?.[classKey] || 'unset';
                 const isNow = (currentMin >= timeToMinutes(c.time || '00:00') && currentMin < timeToMinutes(c.end || '23:59'));
                 const isPast = (currentMin >= timeToMinutes(c.end || '23:59'));
@@ -7942,7 +7981,7 @@ function renderDashboard() {
                   </div>
                   <div style="flex:1;min-width:0;cursor:pointer" onclick="navigateTo('assignments')">
                     <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${a.title}</div>
-                    <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
+                    <div class="task-ledger-meta" style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
                       <span onclick="event.stopPropagation(); openSubjectHub('${a.subject}')" style="color:var(--accent);font-weight:600;cursor:pointer">${a.subject || 'General'}</span>
                       <span>·</span>
                       <span>${isOngoing ? 'Standing' : formatDate(a.dueDate)}</span>
@@ -8048,6 +8087,7 @@ function renderDashboard() {
       </div>
     </div>
   `;
+  dashboardSettled = true;
 }
 
 // ── Timetable ─────────────────────────────────────────────────
@@ -8093,7 +8133,7 @@ function renderTimetable() {
       const isCurrent = day === today && currentMin >= startMin && currentMin < endMin;
       const isPast    = day === today && currentMin >= endMin;
       const isTeaching = isTeachingClass(c);
-      const classKey  = isTeaching ? `${c.code || c.subject}_${c.time}`.replace(/[^a-zA-Z0-9_]/g, '') : null;
+      const classKey  = isTeaching ? attendanceKeyFor(c) : null;
       const status    = isTeaching ? (attendanceData[dateStr]?.[classKey] || 'unset') : 'unset';
 
       const isAttended = status === 'attended';
@@ -14826,6 +14866,9 @@ window.registerBackgroundPush = registerBackgroundPush;
 
 // ── Init ──────────────────────────────────────────────────────
 function init() {
+  // Always open at the top of the page (a reload or PWA relaunch used to
+  // restore a stale mid-page scroll offset).
+  try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
   initTheme();
   initAccent();

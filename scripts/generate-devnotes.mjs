@@ -13,7 +13,7 @@
 // Run this before `firebase deploy --only hosting` so Dev Notes reflects what
 // actually shipped (npm run devnotes).
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,7 @@ function writeState(sha) {
 }
 
 function currentHeadSha() {
-  return execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT }).toString().trim();
 }
 
 const state = readState();
@@ -67,8 +67,11 @@ if (sinceSha === head) {
 // One record per commit, oldest first, merges skipped.
 const SEP1 = '\x1f';
 const SEP2 = '\x1e';
-const raw = execSync(
-  `git log --no-merges --date=short --pretty=format:"%H${SEP1}%ad${SEP1}%s${SEP1}%b${SEP2}" --reverse ${sinceSha}..${head}`,
+// git is called directly (no shell), so Windows cmd.exe never sees the % and
+// control-character separators in the format string.
+const raw = execFileSync(
+  'git',
+  ['log', '--no-merges', '--date=short', `--pretty=format:%H${SEP1}%ad${SEP1}%s${SEP1}%b${SEP2}`, '--reverse', `${sinceSha}..${head}`],
   { cwd: ROOT, maxBuffer: 1024 * 1024 * 16 }
 ).toString();
 

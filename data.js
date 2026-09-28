@@ -197,6 +197,110 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u20",
+    date: "2026-09-27",
+    title: "Attendance Now Matches the ERP",
+    category: "Fix",
+    tag: "Fix",
+    tagColor: "var(--red)",
+    summary: "Each subject's percentage now works the way the college ERP does, and marks always land on the right day.",
+    points: [
+      "Sessions marked \"Not Entered\" on the ERP no longer pull a subject's percentage down: 6 present, 1 absent and 1 not entered now shows 85.71%, the same as the ERP.",
+      "Tuesday's timetable no longer shows the Present/Absent you marked on Monday. Marks saved under the wrong day are moved back automatically.",
+      "Today and the timetable switch to the new day at midnight, even if the app stays open.",
+      "New tasks added just after midnight default to the right \"tomorrow\"."
+    ]
+  },
+  {
+    id: "u19",
+    date: "2026-09-27",
+    title: "Fits Small Phones Properly",
+    category: "Improvement",
+    tag: "Improvement",
+    tagColor: "var(--green)",
+    summary: "Every page now fits the screen on phones as narrow as 320px, and nothing important hides off the edge.",
+    points: [
+      "Attendance pop-ups keep their Save button on screen.",
+      "Present and Absent buttons on the timetable are full-size and labelled.",
+      "The top-bar clock, greeting and bottom navigation no longer overflow or overlap on small screens.",
+      "The phone's status bar matches the app's theme when installed."
+    ]
+  },
+  {
+    id: "u18",
+    date: "2026-09-25",
+    title: "Easier-to-Read Look",
+    category: "Design",
+    tag: "Design",
+    tagColor: "var(--yellow)",
+    summary: "A readable light theme, plainer wording and one consistent set of icons across the app.",
+    points: [
+      "Light theme text now has proper contrast.",
+      "Pick light or dark mode separately from your accent colour: Terracotta, Rose, Lavender or Apricot.",
+      "Buttons use one consistent icon set instead of emoji.",
+      "The dashboard greeting varies instead of repeating the same line.",
+      "Links to Clarity Desk show a proper preview card when shared."
+    ]
+  },
+  {
+    id: "u17",
+    date: "2026-09-24",
+    title: "Smarter, Steadier Scans",
+    category: "Improvement",
+    tag: "Improvement",
+    tagColor: "var(--green)",
+    summary: "Timetable and attendance screenshots are now read by AI vision first, with free backups when one service is busy.",
+    points: [
+      "Scans go through Clarity Desk's own secure server, so no API keys ship inside the app.",
+      "Four free AI services back each other up: if one is busy or out of free quota, the next takes over.",
+      "Classes no longer get duplicated across days or merged cells, and subject names that only nearly match are flagged for you to check.",
+      "Attendance scans cross-check each row against the ERP's Total Count column."
+    ]
+  },
+  {
+    id: "u16",
+    date: "2026-09-22",
+    title: "Backups Now Include Timetable and Attendance",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Export and Import under Data & Backup now carry your timetable and attendance history too.",
+    points: [
+      "Every backup file includes your timetable and attendance.",
+      "Importing a backup on a new phone restores them along with the rest of your desk."
+    ]
+  },
+  {
+    id: "u15",
+    date: "2026-09-19",
+    title: "One-Tap Updates and a Tidier Desk",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "A banner now tells you when a new version is ready, and cleaning up bad subjects takes fewer steps.",
+    points: [
+      "Tap the update banner to get the newest version; no reinstalling needed.",
+      "Declutter Desk also removes garbled quick links and leftover attendance for deleted subjects.",
+      "Remove bad subject cards from Subject Hubs one at a time or several at once.",
+      "Subject Hub cards show an attendance ring, and new accounts start with a clean desk."
+    ]
+  },
+  {
+    id: "u14",
+    date: "2026-09-14",
+    title: "Live Clock, ERP Link and Better Accessibility",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "A live clock on every page, quick access to the college ERP portal, and a notice board that shows only what matters.",
+    points: [
+      "A live day and time clock shows on every page.",
+      "Quick access to the college ERP portal.",
+      "Setup notices hide themselves once setup is done, and the notice board keeps just two cards.",
+      "Keyboard navigation, pop-up focus and screen-reader announcements work properly, and low-contrast text was fixed."
+    ]
+  },
+  {
     id: 'u13',
     date: '2026-09-13',
     title: 'Notices No Longer Always Show "Today"',

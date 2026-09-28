@@ -49,5 +49,10 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - No commit/push unless explicitly asked.
 - Before pull/merge/rebase, report `git status`, branch, and remotes first.
 
+## Shipping (the user runs it)
+- The user ships with `npm run ship` (`scripts/ship.mjs`): bumps the cache version if app files changed, runs `npm test`, commits, adds Dev Notes, pushes, and runs `firebase deploy --only hosting` (plus the AI proxy if `ai-proxy/` changed). `npm run ship:check` previews it.
+- After every change, end the report with a **Ready to ship** block: the exact commit message to type at the prompt, and anything the script does not do (e.g. `npm run test:visual:update` on Windows when screenshots changed, a check on the live site). Write the message in plain words for students, because it becomes a Dev Note in the app. Start it with `chore:` for tooling/test-only changes. Leave out `(vN)`: the script adds it.
+- Git commands run from the Cowork VM on this folder (e.g. `git status`) can leave a `.git/index.lock` the VM cannot delete, which blocks the user's commit. If one appears, move it aside (`mv .git/index.lock .git/index.lock.stale`).
+
 ## Reporting format
 After any change, report: files changed, what changed in each, commands run, actual results, remaining risks. Never say "done" without evidence.

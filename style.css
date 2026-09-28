@@ -4986,3 +4986,21 @@ body::before {
   .review-footer button svg,
   .baseline-dialog .baseline-actions button svg { flex-shrink: 0; }
 }
+
+/* ── Today on phones + calm re-renders (v168) ────────────────── */
+/* Only arriving on Today plays the greeting's settle-in; re-renders of the
+   same visit (a Present tap, a cloud sync) keep it still instead of making
+   the top of the page look like it keeps reloading. */
+.desk-masthead.is-settled { animation: none; }
+
+@media (max-width: 560px) {
+  /* Schedule rows: the fixed 145px time column pushed Present / Missed off
+     the right edge. The time gets its own line; class name and buttons
+     share the line below (buttons drop under the name if they don't fit). */
+  .schedule-slot { flex-wrap: wrap; row-gap: 4px; }
+  .schedule-slot-time { width: auto; flex-basis: 100%; }
+  .schedule-slot .btn { min-height: 36px; }
+  /* Task rows: subject and due date wrap as whole pieces instead of the
+     date being squeezed into a narrow column. */
+  .task-ledger-meta { flex-wrap: wrap; row-gap: 0; }
+}

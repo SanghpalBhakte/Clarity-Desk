@@ -102,5 +102,43 @@ for (const width of WIDTHS) {
       const subjectWidth = await card.locator('.tt-subject').evaluate((el) => el.getBoundingClientRect().width);
       expect(subjectWidth, 'class name width').toBeGreaterThan(width * 0.5);
     });
+
+    // v168: the 145px time column pushed Today's Missed button off the
+    // screen, where the page's overflow clip hid it from the check above.
+    test("Today's schedule keeps Present / Missed fully on screen", async ({ page }) => {
+      await openApp(page);
+      const slots = page.locator('#page-dashboard .schedule-slot');
+      expect(await slots.count(), 'schedule rows on Today').toBeGreaterThan(0);
+      const offscreen = await page.evaluate(() => [...document.querySelectorAll('#page-dashboard .schedule-slot button')]
+        .map((b) => b.getBoundingClientRect()).filter((r) => r.left < 0 || r.right > innerWidth + 0.5)
+        .map((r) => `${Math.round(r.left)}–${Math.round(r.right)}`));
+      expect(offscreen, `buttons past the ${width}px screen edge`).toEqual([]);
+    });
   });
 }
+
+// v168: Today opened at the previous page's scroll offset (greeting and stat
+// tiles already scrolled away on a phone), and every in-place re-render
+// replayed the greeting's settle-in animation, so the top of the page looked
+// like it kept reloading.
+test.describe('Today on a phone', () => {
+  test.use({ viewport: { width: 360, height: 640 } });
+
+  test('opens at the top, and a Present tap does not replay the greeting animation', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('settings'));
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    expect(await page.evaluate(() => window.scrollY), 'settings scrolled').toBeGreaterThan(0);
+    await page.evaluate(() => (window as any).navigate('dashboard'));
+    expect(await page.evaluate(() => window.scrollY), 'Today scroll offset').toBe(0);
+    expect(await inViewport(page, '#page-dashboard .desk-greeting')).toBe(true);
+
+    const masthead = page.locator('#page-dashboard .desk-masthead');
+    await expect(masthead, 'arriving on Today plays the settle-in').not.toHaveClass(/is-settled/);
+    await page.locator('#page-dashboard .schedule-slot button', { hasText: 'Present' }).first().click();
+    await expect(masthead, 'in-place re-render keeps the greeting still').toHaveClass(/is-settled/);
+    await page.evaluate(() => (window as any).navigate('timetable'));
+    await page.evaluate(() => (window as any).navigate('dashboard'));
+    await expect(masthead, 'coming back plays it again').not.toHaveClass(/is-settled/);
+  });
+});

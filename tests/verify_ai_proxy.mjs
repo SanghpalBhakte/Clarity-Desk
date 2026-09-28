@@ -15,10 +15,10 @@
 // ==================================================================
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const worker = (await import(path.join(ROOT, 'ai-proxy', 'worker.mjs'))).default;
+const worker = (await import(pathToFileURL(path.join(ROOT, 'ai-proxy', 'worker.mjs')).href)).default;  // file:// URL: Windows paths like D:\ are not valid import specifiers
 
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const PROJECT = 'campusos-83365';
