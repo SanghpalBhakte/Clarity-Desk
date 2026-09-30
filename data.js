@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u22",
+    date: "2026-09-30",
+    title: "Today shows a live countdown to your next class, puts it first on phones, and the Add Task button gets out of the way (v169)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today shows a live countdown to your next class, puts it first on phones, and the Add Task button gets out of the way (v169)",
+    points: [
+      "Today shows a live countdown to your next class, puts it first on phones, and the Add Task button gets out of the way (v169)"
+    ]
+  },
+  {
     id: "u21",
     date: "2026-09-29",
     title: "Today fits phones and opens at the top, attendance syncs between devices, new status-bar icon (v168)",
