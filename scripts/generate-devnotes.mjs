@@ -90,7 +90,7 @@ const relevant = commits.filter((c) => !SKIP_PATTERNS.some((re) => re.test(c.sub
 
 if (!relevant.length) {
   console.log(`No user-facing commits between ${sinceSha.slice(0, 7)} and ${head.slice(0, 7)}.`);
-  if (!sinceOverride) writeState(head);
+  if (!sinceOverride && !DRY_RUN) writeState(head);   // --dry-run must touch nothing
   process.exit(0);
 }
 

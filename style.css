@@ -5004,3 +5004,118 @@ body::before {
      date being squeezed into a narrow column. */
   .task-ledger-meta { flex-wrap: wrap; row-gap: 0; }
 }
+
+/* ── Class countdown on the Next Up / In Session card (v169) ───────────
+   Big mono number on the right (the one thing you glance at), a thin
+   progress line while a class is running, and a quiet "Then ..." line.
+   Desktop keeps one row; phones put the countdown beside the class name
+   and the buttons on their own full-width row. */
+.chrono-beacon { flex-wrap: wrap; }
+.chrono-beacon-main { flex: 1 1 200px; min-width: 0; }
+.chrono-beacon-count {
+  flex: 0 0 auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.chrono-beacon-count-num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.chrono-beacon-count-label {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.chrono-beacon-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chrono-beacon-then {
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+.chrono-beacon-then strong { color: var(--text-secondary); font-weight: 600; }
+.chrono-beacon-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: color-mix(in srgb, var(--green) 20%, transparent);
+}
+.chrono-beacon-progress span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  transition: width 0.6s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chrono-beacon-progress span { transition: none; }
+}
+.chrono-beacon-badge { white-space: nowrap; }
+@media (max-width: 560px) {
+  /* Phones: name/time on top, then the countdown, then the buttons -- the
+     same order at every phone width instead of squeezing the badge. */
+  .chrono-beacon-main { flex-basis: 100%; }
+  .chrono-beacon-count { text-align: left; }
+  .chrono-beacon-count-num { font-size: 1.45rem; }
+  .chrono-beacon-actions { flex: 1 1 100%; }
+  .chrono-beacon-actions .btn { flex: 1 1 0; min-height: 40px; justify-content: center; }
+  /* Next Up has one quiet button: keep it on the countdown's row. */
+  .chrono-beacon-actions.is-compact { flex: 1 1 0; justify-content: flex-end; }
+  .chrono-beacon-actions.is-compact .btn { flex: 0 1 auto; padding-inline: 14px; }
+}
+
+/* ── Add Task button: a compact round "+" on phones (v169) ──────────────
+   The full "+ Add Task" pill floated over the Next Up card and empty states.
+   On phones it is now a 48px circle (same place, still draggable, still
+   labelled "Add new task" for screen readers); the words stay on desktop. */
+@media (max-width: 560px) {
+  .fab { width: 48px; height: 48px; padding: 0; justify-content: center; gap: 0; }
+  .fab svg { width: 20px; height: 20px; }
+  .fab-label { display: none; }
+  /* The one-time "Drag me" hint was centred on the wide pill; on a 48px
+     circle at the right edge that would hang off the screen. */
+  .fab-hint { left: auto; right: 0; transform: none; animation: none; }
+  .fab-hint::after { left: auto; right: 18px; transform: rotate(45deg); }
+}
+
+/* ── Today on phones: the class card leads (v169) ──────────────────────
+   On a 640px-tall phone the greeting plus the stat tiles filled the whole
+   first screen and pushed the class card -- the reason you open Today --
+   below the fold. Same markup; on phones the greeting comes first, then the
+   class card, then the setup checklist (if any), then the stat tiles.
+   `display: contents` lets the masthead's two children be ordered
+   separately without moving anything in the DOM (desktop is untouched). */
+@media (max-width: 560px) {
+  #page-dashboard.active { display: flex; flex-direction: column; }
+  #page-dashboard > * { order: 4; }
+  #page-dashboard .desk-masthead { display: contents; }
+  #page-dashboard .desk-masthead-top { order: 0; padding-top: 20px; margin-bottom: 16px; }
+  #page-dashboard .desk-masthead:not(.is-settled) .desk-masthead-top {
+    animation: deskSettleIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  #page-dashboard .chrono-beacon { order: 1; }
+  #page-dashboard .desk-setup-guide { order: 2; }
+  #page-dashboard .vitals-strip { order: 3; margin-top: 0 !important; }   /* beats the inline 14px */
+  /* three tiles in a two-column grid left the last one alone with an empty half row */
+  #page-dashboard .vitals-strip .vitals-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) and (prefers-reduced-motion: reduce) {
+  #page-dashboard .desk-masthead:not(.is-settled) .desk-masthead-top { animation: none; }
+}

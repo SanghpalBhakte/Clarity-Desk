@@ -6071,6 +6071,84 @@ function updateLiveClockDisplay() {
   el.textContent = `${dateStr} · ${timeStr}`;
 }
 
+// ── Class countdown on Today's Next Up / In Session card ─────────────────
+// Whole-minute arithmetic on purpose: the card's own state test is
+// `currentMin >= start && currentMin < end`, so the countdown can never read
+// "0 min" or disagree with which state the card is in.
+function formatCountdown(mins) {
+  const m = Math.max(0, Math.round(mins));
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+function beaconProgressPct(startMin, endMin, nowMin) {
+  const span = endMin - startMin;
+  if (!(span > 0)) return 0;
+  return Math.min(100, Math.max(0, Math.round(((nowMin - startMin) / span) * 100)));
+}
+
+// When today has no class left (day finished, or a rest day) the card looks
+// ahead instead of just saying "done": the first teaching class on the next
+// day that has one. Reads the saved timetable exactly like the rest of Today
+// does -- it was already filtered to the student's own batch when it was saved.
+function findNextClassDay(tt, fromDayIdx) {
+  for (let off = 1; off <= 7; off++) {
+    const idx = (fromDayIdx + off) % 7;
+    const list = ((tt && tt[idx]) || []).filter(isTeachingClass);
+    if (!list.length) continue;
+    const first = list.reduce((a, c) => (timeToMinutes(c.time || '00:00') < timeToMinutes(a.time || '00:00') ? c : a));
+    const label = off === 1 ? 'Tomorrow' : off === 7 ? `Next ${DAY_NAMES[idx]}` : DAY_NAMES[idx];
+    return { offset: off, label, cls: first };
+  }
+  return null;
+}
+
+// Once a minute (and when the app comes back to the foreground) this mutates
+// only the countdown text and the progress bar -- never a re-render, so it
+// cannot bring back the "top of Today keeps refreshing" problem. The one
+// exception is a class boundary (Next Up -> In Session -> done), where the
+// card, the schedule ledger and the "classes left" count all really do change,
+// so Today is rebuilt once, not on a timer.
+function tickBeacon() {
+  if (typeof state === 'undefined' || state.currentPage !== 'dashboard') return;
+  if (refreshIfDayChanged()) return;
+  const card = document.querySelector('#page-dashboard .chrono-beacon[data-beacon]');
+  if (!card) return;
+  const kind = card.dataset.beacon;
+  const startMin = Number(card.dataset.start);
+  const endMin = Number(card.dataset.end);
+  const nowMin = currentTimeMinutes();
+  const outOfDate = (kind === 'next' && nowMin >= startMin) || (kind === 'live' && nowMin >= endMin);
+  if (outOfDate) {
+    // Never rebuild Today underneath someone who is typing (e.g. Ask Desk).
+    const a = document.activeElement;
+    if (a && a.closest && a.closest('#page-dashboard') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    renderPage('dashboard');
+    return;
+  }
+  const num = card.querySelector('[data-beacon-count]');
+  if (num) num.textContent = formatCountdown((kind === 'next' ? startMin : endMin) - nowMin);
+  const bar = card.querySelector('[data-beacon-bar]');
+  if (bar && kind === 'live' && bar.firstElementChild) {
+    const pct = beaconProgressPct(startMin, endMin, nowMin);
+    bar.firstElementChild.style.width = pct + '%';
+    bar.setAttribute('aria-valuenow', String(pct));
+  }
+}
+
+// Lands just after the next wall-clock minute so the countdown and the topbar
+// clock flip together (the old 60 s interval started at load, so it could lag
+// the real minute by up to 59 s).
+let beaconTickTimer = null;
+function scheduleBeaconTick() {
+  clearTimeout(beaconTickTimer);
+  beaconTickTimer = setTimeout(() => {
+    updateLiveClockDisplay();
+    tickBeacon();
+    scheduleBeaconTick();
+  }, 60000 - (Date.now() % 60000) + 200);
+}
+
 function dueDaysLeft(dateStr) {
   if (!dateStr) return null;
   const now = new Date(); now.setHours(0,0,0,0);
@@ -7745,13 +7823,28 @@ function renderDashboard() {
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
 
   // Signature Chrono Beacon (Active lecture, next slot, day complete, or free day)
+  // Countdown numbers (whole minutes, same clock as the state test above).
+  const liveStartMin = activeClass ? timeToMinutes(activeClass.time || '00:00') : 0;
+  const liveEndMin   = activeClass ? timeToMinutes(activeClass.end || '23:59') : 0;
+  const liveHasEnd   = !!(activeClass && activeClass.end);
+  const livePct      = liveHasEnd ? beaconProgressPct(liveStartMin, liveEndMin, currentMin) : 0;
+  const nextStartMin = nextClass ? timeToMinutes(nextClass.time || '00:00') : 0;
+  const upNextClass  = activeClass
+    ? dayClasses.find(c => c !== activeClass && timeToMinutes(c.time || '00:00') >= liveEndMin)
+    : null;
+
+  const lookAhead = (!activeClass && !nextClass) ? findNextClassDay(liveTT, dayIdx) : null;
+  const lookAheadHTML = lookAhead
+    ? `<div class="chrono-beacon-then">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>`
+    : '';
+
   let beaconHTML = '';
   if (activeClass) {
     const classKey = attendanceKeyFor(activeClass);
     const status = attendanceData[dateStr]?.[classKey] || 'unset';
     beaconHTML = `
-      <div class="chrono-beacon is-live" role="region" aria-label="Current class in session">
-        <div style="flex:1;min-width:180px">
+      <div class="chrono-beacon is-live" role="region" aria-label="Current class in session"${liveHasEnd ? ` data-beacon="live" data-start="${liveStartMin}" data-end="${liveEndMin}"` : ''}>
+        <div class="chrono-beacon-main">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 15%, transparent);color:var(--status-success)">
               <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--status-success);box-shadow:0 0 6px var(--status-success)"></span>
@@ -7767,8 +7860,10 @@ function renderDashboard() {
             ${activeClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(activeClass.teacher))}</span>` : ''}
             <span class="type-badge type-${activeClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${activeClass.type || 'lecture'}</span>
           </div>
+          ${upNextClass ? `<div class="chrono-beacon-then">Then <strong>${escHtml_cd(upNextClass.subject)}</strong> at ${formatDisplayTime(upNextClass.time)}${upNextClass.room ? ` · ${escHtml_cd(upNextClass.room)}` : ''}</div>` : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        ${liveHasEnd ? `<div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(liveEndMin - currentMin)}</span><span class="chrono-beacon-count-label">left in class</span></div>` : ''}
+        <div class="chrono-beacon-actions">
           <button class="btn btn-sm ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:5px 12px;font-size:var(--text-sm);font-weight:600;${status==='attended'?'background:var(--status-success);border-color:var(--status-success);color:white;':''}">
             ${status==='attended'?'Attended ✓':'Mark Attended'}
           </button>
@@ -7776,11 +7871,12 @@ function renderDashboard() {
             ${status==='skipped'?'Skipped':'Skip'}
           </button>
         </div>
+        ${liveHasEnd ? `<div class="chrono-beacon-progress" data-beacon-bar role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${livePct}"><span style="width:${livePct}%"></span></div>` : ''}
       </div>`;
   } else if (nextClass) {
     beaconHTML = `
-      <div class="chrono-beacon" role="region" aria-label="Next upcoming class">
-        <div style="flex:1;min-width:180px">
+      <div class="chrono-beacon" role="region" aria-label="Next upcoming class" data-beacon="next" data-start="${nextStartMin}" data-end="${timeToMinutes(nextClass.end || '23:59')}">
+        <div class="chrono-beacon-main">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--accent-warm) 15%, transparent);color:var(--accent-warm)">${icons.clock()} Next Up</span>
             <span class="chrono-beacon-time">${formatDisplayTimeRange(nextClass.time, nextClass.end)}</span>
@@ -7794,9 +7890,12 @@ function renderDashboard() {
             <span class="type-badge type-${nextClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${nextClass.type || 'lecture'}</span>
           </div>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${nextClass.subject}')" style="font-size:var(--text-sm);padding:6px 12px">
-          Open Subject Hub →
-        </button>
+        <div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(nextStartMin - currentMin)}</span><span class="chrono-beacon-count-label">until it starts</span></div>
+        <div class="chrono-beacon-actions is-compact">
+          <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${nextClass.subject}')" style="font-size:var(--text-sm);padding:6px 12px">
+            Open Subject Hub →
+          </button>
+        </div>
       </div>`;
   } else if (dayClasses.length > 0 && classesLeftCount === 0) {
     beaconHTML = `
@@ -7810,6 +7909,7 @@ function renderDashboard() {
           <div class="chrono-beacon-meta">
             <span>${pending > 0 ? iconText(icons.filetext(), `${pending} task${pending !== 1 ? 's' : ''} pending on your desk`) : iconText(icons.check(), 'No pending tasks. Enjoy your evening.')}</span>
           </div>
+          ${lookAheadHTML}
         </div>
         <button class="btn btn-sm btn-secondary" onclick="navigateTo('${pending > 0 ? 'assignments' : 'links'}')" style="font-size:var(--text-sm);padding:6px 12px">
           ${pending > 0 ? 'Review Tasks →' : 'Study Vault →'}
@@ -7827,6 +7927,7 @@ function renderDashboard() {
           <div class="chrono-beacon-meta">
             <span>${!isCustomTimetableActive() ? 'Add your class schedule to track daily lectures.' : 'A free day on your study desk.'}</span>
           </div>
+          ${lookAheadHTML}
         </div>
         <button class="btn btn-sm btn-secondary" onclick="navigateTo('${!isCustomTimetableActive() ? 'timetable' : 'assignments'}')" style="font-size:var(--text-sm);padding:6px 12px">
           ${!isCustomTimetableActive() ? 'Set Schedule →' : 'View Tasks →'}
@@ -14921,6 +15022,18 @@ function init() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfDayChanged(); });
   window.addEventListener('focus', refreshIfDayChanged);
   window.addEventListener('pageshow', refreshIfDayChanged);
+  // Countdown + topbar clock: re-sync right away when the app is shown again
+  // (a backgrounded PWA's timers are paused), then keep ticking on the minute.
+  const catchUpClock = () => {
+    if (document.hidden) return;
+    updateLiveClockDisplay();
+    tickBeacon();
+    scheduleBeaconTick();
+  };
+  document.addEventListener('visibilitychange', catchUpClock);
+  window.addEventListener('focus', catchUpClock);
+  window.addEventListener('pageshow', catchUpClock);
+  scheduleBeaconTick();
 
   // Initialize Firebase Auth & Firestore sync
   initFirebase();
