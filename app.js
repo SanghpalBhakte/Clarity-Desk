@@ -5558,6 +5558,7 @@ const state = {
   assignFilter:        'all',
   assignTypeFilter:    'all',
   assignSubjectFilter: 'all',
+  assignFiltersOpen:   false,
   noticeSearch:        '',
   assignments:         loadAssignments(),
   customTasks:         loadCustomTasks(),   // persisted across reloads
@@ -7805,7 +7806,7 @@ function renderDashboard() {
     <div class="vitals-tile" onclick="${attendancePct !== null ? "navigateTo('review')" : "showBaselineModal(null, 'manual')"}" title="View Attendance Guidance">
       <div class="vitals-label">Attendance</div>
       <div class="vitals-value" style="${attendancePct !== null ? `color:var(${isAttendanceAtRisk ? '--red' : '--green'})` : ''}">${attendancePct !== null ? `${attendancePct}%` : '—'}</div>
-      <div class="vitals-sub">${attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : 'Needs attention') : 'Not set'}</div>
+      <div class="vitals-sub">${attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : (isAttendanceAtRisk ? `Below ${attTarget}% target` : 'Needs attention')) : 'Not set'}</div>
     </div>
   `);
   if (countdownText && examDaysLeftNum !== null) {
@@ -7817,7 +7818,10 @@ function renderDashboard() {
       </div>
     `);
   }
-  const vitalsBarHTML = `<div class="vitals-strip" style="margin-top:14px">${vitalsTiles.join('')}</div>`;
+  // Display order only: attendance leads, then tasks, then classes left.
+  const [vtClasses, vtTasks, vtAttendance, ...vtRest] = vitalsTiles;
+  const vitalsOrdered = [vtAttendance, vtTasks, vtClasses, ...vtRest];
+  const vitalsBarHTML = `<div class="vitals-strip${vitalsOrdered.length > 3 ? ' is-four' : ''}" style="margin-top:14px">${vitalsOrdered.join('')}</div>`;
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
@@ -7864,11 +7868,11 @@ function renderDashboard() {
         </div>
         ${liveHasEnd ? `<div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(liveEndMin - currentMin)}</span><span class="chrono-beacon-count-label">left in class</span></div>` : ''}
         <div class="chrono-beacon-actions">
-          <button class="btn btn-sm ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:5px 12px;font-size:var(--text-sm);font-weight:600;${status==='attended'?'background:var(--status-success);border-color:var(--status-success);color:white;':''}">
-            ${status==='attended'?'Attended ✓':'Mark Attended'}
+          <button class="btn beacon-att ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="${status==='attended'?'background:var(--status-success);border-color:var(--status-success);color:white;':''}">
+            ${icons.check()}<span>Present</span>
           </button>
-          <button class="btn btn-sm ${status==='skipped'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:5px 12px;font-size:var(--text-sm);font-weight:600;${status==='skipped'?'background:var(--status-error);border-color:var(--status-error);color:white;':''}">
-            ${status==='skipped'?'Skipped':'Skip'}
+          <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="${status==='skipped'?'background:var(--status-error);border-color:var(--status-error);color:white;':''}">
+            ${icons.x()}<span>Absent</span>
           </button>
         </div>
         ${liveHasEnd ? `<div class="chrono-beacon-progress" data-beacon-bar role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${livePct}"><span style="width:${livePct}%"></span></div>` : ''}
@@ -7878,7 +7882,7 @@ function renderDashboard() {
       <div class="chrono-beacon" role="region" aria-label="Next upcoming class" data-beacon="next" data-start="${nextStartMin}" data-end="${timeToMinutes(nextClass.end || '23:59')}">
         <div class="chrono-beacon-main">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--accent-warm) 15%, transparent);color:var(--accent-warm)">${icons.clock()} Next Up</span>
+            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--accent-warm) 15%, transparent);color:var(--color-accent-text, var(--accent-warm))">${icons.clock()} Next Up</span>
             <span class="chrono-beacon-time">${formatDisplayTimeRange(nextClass.time, nextClass.end)}</span>
           </div>
           <div class="chrono-beacon-title" onclick="openSubjectHub('${nextClass.subject}')" style="cursor:pointer" title="Open Subject Hub">
@@ -8028,8 +8032,8 @@ function renderDashboard() {
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                      <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">${status==='attended'?'Attended ✓':'Present'}</button>
-                      <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">${status==='skipped'?'Skipped':'Missed'}</button>
+                      <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">Present</button>
+                      <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">Absent</button>
                     </div>
                   </div>`;
               }).join('')}
@@ -8210,9 +8214,13 @@ function renderTimetable() {
   const targetDayObj = weekDays.find(d => d.getDay() === day) || new Date();
   const dateStr    = localDateKey(targetDayObj);
 
-  const tabs = [1,2,3,4,5,6,0].map(d => `
-    <button class="tt-tab ${d===day?'active':''}" onclick="setTTDay(${d})">${DAY_SHORT[d]}${d===today?' ·':''}</button>
-  `).join('');
+  const tabs = [1,2,3,4,5,6,0].map(d => {
+    const dt = weekDays.find(w => w.getDay() === d);
+    const dn = dt ? dt.getDate() : '';
+    return `
+    <button class="tt-tab ${d===day?'active':''} ${d===today?'today':''}" onclick="setTTDay(${d})" aria-pressed="${d===day}" aria-label="${DAY_NAMES[d]} ${dn}${d===today?', today':''}"><span class="tt-tab-d">${DAY_SHORT[d]}</span><span class="tt-tab-n">${dn}</span></button>
+  `;
+  }).join('');
 
   let content = '';
   if (!classes.length) {
@@ -8234,6 +8242,16 @@ function renderTimetable() {
       const isCurrent = day === today && currentMin >= startMin && currentMin < endMin;
       const isPast    = day === today && currentMin >= endMin;
       const isTeaching = isTeachingClass(c);
+      if (!isTeaching) {
+        const mins = c.end ? endMin - startMin : 0;
+        return `
+        <div class="tt-break ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}">
+          <span class="tt-break-time">${formatDisplayTime(c.time)}</span>
+          <span class="tt-break-label">${c.subject || 'Break'}${mins > 0 ? ` · ${mins} min` : ''}${isCurrent ? ' · Now' : ''}</span>
+          <span class="tt-break-rule" aria-hidden="true"></span>
+          <button class="icon-btn-sm" onclick="showTimetableEntryModal(${day}, ${idx})" title="Edit break" aria-label="Edit break">${icons.edit()}</button>
+        </div>`;
+      }
       const classKey  = isTeaching ? attendanceKeyFor(c) : null;
       const status    = isTeaching ? (attendanceData[dateStr]?.[classKey] || 'unset') : 'unset';
 
@@ -8258,28 +8276,28 @@ function renderTimetable() {
           </button>
         </div>` : '';
 
+      // Some saved subjects already carry the code, e.g. "Statistics (PBST)":
+      // don't print it a second time after the name.
+      const codeInName = c.code && new RegExp('\\b' + String(c.code).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(c.subject || '');
+      const codeSuffix = codeInName ? '' : subjectCodeSuffix(c.subject, c.code);
+      const metaBits = [
+        c.type && c.type !== 'lecture' ? `<span class="type-badge type-${c.type}">${c.type}</span>` : '',
+        c.room ? `<span>Room <strong>${c.room}</strong></span>` : '',
+        c.teacher ? `<span><strong>${formatTeacherName(c.teacher)}</strong></span>` : '',
+        c.notes ? `<span class="tt-note">${c.notes}</span>` : ''
+      ].filter(Boolean);
+
       return `
         <div class="tt-entry ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}">
           <div class="tt-time-col">
             <div class="tt-time-start">${formatDisplayTime(c.time)}</div>
             <div class="tt-time-end">${c.end ? formatDisplayTime(c.end) : ''}</div>
+            ${isCurrent ? '<div class="tt-now">Now</div>' : ''}
           </div>
           <div class="tt-divider"></div>
           <div class="tt-info">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-              <div class="tt-subject" onclick="openSubjectHub('${c.subject}')" style="cursor:pointer;font-weight:700" title="Open ${c.subject} Hub">
-                ${c.subject} ${subjectCodeSuffix(c.subject, c.code)}
-              </div>
-              <div style="display:flex;align-items:center;gap:6px">
-                <span class="type-badge type-${c.type || 'lecture'}">${c.type || 'lecture'}</span>
-                <button class="btn btn-xs btn-secondary" onclick="openSubjectHub('${c.subject}')" style="font-size:var(--text-xs);padding:2px 6px">Hub →</button>
-              </div>
-            </div>
-            <div class="tt-meta">
-              ${c.room ? `Room: <strong>${c.room}</strong>` : ''}
-              ${c.teacher ? ` · <strong>${formatTeacherName(c.teacher)}</strong>` : ''}
-              ${c.notes ? ` · <span style="font-style:italic">${c.notes}</span>` : ''}
-            </div>
+            <div class="tt-subject" onclick="openSubjectHub('${c.subject}')" title="Open ${c.subject} Hub">${c.subject} ${codeSuffix}<span class="tt-chev">${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span></div>
+            ${metaBits.length ? `<div class="tt-meta">${metaBits.join('')}</div>` : ''}
           </div>
           <div class="tt-actions ${isTeaching ? 'has-att' : ''}" style="display:flex;align-items:center;gap:6px">
             ${attendanceControlsHTML}
@@ -8290,33 +8308,24 @@ function renderTimetable() {
     }).join('');
   }
 
+  const hasPollution = detectDeskPollution();
+
   el.innerHTML = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Timetable &amp; Schedule</div>
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:nowrap">
+      <div style="flex:1;min-width:0">
+        <div class="page-title">Timetable</div>
         <div class="page-subtitle">${teachingClassCount} class${teachingClassCount!==1?'es':''} on ${DAY_NAMES[day]} ${isCustom ? '· Custom Schedule' : '· Regular Schedule'}</div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:7px 14px">
-          ${icons.plus()} Add Class
-        </button>
-        ${classes.length ? `
-          <button class="btn-secondary" onclick="triggerTimetableImport()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
-            ${icons.camera()} Scan Timetable
-          </button>` : ''}
-        ${detectDeskPollution() ? `
-          <button class="btn-secondary" onclick="showDeclutterDeskModal()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch sessions">
-            ${icons.declutter()} Declutter Schedule
-          </button>` : ''}
-        ${classes.length ? `
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Load sample schedule template">
-            ${icons.filetext()} Sample Schedule
-          </button>` : ''}
-        ${isCustom ? `
-          <button class="btn-secondary" onclick="resetTimetableToDefault()" style="font-size:var(--text-xs);padding:4px 10px;color:var(--text-muted)">
-            Clear Schedule
-          </button>` : ''}
-      </div>
+      <details class="tk-more sj-manage">
+        <summary aria-label="Manage timetable">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage${hasPollution ? '<span class="sj-dot" title="Duplicate or other-batch sessions found"></span>' : ''}</summary>
+        <div class="tk-more-menu">
+          <button type="button" onclick="showTimetableEntryModal(${day}, null)">${icons.plus()} Add class</button>
+          ${classes.length ? `<button type="button" onclick="triggerTimetableImport()">${icons.camera()} Scan timetable</button>` : ''}
+          ${hasPollution ? `<button type="button" onclick="showDeclutterDeskModal()" title="Declutter duplicate or other-batch sessions">${icons.declutter()} Declutter schedule</button>` : ''}
+          ${classes.length ? `<button type="button" onclick="loadOfficialAidsTimetable()" title="Load sample schedule template">${icons.filetext()} Sample schedule</button>` : ''}
+          ${isCustom ? `<button type="button" class="task-delete-btn" onclick="resetTimetableToDefault()">Clear schedule</button>` : ''}
+        </div>
+      </details>
     </div>
     <div class="tt-day-tabs">${tabs}</div>
     ${content}
@@ -11303,37 +11312,54 @@ function renderSubjectsOverview(el, subjects) {
 
   const anyMissingBaseline = subjects.some(s => !getSubjectAttendance(s).hasBaseline);
 
-  const cardsHTML = subjects.map(s => {
-    const att = getSubjectAttendance(s);
-    const tasks = allTasks().filter(t => (t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase());
-    const pendingTasks = tasks.filter(t => t.status === 'pending');
+  // Display-only grouping of the existing attendance numbers: Safe at/above the
+  // target, Watch within 10 points under it, At risk below that. Lowest first so
+  // what needs action leads; subjects with no attendance data go last.
+  const subjectTier = (att) => {
+    if (att.pct === null) return 'none';
+    if (att.isSafe) return 'safe';
+    return att.pct >= att.targetPct - 10 ? 'watch' : 'risk';
+  };
+  const ranked = subjects
+    .map(s => { const att = getSubjectAttendance(s); return { s, att, tier: subjectTier(att) }; })
+    .sort((x, y) => (x.att.pct === null) - (y.att.pct === null) || (x.att.exactPct ?? 0) - (y.att.exactPct ?? 0));
+  const riskN = ranked.filter(r => r.tier === 'risk').length;
+  const watchN = ranked.filter(r => r.tier === 'watch').length;
+  const summaryLine = `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` +
+    (riskN ? ` · ${riskN} at risk` : '') + (watchN ? ` · ${watchN} to watch` : '') +
+    (!riskN && !watchN && ranked.some(r => r.tier === 'safe') ? ' · all on track' : '');
+  const TIER_WORD = { risk: 'At risk', watch: 'Watch', safe: 'Safe', none: 'No data' };
+  const RING_C = 2 * Math.PI * 20;
 
-    const attStatusClass = att.pct === null ? 'muted' : att.isSafe ? 'green' : 'red';
-    const attLabel = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : '—';
+  const cardsHTML = ranked.map(({ s, att, tier }) => {
+    const pending = allTasks().filter(t => t.status === 'pending' && ((t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase())).length;
+    const label = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : '—';
+    const ringPct = att.pct === null ? 0 : Math.max(0, Math.min(100, att.exactPct !== null ? att.exactPct : att.pct));
+    const th = (att.targetPct / 100) * 2 * Math.PI;
+    const tick = [26 + 16 * Math.sin(th), 26 - 16 * Math.cos(th), 26 + 24 * Math.sin(th), 26 - 24 * Math.cos(th)].map(n => n.toFixed(1));
+    const line = tier === 'none' ? 'Attendance not set yet'
+      : att.isSafe ? (att.safeSkips > 0 ? `You can miss ${att.safeSkips} class${att.safeSkips !== 1 ? 'es' : ''}` : 'On target · attend the next class for a buffer')
+      : `Attend the next ${att.classesToAttend} to reach ${att.targetPct}%`;
 
     return `
-      <div class="card attendance-subject-card" style="position:relative;padding:16px 18px;border-left:4px solid ${s.color || 'var(--accent)'};cursor:pointer" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
-        ${subjectManageMode ? `
-          <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))" style="position:absolute;top:10px;right:10px;width:22px;height:22px;cursor:pointer;accent-color:var(--accent)">
-        ` : `
-          <button class="icon-btn-sm" onclick="deleteSubjectCard('${s.name.replace(/'/g, "\\'")}', event)" title="Delete ${s.name}" aria-label="Delete ${s.name}" style="position:absolute;top:-2px;right:-2px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:var(--text-sm);color:var(--text-muted);opacity:0.6;background:transparent;border:none">${icons.x()}</button>
-        `}
-        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);padding-right:20px">${s.name}</div>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;margin-bottom:12px">${s.code} ${s.teacher ? '· ' + formatTeacherName(s.teacher) : ''} ${s.room ? '· ' + s.room : ''}</div>
-
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">
-          <div style="display:flex;align-items:center;gap:8px">
-            ${att.pct !== null ? `<svg width="30" height="30" viewBox="0 0 30 30" style="transform:rotate(-90deg);flex-shrink:0">
-              <circle cx="15" cy="15" r="12" fill="none" stroke="var(--border-light, var(--border))" stroke-width="3.5"/>
-              <circle cx="15" cy="15" r="12" fill="none" stroke="${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-muted)'}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${(2*Math.PI*12).toFixed(2)}" stroke-dashoffset="${((2*Math.PI*12)*(1-Math.max(0,Math.min(100,att.exactPct!==null?att.exactPct:att.pct))/100)).toFixed(2)}"/>
-            </svg>` : ''}
-            <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:${attStatusClass==='green'?'var(--status-success)':attStatusClass==='red'?'var(--status-error)':'var(--text-primary)'}">${attLabel}</span>
-          </div>
-          <span style="font-size:var(--text-xs);color:var(--text-muted);font-weight:600">${att.pct !== null ? (att.isSafe ? 'Attendance · Safe' : 'Attendance · At risk') : 'Attendance · Not set'}</span>
+      <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
+        <svg class="sj-ring ${tier}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${s.name} attendance ${label}, target ${att.targetPct}%">
+          <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
+          <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
+          <line class="sj-ring-tick" x1="${tick[0]}" y1="${tick[1]}" x2="${tick[2]}" y2="${tick[3]}"/>
+        </svg>
+        <div class="sj-body">
+          <div class="card-title sj-title">${s.name}</div>
+          <div class="sj-line">${line}</div>
+          <div class="sj-meta">${s.code}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}</div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-top:1px solid var(--border-light, var(--border))">
-          <span style="font-family:var(--font-mono);font-weight:700;font-size:var(--text-lg);color:var(--text-primary)">${pendingTasks.length}</span>
-          <span style="font-size:var(--text-xs);color:var(--text-muted);font-weight:600">Pending task${pendingTasks.length!==1?'s':''}</span>
+        <div class="sj-side">
+          ${subjectManageMode ? `
+            <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" aria-label="Select ${s.name.replace(/"/g, '&quot;')}" onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))">
+          ` : `
+            <span class="sj-pct">${label}</span>
+            <span class="sj-tier">${TIER_WORD[tier]}</span>
+          `}
         </div>
       </div>
     `;
@@ -11342,25 +11368,20 @@ function renderSubjectsOverview(el, subjects) {
   const hasPollution = detectDeskPollution();
 
   el.innerHTML = `
-    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div>
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:nowrap">
+      <div style="flex:1;min-width:0">
         <div class="page-title">Subject Hubs</div>
-        <div class="page-subtitle">Course schedules, attendance baselines, tasks &amp; study resources organized per subject</div>
+        <div class="page-subtitle">${summaryLine}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-secondary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Declutter duplicate or other-batch subject cards">
-          ${icons.declutter()} Declutter my desk
-        </button>
-        <button class="btn btn-secondary" onclick="toggleSubjectManageMode()" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px" title="Manually select any subject card(s) to remove -- use this for garbled scan text auto-detection misses">
-          ${subjectManageMode ? '✕ Cancel selecting' : 'Select to remove'}
-        </button>
-        <button class="btn btn-secondary" onclick="showBaselineModal(null, 'scan')" style="display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);padding:4px 10px">
-          ${icons.camera()} Scan from Photo
-        </button>
-        <button class="btn btn-primary" onclick="showBaselineModal(null, 'manual')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-          ${icons.chartLine()} Set Baseline
-        </button>
-      </div>
+      <details class="tk-more sj-manage">
+        <summary aria-label="Manage subjects">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage${hasPollution ? '<span class="sj-dot" title="Duplicate subject cards found"></span>' : ''}</summary>
+        <div class="tk-more-menu">
+          <button type="button" onclick="showBaselineModal(null, 'manual')">${icons.chartLine()} Set attendance baseline</button>
+          <button type="button" onclick="showBaselineModal(null, 'scan')">${icons.camera()} Scan from photo</button>
+          <button type="button" onclick="showDeclutterDeskModal()" title="Declutter duplicate or other-batch subject cards">${icons.declutter()} Declutter my desk</button>
+          <button type="button" onclick="toggleSubjectManageMode()" title="Manually select any subject card(s) to remove -- use this for garbled scan text auto-detection misses">${subjectManageMode ? '✕ Cancel selecting' : 'Select to remove'}</button>
+        </div>
+      </details>
     </div>
 
     ${subjectManageMode ? `
@@ -11376,17 +11397,7 @@ function renderSubjectsOverview(el, subjects) {
     ` : ''}
 
     ${hasPollution ? `
-      <div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--surface-2);border-left:3px solid var(--yellow);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div>
-          <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary)">Declutter your personalized desk</div>
-          <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:2px">
-            We detected duplicate or batch-specific subject cards from an earlier timetable import. Clean them up to match your specific practical batch.
-          </div>
-        </div>
-        <button class="btn btn-sm btn-primary" onclick="showDeclutterDeskModal()" style="font-size:var(--text-base);padding:6px 14px;white-space:nowrap">
-          ${icons.declutter()} Clean Up Desk →
-        </button>
-      </div>
+      <button type="button" class="sj-notice" onclick="showDeclutterDeskModal()"><span>Duplicate subject cards found</span><strong>Clean up desk →</strong></button>
     ` : anyMissingBaseline ? `
       <div class="card" style="padding:14px 18px;margin-bottom:18px;background:var(--surface-2);border-left:3px solid var(--accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
@@ -11406,7 +11417,7 @@ function renderSubjectsOverview(el, subjects) {
       </div>
     ` : ''}
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));gap:14px">
+    <div class="sj-list">
       ${cardsHTML}
     </div>
   `;
@@ -11881,11 +11892,28 @@ function renderAssignments() {
   const visibleStatusFilters = statusFilters.filter(f => f.key === 'all' || f.key === state.assignFilter || statusCounts[f.key] > 0);
   const visibleTypeFilters   = typeFilters.filter(f => f.key === 'all' || f.key === state.assignTypeFilter || typeCounts[f.key] > 0);
 
-  const statusBar  = visibleStatusFilters.map(f => `<button class="filter-chip ${(f.key===state.assignFilter || (f.key==='ongoing' && state.assignFilter==='missions'))?'active':''}" onclick="setAssignFilter('${f.key}')">${f.label}</button>`).join('');
+  // Design pass: the four filters people use most become one segmented control
+  // with live counts. The rest (Ongoing, Exams, Completed, type, subject) sit in
+  // a Filter panel that opens on demand, with the same handlers as before.
+  const PRIMARY_STATUS = ['all', 'overdue', 'today', 'upcoming'];
+  const statusBar  = visibleStatusFilters.filter(f => !PRIMARY_STATUS.includes(f.key)).map(f => `<button class="filter-chip ${(f.key===state.assignFilter || (f.key==='ongoing' && state.assignFilter==='missions'))?'active':''}" onclick="setAssignFilter('${f.key}')">${f.label}</button>`).join('');
+  const segDefs = [
+    { key: 'all',      label: 'All',      n: all.length },
+    { key: 'overdue',  label: 'Overdue',  n: statusCounts.overdue },
+    { key: 'today',    label: 'Today',    n: statusCounts.today },
+    { key: 'upcoming', label: 'Upcoming', n: statusCounts.upcoming },
+  ];
+  const segBar = segDefs.map(sg => `<button type="button" class="tk-seg-btn ${state.assignFilter === sg.key ? 'active' : ''}" aria-pressed="${state.assignFilter === sg.key}" onclick="setAssignFilter('${sg.key}')"><span>${sg.label}</span><span class="tk-seg-n">${sg.n}</span></button>`).join('');
+  const panelActive = (PRIMARY_STATUS.includes(state.assignFilter) ? 0 : 1) + (state.assignTypeFilter !== 'all' ? 1 : 0) + (state.assignSubjectFilter !== 'all' ? 1 : 0);
+  const doneCount = all.filter(a => a.status === 'submitted').length;
+  const donePct = all.length ? Math.round((doneCount / all.length) * 100) : 0;
   const typeBar    = visibleTypeFilters.map(f => `<button class="filter-chip ${f.key===state.assignTypeFilter?'active':''}" onclick="setAssignTypeFilter('${f.key}')">${f.label}</button>`).join('');
   const subjectBar = subjects.map(s => `<button class="filter-chip ${s===state.assignSubjectFilter?'active':''}" onclick="setAssignSubject('${s}')">${s==='all'?'All Subjects':s}</button>`).join('');
 
-  const cards = filtered.length ? filtered.map(a => {
+  const typeLabel = (t) => t === 'mission' ? 'Mission' : t.charAt(0).toUpperCase() + t.slice(1);
+
+  // One title line + one meta line per task: subject, when, type, priority, marks.
+  const renderTaskCard = (a) => {
     const isMission = a.taskType === 'mission';
     const isOngoing = !!a.noDeadline || (isMission && !a.dueDate);
     const days = isOngoing ? null : dueDaysLeft(a.dueDate);
@@ -11893,41 +11921,82 @@ function renderAssignments() {
     const isCustom = !!a.isCustom;
     const taskType = a.taskType || 'assignment';
 
-    let stateBadge = '';
+    const thisYear = new Date().getFullYear();
+    const shortDate = (ds) => {
+      const d = new Date(ds + 'T00:00:00');
+      if (isNaN(d.getTime())) return String(ds || '');
+      return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}${d.getFullYear() === thisYear ? '' : ' ' + d.getFullYear()}`;
+    };
+    let when = '', whenCls = '';
     if (done) {
-      stateBadge = `<span class="due-badge">Completed ✓</span>`;
+      when = 'Completed';
     } else if (isOngoing) {
-      stateBadge = `<span class="due-badge ongoing" title="Always active. Stays visible until you complete it."><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor"></span> Ongoing · No deadline</span>`;
+      when = 'Ongoing · no deadline'; whenCls = 'ongoing';
     } else if (days !== null) {
-      const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due Today' : days === 1 ? 'Due Tomorrow' : `${days}d left`;
-      const cls   = days < 0 ? 'overdue' : days === 0 ? 'today' : days <= 3 ? 'soon' : '';
-      stateBadge = `<span class="due-badge ${cls}">${svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 12)} ${formatDate(a.dueDate)} · ${label}</span>`;
+      const dateText = shortDate(a.dueDate);
+      if (days < 0)        { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} overdue · ${dateText}`; whenCls = 'overdue'; }
+      else if (days === 0) { when = 'Due today'; whenCls = 'today'; }
+      else if (days === 1) { when = `Due tomorrow · ${dateText}`; whenCls = 'soon'; }
+      else                 { when = `${dateText} · ${days} days left`; whenCls = days <= 3 ? 'soon' : ''; }
     }
+    const isCategory = ['GEN', 'MIS', 'OTH'].includes(String(a.code || '').toUpperCase());
+    const subjectText = isCategory ? a.subject : ((a.code || '').trim() || a.subject);
+
+    const bits = [`<span class="tk-subj" onclick="openSubjectHub('${a.subject}')" title="Open ${a.subject} Hub">${subjectText}</span>`];
+    if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
+    if (taskType !== 'assignment' && typeLabel(taskType).toLowerCase() !== String(subjectText).toLowerCase()) bits.push(`<span class="tk-type">${typeLabel(taskType)}</span>`);
+    if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">High priority</span>`);
+    if (a.marks > 0) bits.push(`<span class="tk-marks">${a.marks} marks</span>`);
 
     return `
-      <div class="assignment-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''}" id="ac-${a.id}">
+      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''}" id="ac-${a.id}">
         <div class="assignment-checkbox" onclick="toggleAssignment('${a.id}')">
           ${done ? icons.check() : ''}
         </div>
         <div class="assignment-body">
-          <div class="assignment-subject" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span onclick="openSubjectHub('${a.subject}')" style="cursor:pointer;font-weight:700" title="Open ${a.subject} Hub">${a.subject} ${subjectCodeSuffix(a.subject, a.code)}</span>
-            <span class="type-badge type-${taskType}">${taskType === 'mission' ? '🚀 Mission' : taskType}</span>
-            ${isCustom ? '<span class="session-badge">My task</span>' : ''}
-          </div>
           <div class="assignment-title">${a.title}</div>
-          ${a.description ? `<div class="assignment-desc">${a.description}</div>` : ''}
-          <div class="assignment-footer">
-            ${stateBadge}
-            <span class="marks-badge">${a.marks > 0 ? a.marks + ' marks' : ''}</span>
-            ${isCustom ? `
-              <button class="task-edit-btn" onclick="showAddTaskModal('${a.id}')" title="Edit task" aria-label="Edit task">${icons.edit()}</button>
-              <button class="task-delete-btn" onclick="deleteCustomTask('${a.id}')" title="Delete task" aria-label="Delete task">${icons.trash()}</button>
-            ` : ''}
-          </div>
+          <div class="tk-meta">${bits.join('')}</div>
+          ${(a.description || '').trim() && a.description.trim() !== '—' ? `<div class="assignment-desc">${a.description}</div>` : ''}
         </div>
+        ${isCustom ? `
+          <details class="tk-more">
+            <summary aria-label="More actions" title="More actions">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 20)}</summary>
+            <div class="tk-more-menu">
+              <button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">${icons.edit()} Edit</button>
+              <button type="button" class="task-delete-btn" onclick="deleteCustomTask('${a.id}')">${icons.trash()} Delete</button>
+            </div>
+          </details>
+        ` : ''}
       </div>`;
-  }).join('') : (all.length === 0 
+  };
+
+  // Group by urgency so overdue work never hides in a flat list.
+  const TASK_GROUPS = [
+    { key: 'overdue', label: 'Overdue' },
+    { key: 'today',   label: 'Today' },
+    { key: 'week',    label: 'This week' },
+    { key: 'later',   label: 'Later' },
+    { key: 'ongoing', label: 'Ongoing' },
+    { key: 'done',    label: 'Completed' },
+  ];
+  const taskGroupOf = (a) => {
+    if (a.status === 'submitted') return 'done';
+    if (a.noDeadline || (a.taskType === 'mission' && !a.dueDate)) return 'ongoing';
+    const d = dueDaysLeft(a.dueDate);
+    if (d === null) return 'later';
+    if (d < 0) return 'overdue';
+    if (d === 0) return 'today';
+    return d <= 7 ? 'week' : 'later';
+  };
+  const renderGroupedTasks = () => {
+    const buckets = {};
+    filtered.forEach(a => { const k = taskGroupOf(a); (buckets[k] = buckets[k] || []).push(a); });
+    const present = TASK_GROUPS.filter(g => buckets[g.key]);
+    if (present.length <= 1) return filtered.map(renderTaskCard).join('');
+    return present.map(g => `<section class="tk-group tk-group-${g.key}" aria-label="${g.label}"><h2 class="tk-group-head">${g.label} · ${buckets[g.key].length}</h2>${buckets[g.key].map(renderTaskCard).join('')}</section>`).join('');
+  };
+
+  const cards = filtered.length ? renderGroupedTasks() : (all.length === 0 
     ? `<div class="empty-state-card" style="margin-top:14px">
         <span class="empty-state-icon">${icons.assignments()}</span>
         <div class="empty-state-title">No Tasks Yet</div>
@@ -11956,9 +12025,19 @@ function renderAssignments() {
       </div>
       <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
     </div>
-    ${visibleStatusFilters.length > 1 ? `<div class="filter-bar">${statusBar}</div>` : ''}
-    ${visibleTypeFilters.length > 1 ? `<div class="filter-bar">${typeBar}</div>` : ''}
-    ${subjects.length > 1 ? `<div class="filter-bar">${subjectBar}</div>` : ''}
+    ${all.length ? `
+      <div class="tk-seg" role="group" aria-label="Show tasks">${segBar}</div>
+      <div class="tk-toolbar">
+        <div class="tk-progress"><span><strong>${doneCount} of ${all.length}</strong> done</span><span class="tk-progress-bar" style="--p:${donePct}%"><span></span></span></div>
+        <button type="button" class="tk-filter-btn ${panelActive ? 'has-active' : ''}" aria-expanded="${state.assignFiltersOpen ? 'true' : 'false'}" aria-controls="tk-filters" onclick="toggleAssignFilters()">${svg('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>', 16)} Filter${panelActive ? `<span class="tk-filter-n">${panelActive}</span>` : ''}</button>
+      </div>
+      <div class="tk-filters" id="tk-filters" ${state.assignFiltersOpen ? '' : 'hidden'}>
+        ${statusBar ? `<div class="tk-filter-row"><span class="tk-filter-label">Status</span><div class="filter-bar">${statusBar}</div></div>` : ''}
+        ${visibleTypeFilters.length > 1 ? `<div class="tk-filter-row"><span class="tk-filter-label">Type</span><div class="filter-bar">${typeBar}</div></div>` : ''}
+        ${subjects.length > 1 ? `<div class="tk-filter-row"><span class="tk-filter-label">Subject</span><div class="filter-bar">${subjectBar}</div></div>` : ''}
+        ${panelActive ? `<button type="button" class="btn-secondary tk-reset" onclick="resetAssignmentFilters()">Reset filters</button>` : ''}
+      </div>
+    ` : ''}
     ${cards}
   `;
 }
@@ -14822,6 +14901,10 @@ if (typeof MutationObserver !== 'undefined' && document.body) {
 window.navigateTo       = navigate;
 window.setTTDay         = (d) => { state.ttDay = d; renderTimetable(); };
 window.setAssignFilter  = (f) => { state.assignFilter = f; renderAssignments(); };
+window.toggleAssignFilters = () => { state.assignFiltersOpen = !state.assignFiltersOpen; renderAssignments(); };
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.tk-more[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.tk-more-menu button')) d.removeAttribute('open'); });
+});
 window.setAssignSubject = (s) => { state.assignSubjectFilter = s; renderAssignments(); };
 window.filterNotices    = (q) => { state.noticeSearch = q; renderNotices(); };
 window.showNotice       = showNotice;
