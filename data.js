@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u23",
+    date: "2026-10-08",
+    title: "Redesigned Tasks, Subjects, Timetable and Today: clearer deadlines, risk-first attendance, one Manage menu, bigger Present/Absent buttons (v170)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Redesigned Tasks, Subjects, Timetable and Today: clearer deadlines, risk-first attendance, one Manage menu, bigger Present/Absent buttons (v170)",
+    points: [
+      "Redesigned Tasks, Subjects, Timetable and Today: clearer deadlines, risk-first attendance, one Manage menu, bigger Present/Absent buttons (v170)"
+    ]
+  },
+  {
     id: "u22",
     date: "2026-09-30",
     title: "Today shows a live countdown to your next class, puts it first on phones, and the Add Task button gets out of the way (v169)",
