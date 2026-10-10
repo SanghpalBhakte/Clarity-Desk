@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u24",
+    date: "2026-10-11",
+    title: "Today now suggests your next step (mark a finished class, a due task, or the subject to catch up on), with a Not now button, plus small check and ring animations (v171)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today now suggests your next step (mark a finished class, a due task, or the subject to catch up on), with a Not now button, plus small check and ring animations (v171)",
+    points: [
+      "Today now suggests your next step (mark a finished class, a due task, or the subject to catch up on), with a Not now button, plus small check and ring animations (v171)"
+    ]
+  },
+  {
     id: "u23",
     date: "2026-10-08",
     title: "Redesigned Tasks, Subjects, Timetable and Today: clearer deadlines, risk-first attendance, one Manage menu, bigger Present/Absent buttons (v170)",
