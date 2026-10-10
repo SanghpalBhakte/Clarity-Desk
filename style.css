@@ -5853,3 +5853,108 @@ body::before {
   .vitals-tile { padding: var(--ds-space-3); }
   .vitals-value { font-size: var(--ds-text-20); }
 }
+
+/* Today: next-step row + live feel */
+.today-focus {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  margin-bottom: var(--ds-space-4);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--ds-radius-2);
+  background: var(--card-bg);
+  box-shadow: var(--ds-elev-1);
+}
+
+.today-focus-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-2) 0 var(--ds-space-2) var(--ds-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-focus-main:focus-visible,
+.today-focus-x:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; border-radius: var(--ds-radius-2); }
+
+.today-focus-ico {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  color: var(--color-accent-text, var(--color-warning));
+}
+
+.today-focus.is-task .today-focus-ico { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.today-focus.is-risk .today-focus-ico { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+
+.today-focus-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.today-focus-title {
+  font-size: var(--ds-text-14);
+  font-weight: 700;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.today-focus-sub { font-size: var(--ds-text-12); line-height: 1.35; color: var(--color-text-secondary); }
+
+.today-focus-go {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--ds-text-14);
+  font-weight: 700;
+  color: var(--color-action-primary);
+  white-space: nowrap;
+}
+
+.today-focus-x {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.today-focus-x:hover { background: var(--color-surface-sunken); color: var(--color-text-primary); }
+.today-focus-x svg { width: 16px; height: 16px; }
+
+@media (max-width: 560px) {
+  #page-dashboard .today-focus { order: 1; }
+}
+
+/* Live feel: two short, quiet motions, switched off for reduced motion. */
+@keyframes sjRingIn { from { stroke-dashoffset: 125.66; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .beacon-att[aria-pressed="true"] svg,
+  .tt-att .btn.btn-primary svg { animation: checkPop 0.28s ease-out; }
+  .sj-ring-fill { animation: sjRingIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
+
+/* Day complete / rest day: the badge and its note wrap instead of squeezing the note into a 1-word column */
+.chrono-beacon.is-finished > div:first-child > div:first-child,
+.chrono-beacon.is-free > div:first-child > div:first-child { flex-wrap: wrap; row-gap: 2px; }

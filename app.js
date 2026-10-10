@@ -6367,6 +6367,108 @@ function buildDashboardContextLine(opts = {}) {
   return 'All clear. Classes attended, tasks on track.';
 }
 
+// ── Today's next step (a gentle nudge) ─────────────────────────────────
+// One line under the class card: the single most useful thing to do right
+// now, picked from data the page already has. Read-only: no attendance or
+// task is changed, and nothing is written except "Not now" for the day.
+// Order: a class that has ended and was never marked > a task that is due
+// today or overdue > the subject furthest below the attendance target.
+function buildTodayFocus(o = {}) {
+  const { dayClasses = [], attendanceData = {}, dateStr = '', currentMin = 0, task = null, riskSubject = null, dismissed = [] } = o;
+  const skip = new Set(dismissed);
+
+  const marks = attendanceData[dateStr] || {};
+  const unmarked = dayClasses.filter(c => c.end && timeToMinutes(c.end) <= currentMin && !marks[attendanceKeyFor(c)]);
+  if (unmarked.length) {
+    const last = unmarked[unmarked.length - 1];
+    const id = `unmarked:${attendanceKeyFor(last)}`;
+    if (!skip.has(id)) {
+      return {
+        kind: 'unmarked', id, go: 'Mark',
+        title: unmarked.length === 1 ? `Mark ${last.subject}` : `${unmarked.length} classes aren't marked yet`,
+        sub: unmarked.length === 1 ? `Ended at ${formatDisplayTime(last.end)}. Your attendance % only counts marked classes.` : 'Your attendance % only counts marked classes.'
+      };
+    }
+  }
+
+  if (task && task.dueDate) {
+    const days = dueDaysLeft(task.dueDate);
+    const id = `task:${task.id}`;
+    if (days !== null && days <= 0 && !skip.has(id)) {
+      return {
+        kind: 'task', id, go: 'Open',
+        title: task.title,
+        sub: days === 0 ? 'Due today' : `${-days} day${days === -1 ? '' : 's'} overdue`
+      };
+    }
+  }
+
+  if (riskSubject && riskSubject.classesToAttend >= 1 && riskSubject.classesToAttend <= 60) {
+    const id = `risk:${riskSubject.name}`;
+    if (!skip.has(id)) {
+      const n = riskSubject.classesToAttend;
+      return {
+        kind: 'risk', id, go: 'Open', subject: riskSubject.name,
+        title: `Attend the next ${n} ${riskSubject.name} class${n === 1 ? '' : 'es'}`,
+        sub: `Now ${riskSubject.pct}%, target ${riskSubject.targetPct}%`
+      };
+    }
+  }
+  return null;
+}
+
+const FOCUS_DISMISS_KEY = 'cd_focus_dismissed';   // local only, not a cos_* key, not synced
+function readDismissedFocus() {
+  try {
+    const o = JSON.parse(localStorage.getItem(FOCUS_DISMISS_KEY) || 'null');
+    return o && o.day === todayStr() && Array.isArray(o.ids) ? o.ids : [];
+  } catch (e) { return []; }
+}
+window.dismissTodayFocus = function(id) {
+  try {
+    const ids = readDismissedFocus();
+    if (id && !ids.includes(id)) ids.push(id);
+    localStorage.setItem(FOCUS_DISMISS_KEY, JSON.stringify({ day: todayStr(), ids }));
+  } catch (e) { /* private mode: it simply comes back next render */ }
+  if (state.currentPage === 'dashboard') renderDashboard();
+};
+
+// Markup for the row. Wrapped so a bad record can never blank Today.
+function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks }) {
+  try {
+    const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const task = (urgentTasks || []).find(a => a.dueDate && !a.noDeadline);
+    let riskSubject = null;
+    getSubjectList().forEach(sj => {
+      const att = getSubjectAttendance(sj);
+      if (att.pct === null || att.isSafe) return;
+      if (!riskSubject || att.exactPct < riskSubject.exactPct) {
+        riskSubject = { name: sj.name, pct: att.pct, exactPct: att.exactPct, targetPct: att.targetPct, classesToAttend: att.classesToAttend };
+      }
+    });
+    const f = buildTodayFocus({ dayClasses, attendanceData, dateStr, currentMin, task, riskSubject, dismissed: readDismissedFocus() });
+    if (!f) return '';
+    const icon = f.kind === 'unmarked' ? icons.clock() : f.kind === 'task' ? icons.filetext() : icons.chartLine();
+    const call = f.kind === 'unmarked' ? `setTTDay(${dayIdx}); navigateTo('timetable')`
+      : f.kind === 'task' ? `navigateTo('assignments')`
+      : `openSubjectHub(this.dataset.subject)`;
+    return `
+    <div class="today-focus is-${f.kind}" role="region" aria-label="Next step">
+      <button type="button" class="today-focus-main" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">
+        <span class="today-focus-ico" aria-hidden="true">${icon}</span>
+        <span class="today-focus-text">
+          <span class="today-focus-title">${escHtml_cd(f.title)}</span>
+          <span class="today-focus-sub">${escHtml_cd(f.sub)}</span>
+        </span>
+        <span class="today-focus-go">${f.go} ${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span>
+      </button>
+      <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>
+    </div>`;
+  } catch (e) {
+    return '';
+  }
+}
+
 function allTasks() {
   return [...state.assignments, ...state.customTasks];
 }
@@ -7979,6 +8081,8 @@ function renderDashboard() {
     })
     .slice(0, 4);
 
+  const focusHTML = todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks });
+
   // Latest notice
   const visibleNotices = getVisibleNotices();
   const latestNotice = visibleNotices.find(n => n.important) || visibleNotices[0];
@@ -8003,6 +8107,7 @@ function renderDashboard() {
 
     <!-- 2. PRIMARY FOCUS ANCHOR (CHRONO BEACON) -->
     ${beaconHTML}
+    ${focusHTML}
     ${setupBanner}
 
     <!-- 3. WORKBENCH & AMBIENT PANEL -->
