@@ -25,6 +25,8 @@ node_modules/
 
 # Test & Build Artifacts
 .firebase/
+# Local screenshots from Claude sessions (scripts/ship.mjs never commits these)
+Claude outputs/
 playwright-report/
 test-results/
 .tempmediaStorage/
