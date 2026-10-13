@@ -5999,8 +5999,10 @@ function captureTypedDrafts() {
     const qa = page.querySelector('#quick-add-container');
     const qaPrompt = qa && qa.innerHTML.trim() && window._qaFinalize
       ? { html: qa.innerHTML, date: (qa.querySelector('#quick-add-date') || {}).value || '', dateFocused: !!(a && a.id === 'quick-add-date') } : null;
-    if (!fields.length && !focused && !qaPrompt) return null;
-    return { values: fields.map(el => [el.id, el.value]), focused, qaPrompt };
+    const rs = page.querySelector('input[id^="resched-"]');
+    const resched = rs ? { taskId: rs.id.slice(8), date: rs.value } : null;
+    if (!fields.length && !focused && !qaPrompt && !resched) return null;
+    return { values: fields.map(el => [el.id, el.value]), focused, qaPrompt, resched };
   } catch (e) { return null; }
 }
 function restoreTypedDrafts(d) {
@@ -6010,6 +6012,11 @@ function restoreTypedDrafts(d) {
       const el = document.getElementById(id);
       if (el && !el.value) el.value = value;
     });
+    if (d.resched && !document.getElementById('resched-' + d.resched.taskId) && document.getElementById('rollover-card-' + d.resched.taskId)) {
+      window.handleRolloverAction(d.resched.taskId, 'reschedule');
+      const re = document.getElementById('resched-' + d.resched.taskId);
+      if (re && d.resched.date) re.value = d.resched.date;
+    }
     // The "when is it due?" prompt is injected DOM, so a background render wiped it.
     if (d.qaPrompt && window._qaFinalize && !document.getElementById('quick-add-container')) {
       const input = [...document.querySelectorAll('#quick-add-input')].find(el => el.offsetParent !== null);
@@ -6871,7 +6878,7 @@ window.handleRolloverAction = function(taskId, action) {
           <div style="display:flex;align-items:center;gap:10px">
             <input type="date" id="resched-${taskId}" value="${t.dueDate}" style="flex:1;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary)">
             <button class="btn btn-sm btn-primary" onclick="window._rsSave('${taskId}')">Save</button>
-            <button class="btn btn-sm" onclick="renderPage('review')">Cancel</button>
+            <button class="btn btn-sm" onclick="window._rsCancel()">Cancel</button>
           </div>
         </div>
       `;
@@ -6879,10 +6886,12 @@ window.handleRolloverAction = function(taskId, action) {
   }
 };
 
+window._rsCancel = function() { renderPage('review'); };
+
 window._rsSave = function(taskId) {
   const t = state.customTasks.find(x => x.id === taskId);
   if (!t) return;
-  const val = document.getElementById(`resched-${taskId}`).value;
+  const val = (document.getElementById(`resched-${taskId}`) || {}).value;
   if (val) {
     t.dueDate = val;
     saveCustomTasks();
