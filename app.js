@@ -7044,8 +7044,8 @@ function renderReview() {
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button class="btn btn-sm btn-secondary" onclick="navigateTo('dashboard')">← Back to Today</button>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
+        <button class="btn btn-sm btn-secondary" style="flex-shrink:0" onclick="navigateTo('dashboard')">← Back to Today</button>
         <div>
           <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">Weekly Reflection &amp; Reset</div>
           <div style="font-size:var(--text-sm);color:var(--text-muted)">Review last week's coursework and plan your next 7 days</div>
@@ -7094,12 +7094,12 @@ function renderReview() {
           <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:6px">⚠ Tasks needing attention / reschedule:</div>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${tasksRolledOver.map(a => `
-              <div class="card card-sm assignment-card" id="rollover-card-${a.id}" style="margin-bottom:0;display:flex;align-items:center;gap:12px;padding:10px 14px;border-left:3px solid var(--red)">
-                <div style="flex:1;min-width:0">
-                  <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.title}</div>
-                  <div class="text-xs text-muted">${a.subject} · Due: ${formatDate(a.dueDate)}</div>
+              <div class="card card-sm assignment-card" id="rollover-card-${a.id}" style="margin-bottom:0;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 14px;border-left:3px solid var(--red)">
+                <div style="flex:1 1 160px;min-width:0">
+                  <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml_cd(a.title)}</div>
+                  <div class="text-xs text-muted">${escHtml_cd(a.subject)} · Due: ${formatDate(a.dueDate)}</div>
                 </div>
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;flex-shrink:0;margin-left:auto">
                   <button class="btn btn-sm btn-secondary" style="color:var(--green);font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">${icons.check()} Done</button>
                   <button class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">${icons.calendar()} Reschedule</button>
                 </div>
@@ -7149,7 +7149,7 @@ function calculateSmartAttendanceGuidance(totalAttended, totalSkipped, targetPct
       statusZone: 'Neutral',
       classesToAttend: 0,
       safeSkips: 0,
-      message: 'No classes marked yet. Tap Attended or Skipped on today\'s classes to start tracking.',
+      message: 'No classes marked yet. Tap Present or Absent on today\'s classes to start tracking.',
       badgeLabel: 'Getting Started',
       badgeColor: 'var(--accent)'
     };
@@ -7315,11 +7315,11 @@ function renderWeeklyAttendanceTracker() {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as attended on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='attended'?'var(--green)':'var(--surface-2)'};color:${status==='attended'?'white':'var(--text-primary)'};border:1px solid ${status==='attended'?'var(--green)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
-              ${status==='attended'?'✓ Attended':'Attended'}
+            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as present on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='attended'?'var(--green)':'var(--surface-2)'};color:${status==='attended'?'white':'var(--text-primary)'};border:1px solid ${status==='attended'?'var(--green)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
+              ${status==='attended'?'✓ Present':'Present'}
             </button>
-            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as skipped on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='skipped'?'var(--red)':'var(--surface-2)'};color:${status==='skipped'?'white':'var(--text-primary)'};border:1px solid ${status==='skipped'?'var(--red)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
-              ${status==='skipped'?'✕ Skipped':'Skipped'}
+            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as absent on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='skipped'?'var(--red)':'var(--surface-2)'};color:${status==='skipped'?'white':'var(--text-primary)'};border:1px solid ${status==='skipped'?'var(--red)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
+              ${status==='skipped'?'✕ Absent':'Absent'}
             </button>
           </div>
         </div>
@@ -7397,11 +7397,11 @@ function renderWeeklyAttendanceTracker() {
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px;margin-bottom:12px">
           <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${totalAttended}</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted)">Attended</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted)">Present</div>
           </div>
           <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:var(--red)">${totalSkipped}</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted)">Missed / Skipped</div>
+            <div style="font-size:var(--text-xs);color:var(--text-muted)">Absent</div>
           </div>
           <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
             <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? guidance.pct + '%' : '0%'}</div>
@@ -8315,7 +8315,7 @@ function renderDashboard() {
             <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : ''}" style="margin-bottom:2px">
               ${attendancePct !== null ? `${attendancePct}%` : '—'}
             </div>
-            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not configured'}</div>
+            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
             ${attendancePct !== null ? `
               <div style="margin-top:10px">
                 <div class="att-bar-wrap">
