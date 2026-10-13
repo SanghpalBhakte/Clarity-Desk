@@ -6661,10 +6661,21 @@ const SUBJECT_ALIASES = {
 };
 
 window.handleQuickAdd = function() {
-  const inputEl = document.getElementById('quick-add-input');
+  // The input lives on Today (and in the cancel fallback); pick the visible one.
+  const inputEl = [...document.querySelectorAll('#quick-add-input')].find(el => el.offsetParent !== null && el.value.trim())
+    || document.getElementById('quick-add-input');
   if (!inputEl) return;
   const text = inputEl.value.trim();
-  if (!text) return;
+  if (!text) { inputEl.focus(); return; }
+  // Today has no #quick-add-container any more, so feedback and the date
+  // prompt had nowhere to go and the button looked dead. Make one under the input.
+  let qaBox = document.getElementById('quick-add-container');
+  if (!qaBox) {
+    qaBox = document.createElement('div');
+    qaBox.id = 'quick-add-container';
+    qaBox.className = 'quick-add-prompt';
+    (inputEl.parentElement || inputEl).insertAdjacentElement('afterend', qaBox);
+  }
 
   let subjectCode = 'General';
   let subjectName = 'General';
@@ -6737,9 +6748,9 @@ window.handleQuickAdd = function() {
       code: subjectCode,
       title: text,
       taskType: isMission ? 'mission' : isGen ? 'general' : 'assignment',
-      noDeadline: isMission,
+      noDeadline: isMission || !finalDateStr,
       description: 'Added via Quick Add',
-      dueDate: isMission ? '' : finalDateStr,
+      dueDate: isMission ? '' : (finalDateStr || ''),
       priority: 'medium',
       status: 'pending',
       marks: 0,
@@ -6748,45 +6759,32 @@ window.handleQuickAdd = function() {
     
     state.customTasks.push(t);
     saveCustomTasks();
-    
-    const container = document.getElementById('quick-add-container');
-    if (container) {
-      container.innerHTML = `
-        <div class="card card-sm" style="display:flex;align-items:center;gap:12px;background:var(--surface-2);color:var(--text-primary);padding:10px 14px;border:1px solid var(--accent)">
-          <div style="color:var(--green)">${icons.check()}</div>
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:var(--text-base)">Added: ${t.title}</div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">
-              ${!foundAlias ? '<span class="type-badge" style="padding:2px 4px;font-size:var(--text-2xs);background:var(--accent-dim);color:var(--accent)">General</span> ' : ''}
-              ${subjectCode} · Due: ${formatDate(finalDateStr)}
-            </div>
-          </div>
-        </div>
-      `;
-      setTimeout(() => renderPage('dashboard'), 2500);
-    }
+    delete window._qaFinalize;
+    inputEl.value = '';
+    showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success');
+    renderPage(state.currentPage);
   };
 
   if (!dateFound) {
-    const container = document.getElementById('quick-add-container');
+    const container = qaBox;
     if (container) {
       container.innerHTML = `
-        <div class="card card-sm" style="display:flex;flex-direction:column;gap:10px;padding:12px">
-          <div style="font-size:var(--text-base);color:var(--text-secondary)">Couldn't detect a date for: <strong>"${text}"</strong></div>
+        <div class="card card-sm" style="display:flex;flex-direction:column;gap:10px;padding:12px;margin-top:8px">
+          <div style="font-size:var(--text-base);color:var(--text-secondary)">When is <strong>"${escHtml_cd(text)}"</strong> due? Pick a date, or save it without one.</div>
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:var(--text-sm);color:var(--text-muted)">Due:</span>
-            <input type="date" id="quick-add-date" style="flex:1;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary)">
-            <button class="btn btn-sm btn-primary" onclick="window._qaFinalize('${encodeURIComponent(text)}')">Save</button>
+            <input type="date" id="quick-add-date" min="${localDateKey(new Date())}" style="flex:1;min-width:0;min-height:40px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary)">
+            <button class="btn btn-sm btn-primary" onclick="window._qaFinalize()">Save</button>
             <button class="btn btn-sm" onclick="cancelQuickAdd()">Cancel</button>
           </div>
         </div>
       `;
-      window._qaFinalize = function(encText) {
-        const val = document.getElementById('quick-add-date').value;
-        if (val) {
-          finalizeQuickAdd(val);
-        }
+      window._qaFinalize = function() {
+        const val = (document.getElementById('quick-add-date') || {}).value || '';
+        finalizeQuickAdd(val);   // empty = no due date (shown as Ongoing)
       };
+      const dateEl = document.getElementById('quick-add-date');
+      if (dateEl) dateEl.focus();
     }
   } else {
     finalizeQuickAdd(localDateKey(dueDate));
@@ -6796,15 +6794,7 @@ window.handleQuickAdd = function() {
 window.cancelQuickAdd = function() {
   delete window._qaFinalize;
   const container = document.getElementById('quick-add-container');
-  if (container) {
-    container.innerHTML = `
-      <div class="card" style="display:flex;align-items:center;gap:10px;padding:8px 12px">
-        <div style="color:var(--accent);opacity:0.8">${icons.plus()}</div>
-        <input type="text" id="quick-add-input" enterkeyhint="done" placeholder="Add task: 'Math problem set due Friday'" style="flex:1;border:none;background:transparent;outline:none;font-size:var(--text-md);color:var(--text-primary)" onkeypress="if(event.key==='Enter') handleQuickAdd()">
-        <button class="btn btn-sm btn-primary" onclick="handleQuickAdd()" style="padding:4px 12px">Add</button>
-      </div>
-    `;
-  }
+  if (container) container.remove();
 };
 
 window.handleRolloverAction = function(taskId, action) {
@@ -7086,7 +7076,9 @@ function calculateSmartAttendanceGuidance(totalAttended, totalSkipped, targetPct
   if (!isSafe) {
     // Formula: ceil((targetFraction * T - A) / (1 - targetFraction))
     classesToAttend = Math.max(1, Math.ceil((targetFraction * totalMarked - totalAttended) / (1 - targetFraction)));
-    message = `You are in the <strong>Risk Zone</strong> (${pct}%). Attend the next <strong>${classesToAttend} class${classesToAttend !== 1 ? 'es' : ''}</strong> continuously to reach the ${targetPct}% target.`;
+    message = classesToAttend > 60
+      ? `You are in the <strong>Risk Zone</strong> (${pct}%). Reaching ${targetPct}% would take <strong>${classesToAttend}</strong> classes in a row, so attend every class from now on and check your counts in Subjects for duplicates.`
+      : `You are in the <strong>Risk Zone</strong> (${pct}%). Attend the next <strong>${classesToAttend} class${classesToAttend !== 1 ? 'es' : ''}</strong> continuously to reach the ${targetPct}% target.`;
   } else {
     // Formula: floor((A - targetFraction * T) / targetFraction)
     safeSkips = Math.max(0, Math.floor((totalAttended - targetFraction * totalMarked) / targetFraction));
@@ -8204,7 +8196,7 @@ function renderDashboard() {
 
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-            <input type="text" id="quick-add-input" class="form-input" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeypress="if(event.key==='Enter') handleQuickAdd()" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
+            <input type="text" id="quick-add-input" class="form-input" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
             <button class="btn btn-sm btn-secondary" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">Add</button>
           </div>
         </div>
