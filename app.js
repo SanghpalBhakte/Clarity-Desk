@@ -6043,7 +6043,25 @@ function restoreTypedDrafts(d) {
   } catch (e) { /* never block a render */ }
 }
 
+// While the student is choosing a date (Add task prompt, Reschedule) the page
+// must not be rebuilt under them: the native date picker closes and the field
+// resets. Background refreshes wait; they run as soon as the prompt closes.
+let __renderDeferred = null;
+function isDatePromptOpen(page) {
+  try {
+    const el = document.getElementById('page-' + page);
+    return !!(el && el.classList.contains('active') &&
+      (el.querySelector('#quick-add-date') || el.querySelector('input[id^="resched-"]')));
+  } catch (e) { return false; }
+}
+function flushDeferredRender() {
+  if (__renderDeferred && !isDatePromptOpen(__renderDeferred)) {
+    const p = __renderDeferred; __renderDeferred = null; renderPage(p);
+  }
+}
+
 function renderPage(page) {
+  if (isDatePromptOpen(page)) { __renderDeferred = page; return; }
   // Coalesce accidental duplicate calls: two calls for the SAME page
   // within a few tens of milliseconds of each other are treated as one
   // and the second is skipped, instead of tearing the page's DOM down
@@ -6824,6 +6842,8 @@ window.handleQuickAdd = function() {
     state.customTasks.push(t);
     saveCustomTasks();
     delete window._qaFinalize;
+    const box = document.getElementById('quick-add-container'); if (box) box.remove();
+    __renderDeferred = null;
     inputEl.value = '';
     const liveInput = document.getElementById('quick-add-input'); if (liveInput) liveInput.value = '';
     showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success');
@@ -6860,6 +6880,7 @@ window.cancelQuickAdd = function() {
   delete window._qaFinalize;
   const container = document.getElementById('quick-add-container');
   if (container) container.remove();
+  flushDeferredRender();
 };
 
 window.handleRolloverAction = function(taskId, action) {
@@ -6886,16 +6907,18 @@ window.handleRolloverAction = function(taskId, action) {
   }
 };
 
-window._rsCancel = function() { renderPage('review'); };
+window._rsCancel = function() { document.querySelectorAll('input[id^="resched-"]').forEach(e => e.remove()); renderPage('review'); };
 
 window._rsSave = function(taskId) {
   const t = state.customTasks.find(x => x.id === taskId);
   if (!t) return;
-  const val = (document.getElementById(`resched-${taskId}`) || {}).value;
+  const inp = document.getElementById(`resched-${taskId}`);
+  const val = (inp || {}).value;
   if (val) {
     t.dueDate = val;
     saveCustomTasks();
   }
+  document.querySelectorAll('input[id^="resched-"]').forEach(e => e.remove());
   renderPage('review');
 };
 
