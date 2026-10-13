@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u29",
+    date: "2026-10-13",
+    title: "Reschedule on Review no longer loses its date box, and Cancel now works (v175)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Reschedule on Review no longer loses its date box, and Cancel now works (v175)",
+    points: [
+      "Reschedule on Review no longer loses its date box, and Cancel now works (v175)"
+    ]
+  },
+  {
     id: "u28",
     date: "2026-10-13",
     title: "The due-date prompt when adding a task no longer vanishes after a few seconds \\ (v174)",
