@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u26",
+    date: "2026-10-13",
+    title: "Fixed the Add task bar on Today: tasks now save, show right away, ask for a date if none is typed, and Enter works on phone keyboards (v172)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Fixed the Add task bar on Today: tasks now save, show right away, ask for a date if none is typed, and Enter works on phone keyboards (v172)",
+    points: [
+      "Fixed the Add task bar on Today: tasks now save, show right away, ask for a date if none is typed, and Enter works on phone keyboards (v172)"
+    ]
+  },
+  {
     id: "u25",
     date: "2026-10-13",
     title: "Fixed the Add task bar on Today: tasks now save, show right away, ask for a date if none is typed, and Enter works on phone keyboards (v172)",
