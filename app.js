@@ -5996,8 +5996,11 @@ function captureTypedDrafts() {
     const a = document.activeElement;
     const focused = a && a.id && page.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName)
       ? { id: a.id, start: a.selectionStart, end: a.selectionEnd } : null;
-    if (!fields.length && !focused) return null;
-    return { values: fields.map(el => [el.id, el.value]), focused };
+    const qa = page.querySelector('#quick-add-container');
+    const qaPrompt = qa && qa.innerHTML.trim() && window._qaFinalize
+      ? { html: qa.innerHTML, date: (qa.querySelector('#quick-add-date') || {}).value || '', dateFocused: !!(a && a.id === 'quick-add-date') } : null;
+    if (!fields.length && !focused && !qaPrompt) return null;
+    return { values: fields.map(el => [el.id, el.value]), focused, qaPrompt };
   } catch (e) { return null; }
 }
 function restoreTypedDrafts(d) {
@@ -6007,6 +6010,22 @@ function restoreTypedDrafts(d) {
       const el = document.getElementById(id);
       if (el && !el.value) el.value = value;
     });
+    // The "when is it due?" prompt is injected DOM, so a background render wiped it.
+    if (d.qaPrompt && window._qaFinalize && !document.getElementById('quick-add-container')) {
+      const input = [...document.querySelectorAll('#quick-add-input')].find(el => el.offsetParent !== null);
+      if (input) {
+        const box = document.createElement('div');
+        box.id = 'quick-add-container';
+        box.className = 'quick-add-prompt';
+        box.innerHTML = d.qaPrompt.html;
+        (input.parentElement || input).insertAdjacentElement('afterend', box);
+        const de = box.querySelector('#quick-add-date');
+        if (de) {
+          if (d.qaPrompt.date) de.value = d.qaPrompt.date;
+          if (d.qaPrompt.dateFocused) de.focus({ preventScroll: true });
+        }
+      }
+    }
     if (d.focused) {
       const el = document.getElementById(d.focused.id);
       if (el && document.activeElement !== el) {
@@ -6799,6 +6818,7 @@ window.handleQuickAdd = function() {
     saveCustomTasks();
     delete window._qaFinalize;
     inputEl.value = '';
+    const liveInput = document.getElementById('quick-add-input'); if (liveInput) liveInput.value = '';
     showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success');
     renderPage(state.currentPage);
   };
