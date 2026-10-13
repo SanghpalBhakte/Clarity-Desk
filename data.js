@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u31",
+    date: "2026-10-13",
+    title: "Date pickers no longer reset while open; Review fits on phones; attendance labels match everywhere (v177)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Date pickers no longer reset while open; Review fits on phones; attendance labels match everywhere (v177)",
+    points: [
+      "Date pickers no longer reset while open; Review fits on phones; attendance labels match everywhere (v177)"
+    ]
+  },
+  {
     id: "u30",
     date: "2026-10-13",
     title: "The date picker on Add task and Reschedule no longer flips or resets while open (v176)",
