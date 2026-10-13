@@ -123,7 +123,7 @@ if (!SKIP_TESTS) {
 
 if (changes.length) {
   step(`Committing: ${message}`);
-  git('add', '-A', '--', '.', ...EXCLUDE);
+  git('add', '-A', '--', '.');
   if (run('git', ['commit', '-m', message]).status !== 0) fail('Commit failed. Nothing was pushed or deployed.');
 }
 

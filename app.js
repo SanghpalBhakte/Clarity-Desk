@@ -5985,6 +5985,38 @@ function updateBackButtonUI() {
 let __lastRenderPage = null;
 let __lastRenderTime = 0;
 
+// Text the student has typed into a page's own fields (not modals), so a
+// re-render can put it back. Only non-empty fields with an id are kept.
+function captureTypedDrafts() {
+  try {
+    const page = document.querySelector('.section-page.active');
+    if (!page) return null;
+    const fields = [...page.querySelectorAll('input[id]:not([type]), input[id][type="text"], input[id][type="search"], textarea[id]')]
+      .filter(el => el.value && el.value.trim());
+    const a = document.activeElement;
+    const focused = a && a.id && page.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName)
+      ? { id: a.id, start: a.selectionStart, end: a.selectionEnd } : null;
+    if (!fields.length && !focused) return null;
+    return { values: fields.map(el => [el.id, el.value]), focused };
+  } catch (e) { return null; }
+}
+function restoreTypedDrafts(d) {
+  if (!d) return;
+  try {
+    d.values.forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el && !el.value) el.value = value;
+    });
+    if (d.focused) {
+      const el = document.getElementById(d.focused.id);
+      if (el && document.activeElement !== el) {
+        el.focus({ preventScroll: true });
+        if (typeof d.focused.start === 'number') el.setSelectionRange(d.focused.start, d.focused.end);
+      }
+    }
+  } catch (e) { /* never block a render */ }
+}
+
 function renderPage(page) {
   // Coalesce accidental duplicate calls: two calls for the SAME page
   // within a few tens of milliseconds of each other are treated as one
@@ -6004,6 +6036,11 @@ function renderPage(page) {
   __lastRenderPage = page;
   __lastRenderTime = now;
 
+  // Background re-renders (cloud sync arriving, class starting, day change)
+  // rebuild the page's HTML. Without this, whatever the student was typing
+  // into the Add task / Ask Desk box vanished mid-word. Keep it.
+  const drafts = captureTypedDrafts();
+
   try {
     switch (page) {
       case 'dashboard':   renderDashboard();   break;
@@ -6017,6 +6054,7 @@ function renderPage(page) {
       case 'summary':     renderResources();   break;
       case 'settings':    renderSettings();    break;
     }
+    restoreTypedDrafts(drafts);
   } catch (err) {
     console.error(`Error rendering page [${page}]:`, err);
     const targetEl = document.getElementById(`page-${page}`) || document.getElementById('page-resources');
