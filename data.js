@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u30",
+    date: "2026-10-13",
+    title: "The date picker on Add task and Reschedule no longer flips or resets while open (v176)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The date picker on Add task and Reschedule no longer flips or resets while open (v176)",
+    points: [
+      "The date picker on Add task and Reschedule no longer flips or resets while open (v176)"
+    ]
+  },
+  {
     id: "u29",
     date: "2026-10-13",
     title: "Reschedule on Review no longer loses its date box, and Cancel now works (v175)",
