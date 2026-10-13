@@ -197,6 +197,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u28",
+    date: "2026-10-13",
+    title: "The due-date prompt when adding a task no longer vanishes after a few seconds \\ (v174)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The due-date prompt when adding a task no longer vanishes after a few seconds \\ (v174)",
+    points: [
+      "The due-date prompt when adding a task no longer vanishes after a few seconds \\ (v174)"
+    ]
+  },
+  {
     id: "u27",
     date: "2026-10-13",
     title: "Typing a task no longer disappears when the app updates in the background (v173)",
