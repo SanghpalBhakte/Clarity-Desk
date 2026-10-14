@@ -392,13 +392,15 @@ const AIService = {
   GROQ_VISION_MODEL: 'qwen/qwen3.8-27b',
   // OpenRouter's ":free" catalog churns often (models get added/retired), so
   // this is a short ordered list rather than one pinned id -- same reasoning
-  // as FALLBACK_MODELS above. inclusionai/ling-3.0-flash-vl:free was
-  // retired (no longer in the free vision list); qwen3.8-27b:free is listed
-  // as image-capable. Note OpenRouter's free pool is shared and often
-  // returns 429 "rate-limited upstream" for all of these at once -- it's a
+  // as FALLBACK_MODELS above. inclusionai/ling-3.0-flash-vl:free and
+  // qwen/qwen3.8-27b:free were retired (404 as of Oct 2026). The other free
+  // vision models listed then were blocked (403), too slow for the 60s
+  // timeout, or preview-only, so none replaced them. Note OpenRouter's free
+  // pool is shared and often returns 429 "rate-limited upstream" for all of
+  // these at once -- it's a
   // last resort, not a dependable leg. Verify current free vision models at
   // https://openrouter.ai/api/v1/models before relying on any one of these.
-  OPENROUTER_VISION_MODELS: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'qwen/qwen3.8-27b:free'],
+  OPENROUTER_VISION_MODELS: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free'],
   // Cloudflare's own vision models, reachable only through the AI proxy
   // (the Worker's AI binding -- no key). Free plan: 10,000 "neurons" a day
   // shared by the whole app; once used up the call fails (never billed)
