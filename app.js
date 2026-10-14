@@ -4996,6 +4996,7 @@ function pushLocalDataToCloud(uid) {
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget:          getAttendanceTarget(),
+    attSummary:         buildAttendanceCloudSummary(),
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
   // Mark this write's hash as already-seen so its own ack echo (which
@@ -7964,6 +7965,7 @@ function renderDashboard() {
   const attendancePct = overallAtt.pct;
   const attendancePctLabel = overallAtt.pctLabel ?? attendancePct;
   const attTarget = getAttendanceTarget();
+  const monthCheck = isAttendanceV2Active() ? attV2MonthlyCheck(overallAtt, attTarget) : null;
   // v2 decides from the exact fraction (a 2-decimal value can round up to the target).
   const isAttendanceAtRisk = overallAtt.pctLabel
     ? overallAtt.isSafe === false
@@ -8111,7 +8113,7 @@ function renderDashboard() {
     <div class="vitals-tile" onclick="${attendancePct !== null ? "navigateTo('review')" : "showBaselineModal(null, 'manual')"}" title="View Attendance Guidance">
       <div class="vitals-label">Attendance</div>
       <div class="vitals-value" style="${attendancePct !== null ? `color:var(${isAttendanceAtRisk ? '--red' : '--green'})` : ''}">${attendancePct !== null ? `${attendancePctLabel}%` : '—'}</div>
-      <div class="vitals-sub">${attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : (isAttendanceAtRisk ? `Below ${attTarget}% target` : 'Needs attention')) : 'Not set'}</div>
+      <div class="vitals-sub">${monthCheck ? monthCheck.short : attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : (isAttendanceAtRisk ? `Below ${attTarget}% target` : 'Needs attention')) : 'Not set'}</div>
     </div>
   `);
   if (countdownText && examDaysLeftNum !== null) {
@@ -8453,6 +8455,7 @@ function renderDashboard() {
               ${attendancePct !== null ? `${attendancePctLabel}%` : '—'}
             </div>
             <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
+            ${monthCheck ? `<div class="att-month-check" style="margin-top:6px;font-size:var(--text-sm);line-height:1.45;color:${monthCheck.isSafe ? 'var(--text-secondary)' : 'var(--red)'}">${monthCheck.text}</div>` : ''}
             ${attendancePct !== null ? `
               <div style="margin-top:10px">
                 <div class="att-bar-wrap">
@@ -9681,6 +9684,7 @@ function attV2ResultFor(derived, id, subjItem, withLab = true) {
   const daily = tallyAttendanceSessions(counted);
   const p = computeErpPercent(r.attended, r.held, target);
   const g = computeNowGuidance(r.attended, r.held, target);
+  const planned = snap ? snap.planned : null;
   const labId = `${id}__lab`;
   return {
     present: r.attended,
@@ -9707,9 +9711,60 @@ function attV2ResultFor(derived, id, subjItem, withLab = true) {
     hasBaseline: baseline.hasBaseline,
     hasAnyData: baseline.hasBaseline || r.held > 0,
     v2Id: id,
+    planned,
+    projection: planned ? computeSemesterProjection(r.attended, r.held, planned, target) : null,
     labPart: withLab && !id.endsWith('__lab') && derived.report.subjects[labId] && derived.report.subjects[labId].held > 0
       ? attV2ResultFor(derived, labId, subjItem, false) : null
   };
+}
+
+// End-of-semester line from the ERP's planned Total Sessions. Short for
+// cards, long (with the "if all N happen" qualifier) for the subject page.
+function attV2ProjectionText(att, long = false) {
+  const pr = att && att.projection;
+  if (!pr) return '';
+  if (!pr.reachable) return `${att.targetPct}% is no longer possible this semester (best case ${pr.bestFinal.display}%)`;
+  const ifAll = ` (if all ${pr.planned} planned classes happen)`;
+  if (pr.canMiss === 0) return `Must attend all ${pr.remaining} classes left this semester${long ? ifAll : ''}`;
+  return long
+    ? `Can miss ${pr.canMiss} more this semester: attend ${pr.mustAttend} of the ${pr.remaining} left${ifAll}`
+    : `Can miss ${pr.canMiss} more this semester`;
+}
+
+// The monthly defaulter check (the college looks at the overall %, all
+// subjects together, each month): the line for this month on the dashboard.
+const ATT_V2_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function attV2MonthlyCheck(overall, target = getAttendanceTarget()) {
+  if (!overall || !overall.pctLabel || !overall.total) return null;
+  const month = ATT_V2_MONTHS[new Date().getMonth()];
+  const g = computeNowGuidance(overall.attended, overall.total, target);
+  if (overall.isSafe) {
+    return {
+      month, isSafe: true,
+      short: `On track for ${month}`,
+      text: `On track for ${month}'s check: ${overall.pctLabel}%${g.safeSkips > 0 ? ` (you can miss ${g.safeSkips})` : ''}`
+    };
+  }
+  const clear = g.reachable ? ` Attend the next ${g.classesToAttend} class${g.classesToAttend !== 1 ? 'es' : ''} to clear it.` : '';
+  return {
+    month, isSafe: false,
+    short: `${month}: defaulter list`,
+    text: `${month} check: ${overall.pctLabel}%, below ${target}%. You'd be on this month's defaulter list.${clear}`
+  };
+}
+
+// What the background-push job reads for its low-attendance alert, so it
+// says the same overall % the app shows. null on v1 (or no data): the job
+// then falls back to counting daily marks. Never read back by the app.
+function buildAttendanceCloudSummary() {
+  try {
+    if (!isAttendanceV2Active()) return null;
+    const o = getOverallAttendanceV2();
+    if (!o.total) return null;
+    return { pct: o.pctLabel, isSafe: o.isSafe, attended: o.attended, held: o.total, target: getAttendanceTarget(), updatedAt: new Date().toISOString() };
+  } catch (e) {
+    return null;
+  }
 }
 
 function getSubjectAttendanceV2(subjItem) {
@@ -11276,6 +11331,10 @@ function renderReviewRowsHTML(rows, subjects) {
             <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--text-muted)">Not Entered</label>
             <input type="number" min="0" class="form-input review-not-entered" id="row-not-entered-${idx}" value="${r.notEntered || 0}" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${idx})">
           </div>
+          <div>
+            <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--text-muted)" title="The ERP's Total Sessions column: classes planned for the semester">Total sessions</label>
+            <input type="number" min="0" class="form-input review-total-sessions" id="row-total-sessions-${idx}" value="${parseInt(r.totalSessions) > 0 ? parseInt(r.totalSessions) : ''}" placeholder="e.g. 60" style="font-size:var(--text-base);padding:5px 8px">
+          </div>
         </div>
       </div>
     `;
@@ -11352,9 +11411,22 @@ function addScanReviewRow() {
         <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--text-muted)">Not Entered</label>
         <input type="number" min="0" class="form-input review-not-entered" id="row-not-entered-${newIdx}" value="0" style="font-size:var(--text-base);padding:5px 8px" oninput="onReviewRowInputChange(${newIdx})">
       </div>
+      <div>
+        <label class="form-label" style="font-size:var(--text-xs);margin-bottom:2px;color:var(--text-muted)" title="The ERP's Total Sessions column: classes planned for the semester">Total sessions</label>
+        <input type="number" min="0" class="form-input review-total-sessions" id="row-total-sessions-${newIdx}" value="" placeholder="e.g. 60" style="font-size:var(--text-base);padding:5px 8px">
+      </div>
     </div>
   `;
   container.appendChild(rowDiv);
+}
+
+// The ERP's Total Sessions (classes planned for the semester) from a scan
+// row; a blank or 0 keeps the value the previous baseline had.
+function keepPlannedSessions(scanned, previous) {
+  const n = parseInt(scanned, 10);
+  if (n > 0) return n;
+  const old = previous && typeof previous === 'object' ? parseInt(previous.totalSessions, 10) : 0;
+  return old > 0 ? old : 0;
 }
 
 function saveAllReviewedBaselines() {
@@ -11381,8 +11453,10 @@ function saveAllReviewedBaselines() {
     const absent = Math.max(0, parseInt(row.querySelector('.review-absent')?.value) || 0);
     const leave = Math.max(0, parseInt(row.querySelector('.review-leave')?.value) || 0);
     const notEntered = Math.max(0, parseInt(row.querySelector('.review-not-entered')?.value) || 0);
+    const scannedTotal = Math.max(0, parseInt(row.querySelector('.review-total-sessions')?.value) || 0);
 
     const storageKey = (subjCode || subjName).trim();
+    const totalSessions = keepPlannedSessions(scannedTotal, baselines[storageKey]);
     baselines[storageKey] = {
       subjectCode: subjCode || '',
       subjectName: subjName || '',
@@ -11390,7 +11464,7 @@ function saveAllReviewedBaselines() {
       absent,
       leave,
       notEntered,
-      totalSessions: 0,
+      totalSessions,
       updatedAt: new Date().toISOString()
     };
     savedRows.push({ name: subjName, code: subjCode });
@@ -12370,11 +12444,15 @@ function renderSubjectsOverview(el, subjects) {
   // Display-only grouping of the existing attendance numbers: Safe at/above the
   // target, Watch within 10 points under it, At risk below that. Lowest first so
   // what needs action leads; subjects with no attendance data go last.
-  const subjectTier = (att) => {
+  const ownTier = (att) => {
     if (att.pct === null) return 'none';
     if (att.isSafe) return 'safe';
     return att.pct >= att.targetPct - 10 ? 'watch' : 'risk';
   };
+  // A linked lab counts too: the card shows the worse of theory and lab.
+  const TIER_RANK = { none: 0, safe: 1, watch: 2, risk: 3 };
+  const labIsWorse = (att) => !!att.labPart && TIER_RANK[ownTier(att.labPart)] > TIER_RANK[ownTier(att)];
+  const subjectTier = (att) => labIsWorse(att) ? ownTier(att.labPart) : ownTier(att);
   const ranked = subjects
     .map(s => { const att = getSubjectAttendance(s); return { s, att, tier: subjectTier(att) }; })
     .sort((x, y) => (x.att.pct === null) - (y.att.pct === null) || (x.att.exactPct ?? 0) - (y.att.exactPct ?? 0));
@@ -12392,9 +12470,11 @@ function renderSubjectsOverview(el, subjects) {
     const ringPct = att.pct === null ? 0 : Math.max(0, Math.min(100, att.exactPct !== null ? att.exactPct : att.pct));
     const th = (att.targetPct / 100) * 2 * Math.PI;
     const tick = [26 + 16 * Math.sin(th), 26 - 16 * Math.cos(th), 26 + 24 * Math.sin(th), 26 - 24 * Math.cos(th)].map(n => n.toFixed(1));
-    const line = tier === 'none' ? 'Attendance not set yet'
-      : att.isSafe ? (att.safeSkips > 0 ? `You can miss ${att.safeSkips} class${att.safeSkips !== 1 ? 'es' : ''}` : 'On target · attend the next class for a buffer')
-      : `Attend the next ${att.classesToAttend} to reach ${att.targetPct}%`;
+    const lineFor = (a) => a.pct === null ? 'Attendance not set yet'
+      : a.isSafe ? (a.safeSkips > 0 ? `You can miss ${a.safeSkips} class${a.safeSkips !== 1 ? 'es' : ''}` : 'On target · attend the next class for a buffer')
+      : `Attend the next ${a.classesToAttend} to reach ${a.targetPct}%`;
+    const line = tier === 'none' ? 'Attendance not set yet' : labIsWorse(att) ? `Lab: ${lineFor(att.labPart)}` : lineFor(att);
+    const projection = attV2ProjectionText(labIsWorse(att) ? att.labPart : att);
 
     return `
       <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
@@ -12406,6 +12486,7 @@ function renderSubjectsOverview(el, subjects) {
         <div class="sj-body">
           <div class="card-title sj-title">${s.name}</div>
           <div class="sj-line">${line}</div>
+          ${projection ? `<div class="sj-meta">${projection}</div>` : ''}
           <div class="sj-meta">${s.code}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}</div>
         </div>
         <div class="sj-side">
@@ -12576,6 +12657,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
             <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal('${subj.code || subj.name}')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
               ${icons.chartLine()} ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
             </button>
+            ${att.projection || (att.labPart && att.labPart.projection) ? `<div style="flex-basis:100%;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5">${att.projection ? attV2ProjectionText(att, true) : ''}${att.projection && att.labPart && att.labPart.projection ? '<br>' : ''}${att.labPart && att.labPart.projection ? `Lab: ${attV2ProjectionText(att.labPart, true)}` : ''}</div>` : ''}
           </div>
         </div>
 
