@@ -46,7 +46,8 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 
 ## Git safety
 - No `git reset --hard`, `git clean -fd`, force push, or branch deletion.
-- No commit/push unless explicitly asked.
+- - Claude may commit and push to its own `claude/*` branch and open a PR without asking. Never push to `main`; never deploy (the user ships).
+- Claude may merge its own `claude/*` PR into `main` without asking, only when CI (`Tests`) is green on the latest commit, there is no merge conflict, and no review thread is unresolved. Never merge Dependabot or anyone else's PR. Merging does not deploy; the user still runs `npm run ship`.
 - Before pull/merge/rebase, report `git status`, branch, and remotes first.
 
 ## Shipping (the user runs it)
