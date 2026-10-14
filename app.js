@@ -18,6 +18,8 @@ const KEY_ATTENDANCE_LIVE     = 'cos_attendance_live';
 const KEY_ATTENDANCE_V2       = 'cos_attendance_v2';
 // Local-only (never synced): which attendance math this device shows.
 const KEY_ATT_V2_STATE        = 'cos_att_v2_state';
+// Local-only (never synced): undo log for old marks moved to a subject.
+const KEY_ATT_REASSIGN_LOG    = 'cos_att_reassign_log';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -7327,6 +7329,8 @@ window.setAttendance = function(dateStr, classKey, status) {
     if (status === 'attended') {
       const streak = calculateAttendanceStreak();
       showToast(streak >= 3 ? `Attendance logged: Attended ✓ (Streak: ${streak})` : 'Attendance logged: Attended ✓', 'success');
+    } else if (ATT_STATUS_LABEL[status]) {
+      showToast(`Attendance logged: ${ATT_STATUS_LABEL[status]}`, 'info');
     } else {
       showToast('Attendance logged: Skipped', 'info');
     }
@@ -7338,6 +7342,34 @@ window.setAttendance = function(dateStr, classKey, status) {
     renderPage(state.currentPage);
   }
 };
+
+// Step 4: OD and "didn't happen" on the attendance page. The chip shows a
+// non-Present/Absent status; a waiting OD gets Accepted / Rejected (the
+// student updates it once the teacher decides). The ⋯ menu sets them.
+function attStatusChipHTML(status) {
+  const label = ATT_STATUS_LABEL[status];
+  if (!label) return '';
+  const tone = status === 'od_accepted' ? 'var(--status-success)' : status === 'od_rejected' ? 'var(--status-error)' : 'var(--text-muted)';
+  return `<span class="type-badge att-status-chip" style="font-size:var(--text-2xs);padding:2px 8px;color:${tone};background:var(--surface-2)">${label}</span>`;
+}
+
+function attStatusControlsHTML(dateStr, classKey, status) {
+  if (!ATT_STATUS_LABEL[status]) return '';
+  if (status !== 'od_pending') return attStatusChipHTML(status);
+  return `${attStatusChipHTML(status)}
+    <button class="btn btn-xs btn-secondary" onclick="setAttendance('${dateStr}', '${classKey}', 'od_accepted')" style="padding:3px 8px;font-size:var(--text-2xs)">Accepted</button>
+    <button class="btn btn-xs btn-secondary" onclick="setAttendance('${dateStr}', '${classKey}', 'od_rejected')" style="padding:3px 8px;font-size:var(--text-2xs)">Rejected</button>`;
+}
+
+function attMoreMenuHTML(dateStr, classKey, status) {
+  return `<details class="att-more-menu" style="position:relative">
+      <summary class="btn btn-sm btn-secondary" aria-label="More attendance options" style="list-style:none;padding:5px 10px;cursor:pointer">⋯</summary>
+      <div style="position:absolute;right:0;top:110%;z-index:5;display:flex;flex-direction:column;gap:4px;padding:6px;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs,6px);box-shadow:0 4px 14px rgba(0,0,0,.12)">
+        <button class="btn btn-sm btn-secondary" onclick="setAttendance('${dateStr}', '${classKey}', 'od_pending')" aria-pressed="${status === 'od_pending'}">OD (waiting for teacher)</button>
+        <button class="btn btn-sm btn-secondary" onclick="setAttendance('${dateStr}', '${classKey}', 'cancelled')" aria-pressed="${status === 'cancelled'}">Didn't happen</button>
+      </div>
+    </details>`;
+}
 
 function renderWeeklyAttendanceTracker() {
   const ttData = loadTimetable();
@@ -7371,13 +7403,15 @@ function renderWeeklyAttendanceTracker() {
       const subjKey = `${c.subject} ${isLab ? '(Lab)' : ''}`;
 
       subjectStats[subjKey] = subjectStats[subjKey] || { total: 0, attended: 0 };
-      subjectStats[subjKey].total++;
+      // A class that didn't happen counts for nothing; an accepted OD is
+      // present; a waiting or rejected OD is absent, as the ERP shows it.
+      if (status !== 'cancelled') subjectStats[subjKey].total++;
 
-      if (status === 'attended') {
+      if (status === 'attended' || status === 'od_accepted') {
         totalAttended++;
         subjectStats[subjKey].attended++;
         if (isLab) totalLabsAttended++;
-      } else if (status === 'skipped') {
+      } else if (status === 'skipped' || status === 'od_pending' || status === 'od_rejected') {
         totalSkipped++;
       }
 
@@ -7394,13 +7428,15 @@ function renderWeeklyAttendanceTracker() {
               ${formatDisplayTimeRange(c.time, c.end)} ${c.room ? '· ' + c.room : ''}
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            ${attStatusControlsHTML(dateStr, classKey, status)}
             <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as present on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='attended'?'var(--green)':'var(--surface-2)'};color:${status==='attended'?'white':'var(--text-primary)'};border:1px solid ${status==='attended'?'var(--green)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
               ${status==='attended'?'✓ Present':'Present'}
             </button>
             <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as absent on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='skipped'?'var(--red)':'var(--surface-2)'};color:${status==='skipped'?'white':'var(--text-primary)'};border:1px solid ${status==='skipped'?'var(--red)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
               ${status==='skipped'?'✕ Absent':'Absent'}
             </button>
+            ${attMoreMenuHTML(dateStr, classKey, status)}
           </div>
         </div>
       `;
@@ -8186,6 +8222,7 @@ function renderDashboard() {
           <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="${status==='skipped'?'background:var(--status-error);border-color:var(--status-error);color:white;':''}">
             ${icons.x()}<span>Absent</span>
           </button>
+          ${attStatusChipHTML(status)}
         </div>
         ${liveHasEnd ? `<div class="chrono-beacon-progress" data-beacon-bar role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${livePct}"><span style="width:${livePct}%"></span></div>` : ''}
       </div>`;
@@ -8361,6 +8398,7 @@ function renderDashboard() {
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                       <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">Present</button>
                       <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">Absent</button>
+                      ${attStatusChipHTML(status)}
                     </div>
                   </div>`;
               }).join('')}
@@ -8601,6 +8639,7 @@ function renderTimetable() {
                          ${isSkipped ? 'background:var(--red);border-color:var(--red);color:var(--text-inverse);' : ''}">
             ${icons.x()}<span class="tt-att-label">Absent</span>
           </button>
+          ${attStatusChipHTML(status)}
         </div>` : '';
 
       // Some saved subjects already carry the code, e.g. "Statistics (PBST)":
@@ -9285,6 +9324,17 @@ function computeMonthlyAttendance(sessionsBySubject = {}, monthKey, targetPct = 
 //  - a mark for a class that started before an ERP baseline was saved is
 //    kept as history but not added on top (the baseline already has it);
 //  - a baseline with no save date keeps the old "add on top" behaviour.
+// Statuses stored in cos_attendance besides 'attended' / 'skipped' (step 4).
+// Older app versions and the v1 math ignore them (the class reads as not
+// marked); the v2 math counts them as tallyAttendanceSessions says.
+const ATT_V2_MARK_STATUSES = ['od_pending', 'od_accepted', 'od_rejected', 'cancelled'];
+const ATT_STATUS_LABEL = {
+  od_pending: 'OD · waiting for teacher',
+  od_accepted: 'OD · accepted',
+  od_rejected: 'OD · rejected',
+  cancelled: "Didn't happen"
+};
+
 function attV2CleanKey(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -9307,7 +9357,7 @@ function attV2SubjectIdentity(rawName, code, type) {
 // "DS_1000" -> "10:00"; "X_10:00" -> "10:00"; anything else -> null
 function attV2SlotFromKey(key) {
   const tail = String(key || '').slice(String(key || '').lastIndexOf('_') + 1);
-  const m = tail.match(/^(\d{1,2}):?(\d{2})$/);
+  const m = tail.match(/^(\d{1,2}):?(\d{2})x?$/);
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
 }
 
@@ -9476,7 +9526,8 @@ function buildAttendanceV2FromV1(v1 = {}, timetable = {}, opts = {}) {
     Object.keys(day).sort().forEach(key => {
       const raw = day[key];
       v1Marks++;
-      const status = raw === 'attended' ? 'present' : raw === 'skipped' ? 'absent' : null;
+      const status = raw === 'attended' ? 'present' : raw === 'skipped' ? 'absent'
+        : ATT_V2_MARK_STATUSES.includes(raw) ? raw : null;
       const subjectId = status && /^\d{4}-\d{2}-\d{2}$/.test(date) ? resolveMark(date, key) : null;
       if (!subjectId) { unmatchedMarks.push({ date, key, status: raw }); return; }
       const id = `${date}_${key}`;
@@ -9685,6 +9736,10 @@ function attV2ResultFor(derived, id, subjItem, withLab = true) {
   const p = computeErpPercent(r.attended, r.held, target);
   const g = computeNowGuidance(r.attended, r.held, target);
   const planned = snap ? snap.planned : null;
+  // ODs still waiting for the teacher (a newer ERP scan already has the
+  // answer for older ones, so those are not listed).
+  const odWaiting = counted.filter(s => s.status === 'od_pending').map(s => ({ date: s.date, key: s.v1Key }));
+  const ifAccepted = daily.odPending > 0 ? computeErpPercent(r.attended + daily.odPending, r.held, target) : null;
   const labId = `${id}__lab`;
   return {
     present: r.attended,
@@ -9711,6 +9766,8 @@ function attV2ResultFor(derived, id, subjItem, withLab = true) {
     hasBaseline: baseline.hasBaseline,
     hasAnyData: baseline.hasBaseline || r.held > 0,
     v2Id: id,
+    odWaiting,
+    ifAcceptedLabel: ifAccepted ? ifAccepted.display : null,
     planned,
     projection: planned ? computeSemesterProjection(r.attended, r.held, planned, target) : null,
     labPart: withLab && !id.endsWith('__lab') && derived.report.subjects[labId] && derived.report.subjects[labId].held > 0
@@ -9821,6 +9878,193 @@ function clearUndatedTapsCoveredBy(rows = []) {
   if (cleared) saveLiveAttendanceActions(live);
   return cleared;
 }
+
+// ── Step 4: extra classes and unmatched old marks ────────────────
+// An extra class (not in the timetable) is an ordinary mark whose key ends
+// in "x" ("DataStructures_1015x"), so it never clashes with a timetable
+// class and both the v1 and v2 math count it. The name-based key keeps a
+// lab apart from its theory when they share a code.
+function extraClassKey(subjectName, time) {
+  return `${attendanceKeyFor({ subject: subjectName, time })}x`;
+}
+
+function addExtraClassMark(dateStr, subjectName, time, status) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr || '') || !/^\d{1,2}:\d{2}$/.test(time || '') || !subjectName) {
+    return { ok: false, reason: 'Pick a date and a time.' };
+  }
+  const key = extraClassKey(subjectName, time);
+  const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  if (data[dateStr] && data[dateStr][key]) return { ok: false, reason: 'There is already an extra class at that time.' };
+  if (!data[dateStr]) data[dateStr] = {};
+  data[dateStr][key] = status;
+  safeSetStorage(KEY_ATTENDANCE, data);
+  syncToCloud();
+  return { ok: true, key };
+}
+
+function loadReassignLog() {
+  const log = safeGetStorage(KEY_ATT_REASSIGN_LOG, []);
+  return Array.isArray(log) ? log : [];
+}
+
+// Old marks the v2 math couldn't match to a subject (and not already
+// moved), with a status it can count.
+function listUnmatchedAttendanceMarks() {
+  const moved = new Set(loadReassignLog().map(e => `${e.date}_${e.from}`));
+  const valid = ['attended', 'skipped', ...ATT_V2_MARK_STATUSES];
+  return getAttendanceV2Derived().report.unmatched.marks.filter(m =>
+    /^\d{4}-\d{2}-\d{2}$/.test(m.date) && valid.includes(m.status) && !moved.has(`${m.date}_${m.key}`));
+}
+
+// Moves one old mark to the chosen subject by renaming its key; refuses
+// rather than overwrite a mark that subject already has for that class.
+function reassignAttendanceMark(dateStr, oldKey, subjectId) {
+  const subject = getAttendanceV2Derived().store.subjects[subjectId];
+  const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  if (!subject) return { ok: false, reason: 'Subject not found.' };
+  if (!data[dateStr] || !(oldKey in data[dateStr])) return { ok: false, reason: 'That mark is no longer there.' };
+  const slot = attV2SlotFromKey(oldKey) || '00:00';
+  const newKey = `${attendanceKeyFor({ subject: subject.name, time: slot })}${/x$/.test(oldKey) ? 'x' : ''}`;
+  if (newKey !== oldKey && newKey in data[dateStr]) {
+    return { ok: false, reason: `${subject.name} already has a mark for that class on ${dateStr}.` };
+  }
+  data[dateStr][newKey] = data[dateStr][oldKey];
+  if (newKey !== oldKey) delete data[dateStr][oldKey];
+  safeSetStorage(KEY_ATTENDANCE, data);
+  const log = loadReassignLog();
+  log.push({ date: dateStr, from: oldKey, to: newKey, status: data[dateStr][newKey], at: new Date().toISOString() });
+  safeSetStorage(KEY_ATT_REASSIGN_LOG, log);
+  syncToCloud();
+  return { ok: true, newKey };
+}
+
+function undoLastAttendanceReassign() {
+  const log = loadReassignLog();
+  const last = log[log.length - 1];
+  if (!last) return { ok: false, reason: 'Nothing to undo.' };
+  const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  const day = data[last.date] || {};
+  if (day[last.to] !== last.status || (last.from !== last.to && last.from in day)) {
+    return { ok: false, reason: 'That mark has changed since, so it was left as it is.' };
+  }
+  day[last.from] = day[last.to];
+  if (last.from !== last.to) delete day[last.to];
+  data[last.date] = day;
+  safeSetStorage(KEY_ATTENDANCE, data);
+  log.pop();
+  safeSetStorage(KEY_ATT_REASSIGN_LOG, log);
+  syncToCloud();
+  return { ok: true };
+}
+
+// Subject page: ODs waiting for the teacher, with Accepted / Rejected.
+function attOdWaitingHTML(att) {
+  const parts = [[att, '']];
+  if (att && att.labPart) parts.push([att.labPart, 'Lab ']);
+  const blocks = parts.filter(([a]) => a && a.odWaiting && a.odWaiting.length).map(([a, tag]) => {
+    const n = a.odWaiting.length;
+    const rows = a.odWaiting.map(o => `
+      <li style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <span>${formatDate(o.date)}</span>
+        <button class="btn btn-xs btn-secondary" onclick="setAttendance('${o.date}', '${o.key}', 'od_accepted')" style="padding:3px 8px;font-size:var(--text-2xs)">Accepted</button>
+        <button class="btn btn-xs btn-secondary" onclick="setAttendance('${o.date}', '${o.key}', 'od_rejected')" style="padding:3px 8px;font-size:var(--text-2xs)">Rejected</button>
+      </li>`).join('');
+    return `<div>${tag}${n} OD waiting for the teacher · ${a.ifAcceptedLabel}% if accepted<ul style="list-style:none;margin:0;padding:0">${rows}</ul></div>`;
+  });
+  return blocks.length ? `<div style="flex-basis:100%;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5">${blocks.join('')}</div>` : '';
+}
+
+window.showAddExtraClassModal = function(subjectName) {
+  document.getElementById('extra-class-backdrop')?.remove();
+  const d = getAttendanceV2Derived();
+  const card = getSubjectList().find(s => s.name === subjectName) || { name: subjectName, code: '' };
+  const ident = attV2SubjectIdentity(card.name, card.code, null);
+  const hasTheory = !!(ident && d.store.subjects[ident.id]);
+  const hasLab = !!(ident && d.store.subjects[`${ident.baseKey}__lab`]);
+  const now = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const kindHTML = hasTheory && hasLab ? `
+      <label class="form-label" for="xc-kind">Class</label>
+      <select class="form-select" id="xc-kind"><option value="theory">${escHtml_cd(card.name)}</option><option value="lab">${escHtml_cd(card.name)} Lab</option></select>`
+    : `<input type="hidden" id="xc-kind" value="${hasLab && !hasTheory ? 'lab' : 'theory'}">`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'extra-class-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="xc-title" onclick="event.stopPropagation()" style="max-width:420px;padding:22px">
+      <h2 class="modal-title" id="xc-title" style="margin:0 0 6px">Add an extra class</h2>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:12px">For a class that isn't in your timetable (a make-up or extra lecture). It counts like any other class.</div>
+      <div style="display:grid;gap:8px">
+        ${kindHTML}
+        <label class="form-label" for="xc-date">Date</label>
+        <input type="date" class="form-input" id="xc-date" value="${todayStr()}">
+        <label class="form-label" for="xc-time">Start time</label>
+        <input type="time" class="form-input" id="xc-time" value="${hhmm}">
+        <label class="form-label" for="xc-status">You were</label>
+        <select class="form-select" id="xc-status"><option value="attended">Present</option><option value="skipped">Absent</option><option value="od_pending">On OD (waiting for teacher)</option></select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+        <button type="button" class="btn-secondary" onclick="document.getElementById('extra-class-backdrop')?.remove()">Cancel</button>
+        <button type="button" class="btn-primary" onclick="saveExtraClassFromModal('${String(card.name).replace(/'/g, "\\'")}')">Add class</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+};
+
+window.saveExtraClassFromModal = function(subjectName) {
+  const kind = document.getElementById('xc-kind')?.value;
+  const res = addExtraClassMark(
+    document.getElementById('xc-date')?.value,
+    kind === 'lab' ? `${subjectName} Lab` : subjectName,
+    document.getElementById('xc-time')?.value,
+    document.getElementById('xc-status')?.value || 'attended'
+  );
+  if (!res.ok) { showToast(res.reason, 'error'); return; }
+  document.getElementById('extra-class-backdrop')?.remove();
+  showToast('Extra class added ✓', 'success');
+  renderPage(state.currentPage);
+};
+
+// Settings: old marks that need a subject.
+function attUnmatchedMarksHTML() {
+  if (!isAttendanceV2Active()) return '';
+  const marks = listUnmatchedAttendanceMarks();
+  const canUndo = loadReassignLog().length > 0;
+  if (!marks.length && !canUndo) return '';
+  const subjects = Object.values(getAttendanceV2Derived().store.subjects);
+  const options = subjects.map(s => `<option value="${escHtml_cd(s.id)}">${escHtml_cd(s.name)}</option>`).join('');
+  const rows = marks.slice(0, 30).map((m, i) => `
+    <li style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="min-width:110px">${formatDate(m.date)}</span>
+      <code style="font-size:var(--text-xs)">${escHtml_cd(m.key)}</code>
+      <span style="font-size:var(--text-xs);color:var(--text-muted)">${escHtml_cd(m.status === 'attended' ? 'Present' : m.status === 'skipped' ? 'Absent' : (ATT_STATUS_LABEL[m.status] || m.status))}</span>
+      <select class="form-select" id="um-subj-${i}" style="max-width:220px;padding:4px 6px;font-size:var(--text-sm)">${options}</select>
+      <button type="button" class="btn btn-sm btn-secondary" onclick="assignUnmatchedMark('${m.date}', '${String(m.key).replace(/'/g, "\\'")}', 'um-subj-${i}')">Assign</button>
+    </li>`).join('');
+  return `
+    <div style="margin-top:16px">
+      ${marks.length ? `<div style="font-weight:600">${marks.length} old mark${marks.length !== 1 ? 's' : ''} need${marks.length === 1 ? 's' : ''} a subject</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted)">These couldn't be matched to a subject, so they aren't counted. Pick the subject each one belongs to.</div>
+      <ul style="list-style:none;margin:6px 0 0;padding:0">${rows}</ul>` : ''}
+      ${canUndo ? `<button type="button" class="btn-secondary" onclick="undoAttendanceReassign()" style="margin-top:8px;font-size:var(--text-sm);padding:5px 11px">Undo last assignment</button>` : ''}
+    </div>`;
+}
+
+window.assignUnmatchedMark = function(dateStr, key, selectId) {
+  const subjectId = document.getElementById(selectId)?.value;
+  const subject = getAttendanceV2Derived().store.subjects[subjectId];
+  if (!subject) return;
+  if (!confirm(`Count the ${dateStr} mark "${key}" under ${subject.name}?`)) return;
+  const res = reassignAttendanceMark(dateStr, key, subjectId);
+  showToast(res.ok ? `Now counted under ${subject.name} ✓` : res.reason, res.ok ? 'success' : 'error');
+  if (res.ok) renderPage(state.currentPage);
+};
+
+window.undoAttendanceReassign = function() {
+  const res = undoLastAttendanceReassign();
+  showToast(res.ok ? 'Last assignment undone' : res.reason, res.ok ? 'info' : 'error');
+  if (res.ok) renderPage(state.currentPage);
+};
 
 // ── The one-time preview ─────────────────────────────────────────
 function attV2ChangeReasons(r, oldPct, derived) {
@@ -12658,6 +12902,8 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
               ${icons.chartLine()} ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
             </button>
             ${att.projection || (att.labPart && att.labPart.projection) ? `<div style="flex-basis:100%;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5">${att.projection ? attV2ProjectionText(att, true) : ''}${att.projection && att.labPart && att.labPart.projection ? '<br>' : ''}${att.labPart && att.labPart.projection ? `Lab: ${attV2ProjectionText(att.labPart, true)}` : ''}</div>` : ''}
+            ${isAttendanceV2Active() ? attOdWaitingHTML(att) : ''}
+            ${isAttendanceV2Active() ? `<button type="button" class="btn btn-sm btn-secondary" onclick="showAddExtraClassModal('${String(subj.name).replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:5px 11px">+ Add extra class</button>` : ''}
           </div>
         </div>
 
@@ -14127,6 +14373,7 @@ function renderSettings() {
         <span>Calculate exactly like the college ERP<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">2 decimals, labs counted separately, nothing counted twice. Your saved marks stay the same either way.</span></span>
       </label>
       ${hasV1AttendanceData() ? `<button type="button" class="btn-secondary" onclick="showAttendanceV2Preview()" style="margin-top:8px;font-size:var(--text-sm);padding:5px 11px">See what changes</button>` : ''}
+      ${attUnmatchedMarksHTML()}
     </div>
 
     <div class="section-heading">🧹 Personalized Desk Optimization</div>

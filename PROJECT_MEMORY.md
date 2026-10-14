@@ -142,7 +142,7 @@ D:\Clarity Desk\
 | Key Constant | Storage Key Name | Description |
 | :--- | :--- | :--- |
 | `KEY_ATTENDANCE_BASELINE` | `cos_attendance_baseline` | Map of course code $\rightarrow$ baseline counts `{ present, totalCount, absent, lastUpdated }` |
-| `KEY_ATTENDANCE` | `cos_attendance_records` | Historical daily log `{ "YYYY-MM-DD": { "CS201_1000": "attended" } }` |
+| `KEY_ATTENDANCE` | `cos_attendance_records` | Historical daily log `{ "YYYY-MM-DD": { "CS201_1000": "attended" } }` Step 4 adds the values `od_pending` / `od_accepted` / `od_rejected` / `cancelled` (the v1 math and older app versions ignore them) and extra-class keys ending in `x` (`DataStructures_1530x`). |
 | `KEY_ATTENDANCE_TARGET` | `cos_attendance_target` | Numerical target threshold (e.g. `75`, `80`, `85`) |
 | `KEY_CUSTOM_TIMETABLE` | `cos_custom_timetable` | Day-indexed schedule map `{ 0: [], 1: [...slots], ... 6: [] }` |
 | `KEY_PROFILE` | `cos_profile` | User profile `{ name, roll, batch, semester, branch, examDate }` |
@@ -154,6 +154,7 @@ D:\Clarity Desk\
 | `KEY_PUSH_REGISTERED` | `cos_push_registered` | Local flag: has this device registered an FCM token for background push? See §10 |
 | `KEY_ATT_TARGET` | `cos_att_target` | Attendance target %; now also synced to Firestore as `attTarget` so the background-push job can read it, see §10 |
 | `KEY_ATT_V2_STATE` | `cos_att_v2_state` | Local only, never synced: which attendance math this device shows, `{ mode: 'v2' \| 'v1', decidedAt }`. v2 = ERP-exact numbers derived on every read from the three v1 stores (`buildAttendanceV2FromV1`); no stored v1 data is changed. Missing = a student with data sees the one-time preview; one with none starts on v2. |
+| `KEY_ATT_REASSIGN_LOG` | `cos_att_reassign_log` | Local only, never synced: undo log `[{ date, from, to, status, at }]` for unmatched old marks the student moved to a subject (Settings → Attendance). Moving renames the mark's key in `cos_attendance`; refused if that subject already has a mark for the class. |
 | `KEY_ATTENDANCE_V2` | `cos_attendance_v2` | Reserved for the stored v2 attendance (per-session records + ERP snapshots). Not written yet. |
 
 ---
