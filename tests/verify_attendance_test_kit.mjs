@@ -42,8 +42,25 @@ const FLOORS = AI_MODE
   ? { 'sample-01': { found: 0.9, fields: 0.9, extra: 1 } }     // measured 100% / 100% / 0 (Gemini flash-lite, Workers AI Mistral)
   : { 'sample-01': { found: 0.0, fields: 0.0, extra: 99 } };   // measured 0%: on-device OCR can't read this photo -- a crash check only
 
-if (!fs.existsSync(path.join(KIT, 'expected-output'))) {
-  console.log('⏭  attendance-practice-kit/expected-output not found -- skipping (the kit is kept local; see this file\'s header).');
+// The kit is gitignored (real student data), so a fresh clone or a lost
+// folder has none: explain how to rebuild it instead of reporting a pass.
+const SAMPLE_RE = /^sample-\d+\.json$/;
+const kitSamples = () => fs.existsSync(path.join(KIT, 'expected-output'))
+  ? fs.readdirSync(path.join(KIT, 'expected-output')).filter(f => SAMPLE_RE.test(f))
+  : [];
+if (!kitSamples().length) {
+  console.log([
+    '⏭  Skipped: no attendance test kit found (attendance-practice-kit/ is kept off git because it holds real student data).',
+    '',
+    '   To rebuild it, create this layout in the project folder:',
+    '     attendance-practice-kit/',
+    '       images/             attendance screenshots or photos (.jpg / .jpeg / .png)',
+    '       expected-output/    one hand-checked answer per image: sample-01.json, sample-02.json, ...',
+    '',
+    '   Each sample-NN.json needs "source_image" (a file name in images/) and "rows": one entry per',
+    '   course with "code", "subject", "present", "absent", "leave", "notEntered" and "totalSessions".',
+    '   Then run npm run test:attendance-kit again.'
+  ].join('\n'));
   process.exit(0);
 }
 
@@ -168,7 +185,7 @@ if (FORCE_PROVIDER) {
   console.log(`(vision limited to ${FORCE_PROVIDER}${FORCE_MODELS ? ': ' + FORCE_MODELS.join(', ') : ''})`);
 }
 
-const samples = fs.readdirSync(path.join(KIT, 'expected-output')).filter(f => /^sample-\d+\.json$/.test(f)).sort();
+const samples = kitSamples().sort();
 let passed = 0, failed = 0;
 for (const file of samples) {
   const id = file.replace('.json', '');

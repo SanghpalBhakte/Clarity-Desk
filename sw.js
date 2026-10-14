@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clarity-desk-v178';
+const CACHE_NAME = 'clarity-desk-v179';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -63,7 +63,18 @@ self.addEventListener('fetch', (e) => {
           }
           return response;
         })
-        .catch(() => caches.match(e.request) || caches.match('./index.html') || caches.match('index.html') || caches.match('./'))
+        // caches.match() returns a Promise (always truthy), so each fallback
+        // must be awaited in turn. ignoreSearch lets a first-visit precached
+        // "app.js" answer the page's "app.js?v=N" request; the cache is
+        // per-version, so it is the same build.
+        .catch(async () => {
+          const cached = (await caches.match(e.request)) || (await caches.match(e.request, { ignoreSearch: true }));
+          if (cached) return cached;
+          if (e.request.mode === 'navigate') {
+            return (await caches.match('./index.html')) || (await caches.match('index.html')) || (await caches.match('./')) || Response.error();
+          }
+          return Response.error();
+        })
     );
     return;
   }
@@ -150,10 +161,13 @@ self.addEventListener('push', (event) => {
 // default). Hardcoded here because this is a static site with no build step,
 // so there is no env-substitution mechanism, and service workers have no
 // `window` to read firebase-config.js's override logic from anyway.
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
-
+// importScripts stays inside the try: if gstatic is unreachable (ad blocker,
+// campus firewall, flaky network), a throw here would fail the whole worker
+// and take offline support down with it. Push is optional; offline is not.
 try {
+  importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+
   firebase.initializeApp({
     apiKey:            "AIzaSyD1st-UB9NbBme9z-8M0upwJ0ndQrr8J2E",
     authDomain:        "campusos-83365.firebaseapp.com",

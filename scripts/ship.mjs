@@ -8,7 +8,9 @@
 //
 // Order: bump the cache version if app files changed and it wasn't bumped
 // -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
-// -> push -> firebase deploy (+ AI proxy if ai-proxy/ changed). Stops at the
+// -> push -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
+// test (npm run test:smoke against SITE; a failure warns in red and exits 1,
+// but the deploy stays live -- nothing is rolled back). Stops at the
 // first failure. Never resets, cleans or force-pushes. "Claude outputs/" is
 // never committed. The commit message becomes a Dev Note in the app unless it
 // starts with chore:, test:, wip: or bump.
@@ -93,6 +95,7 @@ if (changes.length) {
 }
 console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (app files changed)` : `v${ver}${cur !== head ? ' (already bumped)' : ''}`}`);
 if (workerChanged) console.log('ai-proxy/ changed: the AI proxy will be deployed too.');
+console.log(`After deploy: live smoke test against ${SITE} (npm run test:smoke).`);
 if (DRY) {
   console.log('\nDev Notes (commits so far; this commit is added too unless it starts with chore:/test:):');
   sh('node scripts/generate-devnotes.mjs --dry-run');
@@ -155,6 +158,15 @@ if (sh('firebase deploy --only hosting').status !== 0) fail('Firebase deploy fai
 if (workerChanged) {
   step('Deploying the AI proxy');
   if (sh('npx wrangler@latest deploy', 'ai-proxy').status !== 0) fail('AI proxy deploy failed. Hosting is live.');
+}
+
+step(`Live smoke test against ${SITE}`);
+process.env.SMOKE_BASE_URL = SITE;            // read by playwright.config.ts; works the same on Windows
+if (sh('npm run test:smoke').status !== 0) {
+  console.error(`\n\x1b[31m✗ v${ver} is LIVE at ${SITE}, but the live smoke test FAILED.\n` +
+    '  Nothing was rolled back. Open the site and check it now, then read the failures above.\n' +
+    '  If Playwright could not start a browser, run: npx playwright install chromium\x1b[0m');
+  process.exit(1);
 }
 
 console.log(`\n✓ Shipped v${ver}: ${SITE}`);

@@ -1,0 +1,73 @@
+name: Live site check
+
+# Once a day, runs the post-deploy smoke suite against the live site.
+# If it fails, opens (or comments on) one issue titled ISSUE_TITLE, which
+# GitHub emails to the repo owner. When it passes again, that issue closes.
+# Not triggered on push: npm run ship already smoke-tests right after its
+# deploy, and a push to main lands before the deploy finishes.
+
+on:
+  schedule:
+    - cron: "47 3 * * *"   # 03:47 UTC = 09:17 IST, daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  ISSUE_TITLE: "Live site check failing"
+  SMOKE_BASE_URL: https://campusos-83365.web.app
+
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - id: smoke
+        run: npm run test:smoke
+        continue-on-error: true
+
+      - name: Open, update or close the tracking issue
+        uses: actions/github-script@v7
+        env:
+          OUTCOME: ${{ steps.smoke.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const title = process.env.ISSUE_TITLE;
+            const open = (await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 }))
+              .find(i => !i.pull_request && i.title === title);
+            const failed = process.env.OUTCOME !== 'success';
+            if (failed) {
+              const body = `The daily smoke test against ${process.env.SMOKE_BASE_URL} failed.\n\nRun log: ${process.env.RUN_URL}`;
+              if (open) await github.rest.issues.createComment({ owner, repo, issue_number: open.number, body });
+              else await github.rest.issues.create({ owner, repo, title, body });
+              core.setFailed('Live smoke test failed');
+            } else if (open) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: open.number, body: `Passing again: ${process.env.RUN_URL}` });
+              await github.rest.issues.update({ owner, repo, issue_number: open.number, state: 'closed', state_reason: 'completed' });
+            }
+
+      - name: Upload Playwright report on failure
+        if: steps.smoke.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-check-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -23,7 +23,8 @@
       "package.json",
       "package-lock.json",
       "playwright.config.ts",
-      "firebase-config.local.example.js"
+      "firebase-config.local.example.js",
+      "firebase-config.local.js"
     ],
     "rewrites": [
       {

@@ -3,9 +3,10 @@
 //
 // NOTE: the live site gets AI through the AI proxy (ai-proxy/ folder,
 // AI_PROXY_URL in firebase-config.js), which keeps keys on the server.
-// Keys put in firebase-config.local.js ARE deployed with the site and
-// readable by anyone -- only use this file for offline experiments with
-// AI_PROXY_URL cleared, and never deploy it with keys in it.
+// firebase-config.local.js is gitignored and listed in firebase.json's
+// hosting ignore, so it is never deployed, and index.html only requests it
+// on localhost / 127.0.0.1. Use it for local experiments with AI_PROXY_URL
+// cleared; keys in it still sit in plain text on your machine.
 //
 // 1. Copy this file to "firebase-config.local.js" (same folder).
 // 2. Get free API keys (any one of these is enough to enable the
