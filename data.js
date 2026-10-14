@@ -197,6 +197,47 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u34",
+    date: "2026-10-14",
+    title: "Add permissions for Bash git push command",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Add permissions for Bash git push command",
+    points: [
+      "Add permissions for Bash git push command"
+    ]
+  },
+  {
+    id: "u33",
+    date: "2026-10-14",
+    title: "Fixed an error the app logged in the browser console on every load",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "never deploy again.",
+    points: [
+      "firebase.json: firebase-config.local.js added to hosting.ignore so it can",
+      "index.html, 404.html: the optional local key file is requested only on",
+      "tests/verify_hosting_files.mjs: the file is no longer a runtime file; it",
+      "firebase-config.local.example.js: header comment no longer says the file"
+    ]
+  },
+  {
+    id: "u32",
+    date: "2026-10-14",
+    title: "Offline mode now works even when your network blocks Google servers, and the app opens offline after just one visit",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "an unreachable gstatic no longer fails the whole service worker.",
+    points: [
+      "sw.js: Firebase Messaging importScripts moved inside the existing try, so",
+      "sw.js: offline fallbacks are awaited in turn (caches.match returns a",
+      "Cache version v178 -> v179 (sw.js, index.html, 404.html)."
+    ]
+  },
+  {
     id: "u31",
     date: "2026-10-13",
     title: "Date pickers no longer reset while open; Review fits on phones; attendance labels match everywhere (v177)",
