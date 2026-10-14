@@ -259,7 +259,27 @@ function evaluateUser(data, notifiedKeys, time) {
   }
 
   // 4) Low-attendance warning
-  if (
+  // The app (on its ERP-exact attendance) syncs attSummary: the same overall
+  // % it shows, baselines and labs included. Use it when present; otherwise
+  // fall back to counting the daily marks.
+  const summary = data.attSummary;
+  const hasSummary =
+    summary &&
+    typeof summary === "object" &&
+    typeof summary.pct === "string" &&
+    typeof summary.isSafe === "boolean";
+  if (prefs.attendanceAlerts !== "off" && hasSummary) {
+    if (!summary.isSafe) {
+      const target =
+        typeof summary.target === "number" ? summary.target : 75;
+      push(
+        `att_warning_${today}`,
+        `Attendance Alert: ${summary.pct}%`,
+        `Your attendance is currently ${summary.pct}% (below ${target}% target). Tap to review.`,
+        "./#review"
+      );
+    }
+  } else if (
     prefs.attendanceAlerts !== "off" &&
     data.attendance &&
     typeof data.attendance === "object"
