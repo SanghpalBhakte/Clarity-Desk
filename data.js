@@ -81,6 +81,7 @@ export const NOTICES = [
     title: "End-Semester Exam: Set Your Exam Date",
     category: "Exam",
     date: "2026-07-20",
+    builtIn: true, // sample notice: hidden once its date has passed, see getVisibleNotices()
     content: "Go to Settings and enter your end-semester exam date. A live countdown will appear on your dashboard.",
     important: true,
     // Stops nagging once the student has actually done this -- see
@@ -92,6 +93,7 @@ export const NOTICES = [
     title: "Timetable Updated, Effective 30/07/2026 (SY-AIDS)",
     category: "Academic",
     date: "2026-07-28",
+    builtIn: true, // sample notice: hidden once its date has passed, see getVisibleNotices()
     content: "Your official SY-AIDS timetable effective 30/07/2026 (Lecture Hall SF-31) has been updated with DEMP, DS, WEB DEV, PBST, MDM, COI, BMFA, OE-1, OE-2, and Community Engagement modules.",
     important: false,
     // Only relevant to a student still on the default timetable -- once
@@ -196,6 +198,24 @@ export const QUICK_LINKS = [
 // Entries below this comment were hand-authored before that script existed;
 // new ones are inserted above them.
 export const DEV_UPDATES = [
+  {
+    id: "u34",
+    date: "2026-10-14",
+    title: "New here? Clarity Desk now starts by scanning your timetable, shows one setup card instead of three prompts, and hides old sample notices",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "\"Just look around\" are the other choices. Profile is asked later.",
+    points: [
+      "Welcome: \"Scan your timetable\" opens the camera; \"Add classes myself\" and",
+      "Today with no timetable: one setup card, no Rest Day card, no row of",
+      "Scan review names the lab groups it found and asks you to pick yours.",
+      "Built-in sample notices hide after their date; empty board says so.",
+      "Returning students with any saved data never see the welcome again.",
+      "Header: clearer screen-reader labels for the save pill, logo and avatar.",
+      "New test: tests/verify_onboarding_returning.mjs (in npm test)."
+    ]
+  },
   {
     id: "u33",
     date: "2026-10-14",

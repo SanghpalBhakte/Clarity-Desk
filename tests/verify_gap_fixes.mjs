@@ -63,11 +63,18 @@ check('Unit 3: Single Subject Hub provides empty-state "+ Add Study Link / Note"
 });
 
 // 4. Unit 4: First-run setup checklist
+// Order changed on purpose (onboarding pass): timetable first, then profile
+// (asked only once a timetable exists), then attendance counts.
 check('Unit 4: First-run setup checklist presents 3-step sequence for new users and hides for active users', () => {
-  if (!jsSrc.includes('1. Set Practical Batch & Profile')) return 'Step 1 missing';
-  if (!jsSrc.includes('2. Import Timetable Schedule')) return 'Step 2 missing';
-  if (!jsSrc.includes('3. Set Attendance Starting Counts')) return 'Step 3 missing';
-  if (!jsSrc.includes('Welcome · Recommended Setup Order')) return 'Header missing';
+  const tt = jsSrc.indexOf("label: 'Scan your timetable'");
+  const prof = jsSrc.indexOf("label: 'Add your name and group'");
+  const att = jsSrc.indexOf("label: 'Set your attendance so far'");
+  if (tt < 0) return 'Timetable step missing';
+  if (prof < 0) return 'Profile step missing';
+  if (att < 0) return 'Attendance step missing';
+  if (!(tt < prof && prof < att)) return 'Steps out of order (timetable, profile, attendance)';
+  if (!jsSrc.includes("hasCustomTT ? 'Finish setting up' : 'Get started'")) return 'Header missing';
+  if (!jsSrc.includes('const isFullySetup = setupSteps.length === 0;')) return 'Checklist no longer hides when setup is done';
   return true;
 });
 
