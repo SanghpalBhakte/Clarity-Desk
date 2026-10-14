@@ -337,21 +337,25 @@ function updateSyncUI(status = null) {
     if (text) text.textContent = 'Sync denied';
     if (dot) dot.style.background = 'var(--red)';
     if (btn) btn.title = 'Access denied. Check the cloud Firestore permissions in Settings.';
+    if (btn) btn.setAttribute('aria-label', 'Cloud sync denied. Opens Settings');
   } else if (status === 'offline' || !isOnline) {
     if (icon) icon.textContent = '💾';
     if (text) text.textContent = 'Offline · Saved';
     if (dot) dot.style.background = 'var(--yellow)';
     if (btn) btn.title = 'Working offline · All changes are saved locally to this device';
+    if (btn) btn.setAttribute('aria-label', 'Offline, saved on this device. Opens Settings, where backup is');
   } else if (currentUser) {
     if (icon) icon.textContent = '⚡';
     if (text) text.textContent = 'Cloud synced';
     if (dot) dot.style.background = 'var(--green)';
     if (btn) btn.title = 'Cloud sync active · Saved locally & synced to your account';
+    if (btn) btn.setAttribute('aria-label', 'Saved and synced to your account. Opens Settings, where backup is');
   } else {
     if (icon) icon.textContent = '💾';
     if (text) text.textContent = 'Saved locally';
     if (dot) dot.style.background = 'var(--green)';
     if (btn) btn.title = 'Local offline storage active · All data is saved automatically on this device';
+    if (btn) btn.setAttribute('aria-label', 'Saved on this device. Opens Settings, where backup is');
   }
 }
 
@@ -4458,6 +4462,10 @@ function renderTimetablePreviewModalContent(backdrop) {
         <div style="font-size:var(--text-sm);color:var(--text-muted)">
           Hides other batch practicals so you only save classes for your section.
         </div>
+        ${batchList.length && selectedTimetablePreviewBatch === 'all' ? `
+        <div style="flex-basis:100%;font-size:var(--text-sm);font-weight:600;color:var(--accent)">
+          We found lab groups ${batchList.map(escHtml_cd).join(', ')}. Pick yours so you only see your own labs.
+        </div>` : ''}
       </div>
 
       <div style="overflow-x:auto;max-height:380px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm)">
@@ -5504,8 +5512,14 @@ function triggerNoticeNotification(notice) {
 // otherwise the board keeps nagging about something already handled.
 // Every place that reads NOTICES for display, notifications, or the
 // assistant should go through this instead of the raw array.
+//
+// Built-in sample notices (`builtIn: true` in data.js) also drop off once
+// their date has passed, so a new student doesn't open a board of months-old
+// announcements. Only that flag hides by date; anything without it stays.
 function getVisibleNotices() {
+  const today = todayStr();
   return NOTICES.filter(n => {
+    if (n.builtIn && n.date && n.date < today) return false;
     if (n.hideWhen === 'examDateSet') return !(liveProfile.examDate && liveProfile.examDate.trim());
     if (n.hideWhen === 'timetableCustomized') return !isCustomTimetableActive();
     return true;
@@ -6432,6 +6446,11 @@ function buildDashboardContextLine(opts = {}) {
     return `<strong>${examDaysLeft} days</strong> to End-Sem. Stay consistent.`;
   }
 
+  // Brand-new desk: no timetable yet, so "no classes today" would be wrong
+  if (opts.hasTimetable === false && pending === 0) {
+    return 'Add your timetable to see your day here.';
+  }
+
   // Weekend or free day with no tasks
   if (isWeekend && pending === 0) {
     return 'No classes today. Good time to get ahead on tasks.';
@@ -6595,6 +6614,13 @@ function loadTimetable() {
     return TIMETABLE;
   }
   return getEmptyTimetable();
+}
+
+// True when Today has any classes to show: a saved timetable, or the
+// built-in sample a student chose before custom timetables existed.
+function hasAnyTimetable() {
+  const tt = loadTimetable();
+  return !!tt && typeof tt === 'object' && Object.values(tt).some(arr => Array.isArray(arr) && arr.length > 0);
 }
 
 function isCustomTimetableActive() {
@@ -7433,9 +7459,26 @@ function renderWeeklyAttendanceTracker() {
 // ── Onboarding Flow ───────────────────────────────────────────
 function checkOnboarding() {
   const p = loadProfile();
-  if (!p.name && !localStorage.getItem('cos_onboarding_dismissed')) {
+  if (!p.name && !localStorage.getItem('cos_onboarding_dismissed') && !hasExistingUserData()) {
     setTimeout(showOnboardingModal, 400);
   }
+}
+
+// A returning student (e.g. restored from a backup that didn't carry the
+// dismissed flag, or one who never typed a name) must never see the welcome
+// again. Read-only: looks at what is stored, writes nothing.
+function hasExistingUserData() {
+  const nonEmptyObj = (v) => !!v && typeof v === 'object' && Object.keys(v).length > 0;
+  const p = safeGetStorage(KEY_PROFILE, null);
+  if (p && typeof p === 'object' && ((p.batch || '').trim() || (p.college || '').trim())) return true;
+  if (isCustomTimetableActive() || safeGetStorage(KEY_TIMETABLE_CHOICE, null) === 'aids') return true;
+  const tasks = safeGetStorage(KEY_CUSTOM_TASKS, null);
+  if (Array.isArray(tasks) && tasks.length) return true;
+  if (nonEmptyObj(safeGetStorage(KEY_ATTENDANCE, null))) return true;
+  if (nonEmptyObj(safeGetStorage(KEY_ATTENDANCE_BASELINE, null))) return true;
+  const links = safeGetStorage(KEY_CUSTOM_LINKS, null);
+  if (Array.isArray(links) && links.length) return true;
+  return false;
 }
 
 window.showOnboardingModal = function() {
@@ -7457,13 +7500,14 @@ window.showOnboardingModal = function() {
           </svg>
         </div>
         <h2 style="margin:0 0 6px 0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.025em;color:var(--text-primary)">Welcome to Clarity Desk</h2>
-        <div style="font-size:var(--text-base);font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Everything for your college day in one place</div>
+        <div style="font-size:var(--text-base);font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Know your next class before you get to college</div>
         <div style="font-size:var(--text-md);color:var(--text-secondary);line-height:1.6;margin-bottom:24px">
-          Keep your timetable, attendance, tasks and study notes together, so you always know what's next.
+          Take a photo of your class timetable. We'll show today's classes and rooms, and you can mark attendance with one tap.
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button class="btn-primary" onclick="showOnboardingStep2()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">Set up profile →</button>
-          <button class="btn-secondary" onclick="dismissOnboarding()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Explore first</button>
+          <button class="btn-primary" onclick="onboardingScanTimetable()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">${icons.camera()} Scan your timetable</button>
+          <button class="btn-secondary" onclick="onboardingAddClasses()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Add classes myself</button>
+          <button class="btn-secondary" onclick="dismissOnboarding()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center;background:none;border-color:transparent">Just look around</button>
         </div>
       </div>
 
@@ -7572,6 +7616,20 @@ window.dismissOnboarding = function() {
   }
   document.getElementById('onboarding-backdrop')?.remove();
   renderPage(state.currentPage);
+};
+
+// Welcome actions: close the welcome the same way "look around" does, then
+// open the existing timetable flows. The file picker opens inside the same
+// tap so mobile browsers allow it.
+window.onboardingScanTimetable = function() {
+  window.dismissOnboarding();
+  triggerTimetableImport();
+};
+
+window.onboardingAddClasses = function() {
+  window.dismissOnboarding();
+  navigateTo('timetable');
+  showTimetableEntryModal(new Date().getDay(), null);
 };
 
 window.finishOnboarding = function() {
@@ -7909,33 +7967,37 @@ function renderDashboard() {
     examDaysLeft: examDaysLeftNum,
     firstName,
     dayClasses,
+    hasTimetable: hasAnyTimetable(),
   });
 
-  // Setup completeness — recommended 3-step setup order for first-run users
+  // Setup completeness — recommended setup order for first-run users.
+  // The timetable comes first (it's what makes Today useful); the profile
+  // only asks once a timetable exists, since a scan already asks for the
+  // student's group in its review screen.
   const setupSteps = [];
-  
-  // 1. Set Practical Batch & Profile
-  const currentProf = loadProfile() || liveProfile || {};
-  const hasProfileSetup = !!((currentProf.name && currentProf.name.trim()) || (currentProf.batch && currentProf.batch.trim()));
-  if (!hasProfileSetup) {
-    setupSteps.push({
-      id: 'profile',
-      label: '1. Set Practical Batch & Profile',
-      desc: 'Set your name, semester, and batch for filtered timetable views.',
-      action: `navigateTo('settings')`,
-      icon: icons.user()
-    });
-  }
+  const hasCustomTT = hasAnyTimetable();
 
-  // 2. Import Timetable
-  const hasCustomTT = isCustomTimetableActive();
+  // 1. Timetable
   if (!hasCustomTT) {
     setupSteps.push({
       id: 'tt',
-      label: '2. Import Timetable Schedule',
-      desc: 'Scan your schedule photo, add class slots, or load a sample template.',
-      action: `navigateTo('timetable')`,
-      icon: icons.timetable()
+      label: 'Scan your timetable',
+      desc: 'Take a photo of your class timetable. You check every class before anything is saved.',
+      action: `triggerTimetableImport()`,
+      icon: icons.camera()
+    });
+  }
+
+  // 2. Profile (only after the timetable exists)
+  const currentProf = loadProfile() || liveProfile || {};
+  const hasProfileSetup = !!((currentProf.name && currentProf.name.trim()) || (currentProf.batch && currentProf.batch.trim()));
+  if (hasCustomTT && !hasProfileSetup) {
+    setupSteps.push({
+      id: 'profile',
+      label: 'Add your name and group',
+      desc: 'So Today greets you and only shows your own lab group.',
+      action: `navigateTo('settings')`,
+      icon: icons.user()
     });
   }
 
@@ -7945,8 +8007,8 @@ function renderDashboard() {
   if (!hasAttendanceData && !hasBaselinesConfigured) {
     setupSteps.push({
       id: 'att',
-      label: '3. Set Attendance Starting Counts',
-      desc: 'Enter your portal baseline once to unlock percentage tracking and safe skips.',
+      label: 'Set your attendance so far',
+      desc: 'Enter your counts from the college portal once to see your percentage and safe skips.',
       action: `showBaselineModal(null, 'manual')`,
       icon: icons.summary()
     });
@@ -8007,7 +8069,12 @@ function renderDashboard() {
   // Display order only: attendance leads, then tasks, then classes left.
   const [vtClasses, vtTasks, vtAttendance, ...vtRest] = vitalsTiles;
   const vitalsOrdered = [vtAttendance, vtTasks, vtClasses, ...vtRest];
-  const vitalsBarHTML = `<div class="vitals-strip${vitalsOrdered.length > 3 ? ' is-four' : ''}" style="margin-top:14px">${vitalsOrdered.join('')}</div>`;
+  // A brand-new desk has nothing to count yet: a row of dashes and zeros
+  // reads as broken. Show the tiles once any real data exists.
+  const hasAnyDeskData = hasCustomTT || allTasks().length > 0 || attendancePct !== null || hasAttendanceData || !!countdownText;
+  const vitalsBarHTML = hasAnyDeskData
+    ? `<div class="vitals-strip${vitalsOrdered.length > 3 ? ' is-four' : ''}" style="margin-top:14px">${vitalsOrdered.join('')}</div>`
+    : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
@@ -8105,6 +8172,9 @@ function renderDashboard() {
           ${pending > 0 ? 'Review Tasks →' : 'Study Vault →'}
         </button>
       </div>`;
+  } else if (!hasCustomTT) {
+    // No timetable yet: the setup card below is the one prompt on Today.
+    beaconHTML = '';
   } else {
     beaconHTML = `
       <div class="chrono-beacon is-free" role="region" aria-label="Free day">
@@ -8129,7 +8199,7 @@ function renderDashboard() {
   const setupBanner = !isFullySetup ? `
     <div class="desk-setup-guide" role="complementary" aria-label="Setup checklist">
       <div class="setup-guide-header">
-        <span class="setup-guide-title">${iconText(icons.settings(), 'Welcome · Recommended Setup Order')}</span>
+        <span class="setup-guide-title">${iconText(icons.settings(), hasCustomTT ? 'Finish setting up' : 'Get started')}</span>
         <span class="setup-guide-count">${setupSteps.length} step${setupSteps.length !== 1 ? 's' : ''} left</span>
       </div>
       <div class="setup-guide-steps">
@@ -8142,6 +8212,15 @@ function renderDashboard() {
             </div>
             <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
           </button>
+          ${s.id === 'tt' ? `
+          <button class="setup-guide-step" onclick="navigateTo('timetable'); showTimetableEntryModal(new Date().getDay(), null)" aria-label="Add classes myself">
+            <span class="setup-step-icon">${icons.plus()}</span>
+            <div style="flex:1;min-width:0">
+              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">Add classes myself</div>
+              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">Type in your classes one by one.</div>
+            </div>
+            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Add →</span>
+          </button>` : ''}
         `).join('')}
       </div>
     </div>` : '';
@@ -8232,8 +8311,7 @@ function renderDashboard() {
               <span class="empty-state-icon">${icons.sun()}</span>
               ${!isCustomTimetableActive() ? `
                 <div class="empty-state-title">No timetable set up yet</div>
-                <div class="empty-state-desc">Add your class schedule to see today's lineup here.</div>
-                <button class="setup-inline-link" onclick="navigateTo('timetable')">Add your schedule →</button>
+                <div class="empty-state-desc">Your classes for today will show here once your timetable is added.</div>
               ` : `
                 <div class="empty-state-title">No classes today</div>
                 <div class="empty-state-desc">A free day. Good time to get ahead on tasks.</div>
@@ -12481,6 +12559,11 @@ function renderNotices() {
     n.category.toLowerCase().includes(q)
   );
 
+  const noNoticesHtml = `<div class="empty-state-card" style="margin-top:14px">
+    <span class="empty-state-icon">${icons.check()}</span>
+    <div class="empty-state-title">No notices right now</div>
+    <div class="empty-state-desc">New announcements will show up here.</div>
+  </div>`;
   const cardsHtml = filtered.length ? filtered.map(n => `
     <div class="notice-card ${n.important?'important':''}" onclick="showNotice('${n.id}')">
       <div class="notice-header">
@@ -12492,7 +12575,7 @@ function renderNotices() {
         ${formatDate(n.date)} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}
       </div>
     </div>
-  `).join('') : `<div class="empty-state-card" style="margin-top:14px">
+  `).join('') : !q ? noNoticesHtml : `<div class="empty-state-card" style="margin-top:14px">
     <span class="empty-state-icon">${icons.search()}</span>
     <div class="empty-state-title">No Announcements Found</div>
     <div class="empty-state-desc">No campus notices match "${state.noticeSearch}". Check your keywords or clear your search to view all notices.</div>

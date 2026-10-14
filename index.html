@@ -95,7 +95,7 @@
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
       </button>
-      <div class="topbar-brand" onclick="navigateTo('dashboard')" style="cursor:pointer" title="Go to Today">
+      <div class="topbar-brand" onclick="navigateTo('dashboard')" style="cursor:pointer" title="Go to Today" role="button" tabindex="0" aria-label="Clarity Desk: go to Today">
         <div class="logo-icon">
           <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="width:20px;height:20px">
             <path d="M 17.1 11.4 A 6.5 6.5 0 1 0 17.1 20.6" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
@@ -121,7 +121,7 @@
         <span class="theme-toggle-icon" id="theme-toggle-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></span>
         <span class="theme-toggle-label" id="theme-toggle-label">Paper Slate</span>
       </button>
-      <button class="storage-status-badge" id="sync-status-btn" onclick="navigateTo('settings')" title="Local offline storage active · Saved automatically on this device" aria-label="Storage status">
+      <button class="storage-status-badge" id="sync-status-btn" onclick="navigateTo('settings')" title="Local offline storage active · Saved automatically on this device" aria-label="Saved on this device. Opens Settings, where backup is">
         <span class="storage-status-dot"></span>
         <span id="sync-icon" class="storage-status-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
         <span id="sync-text" class="storage-status-label">Saved locally</span>
@@ -134,7 +134,7 @@
         </svg>
         <span>Ask Desk</span>
       </button>
-      <div class="avatar" id="topbar-avatar" onclick="navigateTo('settings')" title="Your Profile" style="cursor:pointer">?</div>
+      <div class="avatar" id="topbar-avatar" onclick="navigateTo('settings')" title="Your Profile" style="cursor:pointer" role="button" tabindex="0" aria-label="Your profile and settings">?</div>
     </div>
   </header>
 
