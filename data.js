@@ -199,6 +199,24 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u34",
+    date: "2026-10-14",
+    title: "New here? Clarity Desk now starts by scanning your timetable, shows one setup card instead of three prompts, and hides old sample notices",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "\"Just look around\" are the other choices. Profile is asked later.",
+    points: [
+      "Welcome: \"Scan your timetable\" opens the camera; \"Add classes myself\" and",
+      "Today with no timetable: one setup card, no Rest Day card, no row of",
+      "Scan review names the lab groups it found and asks you to pick yours.",
+      "Built-in sample notices hide after their date; empty board says so.",
+      "Returning students with any saved data never see the welcome again.",
+      "Header: clearer screen-reader labels for the save pill, logo and avatar.",
+      "New test: tests/verify_onboarding_returning.mjs (in npm test)."
+    ]
+  },
+  {
     id: "u33",
     date: "2026-10-14",
     title: "Fixed an error the app logged in the browser console on every load",
