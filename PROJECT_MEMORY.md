@@ -128,6 +128,7 @@ D:\Clarity Desk\
   2. **Import Timetable Schedule** (`navigateTo('timetable')`)
   3. **Set Attendance Starting Counts** (`showBaselineModal(null, 'manual')`)
 - **Result**: Dynamic step tracking that disappears completely once setup is finished (`isFullySetup === true`).
+- **Superseded order (onboarding pass, Oct 2026)**: the welcome modal now leads with "Scan your timetable" (`onboardingScanTimetable()` → existing `triggerTimetableImport()`), then "Add classes myself", then "Just look around"; the profile form is no longer on the welcome path. The checklist order is now **timetable → profile (only once a timetable exists) → attendance counts**, because the scan review modal already asks for the lab group and saves it to the profile. With no timetable, Today shows only this card (no Rest Day card, no stat tiles, no second "Add your schedule" button). `checkOnboarding()` also skips the welcome when `hasExistingUserData()` finds any saved data (restored backups without the dismissed flag). Built-in sample notices carry `builtIn: true` in `data.js` and drop off after their date (`getVisibleNotices()`). Locked by `tests/verify_onboarding_returning.mjs`.
 
 ### 5. Local/Offline Save Status Clarity
 - **Root Cause**: The lone cloud icon in the topbar created ambiguity about whether data was being saved offline.
