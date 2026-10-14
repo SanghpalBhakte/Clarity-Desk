@@ -153,6 +153,8 @@ D:\Clarity Desk\
 | `KEY_NOTIF_PREFS` | (see `loadNotifPrefs`) | Per-category notification preferences — also drives the server-side push job, see §10 |
 | `KEY_PUSH_REGISTERED` | `cos_push_registered` | Local flag: has this device registered an FCM token for background push? See §10 |
 | `KEY_ATT_TARGET` | `cos_att_target` | Attendance target %; now also synced to Firestore as `attTarget` so the background-push job can read it, see §10 |
+| `KEY_ATT_V2_STATE` | `cos_att_v2_state` | Local only, never synced: which attendance math this device shows, `{ mode: 'v2' \| 'v1', decidedAt }`. v2 = ERP-exact numbers derived on every read from the three v1 stores (`buildAttendanceV2FromV1`); no stored v1 data is changed. Missing = a student with data sees the one-time preview; one with none starts on v2. |
+| `KEY_ATTENDANCE_V2` | `cos_attendance_v2` | Reserved for the stored v2 attendance (per-session records + ERP snapshots). Not written yet. |
 
 ---
 
