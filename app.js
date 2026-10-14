@@ -14,6 +14,8 @@ const KEY_CUSTOM_LINKS     = 'cos_custom_links';
 const KEY_ATTENDANCE          = 'cos_attendance';
 const KEY_ATTENDANCE_BASELINE = 'cos_attendance_baseline';
 const KEY_ATTENDANCE_LIVE     = 'cos_attendance_live';
+// Attendance v2 (per-session records + ERP snapshots). Not written yet.
+const KEY_ATTENDANCE_V2       = 'cos_attendance_v2';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -9208,6 +9210,318 @@ function computeMonthlyAttendance(sessionsBySubject = {}, monthKey, targetPct = 
     overall: computeErpPercent(cum.attended, cum.held, targetPct),
     monthOnly: computeErpPercent(mon.attended, mon.held, targetPct)
   };
+}
+
+// ── Attendance v2: conversion from the v1 stores ─────────────────
+// Step 2 of the attendance redesign. Pure: takes the three v1 stores
+// (cos_attendance, cos_attendance_baseline, cos_attendance_live) and the
+// timetable as arguments and never writes storage (it reads only the
+// attendance target, when opts.targetPct is not given), so it works the
+// same on device data and on an old backup file. Nothing calls it
+// yet; step 3 shows its report as a preview and saves the result.
+// What it guarantees (tests/verify_attendance_v2_migration.mjs):
+//  - nothing is lost: every v1 mark becomes a session or an unmatched
+//    mark, every +1 tap an adjustment or an unmatched tap;
+//  - a mark belongs to exactly one subject, matched by exact key, never
+//    by substring; labs are their own subjects;
+//  - a mark for a class that started before an ERP baseline was saved is
+//    kept as history but not added on top (the baseline already has it);
+//  - a baseline with no save date keeps the old "add on top" behaviour.
+function attV2CleanKey(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function attV2IsLab(rawName, type) {
+  return type === 'lab' || /\b(lab|laboratory|practical)\b/i.test(String(rawName || ''));
+}
+
+// One identity per subject: theory and its lab are two subjects
+// ("datastructures" and "datastructures__lab").
+function attV2SubjectIdentity(rawName, code, type) {
+  const lab = attV2IsLab(rawName, type);
+  const canonical = getCanonicalSubjectName(rawName) || String(rawName || code || '').trim();
+  const baseKey = getCanonicalSubjectKey(rawName) || attV2CleanKey(code);
+  if (!baseKey) return null;
+  const name = lab && !/\blab\b/i.test(canonical) ? `${canonical} Lab` : canonical;
+  return { id: lab ? `${baseKey}__lab` : baseKey, baseKey, name, kind: lab ? 'lab' : 'theory' };
+}
+
+// "DS_1000" -> "10:00"; "X_10:00" -> "10:00"; anything else -> null
+function attV2SlotFromKey(key) {
+  const tail = String(key || '').slice(String(key || '').lastIndexOf('_') + 1);
+  const m = tail.match(/^(\d{1,2}):?(\d{2})$/);
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
+}
+
+function attV2SessionStartMs(s) {
+  return new Date(`${s.date}T${s.slot || '00:00'}:00`).getTime();
+}
+
+// The baseline in force: the latest one with a save date, else the first.
+function attV2ActiveSnapshot(snaps = []) {
+  const dated = snaps.filter(s => s && s.asOf).sort((a, b) => Date.parse(a.asOf) - Date.parse(b.asOf));
+  return dated.length ? dated[dated.length - 1] : (snaps[0] || null);
+}
+
+// Reads the v1 stores out of an exported backup file (exportData shape).
+function attendanceV1FromBackup(data = {}) {
+  return {
+    attendance: data.attendance || {},
+    baselines: data.attendanceBaseline || {},
+    live: data.attendanceLive || {}
+  };
+}
+
+// One subject's totals in a v2 store: the baseline in force, plus the
+// sessions after it, plus undated +1 taps.
+function computeAttendanceV2SubjectTotals(store, subjectId, targetPct = getAttendanceTarget()) {
+  const active = attV2ActiveSnapshot((store.snapshots && store.snapshots[subjectId]) || []);
+  const asOfMs = active && active.asOf ? Date.parse(active.asOf) : null;
+  const counted = [];
+  let covered = 0;
+  Object.values(store.sessions || {}).forEach(s => {
+    if (!s || s.subjectId !== subjectId || s.deleted) return;
+    if (asOfMs !== null && attV2SessionStartMs(s) <= asOfMs) covered++;
+    else counted.push(s);
+  });
+  const t = tallyAttendanceSessions(counted);
+  const adj = (store.adjustments && store.adjustments[subjectId]) || null;
+  const adjPresent = adj ? attV2Int(adj.present) : 0;
+  const adjOther = adj ? attV2Int(adj.missed) + attV2Int(adj.leave) : 0;
+  const attended = t.attended + (active ? active.present : 0) + adjPresent;
+  const held = t.held + (active ? active.held : 0) + adjPresent + adjOther;
+  return {
+    subjectId,
+    attended,
+    held,
+    percent: computeErpPercent(attended, held, targetPct),
+    planned: active ? active.planned : null,
+    odPending: t.odPending,
+    baselineKey: active ? active.key : null,
+    legacyBaseline: !!(active && !active.asOf),
+    coveredByBaseline: covered,
+    countedSessions: counted.length,
+    undatedTaps: adj ? { present: adjPresent, missed: attV2Int(adj.missed), leave: attV2Int(adj.leave) } : null
+  };
+}
+
+function buildAttendanceV2FromV1(v1 = {}, timetable = {}, opts = {}) {
+  const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+  const attendance = isObj(v1.attendance) ? v1.attendance : {};
+  const baselines = isObj(v1.baselines) ? v1.baselines : {};
+  const live = isObj(v1.live) ? v1.live : {};
+  const targetPct = opts.targetPct || getAttendanceTarget();
+
+  const subjects = {};
+  const aliasToIds = {};
+  const addAlias = (alias, id) => {
+    const a = attV2CleanKey(alias);
+    if (a) (aliasToIds[a] = aliasToIds[a] || new Set()).add(id);
+  };
+  const ensureSubject = (rawName, code, type) => {
+    const ident = attV2SubjectIdentity(rawName, code, type);
+    if (!ident) return null;
+    if (!subjects[ident.id]) subjects[ident.id] = { id: ident.id, name: ident.name, code: '', kind: ident.kind, parentId: null, aliases: [] };
+    const s = subjects[ident.id];
+    const cleanCode = String(code || '').trim();
+    if (!s.code && cleanCode) s.code = cleanCode;
+    addAlias(rawName, s.id);
+    addAlias(code, s.id);
+    addAlias(ident.name, s.id);
+    return s;
+  };
+
+  // 1. Timetable: exact (weekday, code+time) keys, the same ones marks use.
+  const slotByDay = {};
+  const slotAny = {};
+  Object.keys(isObj(timetable) ? timetable : {}).forEach(day => {
+    (Array.isArray(timetable[day]) ? timetable[day] : []).forEach(c => {
+      if (!c || !c.subject || !isTeachingClass(c)) return;
+      const s = ensureSubject(c.subject, c.code, c.type);
+      if (!s) return;
+      const k = attendanceKeyFor(c);
+      addAlias(k.slice(0, k.lastIndexOf('_')), s.id);
+      (slotByDay[day] = slotByDay[day] || {})[k] = s.id;
+      (slotAny[k] = slotAny[k] || new Set()).add(s.id);
+    });
+  });
+
+  // 2. Baselines become ERP snapshots. Classes counted = present + absent
+  // + leave (the ERP's Total Count); Not Entered is already inside Absent
+  // there, so it is kept for display only and never added again.
+  const snapshots = {};
+  const unmatchedBaselines = [];
+  Object.keys(baselines).forEach(key => {
+    const b = baselines[key];
+    if (!isObj(b)) return;
+    const s = ensureSubject(String(b.subjectName || key).trim(), b.subjectCode || '', b.classType);
+    if (!s) { unmatchedBaselines.push({ key, ...b }); return; }
+    addAlias(key, s.id);
+    const present = attV2Int(b.present), absent = attV2Int(b.absent), leave = attV2Int(b.leave);
+    const at = Date.parse(b.updatedAt || '');
+    (snapshots[s.id] = snapshots[s.id] || []).push({
+      key,
+      asOf: Number.isFinite(at) ? new Date(at).toISOString() : null,
+      present, absent, leave,
+      notEntered: attV2Int(b.notEntered),
+      held: present + absent + leave,
+      planned: attV2Int(b.totalSessions) || null,
+      source: 'baseline'
+    });
+  });
+
+  Object.values(subjects).forEach(s => {
+    if (s.kind === 'lab') {
+      const theoryId = s.id.replace(/__lab$/, '');
+      if (subjects[theoryId]) s.parentId = theoryId;
+    }
+  });
+
+  // A shared alias (a lab and its theory with the same code) is only
+  // resolved when the text itself says "lab"; otherwise it stays unmatched.
+  const resolveAlias = (text) => {
+    const ids = aliasToIds[attV2CleanKey(text)];
+    if (!ids || ids.size === 0) return null;
+    if (ids.size === 1) return [...ids][0];
+    const wantLab = /lab|practical/i.test(String(text));
+    const pick = [...ids].filter(id => id.endsWith('__lab') === wantLab);
+    return pick.length === 1 && wantLab ? pick[0] : null;
+  };
+  const knownList = Object.values(subjects).map(s => ({ name: s.name, code: s.code }));
+  const resolveMark = (date, key) => {
+    const wd = String(new Date(`${date}T00:00:00`).getDay());
+    if (slotByDay[wd] && slotByDay[wd][key]) return slotByDay[wd][key];
+    if (slotAny[key] && slotAny[key].size === 1) return [...slotAny[key]][0];
+    const cut = key.lastIndexOf('_');
+    const prefix = cut > 0 ? key.slice(0, cut) : key;
+    const byAlias = resolveAlias(prefix);
+    if (byAlias) return byAlias;
+    if (aliasToIds[attV2CleanKey(prefix)]) return null;   // ambiguous: leave for the student
+    // A codeless key keeps the class name with spaces stripped: "DSLab".
+    const direct = attV2SubjectIdentity(prefix.replace(/(lab|practical)$/i, ' $1'), '', null);
+    if (direct && subjects[direct.id]) return direct.id;
+    // Last resort: the same name/code normalisation the Declutter remap uses.
+    const norm = normalizeSubjectIdentity(prefix, knownList);
+    if (!norm || !norm.canonicalName || norm.canonicalName === 'General Subject') return null;
+    const type = /lab|practical/i.test(prefix) ? 'lab' : norm.classType;
+    const ident = attV2SubjectIdentity(norm.canonicalName, norm.canonicalCode, type);
+    return ident && subjects[ident.id] ? ident.id : null;
+  };
+
+  // 3. Daily marks become dated sessions (one per class; id = date + key).
+  const sessions = {};
+  const unmatchedMarks = [];
+  let v1Marks = 0;
+  Object.keys(attendance).sort().forEach(date => {
+    const day = attendance[date];
+    if (!isObj(day)) return;
+    Object.keys(day).sort().forEach(key => {
+      const raw = day[key];
+      v1Marks++;
+      const status = raw === 'attended' ? 'present' : raw === 'skipped' ? 'absent' : null;
+      const subjectId = status && /^\d{4}-\d{2}-\d{2}$/.test(date) ? resolveMark(date, key) : null;
+      if (!subjectId) { unmatchedMarks.push({ date, key, status: raw }); return; }
+      const id = `${date}_${key}`;
+      sessions[id] = { id, date, subjectId, slot: attV2SlotFromKey(key), status, count: 1, source: 'migrated', v1Key: key };
+    });
+  });
+
+  // 4. +1 / Missed / Leave taps: undated, so kept as adjustments, flagged.
+  const adjustments = {};
+  const unmatchedTaps = [];
+  let v1Taps = 0;
+  Object.keys(live).forEach(key => {
+    const v = live[key];
+    if (!isObj(v)) return;
+    const present = attV2Int(v.present), missed = attV2Int(v.missed), leave = attV2Int(v.leave);
+    if (!present && !missed && !leave) return;
+    v1Taps += present + missed + leave;
+    const id = resolveAlias(key);
+    if (!id) { unmatchedTaps.push({ key, present, missed, leave }); return; }
+    const a = adjustments[id] = adjustments[id] || { present: 0, missed: 0, leave: 0, source: 'live' };
+    a.present += present; a.missed += missed; a.leave += leave;
+  });
+
+  Object.keys(aliasToIds).sort().forEach(alias => {
+    aliasToIds[alias].forEach(id => { if (subjects[id]) subjects[id].aliases.push(alias); });
+  });
+
+  const store = {
+    schemaVersion: 2,
+    migratedAt: opts.now || new Date().toISOString(),
+    subjects,
+    sessions,
+    snapshots,
+    adjustments,
+    unmatched: { marks: unmatchedMarks, taps: unmatchedTaps, baselines: unmatchedBaselines },
+    profile: { target: targetPct }
+  };
+
+  // Report for the step-3 preview: new numbers per subject and why.
+  const perSubject = {};
+  const tallies = [];
+  Object.keys(subjects).forEach(id => {
+    const t = computeAttendanceV2SubjectTotals(store, id, targetPct);
+    const active = attV2ActiveSnapshot(snapshots[id] || []);
+    perSubject[id] = {
+      name: subjects[id].name,
+      kind: subjects[id].kind,
+      ...t,
+      ignoredBaselines: (snapshots[id] || []).filter(s => s !== active).map(s => s.key)
+    };
+    tallies.push(t);
+  });
+  const keptTaps = Object.values(adjustments).reduce((n, a) => n + a.present + a.missed + a.leave, 0);
+  const report = {
+    subjects: perSubject,
+    overall: computeOverallErpPercent(tallies, targetPct),
+    counts: {
+      v1Marks,
+      sessions: Object.keys(sessions).length,
+      unmatchedMarks: unmatchedMarks.length,
+      v1Taps,
+      keptTaps,
+      unmatchedTaps: unmatchedTaps.reduce((n, t) => n + t.present + t.missed + t.leave, 0)
+    },
+    unmatched: store.unmatched
+  };
+  return { store, report };
+}
+
+// Decision 3: a device still on the old version keeps writing v1 marks.
+// Adds any v1 mark whose session id the v2 store does not have yet; never
+// changes or removes an existing session. Pure: returns a new store.
+function mergeV1MarksIntoV2(store, v1 = {}, timetable = {}) {
+  const next = JSON.parse(JSON.stringify(store || {}));
+  next.sessions = next.sessions || {};
+  next.unmatched = next.unmatched || { marks: [], taps: [], baselines: [] };
+  next.unmatched.marks = next.unmatched.marks || [];
+  const fresh = buildAttendanceV2FromV1({ attendance: v1.attendance }, timetable, { now: next.migratedAt, targetPct: next.profile && next.profile.target });
+  let added = 0;
+  Object.values(fresh.store.sessions).forEach(s => {
+    if (next.sessions[s.id]) return;
+    next.subjects = next.subjects || {};
+    if (!next.subjects[s.subjectId]) next.subjects[s.subjectId] = fresh.store.subjects[s.subjectId];
+    next.sessions[s.id] = s;
+    added++;
+  });
+  const seen = new Set(next.unmatched.marks.map(m => `${m.date}_${m.key}`));
+  fresh.store.unmatched.marks.forEach(m => {
+    if (seen.has(`${m.date}_${m.key}`) || next.sessions[`${m.date}_${m.key}`]) return;
+    next.unmatched.marks.push(m);
+    added++;
+  });
+  return { store: next, added };
+}
+
+// Storage helpers for step 3. Nothing calls them yet.
+function loadAttendanceV2() {
+  const s = safeGetStorage(KEY_ATTENDANCE_V2, null);
+  return s && typeof s === 'object' && s.schemaVersion === 2 ? s : null;
+}
+
+function saveAttendanceV2(store) {
+  safeSetStorage(KEY_ATTENDANCE_V2, store);
 }
 
 function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
