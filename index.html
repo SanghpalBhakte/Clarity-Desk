@@ -413,11 +413,18 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
 
 <!-- Firebase Config & App Script -->
-<!-- Optional local-only file (gitignored, not deployed by default) that
-     sets window.ENV.GEMINI_API_KEY/GROQ_API_KEY before firebase-config.js
-     reads them -- see firebase-config.local.example.js. A 404 here if the
-     file doesn't exist is harmless and silent. -->
-<script src="firebase-config.local.js" onerror="this.remove()"></script>
+<!-- Optional local-only file (gitignored and in firebase.json's hosting
+     ignore list, so it never deploys) that sets window.ENV.GEMINI_API_KEY/
+     GROQ_API_KEY before firebase-config.js reads them -- see
+     firebase-config.local.example.js. Requested on localhost/127.0.0.1 only:
+     on the live site the "**" rewrite would answer it with index.html and the
+     browser logs a MIME-type error. document.write keeps it a blocking script
+     that runs before firebase-config.js. A missing file locally just 404s. -->
+<script>
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    document.write('<script src="firebase-config.local.js" onerror="this.remove()"><\/script>');
+  }
+</script>
 <script src="firebase-config.js?v=179"></script>
 <script type="module" src="app.js?v=179"></script>
 

@@ -17,13 +17,13 @@ import { fileURLToPath } from 'url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RUNTIME_FILES = [
   '404.html', 'index.html', 'app.js', 'data.js', 'style.css', 'sw.js', 'manifest.json',
-  'firebase-config.js', 'firebase-config.local.js',
+  'firebase-config.js',
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
   'og-image.png'
 ];
-// firebase-config.local.js is gitignored, so a fresh clone may not have it.
-const OPTIONAL = new Set(['firebase-config.local.js']);
+// Runtime files a fresh clone may legitimately lack (none at the moment).
+const OPTIONAL = new Set();
 
 const hosting = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8')).hosting;
 const ignore = ['**/firebase-debug.log', '**/firebase-debug.*.log', '.firebase/*', ...hosting.ignore];
@@ -79,7 +79,8 @@ scenario('Every runtime file is published', () => {
   return missing.length === 0 ? true : `would NOT publish: ${missing.join(', ')}`;
 });
 scenario('.git, internal notes, test kits and tests are never published', () => {
-  const leaks = ['.git/config', 'PROJECT_MEMORY.md', 'CLAUDE.md', 'timetable-test-kit/README.md', 'timetable-test-kit.zip', 'tests/verify_master.mjs', 'ai-proxy/.dev.vars', 'playwright-report/index.html']
+  // firebase-config.local.js may hold AI keys; it must never deploy again.
+  const leaks = ['firebase-config.local.js', '.git/config', 'PROJECT_MEMORY.md', 'CLAUDE.md', 'timetable-test-kit/README.md', 'timetable-test-kit.zip', 'tests/verify_master.mjs', 'ai-proxy/.dev.vars', 'playwright-report/index.html']
     .filter(p => !matchers.some(match => match(p)));
   return leaks.length === 0 ? true : `these would be public: ${leaks.join(', ')}`;
 });
