@@ -16,6 +16,8 @@ const KEY_ATTENDANCE_BASELINE = 'cos_attendance_baseline';
 const KEY_ATTENDANCE_LIVE     = 'cos_attendance_live';
 // Attendance v2 (per-session records + ERP snapshots). Not written yet.
 const KEY_ATTENDANCE_V2       = 'cos_attendance_v2';
+// Local-only (never synced): which attendance math this device shows.
+const KEY_ATT_V2_STATE        = 'cos_att_v2_state';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -4621,7 +4623,7 @@ window.confirmSaveExtractedTimetable = function() {
   // or a corrected timetable), and that old mark would silently reappear as
   // already-answered on the new class with no way for the student to tell.
   // Clear it so present/absent is always the student's own choice on a
-  // freshly confirmed schedule. Only future-facing (today onward) so
+  // freshly confirmed schedule. Only future-facing (tomorrow onward) so
   // real, already-happened attendance history is never touched.
   clearUpcomingAttendanceForNewSchedule(newTT);
 
@@ -5455,9 +5457,17 @@ function checkScheduledNotifications() {
       }
     });
     const totalMarked = totalAttended + totalSkipped;
-    const pct = totalMarked > 0 ? Math.round((totalAttended / totalMarked) * 100) : null;
+    let pct = totalMarked > 0 ? Math.round((totalAttended / totalMarked) * 100) : null;
+    let below = pct !== null && pct < getAttendanceTarget();
+    // v2: the same overall % the app shows (baselines and labs included,
+    // exact comparison), not the daily marks alone.
+    if (isAttendanceV2Active()) {
+      const o = getOverallAttendanceV2();
+      pct = o.pctLabel;
+      below = o.isSafe === false;
+    }
 
-    if (pct !== null && pct < getAttendanceTarget()) {
+    if (below) {
       const attKey = `att_warning_${today}`;
       if (!notifiedMap[attKey]) {
         dispatchNotification(`Attendance Alert: ${pct}%`, {
@@ -6428,12 +6438,12 @@ function getAttendanceTarget() {
 // Builds a situation-aware context line for the dashboard masthead.
 // Priority: attendance risk > overdue tasks > exam imminent > normal > all clear.
 function buildDashboardContextLine(opts = {}) {
-  const { attendancePct, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, firstName, dayClasses } = opts;
+  const { attendancePct, attendancePctLabel, attendanceAtRisk, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, firstName, dayClasses } = opts;
   const isWeekend = dayClasses !== undefined && dayClasses.length === 0;
 
   // Attendance at risk — highest urgency, surfaces immediately
-  if (attendancePct !== null && attendancePct < attTarget) {
-    return `Attendance at <strong>${attendancePct}%</strong>, below your ${attTarget}% target. Try not to miss today's classes.`;
+  if (attendanceAtRisk ?? (attendancePct !== null && attendancePct < attTarget)) {
+    return `Attendance at <strong>${attendancePctLabel ?? attendancePct}%</strong>, below your ${attTarget}% target. Try not to miss today's classes.`;
   }
 
   // Overdue tasks — second priority
@@ -6515,7 +6525,7 @@ function buildTodayFocus(o = {}) {
       return {
         kind: 'risk', id, go: 'Open', subject: riskSubject.name,
         title: `Attend the next ${n} ${riskSubject.name} class${n === 1 ? '' : 'es'}`,
-        sub: `Now ${riskSubject.pct}%, target ${riskSubject.targetPct}%`
+        sub: `Now ${riskSubject.pctLabel ?? riskSubject.pct}%, target ${riskSubject.targetPct}%`
       };
     }
   }
@@ -6548,7 +6558,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       const att = getSubjectAttendance(sj);
       if (att.pct === null || att.isSafe) return;
       if (!riskSubject || att.exactPct < riskSubject.exactPct) {
-        riskSubject = { name: sj.name, pct: att.pct, exactPct: att.exactPct, targetPct: att.targetPct, classesToAttend: att.classesToAttend };
+        riskSubject = { name: sj.name, pct: att.pct, pctLabel: att.pctLabel, exactPct: att.exactPct, targetPct: att.targetPct, classesToAttend: att.classesToAttend };
       }
     });
     const f = buildTodayFocus({ dayClasses, attendanceData, dateStr, currentMin, task, riskSubject, dismissed: readDismissedFocus() });
@@ -6640,8 +6650,9 @@ function saveTimetable(ttMap) {
 // Walks today's week and several weeks ahead (attendance can be viewed and
 // marked for future weeks too, via setAttendanceWeekOffset) and deletes any
 // stored attendance mark whose (date, code+time) key is about to be
-// reused by the just-confirmed schedule -- never touches a date before
-// today, so no already-happened attendance/streak history is lost.
+// reused by the just-confirmed schedule -- never touches today or a date
+// before it, so no already-happened attendance/streak history is lost
+// (it used to include today, wiping marks taken that morning).
 function clearUpcomingAttendanceForNewSchedule(newTT) {
   const attendanceData = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   const todayKey = todayStr();
@@ -6650,7 +6661,7 @@ function clearUpcomingAttendanceForNewSchedule(newTT) {
   for (let weekOffset = 0; weekOffset < 8; weekOffset++) {
     getWeekDays(weekOffset).forEach(dateObj => {
       const dateStr = localDateKey(dateObj);
-      if (dateStr < todayKey) return;
+      if (dateStr <= todayKey) return;
       const existing = attendanceData[dateStr];
       if (!existing) return;
 
@@ -7169,6 +7180,7 @@ function renderReview() {
 // ── Weekly Attendance Helper Functions ───────────────────────
 function calculateSmartAttendanceGuidance(totalAttended, totalSkipped, targetPct = getAttendanceTarget()) {
   const totalMarked = totalAttended + totalSkipped;
+  if (totalMarked > 0 && isAttendanceV2Active()) return calculateSmartAttendanceGuidanceV2(totalAttended, totalSkipped, targetPct);
   if (totalMarked === 0) {
     return {
       totalAttended: 0,
@@ -7214,6 +7226,43 @@ function calculateSmartAttendanceGuidance(totalAttended, totalSkipped, targetPct
     totalSkipped,
     totalMarked,
     pct,
+    isSafe,
+    statusZone: isSafe ? 'Safe Zone' : 'Risk Zone',
+    classesToAttend,
+    safeSkips,
+    message,
+    badgeLabel: isSafe ? 'Safe Zone ✅' : 'Risk Zone ⚠️',
+    badgeColor: isSafe ? 'var(--green)' : 'var(--red)'
+  };
+}
+
+// The same guidance on the ERP-exact numbers: 2-decimal %, and "safe"
+// from the exact fraction (74.50% is below 75%).
+function calculateSmartAttendanceGuidanceV2(totalAttended, totalSkipped, targetPct) {
+  const totalMarked = totalAttended + totalSkipped;
+  const p = computeErpPercent(totalAttended, totalMarked, targetPct);
+  const g = computeNowGuidance(totalAttended, totalMarked, targetPct);
+  const isSafe = p.isSafe === true;
+  const classesToAttend = isSafe ? 0 : (g.classesToAttend || 0);
+  const safeSkips = isSafe ? (g.safeSkips || 0) : 0;
+  let message;
+  if (!isSafe) {
+    message = !g.reachable
+      ? `You are in the <strong>Risk Zone</strong> (${p.display}%). ${targetPct}% can't be reached by attending more classes.`
+      : classesToAttend > 60
+        ? `You are in the <strong>Risk Zone</strong> (${p.display}%). Reaching ${targetPct}% would take <strong>${classesToAttend}</strong> classes in a row, so attend every class from now on and check your counts in Subjects for duplicates.`
+        : `You are in the <strong>Risk Zone</strong> (${p.display}%). Attend the next <strong>${classesToAttend} class${classesToAttend !== 1 ? 'es' : ''}</strong> continuously to reach the ${targetPct}% target.`;
+  } else if (safeSkips > 0) {
+    message = `You are in the <strong>Safe Zone</strong> (${p.display}%). You can safely skip up to <strong>${safeSkips} class${safeSkips !== 1 ? 'es' : ''}</strong> without dropping below ${targetPct}%.`;
+  } else {
+    message = `You are on target at <strong>${p.display}%</strong>. Attend your next class to build a safe skip buffer!`;
+  }
+  return {
+    totalAttended,
+    totalSkipped,
+    totalMarked,
+    pct: p.pct,
+    pctLabel: p.display,
     isSafe,
     statusZone: isSafe ? 'Safe Zone' : 'Risk Zone',
     classesToAttend,
@@ -7390,7 +7439,7 @@ function renderWeeklyAttendanceTracker() {
     `;
   }
 
-  const guidance = calculateSmartAttendanceGuidance(totalAttended, totalSkipped, 75);
+  const guidance = calculateSmartAttendanceGuidance(totalAttended, totalSkipped, isAttendanceV2Active() ? getAttendanceTarget() : 75);
   const streak = calculateAttendanceStreak();
 
   const subjectBreakdownHTML = Object.keys(subjectStats).map(subj => {
@@ -7434,7 +7483,7 @@ function renderWeeklyAttendanceTracker() {
             <div style="font-size:var(--text-xs);color:var(--text-muted)">Absent</div>
           </div>
           <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? guidance.pct + '%' : '0%'}</div>
+            <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? (guidance.pctLabel ?? guidance.pct) + '%' : '0%'}</div>
             <div style="font-size:var(--text-xs);color:var(--text-muted)">Current Rate</div>
           </div>
           <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
@@ -7913,8 +7962,12 @@ function renderDashboard() {
   const totalSkipped = overallAtt.skipped;
   const totalMarked = overallAtt.total;
   const attendancePct = overallAtt.pct;
+  const attendancePctLabel = overallAtt.pctLabel ?? attendancePct;
   const attTarget = getAttendanceTarget();
-  const isAttendanceAtRisk = attendancePct !== null && attendancePct < attTarget;
+  // v2 decides from the exact fraction (a 2-decimal value can round up to the target).
+  const isAttendanceAtRisk = overallAtt.pctLabel
+    ? overallAtt.isSafe === false
+    : attendancePct !== null && attendancePct < attTarget;
   const dashGuidance = calculateSmartAttendanceGuidance(totalAttended, totalSkipped, attTarget);
 
   // Active class (now) or next class
@@ -7961,6 +8014,8 @@ function renderDashboard() {
   // Situation-aware context line replacing the generic sub-greeting
   const contextLine = buildDashboardContextLine({
     attendancePct,
+    attendancePctLabel,
+    attendanceAtRisk: isAttendanceAtRisk,
     attTarget,
     overdue,
     pending,
@@ -8027,7 +8082,7 @@ function renderDashboard() {
   }
   tickerItems.push(`<span class="desk-ticker-item" style="color:${overdue > 0 ? 'var(--red)' : 'inherit'}">${pending} pending task${pending !== 1 ? 's' : ''}${overdue > 0 ? ` (${overdue} overdue)` : ''}</span>`);
   if (attendancePct !== null) {
-    tickerItems.push(`<span class="desk-ticker-item" style="color:${isAttendanceAtRisk ? 'var(--red)' : 'var(--green)'}">Attendance: ${attendancePct}% (${dashGuidance.isSafe ? 'Safe' : 'Action needed'})</span>`);
+    tickerItems.push(`<span class="desk-ticker-item" style="color:${isAttendanceAtRisk ? 'var(--red)' : 'var(--green)'}">Attendance: ${attendancePctLabel}% (${dashGuidance.isSafe ? 'Safe' : 'Action needed'})</span>`);
   }
   if (countdownText) {
     tickerItems.push(`<span class="desk-ticker-item">${icons.target()} ${countdownText}</span>`);
@@ -8055,7 +8110,7 @@ function renderDashboard() {
   vitalsTiles.push(`
     <div class="vitals-tile" onclick="${attendancePct !== null ? "navigateTo('review')" : "showBaselineModal(null, 'manual')"}" title="View Attendance Guidance">
       <div class="vitals-label">Attendance</div>
-      <div class="vitals-value" style="${attendancePct !== null ? `color:var(${isAttendanceAtRisk ? '--red' : '--green'})` : ''}">${attendancePct !== null ? `${attendancePct}%` : '—'}</div>
+      <div class="vitals-value" style="${attendancePct !== null ? `color:var(${isAttendanceAtRisk ? '--red' : '--green'})` : ''}">${attendancePct !== null ? `${attendancePctLabel}%` : '—'}</div>
       <div class="vitals-sub">${attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : (isAttendanceAtRisk ? `Below ${attTarget}% target` : 'Needs attention')) : 'Not set'}</div>
     </div>
   `);
@@ -8395,7 +8450,7 @@ function renderDashboard() {
           </div>
           <div>
             <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : ''}" style="margin-bottom:2px">
-              ${attendancePct !== null ? `${attendancePct}%` : '—'}
+              ${attendancePct !== null ? `${attendancePctLabel}%` : '—'}
             </div>
             <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
             ${attendancePct !== null ? `
@@ -8948,7 +9003,7 @@ function undoSubjectAttendanceAction(subjectKey) {
   renderPage(state.currentPage);
 }
 
-function getSubjectAttendance(subjItem) {
+function getSubjectAttendanceV1(subjItem) {
   const attendanceData = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   let dailyAttended = 0;
   let dailySkipped = 0;
@@ -9048,7 +9103,7 @@ function getSubjectAttendance(subjItem) {
   };
 }
 
-function getOverallAttendance() {
+function getOverallAttendanceV1() {
   const subjects = getSubjectList();
   let totalAttended = 0;
   let totalCount = 0;
@@ -9057,7 +9112,7 @@ function getOverallAttendance() {
   // Matches the ERP's totals row: total present / every session held,
   // "Not Entered" included (unlike the per-course percentage above).
   subjects.forEach(s => {
-    const att = getSubjectAttendance(s);
+    const att = getSubjectAttendanceV1(s);
     if (att.held > 0) {
       totalAttended += att.attended;
       totalCount += att.held;
@@ -9523,6 +9578,289 @@ function loadAttendanceV2() {
 function saveAttendanceV2(store) {
   safeSetStorage(KEY_ATTENDANCE_V2, store);
 }
+
+// ── Attendance v2: the screens switch over (step 3a) ─────────────
+// The v2 numbers are derived from the v1 stores on every read (cached on
+// their raw stored text), so saving, sync, backup and devices still on
+// the old version are all unchanged. Which math the screens use is this
+// device's choice, kept in KEY_ATT_V2_STATE (local, never synced):
+// { mode: 'v2' | 'v1', decidedAt }. No entry yet: a student with
+// attendance data stays on v1 and is shown the preview; one with no data
+// starts on v2. getSubjectAttendance / getOverallAttendance keep their
+// return shape, so every screen that calls them follows automatically.
+function loadAttV2State() {
+  const s = safeGetStorage(KEY_ATT_V2_STATE, null);
+  return s && typeof s === 'object' && (s.mode === 'v2' || s.mode === 'v1') ? s : null;
+}
+
+function saveAttV2State(mode) {
+  safeSetStorage(KEY_ATT_V2_STATE, { mode, decidedAt: new Date().toISOString() });
+}
+
+function hasV1AttendanceData() {
+  const nonEmpty = (v) => !!v && typeof v === 'object' && Object.keys(v).length > 0;
+  return nonEmpty(safeGetStorage(KEY_ATTENDANCE, null))
+    || nonEmpty(safeGetStorage(KEY_ATTENDANCE_BASELINE, null))
+    || nonEmpty(safeGetStorage(KEY_ATTENDANCE_LIVE, null));
+}
+
+function isAttendanceV2Active() {
+  const st = loadAttV2State();
+  if (st) return st.mode === 'v2';
+  return !hasV1AttendanceData();
+}
+
+let attV2Cache = { sig: null, value: null };
+function getAttendanceV2Derived() {
+  let sig = '';
+  try {
+    sig = [KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE, KEY_ATT_TARGET]
+      .map(k => localStorage.getItem(k) || '').join('\u0001');
+  } catch (e) { sig = null; }
+  if (sig !== null && attV2Cache.sig === sig) return attV2Cache.value;
+  const value = buildAttendanceV2FromV1({
+    attendance: safeGetStorage(KEY_ATTENDANCE, {}) || {},
+    baselines: loadAttendanceBaselines(),
+    live: loadLiveAttendanceActions()
+  }, loadTimetable(), { now: 'derived', targetPct: getAttendanceTarget() });
+  attV2Cache = { sig, value };
+  return value;
+}
+
+// A Subject Hub card (getSubjectList merges a lab into its theory card)
+// -> the v2 subject whose numbers it shows: the theory, or the lab when
+// the card only has a lab.
+function attV2IdForSubject(subjItem, derived) {
+  if (!subjItem) return null;
+  const subs = derived.store.subjects;
+  const ident = attV2SubjectIdentity(subjItem.name || subjItem.code || '', subjItem.code || '', null);
+  if (ident && subs[ident.id]) return ident.id;
+  if (ident && subs[`${ident.baseKey}__lab`]) return `${ident.baseKey}__lab`;
+  const code = attV2CleanKey(subjItem.code);
+  if (!code) return null;
+  const hits = Object.values(subs).filter(s => s.aliases.includes(code));
+  const theory = hits.filter(s => s.kind !== 'lab');
+  if (hits.length === 1) return hits[0].id;
+  return theory.length === 1 ? theory[0].id : null;
+}
+
+function attV2InsightMessage(pct, display, isSafe, g, target) {
+  if (pct === null) return '';
+  if (isSafe) {
+    return g.safeSkips > 0
+      ? `Can safely miss ${g.safeSkips} class${g.safeSkips !== 1 ? 'es' : ''} · Target: ${target}%`
+      : `On target at ${display}% · Attend next class to build buffer`;
+  }
+  return g.reachable
+    ? `Need to attend ${g.classesToAttend} class${g.classesToAttend !== 1 ? 'es' : ''} continuously to reach ${target}%`
+    : `${target}% can't be reached by attending more classes`;
+}
+
+// Same shape as getSubjectAttendanceV1, from the v2 numbers. `pct` is the
+// ERP's 2-decimal value; `pctLabel` is its text ("60.00"); `labPart` is
+// the linked lab's own result when this card is a theory subject.
+function attV2ResultFor(derived, id, subjItem, withLab = true) {
+  const target = getAttendanceTarget();
+  const baseline = getSubjectBaseline(subjItem);
+  const liveAdj = getSubjectLiveActions(subjItem);
+  const r = id ? derived.report.subjects[id] : null;
+  if (!r) {
+    return {
+      present: 0, absent: 0, leave: 0, notEntered: 0, attended: 0, skipped: 0, total: 0, held: 0,
+      pct: null, exactPct: null, pctLabel: null, isSafe: null, statusLine: 'Attendance not set yet',
+      insightMessage: '', safeSkips: 0, classesToAttend: 0, targetPct: target, baseline, liveAdj,
+      dailyAttended: 0, dailySkipped: 0, hasBaseline: baseline.hasBaseline, hasAnyData: baseline.hasBaseline,
+      v2Id: null, labPart: null
+    };
+  }
+  const snap = attV2ActiveSnapshot(derived.store.snapshots[id] || []);
+  const adj = derived.store.adjustments[id];
+  const leave = (snap ? snap.leave : 0) + (adj ? attV2Int(adj.leave) : 0);
+  const asOfMs = snap && snap.asOf ? Date.parse(snap.asOf) : null;
+  const counted = Object.values(derived.store.sessions).filter(s => s.subjectId === id && !(asOfMs !== null && attV2SessionStartMs(s) <= asOfMs));
+  const daily = tallyAttendanceSessions(counted);
+  const p = computeErpPercent(r.attended, r.held, target);
+  const g = computeNowGuidance(r.attended, r.held, target);
+  const labId = `${id}__lab`;
+  return {
+    present: r.attended,
+    absent: Math.max(0, r.held - r.attended - leave),
+    leave,
+    notEntered: snap ? snap.notEntered : 0,
+    attended: r.attended,
+    skipped: r.held - r.attended,
+    total: r.held,
+    held: r.held,
+    pct: p.pct,
+    exactPct: p.pct,
+    pctLabel: p.display,
+    isSafe: p.isSafe,
+    statusLine: p.pct === null ? 'Attendance not set yet' : p.isSafe ? 'Safe Zone' : 'Needs Recovery',
+    insightMessage: attV2InsightMessage(p.pct, p.display, p.isSafe, g, target),
+    safeSkips: g.safeSkips || 0,
+    classesToAttend: g.classesToAttend || 0,
+    targetPct: target,
+    baseline,
+    liveAdj,
+    dailyAttended: daily.attended,
+    dailySkipped: daily.held - daily.attended,
+    hasBaseline: baseline.hasBaseline,
+    hasAnyData: baseline.hasBaseline || r.held > 0,
+    v2Id: id,
+    labPart: withLab && !id.endsWith('__lab') && derived.report.subjects[labId] && derived.report.subjects[labId].held > 0
+      ? attV2ResultFor(derived, labId, subjItem, false) : null
+  };
+}
+
+function getSubjectAttendanceV2(subjItem) {
+  const derived = getAttendanceV2Derived();
+  return attV2ResultFor(derived, attV2IdForSubject(subjItem, derived), subjItem);
+}
+
+// The ERP totals row: every subject, labs included (hidden and garbled
+// subjects left out, as getSubjectList leaves them out).
+function getOverallAttendanceV2() {
+  const d = getAttendanceV2Derived();
+  const hidden = new Set(safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || []);
+  const tallies = Object.values(d.report.subjects).filter(r => {
+    const s = d.store.subjects[r.subjectId];
+    return !hidden.has(r.subjectId.replace(/__lab$/, '')) && !isLikelyGarbledSubjectName(s.name);
+  });
+  const o = computeOverallErpPercent(tallies, getAttendanceTarget());
+  return {
+    attended: o.attended,
+    skipped: o.held - o.attended,
+    total: o.held,
+    pct: o.pct,
+    exactPct: o.pct,
+    pctLabel: o.display,
+    isSafe: o.isSafe,
+    hasAnyData: o.held > 0
+  };
+}
+
+function getSubjectAttendance(subjItem) {
+  return isAttendanceV2Active() ? getSubjectAttendanceV2(subjItem) : getSubjectAttendanceV1(subjItem);
+}
+
+function getOverallAttendance() {
+  return isAttendanceV2Active() ? getOverallAttendanceV2() : getOverallAttendanceV1();
+}
+
+// A fresh ERP scan already counts the +1 taps made before it, so it
+// replaces them (v2 only; on v1 nothing changes).
+function clearUndatedTapsCoveredBy(rows = []) {
+  if (!isAttendanceV2Active()) return 0;
+  const live = loadLiveAttendanceActions();
+  const ids = new Set(), aliases = new Set();
+  rows.forEach(({ name, code }) => {
+    const ident = attV2SubjectIdentity(name || code || '', code || '', null);
+    if (ident) ids.add(ident.id);
+    [name, code].forEach(x => { const c = attV2CleanKey(x); if (c) aliases.add(c); });
+  });
+  let cleared = 0;
+  Object.keys(live).forEach(k => {
+    const ident = attV2SubjectIdentity(k, k, null);
+    if ((ident && ids.has(ident.id)) || aliases.has(attV2CleanKey(k))) { delete live[k]; cleared++; }
+  });
+  if (cleared) saveLiveAttendanceActions(live);
+  return cleared;
+}
+
+// ── The one-time preview ─────────────────────────────────────────
+function attV2ChangeReasons(r, oldPct, derived) {
+  const reasons = [];
+  if (!r) return reasons;
+  if (r.coveredByBaseline > 0) {
+    const n = r.coveredByBaseline;
+    reasons.push(`${n} class${n !== 1 ? 'es' : ''} you marked before your ERP scan ${n !== 1 ? 'are' : 'is'} already in it, so not counted twice`);
+  }
+  if (r.ignoredBaselines && r.ignoredBaselines.length) reasons.push('Uses your newest ERP scan, not an older one');
+  if (derived.report.subjects[`${r.subjectId}__lab`]) reasons.push('Lab classes now have their own %, as on the ERP');
+  if (!reasons.length && oldPct !== r.percent.pct) reasons.push('Each class is now counted for one subject only');
+  return reasons;
+}
+
+function buildAttendanceV2PreviewData() {
+  const d = getAttendanceV2Derived();
+  const rows = [];
+  const seen = new Set();
+  getSubjectList().forEach(s => {
+    const oldA = getSubjectAttendanceV1(s);
+    const id = attV2IdForSubject(s, d);
+    const r = id ? d.report.subjects[id] : null;
+    if (id) seen.add(id);
+    const newPct = r ? r.percent.pct : null;
+    if (oldA.exactPct === null && newPct === null) return;
+    rows.push({ name: s.name, oldPct: oldA.exactPct, newPct, newLabel: r ? r.percent.display : null, reasons: attV2ChangeReasons(r, oldA.exactPct, d) });
+  });
+  Object.values(d.report.subjects).forEach(r => {
+    if (seen.has(r.subjectId) || r.percent.pct === null) return;
+    rows.push({ name: r.name, oldPct: null, newPct: r.percent.pct, newLabel: r.percent.display, reasons: [r.kind === 'lab' ? 'Labs now have their own %, as on the ERP' : 'Now has its own %'] });
+  });
+  const oldO = getOverallAttendanceV1(), newO = getOverallAttendanceV2();
+  return {
+    rows,
+    changed: rows.filter(r => r.oldPct !== r.newPct),
+    overall: { oldPct: oldO.exactPct, newPct: newO.pct, newLabel: newO.pctLabel },
+    unmatchedMarks: d.report.counts.unmatchedMarks
+  };
+}
+
+function checkAttendanceV2Preview() {
+  if (loadAttV2State()) return;
+  // No attendance yet: start on v2 and keep it, so the first mark saved
+  // later doesn't flip this student back to v1.
+  if (!hasV1AttendanceData()) { saveAttV2State('v2'); return; }
+  let data;
+  try { data = buildAttendanceV2PreviewData(); } catch (e) { console.warn('[Attendance] v2 preview skipped:', e); return; }
+  // Nothing would change: switch quietly.
+  if (!data.changed.length && data.overall.oldPct === data.overall.newPct && !data.unmatchedMarks) {
+    saveAttV2State('v2');
+    return;
+  }
+  setTimeout(() => showAttendanceV2Preview(data), 900);
+}
+
+window.showAttendanceV2Preview = function(data) {
+  if (!data || !Array.isArray(data.rows)) data = buildAttendanceV2PreviewData();
+  document.getElementById('att-v2-preview-backdrop')?.remove();
+  const fmt = (v) => v === null || v === undefined ? '—' : `${Number(v).toFixed(2)}%`;
+  const rowsHTML = data.changed.map(r => `
+    <li style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;gap:10px;font-weight:600">
+        <span>${escHtml_cd(r.name)}</span>
+        <span>${fmt(r.oldPct)} → <strong>${r.newLabel !== null ? r.newLabel + '%' : '—'}</strong></span>
+      </div>
+      ${r.reasons.length ? `<div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${r.reasons.map(escHtml_cd).join(' · ')}</div>` : ''}
+    </li>`).join('');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'att-v2-preview-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="att-v2-preview-title" onclick="event.stopPropagation()" style="max-width:560px;padding:22px">
+      <h2 class="modal-title" id="att-v2-preview-title" style="margin:0 0 6px">Attendance now matches your ERP</h2>
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+        Percentages are now worked out exactly the way the college ERP does: 2 decimals, labs counted separately, and nothing counted twice. Your saved marks are not changed.
+      </div>
+      <div style="font-weight:600;margin-bottom:4px">Overall: ${fmt(data.overall.oldPct)} → <strong>${data.overall.newLabel !== null ? data.overall.newLabel + '%' : '—'}</strong></div>
+      ${rowsHTML ? `<ul style="list-style:none;margin:0 0 10px;padding:0;max-height:45vh;overflow:auto">${rowsHTML}</ul>` : ''}
+      ${data.unmatchedMarks ? `<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px">${data.unmatchedMarks} old mark${data.unmatchedMarks !== 1 ? 's' : ''} couldn't be matched to a subject. ${data.unmatchedMarks !== 1 ? 'They are' : 'It is'} kept, and you'll be able to assign ${data.unmatchedMarks !== 1 ? 'them' : 'it'} soon.</div>` : ''}
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <button type="button" class="btn-secondary" onclick="setAttendanceMathMode(false)">Keep old numbers for now</button>
+        <button type="button" class="btn-primary" onclick="setAttendanceMathMode(true)">Looks right</button>
+      </div>
+      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:10px">You can switch any time in Settings → Attendance.</div>
+    </div>`;
+  document.body.appendChild(backdrop);
+};
+
+window.setAttendanceMathMode = function(useV2) {
+  saveAttV2State(useV2 ? 'v2' : 'v1');
+  document.getElementById('att-v2-preview-backdrop')?.remove();
+  showToast(useV2 ? 'Attendance now matches your ERP ✓' : 'Keeping the old attendance numbers', useV2 ? 'success' : 'info');
+  renderPage(state.currentPage);
+};
 
 function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
   const subjects = getSubjectList();
@@ -11032,6 +11370,7 @@ function saveAllReviewedBaselines() {
 
   const baselines = loadAttendanceBaselines();
   let savedCount = 0;
+  const savedRows = [];
 
   rows.forEach(row => {
     const subjVal = row.querySelector('.review-subject-select')?.value || '';
@@ -11054,10 +11393,12 @@ function saveAllReviewedBaselines() {
       totalSessions: 0,
       updatedAt: new Date().toISOString()
     };
+    savedRows.push({ name: subjName, code: subjCode });
     savedCount++;
   });
 
   saveAttendanceBaselines(baselines);
+  clearUndatedTapsCoveredBy(savedRows);
   document.getElementById('ab-review-modal-backdrop')?.remove();
   showToast(`Attendance baseline saved for ${savedCount} subject${savedCount!==1?'s':''} ✓`, 'success');
   renderPage(state.currentPage);
@@ -12047,7 +12388,7 @@ function renderSubjectsOverview(el, subjects) {
 
   const cardsHTML = ranked.map(({ s, att, tier }) => {
     const pending = allTasks().filter(t => t.status === 'pending' && ((t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase())).length;
-    const label = att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}%` : '—';
+    const label = att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}%` : '—';
     const ringPct = att.pct === null ? 0 : Math.max(0, Math.min(100, att.exactPct !== null ? att.exactPct : att.pct));
     const th = (att.targetPct / 100) * 2 * Math.PI;
     const tick = [26 + 16 * Math.sin(th), 26 - 16 * Math.cos(th), 26 + 24 * Math.sin(th), 26 - 24 * Math.cos(th)].map(n => n.toFixed(1));
@@ -12065,7 +12406,7 @@ function renderSubjectsOverview(el, subjects) {
         <div class="sj-body">
           <div class="card-title sj-title">${s.name}</div>
           <div class="sj-line">${line}</div>
-          <div class="sj-meta">${s.code}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}</div>
+          <div class="sj-meta">${s.code}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}</div>
         </div>
         <div class="sj-side">
           ${subjectManageMode ? `
@@ -12229,8 +12570,9 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span class="type-badge" style="font-size:var(--text-sm);padding:5px 12px;background:${att.pct===null?'var(--surface-2)':att.isSafe?'color-mix(in srgb, var(--status-success) 14%, transparent)':'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.pct===null?'var(--text-muted)':att.isSafe?'var(--status-success)':'var(--status-error)'}">
-              ${att.pct !== null ? `${att.exactPct !== null ? att.exactPct : att.pct}% Attendance (${att.attended}/${att.total})` : 'Attendance not set yet'}
+              ${att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}% Attendance (${att.attended}/${att.total})` : 'Attendance not set yet'}
             </span>
+            ${att.labPart && att.labPart.pct !== null ? `<span class="type-badge" style="font-size:var(--text-sm);padding:5px 12px;background:${att.labPart.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.labPart.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">Lab ${att.labPart.pctLabel}% (${att.labPart.attended}/${att.labPart.total})</span>` : ''}
             <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal('${subj.code || subj.name}')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
               ${icons.chartLine()} ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
             </button>
@@ -13698,6 +14040,11 @@ function renderSettings() {
       <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
         ${icons.chartLine()} Configure Attendance Baselines →
       </button>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
+        <input type="checkbox" id="s-att-v2" ${isAttendanceV2Active() ? 'checked' : ''} onchange="setAttendanceMathMode(this.checked)" style="margin-top:3px">
+        <span>Calculate exactly like the college ERP<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">2 decimals, labs counted separately, nothing counted twice. Your saved marks stay the same either way.</span></span>
+      </label>
+      ${hasV1AttendanceData() ? `<button type="button" class="btn-secondary" onclick="showAttendanceV2Preview()" style="margin-top:8px;font-size:var(--text-sm);padding:5px 11px">See what changes</button>` : ''}
     </div>
 
     <div class="section-heading">🧹 Personalized Desk Optimization</div>
@@ -14715,9 +15062,9 @@ const ClarityAssistant = (() => {
       let score = 0;
       const signals = [];
 
-      if (pct !== null && pct < target) {
+      if (pct !== null && (att.pctLabel ? att.isSafe === false : pct < target)) {
         score += 50;
-        signals.push(`attendance is low at <strong>${pct}%</strong> (target: ${target}%)`);
+        signals.push(`attendance is low at <strong>${att.pctLabel ?? pct}%</strong> (target: ${target}%)`);
       } else if (!hasBaseline && att.total === 0) {
         score += 20;
         signals.push(`baseline counts unverified`);
@@ -14914,7 +15261,7 @@ const ClarityAssistant = (() => {
     if (atRisk.length > 0) {
       const topRisk = atRisk[0];
       const att = getSubjectAttendance(topRisk);
-      planSteps.push(`<strong>2. Attendance Recovery Study (30 min):</strong> Focus on <strong>${escHtml(topRisk.name)}</strong> (currently at ${att.pct}%). Ensure lecture notes and assignments are up to date so you don't miss future marks.`);
+      planSteps.push(`<strong>2. Attendance Recovery Study (30 min):</strong> Focus on <strong>${escHtml(topRisk.name)}</strong> (currently at ${att.pctLabel ?? att.pct}%). Ensure lecture notes and assignments are up to date so you don't miss future marks.`);
     } else if (subjects.length > 0) {
       planSteps.push(`<strong>2. Problem Practice (30 min):</strong> Solve practice questions or read syllabus references for <strong>${escHtml(subjects[0].name)}</strong>.`);
     } else {
@@ -15022,7 +15369,7 @@ const ClarityAssistant = (() => {
       const att = getSubjectAttendance(s);
       if (!att.hasBaseline && att.total === 0) {
         missingBaseline.push(s);
-      } else if (att.pct !== null && att.pct < target) {
+      } else if (att.pct !== null && (att.pctLabel ? att.isSafe === false : att.pct < target)) {
         atRisk.push({ subject: s, att });
       } else if (att.pct !== null) {
         safe.push({ subject: s, att });
@@ -15037,24 +15384,26 @@ const ClarityAssistant = (() => {
       const items = atRisk.map(({ subject, att }) => {
         const guidance = calculateSmartAttendanceGuidance(att.present, att.absent + att.leave, target);
         const cleanMsg = guidance.message.replace(/<\/?strong>/g, '');
-        return `<li><span class="cd-tag cd-tag-risk">${att.pct}%</span><span class="cd-item-label">${escHtml(subject.name)}</span><span class="cd-item-meta">${cleanMsg}</span></li>`;
+        return `<li><span class="cd-tag cd-tag-risk">${att.pctLabel ?? att.pct}%</span><span class="cd-item-label">${escHtml(subject.name)}</span><span class="cd-item-meta">${cleanMsg}</span></li>`;
       }).join('');
 
       return `<strong>${atRisk.length} subject${atRisk.length!==1?'s':''} below target (${target}%):</strong><ul class="cd-list">${items}</ul>`;
     }
 
     const highest = safe.sort((a, b) => b.att.pct - a.att.pct)[0];
-    return `<span class="cd-tag cd-tag-safe">All Safe</span> <strong>All active subjects are safely at or above ${target}%!</strong><br><br>Highest: <strong>${escHtml(highest.subject.name)}</strong> (${highest.att.pct}%). Keep up the good momentum!`;
+    return `<span class="cd-tag cd-tag-safe">All Safe</span> <strong>All active subjects are safely at or above ${target}%!</strong><br><br>Highest: <strong>${escHtml(highest.subject.name)}</strong> (${highest.att.pctLabel ?? highest.att.pct}%). Keep up the good momentum!`;
   }
 
   function buildAttendanceGeneral() {
-    const { attended, skipped, total } = getOverallAttendance();
+    const overall = getOverallAttendance();
+    const { attended, skipped, total } = overall;
     if (total === 0) {
       return `<div class="cd-tag is-warning" style="margin-bottom:8px">Attendance Setup Incomplete</div><br>No attendance recorded yet. Enter your starting portal baseline counts in <a href="javascript:void(0)" onclick="showBaselineModal(null, 'manual')" style="color:var(--accent);font-weight:600">Subject Hubs</a> to unlock percentage tracking and safe skip guidance.<br><br><button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">${icons.chartLine()} Set Baseline Counts →</button>`;
     }
-    const pct = Math.round((attended / total) * 100);
     const target = getAttendanceTarget();
-    const isSafe = pct >= target;
+    // v2: the exact 2-decimal % and an exact comparison (74.50% is not safe).
+    const pct = overall.pctLabel ?? Math.round((attended / total) * 100);
+    const isSafe = overall.pctLabel ? overall.isSafe === true : pct >= target;
     const tag = isSafe
       ? '<span class="cd-tag cd-tag-safe">Safe Zone</span>'
       : '<span class="cd-tag cd-tag-risk">Risk Zone</span>';
@@ -15338,7 +15687,7 @@ const ClarityAssistant = (() => {
               res += `No weekly timetable slots scheduled.<br>`;
             }
             if (att.pct !== null) {
-              res += `Attendance: <strong>${att.pct}%</strong> (${att.present}/${att.total} attended)<br>`;
+              res += `Attendance: <strong>${att.pctLabel ?? att.pct}%</strong> (${att.present}/${att.total} attended)<br>`;
             }
             if (pTasks.length) {
               res += `${pTasks.length} pending task${pTasks.length !== 1 ? 's' : ''}: ${pTasks.map(t => escHtml(t.title)).join(', ')}`;
@@ -15810,6 +16159,7 @@ function init() {
 
   updateNavBadges();
   checkOnboarding();
+  checkAttendanceV2Preview();
 
   // Check and schedule task & notice notifications
   checkScheduledNotifications();
