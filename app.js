@@ -8999,6 +8999,139 @@ function getOverallAttendance() {
   };
 }
 
+// ── Attendance v2 math (ERP-exact) ───────────────────────────────
+// Step 1 of the attendance redesign: pure functions only, not called by
+// any screen yet and never read or write storage. Rules checked against
+// the college ERP (JUNO Campus) summary and day-wise screens:
+//  - % = sessions present / sessions counted, to 2 decimals, half up
+//    (19/32 = 59.375 -> 59.38). "Not Entered" counts as absent: the ERP
+//    puts it inside the Absent column and the Total Count.
+//  - A cancelled class has no row in the ERP, so it counts for nothing.
+//  - One timetable block = one session (a 2-hour lab is 1), unless the
+//    teacher split it; a session record can say so with `count: 2`.
+//  - OD stays absent (as the ERP shows it) until the student marks it
+//    accepted by the teacher; the pending ones are reported separately.
+//  - "Safe" compares the exact fraction, never the rounded %: 74.5% is
+//    below 75% (the monthly defaulter list flags it).
+// All comparisons use integer arithmetic so no float rounding can flip
+// a result at the boundary.
+const ATT_V2_PRESENT_STATUSES = ['present', 'od_accepted'];
+const ATT_V2_ABSENT_STATUSES  = ['absent', 'notEntered', 'od_pending', 'od_rejected', 'leave'];
+
+function attV2SessionWeight(s) {
+  const n = parseInt(s && s.count, 10);
+  return n > 0 ? n : 1;
+}
+
+// sessions: [{ date: 'YYYY-MM-DD', status, count? }]
+function tallyAttendanceSessions(sessions = []) {
+  const t = { attended: 0, held: 0, absent: 0, notEntered: 0, odPending: 0, cancelled: 0 };
+  (sessions || []).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    const w = attV2SessionWeight(s);
+    if (ATT_V2_PRESENT_STATUSES.includes(s.status)) {
+      t.attended += w; t.held += w;
+    } else if (ATT_V2_ABSENT_STATUSES.includes(s.status)) {
+      t.held += w;
+      if (s.status === 'notEntered') t.notEntered += w;
+      else if (s.status === 'od_pending') t.odPending += w;
+      else t.absent += w;
+    } else if (s.status === 'cancelled') {
+      t.cancelled += w;
+    }
+  });
+  return t;
+}
+
+function attV2Int(n) {
+  const v = Math.floor(Number(n));
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+// The ERP percentage for `attended` of `held` sessions.
+function computeErpPercent(attended, held, targetPct = getAttendanceTarget()) {
+  const a = attV2Int(attended), h = attV2Int(held), t = attV2Int(targetPct);
+  if (h === 0) return { attended: a, held: 0, hundredths: null, pct: null, display: null, isSafe: null };
+  // round(a * 10000 / h), half up, in integers
+  const hundredths = Math.floor((2 * a * 10000 + h) / (2 * h));
+  return {
+    attended: a,
+    held: h,
+    hundredths,
+    pct: hundredths / 100,
+    display: (hundredths / 100).toFixed(2),
+    isSafe: a * 100 >= t * h
+  };
+}
+
+// The ERP totals row: every subject (labs included) summed, then divided.
+function computeOverallErpPercent(subjectTallies = [], targetPct = getAttendanceTarget()) {
+  let attended = 0, held = 0;
+  (subjectTallies || []).forEach(s => {
+    attended += attV2Int(s && s.attended);
+    held += attV2Int(s && s.held);
+  });
+  return computeErpPercent(attended, held, targetPct);
+}
+
+// From today's numbers: classes to attend in a row to reach the target,
+// or classes that can be missed while staying at/above it.
+function computeNowGuidance(attended, held, targetPct = getAttendanceTarget()) {
+  const a = attV2Int(attended), h = attV2Int(held), t = attV2Int(targetPct);
+  if (h === 0) return { isSafe: null, classesToAttend: 0, safeSkips: 0, reachable: true };
+  if (a * 100 >= t * h) {
+    // largest k with 100a >= t(h + k)
+    const safeSkips = t > 0 ? Math.floor((100 * a - t * h) / t) : Infinity;
+    return { isSafe: true, classesToAttend: 0, safeSkips, reachable: true };
+  }
+  if (t >= 100) return { isSafe: false, classesToAttend: null, safeSkips: 0, reachable: false };
+  // smallest n with 100(a + n) >= t(h + n)
+  const need = t * h - 100 * a, per = 100 - t;
+  return { isSafe: false, classesToAttend: Math.floor((need + per - 1) / per), safeSkips: 0, reachable: true };
+}
+
+// End of semester, from the ERP's "Total Sessions" (planned count):
+// how many of the remaining classes must be attended to finish at the
+// target, and how many can still be missed. null when the planned count
+// is unknown or already passed.
+function computeSemesterProjection(attended, held, plannedTotal, targetPct = getAttendanceTarget()) {
+  const a = attV2Int(attended), h = attV2Int(held), p = attV2Int(plannedTotal), t = attV2Int(targetPct);
+  if (p === 0 || h > p) return null;
+  const remaining = p - h;
+  const mustAttendTotal = Math.floor((t * p + 99) / 100);   // ceil(t% of planned)
+  const mustAttend = Math.max(0, mustAttendTotal - a);
+  const reachable = mustAttend <= remaining;
+  return {
+    planned: p,
+    remaining,
+    mustAttend,
+    canMiss: reachable ? remaining - mustAttend : 0,
+    reachable,
+    bestFinal: computeErpPercent(a + remaining, p, t)
+  };
+}
+
+// Monthly defaulter check: the overall % (every subject together) up to
+// the end of `monthKey` ('YYYY-MM'), plus that month's classes alone.
+// sessionsBySubject: { [subjectId]: [{ date, status, count? }] }
+function computeMonthlyAttendance(sessionsBySubject = {}, monthKey, targetPct = getAttendanceTarget()) {
+  const upTo = [], within = [];
+  Object.values(sessionsBySubject || {}).forEach(list => {
+    (list || []).forEach(s => {
+      const m = s && typeof s.date === 'string' ? s.date.slice(0, 7) : '';
+      if (!/^\d{4}-\d{2}$/.test(m)) return;
+      if (m <= monthKey) upTo.push(s);
+      if (m === monthKey) within.push(s);
+    });
+  });
+  const cum = tallyAttendanceSessions(upTo), mon = tallyAttendanceSessions(within);
+  return {
+    month: monthKey,
+    overall: computeErpPercent(cum.attended, cum.held, targetPct),
+    monthOnly: computeErpPercent(mon.attended, mon.held, targetPct)
+  };
+}
+
 function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
   const subjects = getSubjectList();
   const existingBackdrop = document.getElementById('baseline-modal-backdrop');
