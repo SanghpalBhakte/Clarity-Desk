@@ -197,30 +197,6 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
-    id: "u35",
-    date: "2026-10-14",
-    title: "Update CLAUDE.md with new commit rules",
-    category: "Update",
-    tag: "Update",
-    tagColor: "var(--blue)",
-    summary: "Update CLAUDE.md with new commit rules",
-    points: [
-      "Update CLAUDE.md with new commit rules"
-    ]
-  },
-  {
-    id: "u34",
-    date: "2026-10-14",
-    title: "Add permissions for Bash git push command",
-    category: "Feature",
-    tag: "Feature",
-    tagColor: "var(--accent)",
-    summary: "Add permissions for Bash git push command",
-    points: [
-      "Add permissions for Bash git push command"
-    ]
-  },
-  {
     id: "u33",
     date: "2026-10-14",
     title: "Fixed an error the app logged in the browser console on every load",
