@@ -11971,6 +11971,24 @@ function proceedToDeclutterPreview() {
   renderDeclutterPreviewModal(plan, userBatch);
 }
 
+// Which surviving timetable subject (if any) a task/link/baseline name
+// belongs to: exact name or code, the same canonical key Subject Hub cards
+// use, then the fuzzy normalizer.
+function findDeclutterSurvivor(raw, survivors) {
+  const text = String(raw || '').trim();
+  if (!text || !survivors.length) return null;
+  const lower = text.toLowerCase();
+  const key = getCanonicalSubjectKey(text);
+  const norm = normalizeSubjectIdentity(text, survivors);
+  const nName = (norm.canonicalName || '').toLowerCase();
+  const nCode = (norm.canonicalCode || '').toLowerCase();
+  return survivors.find(s => {
+    const n = s.name.toLowerCase(), c = (s.code || '').toLowerCase();
+    return n === lower || (c && c === lower) || (key && getCanonicalSubjectKey(s.name) === key) ||
+      n === nName || (c && nCode && c === nCode);
+  }) || null;
+}
+
 function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'all') {
   const newTT = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const archivedSlots = [];
@@ -12016,7 +12034,15 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
       const isLab = c.type === 'lab' || norm.isLab;
       const canonicalName = norm.canonicalName || rawName;
       const canonicalCode = norm.canonicalCode || c.code || '';
-      const subjectKey = `${canonicalName.toLowerCase()}|||${isLab ? 'lab' : 'theory'}`;
+      const kind = isLab ? 'lab' : 'theory';
+      // Same key Subject Hub cards use, so two slots that would show as one
+      // card can't survive as two; a shared code merges them too.
+      let subjectKey = `${getCanonicalSubjectKey(canonicalName) || canonicalName.toLowerCase()}|||${kind}`;
+      if (!subjectMap.has(subjectKey) && canonicalCode) {
+        const byCode = Array.from(subjectMap.entries()).find(([k, v]) =>
+          k.endsWith(`|||${kind}`) && v.code && v.code.toLowerCase() === canonicalCode.toLowerCase());
+        if (byCode) subjectKey = byCode[0];
+      }
 
       if (!subjectMap.has(subjectKey)) {
         subjectMap.set(subjectKey, {
@@ -12028,17 +12054,18 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
           slotsCount: 0
         });
       }
-      subjectMap.get(subjectKey).slotsCount++;
+      const entry = subjectMap.get(subjectKey);
+      entry.slotsCount++;
 
-      if (!mergedSubjects.has(canonicalName)) {
-        mergedSubjects.set(canonicalName, new Set());
+      if (!mergedSubjects.has(entry.name)) {
+        mergedSubjects.set(entry.name, new Set());
       }
-      mergedSubjects.get(canonicalName).add(rawName);
+      mergedSubjects.get(entry.name).add(rawName);
 
       newTT[d].push({
         ...c,
-        subject: canonicalName,
-        code: canonicalCode,
+        subject: entry.name,
+        code: entry.code || canonicalCode,
         type: isLab ? 'lab' : (c.type || norm.classType || 'lecture'),
         teacher: c.teacher || norm.teacher || '',
         room: c.room || norm.room || '',
@@ -12047,7 +12074,47 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
     });
   });
 
+  // Abbreviated duplicates ("Prob & Stats" -> "Probability and Statistics"):
+  // same word count, each word (minus a plural "s") a 3+ letter prefix of
+  // the other's, and only when exactly one longer subject of the same kind
+  // fits.
+  const sigWords = n => n.toLowerCase().split(/[^a-z0-9]+/).filter(w => w && !['and', 'of', 'the', 'in', 'for'].includes(w));
+  const isAbbrevOf = (a, b) => {
+    const x = sigWords(a), y = sigWords(b);
+    return a.length < b.length && x.length > 0 && x.length === y.length && x.every((w, i) => w.length >= 3 && y[i].startsWith(w.replace(/s$/, '')));
+  };
+  const renamedTo = new Map();
+  for (const [k, short] of subjectMap) {
+    const kind = k.split('|||')[1];
+    const fits = Array.from(subjectMap.entries()).filter(([k2, v]) => k2.endsWith(`|||${kind}`) && v !== short && isAbbrevOf(short.name, v.name));
+    if (fits.length !== 1) continue;
+    const long = fits[0][1];
+    long.slotsCount += short.slotsCount;
+    if (!long.code) long.code = short.code;
+    renamedTo.set(short.name, long);
+    (mergedSubjects.get(short.name) || []).forEach(r => mergedSubjects.get(long.name)?.add(r));
+    mergedSubjects.delete(short.name);
+    subjectMap.delete(k);
+  }
+  if (renamedTo.size) {
+    Object.values(newTT).forEach(day => day.forEach((c, i) => {
+      const to = renamedTo.get(c.subject);
+      if (to) day[i] = { ...c, subject: to.name, code: to.code || c.code };
+    }));
+  }
+
   const survivingList = Array.from(subjectMap.values());
+
+  // Subjects that only live in tasks/links/baselines and match nothing in
+  // the timetable. Only judged when the timetable has subjects, so an
+  // empty timetable never wipes everything.
+  const orphans = new Map();
+  const addOrphan = (raw, kind) => {
+    const name = getCanonicalSubjectName(raw) || String(raw).trim();
+    const key = getCanonicalSubjectKey(raw) || name.toLowerCase();
+    if (!orphans.has(key)) orphans.set(key, { key, name, tasks: 0, links: 0, baselines: 0 });
+    orphans.get(key)[kind]++;
+  };
 
   // 2. Process Attendance Baselines
   const newBaselines = {};
@@ -12065,6 +12132,12 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
     // drop it instead of remapping it under an equally garbled key.
     if (!matched && isLikelyGarbledSubjectName(norm.canonicalName || rawSubj)) {
       droppedGarbledBaselines.push({ oldKey, subjectName: rawSubj });
+      return;
+    }
+    // Not in the timetable at all: a stray subject (wrong scan, old
+    // semester) -- dropped, recoverable via the cleanup backup.
+    if (!matched && survivingList.length) {
+      addOrphan(rawSubj, 'baselines');
       return;
     }
 
@@ -12159,43 +12232,44 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
     });
   });
 
-  // 4. Calculate Affected Tasks and Links Count
-  const tasks = safeGetStorage(KEY_CUSTOM_TASKS, []);
-  let affectedTasksCount = 0;
-  if (Array.isArray(tasks)) {
-    tasks.forEach(t => {
-      if (!t.subject) return;
-      const norm = normalizeSubjectIdentity(t.subject, survivingList);
-      const matched = survivingList.find(s => 
-        s.name.toLowerCase() === t.subject.toLowerCase() || 
-        (s.code && s.code.toLowerCase() === t.subject.toLowerCase()) ||
-        s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
-        (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
-      );
-      if (matched && matched.name !== t.subject) affectedTasksCount++;
-    });
-  }
+  // 4. Tasks and links: remap onto surviving subjects; delete the ones
+  // filed under a garbled or non-timetable subject. Only the student's own
+  // tasks -- synced assignments are never touched.
+  const NON_SUBJECT_TASK_CATEGORIES = ['general', 'mission', 'other'];
+  const remapSubject = (item, kind) => {
+    const subj = (item.subject || '').trim();
+    if (!subj || (kind === 'tasks' && NON_SUBJECT_TASK_CATEGORIES.includes(subj.toLowerCase()))) return item;
+    const matched = findDeclutterSurvivor(subj, survivingList);
+    if (matched) return matched.name !== item.subject ? { ...item, subject: matched.name } : item;
+    if (!survivingList.length) return item;
+    addOrphan(subj, kind);
+    return null;
+  };
 
-  const links = safeGetStorage(KEY_CUSTOM_LINKS, []);
+  const tasks = Array.isArray(state.customTasks) ? state.customTasks : [];
+  const newTasks = [];
+  let affectedTasksCount = 0;
+  tasks.forEach(t => {
+    const next = remapSubject(t, 'tasks');
+    if (next) newTasks.push(next);
+    if (next && next !== t) affectedTasksCount++;
+  });
+
+  const links = loadCustomLinks();
+  const newLinks = [];
   let affectedLinksCount = 0;
   const removedGarbledLinks = [];
-  if (Array.isArray(links)) {
-    links.forEach(l => {
-      if (!l.subject) return;
-      if (isLikelyGarbledSubjectName(getCanonicalSubjectName(l.subject))) {
-        removedGarbledLinks.push({ subject: l.subject });
-        return;
-      }
-      const norm = normalizeSubjectIdentity(l.subject, survivingList);
-      const matched = survivingList.find(s => 
-        s.name.toLowerCase() === l.subject.toLowerCase() || 
-        (s.code && s.code.toLowerCase() === l.subject.toLowerCase()) ||
-        s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
-        (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
-      );
-      if (matched && matched.name !== l.subject) affectedLinksCount++;
-    });
-  }
+  links.forEach(l => {
+    if (l.subject && isLikelyGarbledSubjectName(getCanonicalSubjectName(l.subject))) {
+      removedGarbledLinks.push({ subject: l.subject });
+      return;
+    }
+    const next = remapSubject(l, 'links');
+    if (next) newLinks.push(next);
+    if (next && next !== l) affectedLinksCount++;
+  });
+
+  const orphanSubjects = Array.from(orphans.values());
 
   return {
     newTimetable: newTT,
@@ -12211,7 +12285,10 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
     totalDailyLogsCount,
     affectedTasksCount,
     affectedLinksCount,
-    removedGarbledLinks
+    removedGarbledLinks,
+    newTasks,
+    newLinks,
+    orphanSubjects
   };
 }
 
@@ -12313,6 +12390,19 @@ function renderDeclutterPreviewModal(plan, userBatch) {
           </div>
         ` : ''}
 
+        ${plan.orphanSubjects && plan.orphanSubjects.length > 0 ? `
+          <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
+            🚫 Not in Your Timetable — Removed (${plan.orphanSubjects.length})
+          </div>
+          ${plan.orphanSubjects.map(o => `
+            <div style="font-size:var(--text-sm);color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between;gap:8px">
+              <span>${String(o.name).replace(/</g, '&lt;')}</span>
+              <span style="color:var(--yellow)">${[o.tasks && `${o.tasks} task${o.tasks !== 1 ? 's' : ''}`, o.links && `${o.links} link${o.links !== 1 ? 's' : ''}`, o.baselines && 'attendance baseline'].filter(Boolean).join(' · ')}</span>
+            </div>
+          `).join('')}
+          <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:4px">These subjects and their tasks, links and attendance baselines will be deleted. Restore Previous Desk brings them back.</div>
+        ` : ''}
+
         ${(plan.removedGarbledLinks && plan.removedGarbledLinks.length > 0) || (plan.droppedGarbledBaselines && plan.droppedGarbledBaselines.length > 0) ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
             ⚠️ Garbled Scan Data Removed
@@ -12359,8 +12449,9 @@ function executeDeclutterPlan(plan, userBatch) {
     baselines: loadAttendanceBaselines(),
     liveAttendance: loadLiveAttendanceActions(),
     dailyAttendance: safeGetStorage(KEY_ATTENDANCE, {}) || {},
-    tasks: safeGetStorage(KEY_CUSTOM_TASKS, []),
-    links: safeGetStorage(KEY_CUSTOM_LINKS, []),
+    tasks: Array.isArray(state.customTasks) ? state.customTasks : safeGetStorage(KEY_CUSTOM_TASKS, []),
+    links: loadCustomLinks(),
+    hiddenSubjects: safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [],
     profile: liveProfile || loadProfile() || {}
   };
   safeSetStorage(KEY_CLEANUP_BACKUP, backup);
@@ -12376,42 +12467,17 @@ function executeDeclutterPlan(plan, userBatch) {
     safeSetStorage(KEY_ATTENDANCE, plan.newDailyAttendance);
   }
 
-  // 5. Remap tasks
-  const tasks = safeGetStorage(KEY_CUSTOM_TASKS, []);
-  if (Array.isArray(tasks) && tasks.length > 0) {
-    const updatedTasks = tasks.map(t => {
-      if (!t.subject) return t;
-      const norm = normalizeSubjectIdentity(t.subject, plan.survivingSubjects);
-      const matched = plan.survivingSubjects.find(s => 
-        s.name.toLowerCase() === t.subject.toLowerCase() || 
-        (s.code && s.code.toLowerCase() === t.subject.toLowerCase()) ||
-        s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
-        (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
-      );
-      return matched ? { ...t, subject: matched.name } : t;
-    });
-    safeSetStorage(KEY_CUSTOM_TASKS, updatedTasks);
-  }
+  // 5-6. Tasks and links (remapped; garbled/non-timetable ones removed)
+  state.customTasks = plan.newTasks;
+  safeSetStorage(KEY_CUSTOM_TASKS, plan.newTasks);
+  safeSetStorage(KEY_CUSTOM_LINKS, plan.newLinks);
 
-  // 6. Remap custom links, dropping garbled-name ones entirely (a
-  // resource bookmark filed under OCR noise like "ADzeame" is not
-  // recoverable data -- it never pointed at a real subject).
-  const links = safeGetStorage(KEY_CUSTOM_LINKS, []);
-  if (Array.isArray(links) && links.length > 0) {
-    const updatedLinks = links
-      .filter(l => !(l.subject && isLikelyGarbledSubjectName(getCanonicalSubjectName(l.subject))))
-      .map(l => {
-        if (!l.subject) return l;
-        const norm = normalizeSubjectIdentity(l.subject, plan.survivingSubjects);
-        const matched = plan.survivingSubjects.find(s =>
-          s.name.toLowerCase() === l.subject.toLowerCase() ||
-          (s.code && s.code.toLowerCase() === l.subject.toLowerCase()) ||
-          s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
-          (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
-        );
-        return matched ? { ...l, subject: matched.name } : l;
-      });
-    safeSetStorage(KEY_CUSTOM_LINKS, updatedLinks);
+  // Safety net (same as a card delete): hide removed subjects in case a
+  // synced assignment or an old attendance log still names them.
+  if (plan.orphanSubjects.length) {
+    const hidden = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
+    plan.orphanSubjects.forEach(o => { if (!hidden.includes(o.key)) hidden.push(o.key); });
+    safeSetStorage(KEY_HIDDEN_SUBJECTS, hidden);
   }
 
   // 7. Update user profile batch
@@ -12498,8 +12564,12 @@ function confirmExecuteRestore() {
     if (backup.baselines) safeSetStorage(KEY_ATTENDANCE_BASELINE, backup.baselines);
     if (backup.liveAttendance) safeSetStorage(KEY_ATTENDANCE_LIVE, backup.liveAttendance);
     if (backup.dailyAttendance) safeSetStorage(KEY_ATTENDANCE, backup.dailyAttendance);
-    if (backup.tasks) safeSetStorage(KEY_CUSTOM_TASKS, backup.tasks);
+    if (backup.tasks) {
+      safeSetStorage(KEY_CUSTOM_TASKS, backup.tasks);
+      state.customTasks = backup.tasks;
+    }
     if (backup.links) safeSetStorage(KEY_CUSTOM_LINKS, backup.links);
+    if (Array.isArray(backup.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, backup.hiddenSubjects);
     if (backup.userBatch) safeSetStorage(KEY_USER_BATCH, backup.userBatch);
     if (backup.profile) {
       safeSetStorage(KEY_PROFILE, backup.profile);

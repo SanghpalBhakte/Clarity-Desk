@@ -70,7 +70,9 @@ const sandboxCode = `
     extractBatchTags,
     generateDeclutterPlan,
     saveAttendanceBaselines,
-    KEY_ATTENDANCE_BASELINE
+    KEY_ATTENDANCE_BASELINE,
+    KEY_CUSTOM_LINKS,
+    state
   };
 `;
 
@@ -266,6 +268,55 @@ check('11. Declutter plan reconciles an OCR-variant timetable slot against an ex
   }
   if (plan.survivingSubjects[0].slotsCount !== 2) {
     return `Expected merged subject to carry both slots, got slotsCount ${plan.survivingSubjects[0].slotsCount}`;
+  }
+  return true;
+});
+
+check('12. Declutter removes subjects that are not in the timetable (tasks, links, baselines)', () => {
+  localStorage.clear();
+  const tt = { 1: [{ time: '10:00', end: '11:00', subject: 'Data Structures', code: 'DS', type: 'lecture' }], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
+  mod.safeSetStorage(mod.KEY_CUSTOM_TIMETABLE, tt);
+  mod.safeSetStorage(mod.KEY_CUSTOM_LINKS, [{ title: 'p', url: 'u', subject: 'Physics' }, { title: 'd', url: 'u', subject: 'DS' }]);
+  mod.state.customTasks = [
+    { id: 't1', title: 'hw', subject: 'Chemistry' },
+    { id: 't2', title: 'ds hw', subject: 'data structure' },
+    { id: 't3', title: 'gym', subject: 'General' }
+  ];
+  const baselines = { CHEM: { subjectName: 'Chemistry', present: 3, absent: 1 }, DS: { subjectName: 'Data Structures', present: 5, absent: 0 } };
+  const plan = mod.generateDeclutterPlan(tt, baselines, [], 'all');
+  const orphanNames = plan.orphanSubjects.map(o => o.name).sort().join(',');
+  if (orphanNames !== 'Chemistry,Physics') return `Expected orphans Chemistry,Physics, got ${orphanNames}`;
+  if (plan.newTasks.map(t => t.id).join(',') !== 't2,t3') return `Expected tasks t2,t3 kept, got ${plan.newTasks.map(t => t.id)}`;
+  if (plan.newTasks[0].subject !== 'Data Structures') return `Expected task remapped to Data Structures, got ${plan.newTasks[0].subject}`;
+  if (plan.newLinks.length !== 1 || plan.newLinks[0].subject !== 'Data Structures') return `Expected only the DS link kept, got ${JSON.stringify(plan.newLinks)}`;
+  const baseNames = Object.values(plan.newBaselines).map(b => b.subjectName).join(',');
+  if (baseNames !== 'Data Structures') return `Expected only the Data Structures baseline, got ${baseNames}`;
+  return true;
+});
+
+check('13. Declutter merges an abbreviated duplicate slot ("Prob & Stats")', () => {
+  localStorage.clear();
+  mod.state.customTasks = [];
+  const tt = {
+    1: [{ time: '10:00', end: '11:00', subject: 'Probability and Statistics', type: 'lecture' }],
+    2: [{ time: '10:00', end: '11:00', subject: 'Prob & Stats', type: 'lecture' }],
+    3: [], 4: [], 5: [], 6: [], 0: []
+  };
+  mod.safeSetStorage(mod.KEY_CUSTOM_TIMETABLE, tt);
+  const plan = mod.generateDeclutterPlan(tt, {}, [], 'all');
+  if (plan.survivingSubjects.length !== 1) return `Expected 1 subject, got ${plan.survivingSubjects.map(s => s.name).join(', ')}`;
+  if (plan.newTimetable[2][0].subject !== 'Probability and Statistics') return `Slot not renamed: ${plan.newTimetable[2][0].subject}`;
+  return true;
+});
+
+check('14. Declutter with an empty timetable never deletes tasks, links or baselines', () => {
+  localStorage.clear();
+  const tt = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
+  mod.safeSetStorage(mod.KEY_CUSTOM_LINKS, [{ title: 'p', url: 'u', subject: 'Physics' }]);
+  mod.state.customTasks = [{ id: 't1', title: 'hw', subject: 'Chemistry' }];
+  const plan = mod.generateDeclutterPlan(tt, { CHEM: { subjectName: 'Chemistry', present: 1, absent: 0 } }, [], 'all');
+  if (plan.orphanSubjects.length || plan.newTasks.length !== 1 || plan.newLinks.length !== 1 || Object.keys(plan.newBaselines).length !== 1) {
+    return `Expected nothing removed, got ${JSON.stringify({ o: plan.orphanSubjects, t: plan.newTasks, l: plan.newLinks, b: plan.newBaselines })}`;
   }
   return true;
 });
