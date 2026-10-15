@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u47",
+    date: "2026-10-15",
+    title: "Attendance rings on Subjects now animate only when you open the page, not every few seconds",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Attendance rings on Subjects now animate only when you open the page, not every few seconds",
+    points: [
+
+    ]
+  },
+  {
     id: "u46",
     date: "2026-10-15",
     title: "Declutter now removes subjects that aren't in your timetable, and merges short-name duplicates like \"Prob & Stats\"",
