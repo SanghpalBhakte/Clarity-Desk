@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u43",
+    date: "2026-10-15",
+    title: "The timetable review screen explains plainly when the AI couldn't check your photo, and no longer says \"All fields structured\" above that warning",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The timetable review screen explains plainly when the AI couldn't check your photo, and no longer says \"All fields structured\" above that warning",
+    points: [
+
+    ]
+  },
+  {
     id: "u42",
     date: "2026-10-15",
     title: "Ask Desk understands everyday questions: \"can I bunk OS tomorrow?\", subject attendance, other days, exams, follow-ups; its buttons now open forms in front of the chat; scans try AI models that just failed last",
