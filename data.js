@@ -199,6 +199,20 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u38",
+    date: "2026-10-15",
+    title: "Clearing an attendance mark now stays cleared on all your signed-in devices",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "A mark you cleared used to come back after the next sync.",
+    points: [
+      "A mark you cleared used to come back after the next sync.",
+      "Deleted +1 taps and baselines came back the same way.",
+      "Now each delete is sent to your cloud copy too."
+    ]
+  },
+  {
     id: "u37",
     date: "2026-10-14",
     title: "Mark a class as OD or \"didn't happen\", add extra classes, and sort out old marks with no subject",
