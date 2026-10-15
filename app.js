@@ -242,7 +242,7 @@ function initFirebase() {
         if (result && result.user) {
           currentUser = result.user;
           updateSyncUI();
-          if (state.currentPage === 'settings') renderSettings();
+          if (state.currentPage === 'settings') renderPage('settings');
         }
       }).catch(err => {
         console.warn("Firebase redirect auth result error:", err);
@@ -257,7 +257,7 @@ function initFirebase() {
         } else {
           if (cloudUnsubscribe) { cloudUnsubscribe(); cloudUnsubscribe = null; }
         }
-        if (state.currentPage === 'settings') renderSettings();
+        if (state.currentPage === 'settings') renderPage('settings');
       });
     } catch (e) {
       console.warn("Firebase initialization error:", e);
@@ -6094,8 +6094,14 @@ function captureTypedDrafts() {
       ? { html: qa.innerHTML, date: (qa.querySelector('#quick-add-date') || {}).value || '', dateFocused: !!(a && a.id === 'quick-add-date') } : null;
     const rs = page.querySelector('input[id^="resched-"]');
     const resched = rs ? { taskId: rs.id.slice(8), date: rs.value } : null;
-    if (!fields.length && !focused && !qaPrompt && !resched) return null;
-    return { values: fields.map(el => [el.id, el.value]), focused, qaPrompt, resched };
+    // Prefilled fields the student changed but hasn't saved yet (Settings:
+    // exam date, name, reminder choices). A cloud sync used to put the old
+    // saved value back. Fields with their own change handler are left alone.
+    const edited = page.id !== 'page-settings' ? [] : [...page.querySelectorAll('input[id], select[id], textarea[id]')]
+      .filter(el => !el.hasAttribute('onchange') && !el.hasAttribute('oninput') && isFieldEdited(el))
+      .map(el => [el.id, el.value]);
+    if (!fields.length && !focused && !qaPrompt && !resched && !edited.length) return null;
+    return { values: fields.map(el => [el.id, el.value]), focused, qaPrompt, resched, edited };
   } catch (e) { return null; }
 }
 function restoreTypedDrafts(d) {
@@ -6104,6 +6110,10 @@ function restoreTypedDrafts(d) {
     d.values.forEach(([id, value]) => {
       const el = document.getElementById(id);
       if (el && !el.value) el.value = value;
+    });
+    (d.edited || []).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el && !isFieldEdited(el) && el.value !== value) el.value = value;
     });
     if (d.resched && !document.getElementById('resched-' + d.resched.taskId) && document.getElementById('rollover-card-' + d.resched.taskId)) {
       window.handleRolloverAction(d.resched.taskId, 'reschedule');
@@ -6139,14 +6149,34 @@ function restoreTypedDrafts(d) {
 // While the student is choosing a date (Add task prompt, Reschedule) the page
 // must not be rebuilt under them: the native date picker closes and the field
 // resets. Background refreshes wait; they run as soon as the prompt closes.
+// The same goes for any date, time or dropdown field on the page while it is
+// in use (Settings exam date, daily briefing time): a cloud sync arriving then
+// closed the picker. Fields with their own change handler are not held, so
+// their own refresh still runs straight away.
 let __renderDeferred = null;
+const PICKER_INPUT_TYPES = ['date', 'time', 'datetime-local', 'month', 'week'];
+function isPickerField(el) {
+  return !!el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && PICKER_INPUT_TYPES.includes(el.type)));
+}
+function isFieldEdited(el) {
+  if (el.tagName === 'SELECT') return [...el.options].some(o => o.selected !== o.defaultSelected);
+  if (el.type === 'checkbox' || el.type === 'radio' || el.type === 'file' || el.type === 'hidden') return false;
+  return el.value !== el.defaultValue;
+}
 function isDatePromptOpen(page) {
   try {
     const el = document.getElementById('page-' + page);
-    return !!(el && el.classList.contains('active') &&
-      (el.querySelector('#quick-add-date') || el.querySelector('input[id^="resched-"]')));
+    if (!el || !el.classList.contains('active')) return false;
+    if (el.querySelector('#quick-add-date') || el.querySelector('input[id^="resched-"]')) return true;
+    const a = document.activeElement;
+    return isPickerField(a) && el.contains(a) && !a.hasAttribute('onchange') && !a.hasAttribute('oninput');
   } catch (e) { return false; }
 }
+// Run the held refresh once the student leaves the field. The short wait lets
+// a tap on Save land before the page is rebuilt under it.
+document.addEventListener('focusout', (e) => {
+  if (__renderDeferred && isPickerField(e.target)) setTimeout(flushDeferredRender, 400);
+});
 function flushDeferredRender() {
   if (__renderDeferred && !isDatePromptOpen(__renderDeferred)) {
     const p = __renderDeferred; __renderDeferred = null; renderPage(p);
