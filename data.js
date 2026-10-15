@@ -199,6 +199,22 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u41",
+    date: "2026-10-15",
+    title: "Calmer navigation: phone tabs cut to five with a More sheet, desktop sidebar folds to icons",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calmer navigation: phone tabs cut to five with a More sheet, desktop sidebar folds to icons",
+    points: [
+      "Phone: bottom bar is now Today, Timetable, Subjects, Tasks, More. Notices, Study Vault, Daily Briefing and Settings sit in a More sheet; More lights up when you are on one of them.",
+      "Desktop: sidebar folds into an icon rail (button at the bottom, or press [ ). Labels show on hover. Your choice is remembered on this device.",
+      "Ask Desk opens with three starter prompts; the rest are behind \"More ideas\".",
+      "Phone header drops the \"Saved locally\" badge (status is still in Settings).",
+      "Motion is transform/opacity only and switches off with reduced motion."
+    ]
+  },
+  {
     id: "u40",
     date: "2026-10-15",
     title: "Picking your exam date or briefing time in Settings no longer closes by itself when your desk syncs",
