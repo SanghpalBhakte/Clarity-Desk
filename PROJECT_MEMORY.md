@@ -87,6 +87,16 @@ D:\Clarity Desk\
   - Enforces zero direct writes from chat: the assistant routes into the standard modal review flows.
   - Honest missing-data states: guides students to configure baselines or import schedules when data is unavailable.
 
+### 🔹 Ask Desk: Question Understanding (Oct 2026)
+- **Still no AI model, on purpose**: Ask Desk answers on the device, so it is instant, offline, and free. A local LLM (WebLLM etc.) was considered and rejected: 1–2 GB download, slow on mid-range phones.
+- `understand(query)` in `ClarityAssistant` strips greetings/filler ("hi, can you tell me…"), rewrites slang and typos (bunk/miss → skip, tmrw → tomorrow, attendence → attendance), picks out a **subject** (name, code, initials like DBMS, `SUBJECT_ALIASES`; short codes that are English words such as "IT" only count when typed in capitals) and a **day** (today, tomorrow, weekday names), then runs the `INTENTS` rules. Subject/day turn into `subject_skip`, `day_skip`, `subject_attendance`, `tasks_day`, `day_schedule`, and so on.
+- "what about OS?" / "and Friday?" continue the previous subject/day question (`lastAsked`, kept in memory only).
+- Unknown questions get "Did you mean" buttons ranked by shared words.
+- The Today-page Ask Desk box (`handleAssistantQuestion`) now calls `ClarityAssistant.respond`; its old separate `answer*` rules are gone.
+- The chat panel is z-index 1101 and every modal is 200, so an answer button that opens a page or a form closes the panel first (document-level click listener next to the Ctrl+/ shortcut). Buttons that ask another question keep it open.
+- Regression table: `tests/verify_ask_desk.mjs` (about 55 real phrasings → intent/subject/day, plus answer checks).
+- **Scan AI cooldown**: `AIService._cooldowns` remembers for the session which provider/model just failed (404/403/401 for 30 min, 429/timeout for 5 min, 5xx for 2 min). `_healthyFirst` moves those to the back of the line; nothing is skipped, so every model still gets its turn. `extractStructuredFromImage(…, onStep)` reports which provider it is trying, so the scan screens show it.
+
 ### 🔹 Unit 5 — Parser Reliability for Attendance & Timetable Imports
 - **Problem**: Camera OCR scans produced digit errors (e.g., `8` read as `B`, `0` read as `O`), noisy teacher tokens, and misaligned grids.
 - **Solution**:

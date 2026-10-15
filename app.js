@@ -520,12 +520,43 @@ const AIService = {
     return [this.MODEL, ...this.FALLBACK_MODELS];
   },
 
+  // Remembers, for this session only, which models just failed in a way
+  // that lasts a few minutes (free quota used up, model retired, no answer
+  // in time). The next scan tries the healthy ones first instead of waiting
+  // on the same stuck model again. Nothing is skipped: a cooling model only
+  // moves to the back of the line, so it still gets its turn.
+  _cooldowns: {},
+  _coolDown(id, status) {
+    const mins = (status === 401 || status === 403 || status === 404) ? 30
+      : (status === 429 || status === 'timeout') ? 5
+      : (status >= 500) ? 2 : 0;
+    if (mins) this._cooldowns[id] = Date.now() + mins * 60000;
+  },
+  _isCooling(id) {
+    return (this._cooldowns[id] || 0) > Date.now();
+  },
+  _healthyFirst(items, idOf) {
+    return [...items.filter(x => !this._isCooling(idOf(x))), ...items.filter(x => this._isCooling(idOf(x)))];
+  },
+  // fetchWithTimeout plus the cooldown bookkeeping above.
+  async _post(id, url, init, ms) {
+    let response;
+    try {
+      response = await fetchWithTimeout(url, init, ms);
+    } catch (err) {
+      if (/^No response within/.test((err && err.message) || '')) this._coolDown(id, 'timeout');
+      throw err;
+    }
+    if (!response.ok) this._coolDown(id, response.status);
+    return response;
+  },
+
   async callGroqText(ocrText, promptText) {
     const route = await this._route('groq');
     
     console.log(`[AIService] Attempting extraction with Groq model: ${this.GROQ_MODEL}`);
     
-    const response = await fetchWithTimeout(route.url, {
+    const response = await this._post(`groq:${this.GROQ_MODEL}`, route.url, {
       method: 'POST',
       headers: route.headers,
       body: JSON.stringify({
@@ -558,19 +589,23 @@ const AIService = {
 
   async generateContentFromText(ocrText, promptText) {
     let lastError = null;
+    // Groq just failed (see _cooldowns): ask Gemini first this time.
+    const groqLast = this._isCooling(`groq:${this.GROQ_MODEL}`) && this.hasProvider('gemini');
 
-    try {
-      return await this.callGroqText(ocrText, promptText);
-    } catch (err) {
-      lastError = err;
-      console.warn(`[AIService] Groq text failed:`, err.message || err);
+    if (!groqLast) {
+      try {
+        return await this.callGroqText(ocrText, promptText);
+      } catch (err) {
+        lastError = err;
+        console.warn(`[AIService] Groq text failed:`, err.message || err);
+      }
     }
 
     if (!this.hasProvider('gemini')) {
       throw new Error(lastError ? lastError.message : 'No AI API key configured.');
     }
 
-    const models = this.getModelsList();
+    const models = this._healthyFirst(this.getModelsList(), m => `gemini:${m}`);
     for (const model of models) {
       try {
         const route = await this._route('gemini', model);
@@ -595,6 +630,15 @@ const AIService = {
       }
     }
 
+    if (groqLast) {
+      try {
+        return await this.callGroqText(ocrText, promptText);
+      } catch (err) {
+        lastError = err;
+        console.warn(`[AIService] Groq text failed:`, err.message || err);
+      }
+    }
+
     throw lastError || new Error('AI service unavailable. Please try again later.');
   },
 
@@ -609,7 +653,7 @@ const AIService = {
   async _generateContent(route, body, model) {
     let response;
     for (let attempt = 1; attempt <= 2; attempt++) {
-      response = await fetchWithTimeout(route.url, {
+      response = await this._post(`gemini:${model}`, route.url, {
         method: 'POST',
         headers: route.headers,
         body: JSON.stringify(body)
@@ -658,7 +702,7 @@ const AIService = {
       throw new Error('No Gemini API key configured for vision extraction.');
     }
 
-    const models = this.getModelsList();
+    const models = this._healthyFirst(this.getModelsList(), m => `gemini:${m}`);
     let lastError = null;
 
     for (const model of models) {
@@ -697,7 +741,7 @@ const AIService = {
 
     console.log(`[AIService] Attempting VISION extraction with Groq model: ${this.GROQ_VISION_MODEL}`);
 
-    const response = await fetchWithTimeout(route.url, {
+    const response = await this._post(`groq:${this.GROQ_VISION_MODEL}`, route.url, {
       method: 'POST',
       headers: route.headers,
       body: JSON.stringify({
@@ -736,10 +780,10 @@ const AIService = {
     const route = await this._route('openrouter');
     let lastError = null;
 
-    for (const model of this.OPENROUTER_VISION_MODELS) {
+    for (const model of this._healthyFirst(this.OPENROUTER_VISION_MODELS, m => `openrouter:${m}`)) {
       try {
         console.log(`[AIService] Attempting VISION extraction with OpenRouter model: ${model}`);
-        const response = await fetchWithTimeout(route.url, {
+        const response = await this._post(`openrouter:${model}`, route.url, {
           method: 'POST',
           headers: route.headers,
           body: JSON.stringify({
@@ -784,12 +828,12 @@ const AIService = {
     const route = await this._route('workersai');
     let lastError = null;
 
-    for (const model of this.WORKERS_AI_VISION_MODELS) {
+    for (const model of this._healthyFirst(this.WORKERS_AI_VISION_MODELS, m => `workersai:${m}`)) {
       try {
         console.log(`[AIService] Attempting VISION extraction with Workers AI model: ${model}`);
         // 90 s, not the usual 60: these models took ~45 s on a full timetable,
         // and this leg only runs after Gemini and Groq have already failed.
-        const response = await fetchWithTimeout(route.url, {
+        const response = await this._post(`workersai:${model}`, route.url, {
           method: 'POST',
           headers: route.headers,
           body: JSON.stringify({
@@ -835,19 +879,25 @@ const AIService = {
   // non-empty schedule -- a provider being out of quota (429) or briefly
   // down no longer means the whole photo falls back to raw Tesseract text,
   // it just means the next configured provider gets tried instead.
-  async extractStructuredFromImage(base64Data, mimeType, promptText) {
-    const attempts = [];
-    if (this.hasProvider('gemini')) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText)]);
-    if (this.hasProvider('groq')) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText)]);
-    if (this.hasProvider('workersai')) attempts.push(['Workers AI', () => this.callWorkersAIVision(base64Data, mimeType, promptText)]);
-    if (this.hasProvider('openrouter')) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText)]);
+  // onStep(providerName), optional, is called before each provider is tried
+  // so the scan screen can say what it is waiting on.
+  async extractStructuredFromImage(base64Data, mimeType, promptText, onStep) {
+    let attempts = [];
+    if (this.hasProvider('gemini')) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText), this.getModelsList().map(m => `gemini:${m}`)]);
+    if (this.hasProvider('groq')) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText), [`groq:${this.GROQ_VISION_MODEL}`]]);
+    if (this.hasProvider('workersai')) attempts.push(['Workers AI', () => this.callWorkersAIVision(base64Data, mimeType, promptText), this.WORKERS_AI_VISION_MODELS.map(m => `workersai:${m}`)]);
+    if (this.hasProvider('openrouter')) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText), this.OPENROUTER_VISION_MODELS.map(m => `openrouter:${m}`)]);
 
     if (attempts.length === 0) {
       throw new Error('No vision-capable AI provider configured.');
     }
 
+    // A provider whose every model just failed goes to the back of the line.
+    attempts = this._healthyFirst(attempts, a => a[2].every(id => this._isCooling(id)) ? a[2][0] : '');
+
     let lastError = null;
     for (const [providerName, attempt] of attempts) {
+      if (typeof onStep === 'function') { try { onStep(providerName); } catch (_) {} }
       try {
         const result = await attempt();
         if (result && Array.isArray(result.schedule) && result.schedule.length > 0) {
@@ -3984,7 +4034,8 @@ ${ocrResult.data.text || ''}`;
       // loss since it's the exact same image Tesseract itself already reads.
       const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
       const preprocessedBase64 = visionDataUrl.split(',')[1];
-      const visionResult = await AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt);
+      const visionResult = await AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt,
+        name => updateTimetableLoadingModal(`Reading the photo with AI (${name})...`));
       if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
         // Grid-cell response (the requested format) -> rows with times from
         // the header; a model that ignored it and returned flat rows is
@@ -7877,186 +7928,22 @@ window.finishOnboarding = function() {
 
 // ── Ask Clarity Assistant ─────────────────────────────────────
 
+// The Ask Desk box on Today gives the same answers as the Ask Desk panel
+// (it used to have its own, smaller set of rules that disagreed with it).
 window.handleAssistantQuestion = function() {
   const el = document.getElementById('assistant-input');
-  const text = (el ? el.value.trim() : '').toLowerCase();
+  const text = el ? el.value.trim() : '';
   if (!text) return;
 
   const container = document.getElementById('assistant-answer-container');
   if (!container) return;
 
-  container.innerHTML = '';
-  let intentType = 'unknown';
-  let intentData = {};
-
-  if ((text.includes('today') && text.includes('need to')) || (text.includes('today') && text.includes('due')) || text.includes('what do i need to do today') || text.includes('what should i focus on')) {
-    intentType = 'today-summary';
-  } else if ((text.includes('overdue') || text.includes('late') || text.includes('pending')) && (text.includes('any') || text.includes('what'))) {
-    intentType = 'overdue';
-  } else if (text.includes('exam') || text.includes('test') || text.includes('quiz')) {
-    intentType = 'exams';
-  } else if (text.match(/\b(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/) && text.match(/\b(class|classes|left|have)\b/)) {
-    intentType = 'timetable-day';
-    intentData.dayMatch = text.match(/\b(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/)[0];
-  } else {
-    // 1. Check dynamically against user's actual subjects
-    const knownSubjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
-    for (const s of knownSubjects) {
-      const sName = (s.name || '').toLowerCase();
-      const sCode = (s.code || '').toLowerCase();
-      if ((sName && text.includes(sName)) || (sCode && sCode.length >= 2 && text.includes(sCode))) {
-        intentType = 'subject-tasks';
-        intentData.subject = s.name;
-        intentData.window = text.includes('next week') ? 'next-week' : 'this-week';
-        break;
-      }
-    }
-    // 2. Fallback to common aliases
-    if (intentType === 'unknown') {
-      for (const [key, val] of Object.entries(SUBJECT_ALIASES)) {
-        if (text.includes(key.toLowerCase()) || text.includes(val.toLowerCase())) {
-          intentType = 'subject-tasks';
-          intentData.subject = key;
-          intentData.window = text.includes('next week') ? 'next-week' : 'this-week';
-          break;
-        }
-      }
-    }
-  }
-
-  let answerHTML = '';
-  switch (intentType) {
-    case 'today-summary': answerHTML = answerTodaySummary(); break;
-    case 'subject-tasks': answerHTML = answerSubjectTasks(intentData.subject, intentData.window); break;
-    case 'timetable-day': answerHTML = answerTimetableDay(intentData.dayMatch); break;
-    case 'overdue':       answerHTML = answerOverdueTasks(); break;
-    case 'exams':         answerHTML = answerExams(); break;
-    default:              answerHTML = answerUnknown(); break;
-  }
-
   container.innerHTML = `
-    <div class="card card-sm" style="margin-bottom:12px;padding:14px;background:var(--surface-2);border-left:3px solid var(--accent)">
-      ${answerHTML}
+    <div class="card card-sm cd-inline-answer" style="margin-bottom:12px;padding:14px;background:var(--surface-2);border-left:3px solid var(--accent)">
+      ${ClarityAssistant.respond(text)}
     </div>
   `;
 };
-
-function answerTodaySummary() {
-  const currentMin = currentTimeMinutes();
-  const tt = loadTimetable();
-  const dayClasses = tt[new Date().getDay()] || [];
-  const nextClass = dayClasses.find(c => timeToMinutes(c.end || '23:59') > currentMin && c.type !== 'off' && c.subject !== 'Recess');
-  const classesLeft = todayClasses();
-  const tsks = allTasks().filter(a => a.status === 'pending' && a.dueDate === todayStr());
-  
-  let html = `<div style="font-weight:600;margin-bottom:8px">Today's Focus &amp; Summary</div>`;
-  html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${classesLeft} class${classesLeft!==1?'es':''} left and ${tsks.length} task${tsks.length!==1?'s':''} due today.</div>`;
-  if (nextClass) {
-    html += `<div style="font-size:var(--text-base);color:var(--text-secondary)">👉 Next session: <strong>${nextClass.subject}</strong> at ${formatDisplayTime(nextClass.time)} (${nextClass.room})</div>`;
-  }
-  if (tsks.length > 0) {
-    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:8px 0 0 16px;padding:0">`;
-    tsks.forEach(t => { html += `<li>${t.title}</li>`; });
-    html += `</ul>`;
-  }
-  return html;
-}
-
-function answerSubjectTasks(subject, window) {
-  const todayS = todayStr();
-  const next7 = new Date(); next7.setDate(new Date().getDate() + 7);
-  const next7Str = localDateKey(next7);
-  
-  let tsks = allTasks().filter(a => a.status === 'pending' && a.code === subject);
-  if (window === 'this-week') {
-    tsks = tsks.filter(a => a.dueDate >= todayS && a.dueDate <= next7Str);
-  } else {
-    const next14 = new Date(); next14.setDate(new Date().getDate() + 14);
-    tsks = tsks.filter(a => a.dueDate > next7Str && a.dueDate <= localDateKey(next14));
-  }
-  
-  let html = `<div style="font-weight:600;margin-bottom:8px">${subject} Tasks (${window.replace('-', ' ')})</div>`;
-  if (tsks.length === 0) {
-    html += `<div style="font-size:var(--text-base)">No pending tasks found for ${subject}.</div>`;
-  } else {
-    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
-    tsks.forEach(t => { html += `<li>${t.title} (Due: ${formatDate(t.dueDate)})</li>`; });
-    html += `</ul>`;
-  }
-  return html;
-}
-
-function answerTimetableDay(dayMatch) {
-  let targetDate = new Date();
-  if (dayMatch === 'tomorrow') {
-    targetDate.setDate(targetDate.getDate() + 1);
-  } else {
-    const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
-    const targetIdx = days.indexOf(dayMatch);
-    const currentIdx = targetDate.getDay();
-    let diff = targetIdx - currentIdx;
-    if (diff <= 0) diff += 7;
-    targetDate.setDate(targetDate.getDate() + diff);
-  }
-  
-  const tt = loadTimetable();
-  const dayIdx = targetDate.getDay();
-  const classes = (tt[dayIdx] || []).filter(c => c.type !== 'off' && c.subject !== 'Recess');
-  
-  let html = `<div style="font-weight:600;margin-bottom:8px">Classes on ${DAY_NAMES[dayIdx]}</div>`;
-  if (classes.length === 0) {
-    html += `<div style="font-size:var(--text-base)">You have no classes scheduled.</div>`;
-  } else {
-    html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${classes.length} class${classes.length!==1?'es':''}:</div>`;
-    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
-    classes.forEach(c => { html += `<li><strong>${c.subject}</strong> (${formatDisplayTime(c.time)} · ${c.room})</li>`; });
-    html += `</ul>`;
-  }
-  return html;
-}
-
-function answerOverdueTasks() {
-  const tsks = allTasks().filter(t => isTaskOverdue(t));
-  let html = `<div style="font-weight:600;margin-bottom:8px">Overdue Tasks</div>`;
-  if (tsks.length === 0) {
-    html += `<div style="font-size:var(--text-base)">You have no overdue tasks. All clear!</div>`;
-  } else {
-    html += `<div style="font-size:var(--text-base);margin-bottom:8px">You have ${tsks.length} overdue task(s):</div>`;
-    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
-    tsks.forEach(t => { html += `<li>${t.title} (Due: ${formatDate(t.dueDate)})</li>`; });
-    html += `</ul>`;
-  }
-  return html;
-}
-
-function answerExams() {
-  const tsks = allTasks().filter(t => t.status === 'pending' && (t.title.toLowerCase().includes('exam') || t.title.toLowerCase().includes('test') || t.title.toLowerCase().includes('quiz')));
-  const nts = getVisibleNotices().filter(n => n.category.toLowerCase().includes('exam') || n.title.toLowerCase().includes('exam') || n.title.toLowerCase().includes('test'));
-  
-  let html = `<div style="font-weight:600;margin-bottom:8px">Upcoming Exams &amp; Tests</div>`;
-  if (tsks.length === 0 && nts.length === 0) {
-    html += `<div style="font-size:var(--text-base)">No upcoming exams or tests found in your tasks or notice board.</div>`;
-  } else {
-    html += `<ul style="font-size:var(--text-base);color:var(--text-secondary);margin:0 0 0 16px;padding:0">`;
-    tsks.forEach(t => { html += `<li>${t.title} (Due: ${formatDate(t.dueDate)})</li>`; });
-    nts.forEach(n => { html += `<li>${n.title} (Notice Date: ${formatDate(n.date)})</li>`; });
-    html += `</ul>`;
-  }
-  return html;
-}
-
-function answerUnknown() {
-  return `
-    <div style="font-weight:600;margin-bottom:8px">Here are a few questions you can ask Clarity Desk:</div>
-    <ul style="font-size:var(--text-base);color:var(--text-muted);margin:8px 0 0 16px;padding:0">
-      <li>"What should I focus on today?"</li>
-      <li>"Show DS tasks due this week"</li>
-      <li>"How many classes do I have tomorrow?"</li>
-      <li>"Any overdue tasks?"</li>
-      <li>"When are my upcoming exams?"</li>
-    </ul>
-  `;
-}
 
 // ── Dashboard ─────────────────────────────────────────────────
 // Once the greeting has played its settle-in animation, re-renders of the
@@ -10794,7 +10681,8 @@ columns out of order -- treat the image as the primary source of truth):
 ${rawOcrText}`;
 
   try {
-    const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt);
+    const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt,
+      name => updateAttendanceScanLoadingMessage(`Reading the screenshot with AI (${name})…`));
     if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
       return aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
     }
@@ -15138,11 +15026,10 @@ const ClarityAssistant = (() => {
   }
 
   // ── Intent Matching ───────────────────────────────────────────
+  // First match wins, so the more specific rules come first. Greetings are
+  // not in here: understand() strips them off the front, so "hi, what's my
+  // next class" answers the question instead of only saying hello.
   const INTENTS = [
-    {
-      id: 'greeting',
-      test: /\b(hi|hello|hey|good\s*(morning|afternoon|evening)|what'?s up|sup)\b/i,
-    },
     {
       id: 'parser_review',
       test: /\b(review (import|timetable|attendance|scan|data|staging)|check (pending|uncertain|imports?|review)|is my import (confirmed|ready)|needs? review|uncertain (data|import|attendance|timetable))\b/i,
@@ -15168,6 +15055,18 @@ const ClarityAssistant = (() => {
       test: /\b(setup attendance|set up attendance|attendance baseline|attendance setup|help me set up attendance|help me set my attendance baseline|configure attendance|set baseline|set my baseline|set attendance baseline)\b/i,
     },
     {
+      id: 'timetable_view',
+      test: /\b(show (me )?(my )?(whole |full |weekly )?timetable|(my|whole|full|weekly) timetable|timetable for (the )?week|week'?s timetable|open timetable)\b/i,
+    },
+    {
+      id: 'exams',
+      test: /\b(exams?|end ?sems?|mid ?sems?|tests?|quiz(zes)?|viva|orals?)\b/i,
+    },
+    {
+      id: 'day_end',
+      test: /\b(last (class|lab)|when (do|does|will) (i|my|college|classes?|the day) (get )?(finish|end|over|done)|(finish|end|done|free) (for the day|today|tomorrow)|what time (do|does|will) .*(end|finish|over)|when am i free)\b/i,
+    },
+    {
       id: 'subject_hubs',
       test: /\b(open (my )?subject hubs?|view (my )?subject hubs?|go to subject hubs?|subject hubs?|open subjects?|view subjects?)\b/i,
     },
@@ -15188,8 +15087,12 @@ const ClarityAssistant = (() => {
       test: /\b(setup|what needs setup|missing setup|setup gaps|what is missing|needs setup|desk setup|is anything missing( from my setup)?|anything missing)\b/i,
     },
     {
+      id: 'tasks_week',
+      test: /\b(due (this|next) week|upcoming (task|deadline|assignment)s?|this week|next week|due soon|week'?s tasks?)\b/i,
+    },
+    {
       id: 'next_class',
-      test: /\b(next class|next lecture|upcoming class|which class|next period|what'?s next|what is next|\bnext\b|soon start|starting next)\b/i,
+      test: /\b(next class|next lab|next lecture|upcoming class|which class|next period|what'?s next|what is next|\bnext\b|soon start|starting next)\b/i,
     },
     {
       id: 'attendance_risk',
@@ -15200,12 +15103,8 @@ const ClarityAssistant = (() => {
       test: /\b(urgent|overdue|late|missed deadline|past due|behind|urgent tasks|show (my )?urgent tasks|what tasks are urgent|due today|due tomorrow|deadline|deadlines)\b/i,
     },
     {
-      id: 'tasks_week',
-      test: /\b(due (this|next) week|upcoming (task|deadline|assignment)|this week|due soon|week'?s tasks?)\b/i,
-    },
-    {
       id: 'tasks_all',
-      test: /\b(all (task|assignment)|pending tasks?|my tasks?|task list|what (task|assignment))\b/i,
+      test: /\b(all (task|assignment)s?|pending tasks?|my tasks?|task list|what (task|assignment)s?|tasks)\b/i,
     },
     {
       id: 'today_summary',
@@ -15225,7 +15124,7 @@ const ClarityAssistant = (() => {
     },
     {
       id: 'notices',
-      test: /\b(notice|announcement|important|update|bulletin|news|notification)\b/i,
+      test: /\b(notices?|announcements?|important|updates?|bulletins?|news|notifications?|circulars?)\b/i,
     },
     {
       id: 'profile',
@@ -15237,12 +15136,182 @@ const ClarityAssistant = (() => {
     },
   ];
 
-  function matchIntent(q) {
-    const lower = q.toLowerCase().trim();
-    for (const intent of INTENTS) {
-      if (intent.test.test(lower)) return intent.id;
+  // ── Understanding the question ────────────────────────────────
+  // All of this runs on the phone: no AI model, no network, no tokens, so
+  // answers are instant and work offline. The question is cleaned up
+  // (slang, common typos), its subject and day are picked out, and only
+  // then matched against the rules above.
+
+  const SLANG = [
+    [/\b(bunk|bunks|bunking|bunked|skipping|skipped|miss|missed)\b/g, 'skip'],
+    [/\b(tmrw|tmrow|tmr|tmw|tmrrw|tomm?orr?ow|tomm?orow|2moro|2morrow)\b/g, 'tomorrow'],
+    [/\b(tdy|2day)\b/g, 'today'],
+    [/\b(lecs?|lects?|lectures?)\b/g, 'class'],
+    [/\b(att|attnd|attendence|attendace|atendance|attandance|attendanc)\b/g, 'attendance'],
+    [/\b(tt|time table|timetabel|timtable|time-table)\b/g, 'timetable'],
+    [/\b(assignments?|assignmnts?|asignments?|homeworks?|hw)\b/g, 'tasks'],
+    [/\b(practicals?|labs)\b/g, 'lab'],
+    [/\b(pls|plz|please|kindly)\b/g, ' '],
+  ];
+
+  // Words the rules care about; a word one or two letters off one of these
+  // is read as that word ("attendnce", "scedule", "tommorow").
+  const VOCAB = ['attendance', 'timetable', 'schedule', 'tomorrow', 'today', 'tasks', 'deadline', 'deadlines',
+    'subject', 'subjects', 'notice', 'notices', 'exam', 'exams', 'class', 'classes', 'urgent', 'overdue',
+    'pending', 'setup', 'week', 'weekly', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+    'sunday', 'percentage', 'remaining', 'next', 'study', 'plan', 'tonight', 'profile', 'declutter', 'baseline',
+    'import', 'scan', 'attention', 'skip', 'safe', 'risk', 'upcoming', 'schedule', 'finish', 'update', 'updates'];
+
+  function editDistance(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      let rowMin = i;
+      for (let j = 1; j <= b.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        rowMin = Math.min(rowMin, cur[j]);
+      }
+      if (rowMin > max) return max + 1;
+      prev = cur;
     }
-    return 'unknown';
+    return prev[b.length];
+  }
+
+  function fixTypos(text, keep) {
+    return text.split(' ').map(w => {
+      if (w.length < 5 || VOCAB.includes(w) || keep.has(w)) return w;
+      const max = w.length >= 8 ? 2 : 1;
+      let best = null, bestD = max + 1;
+      for (const v of VOCAB) {
+        const d = editDistance(w, v, max);
+        if (d < bestD) { best = v; bestD = d; }
+      }
+      return best && bestD <= max ? best : w;
+    }).join(' ');
+  }
+
+  function plainText(q) {
+    return String(q || '').toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9%'+&\- ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // Short English words that are also subject codes (IT, OR, ...) only count
+  // as the subject when typed in capitals.
+  const COMMON_WORDS = new Set(['it', 'is', 'or', 'as', 'in', 'on', 'at', 'to', 'me', 'my', 'an', 'am', 'be', 'do',
+    'go', 'no', 'so', 'up', 'us', 'we', 'of', 'if', 'by', 'he', 'hi', 'ok', 'all', 'and', 'are', 'can', 'for',
+    'the', 'how', 'any', 'due', 'not', 'off', 'one', 'out', 'pe', 'cn', 'lab']);
+
+  function subjectNames(s) {
+    const names = new Set();
+    const name = (s.name || '').toLowerCase().trim();
+    if (name) names.add(plainText(name));
+    const code = plainText(s.code || '');
+    if (code.length >= 2) names.add(code);
+    // "Database Management Systems" -> "dbms"
+    const words = plainText(name).split(' ').filter(w => w && !['and', 'of', 'the', 'for', 'in', '&', 'to'].includes(w));
+    if (words.length >= 2) names.add(words.map(w => w[0]).join(''));
+    Object.entries(typeof SUBJECT_ALIASES === 'object' ? SUBJECT_ALIASES : {}).forEach(([short, full]) => {
+      if (plainText(full) === plainText(name) || plainText(short) === code) names.add(plainText(short));
+    });
+    return [...names].filter(Boolean);
+  }
+
+  function findSubject(raw, text) {
+    const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
+    let best = null, bestLen = 0;
+    subjects.forEach(s => {
+      subjectNames(s).forEach(n => {
+        if (n.length < 2) return;
+        const re = new RegExp(`(^|\\s)${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`);
+        if (!re.test(text)) return;
+        if (COMMON_WORDS.has(n) && !new RegExp(`\\b${n.toUpperCase().replace(/[^A-Z0-9]/g, '')}\\b`).test(raw)) return;
+        // Longest wins, so "data structures lab" beats "data structures".
+        if (n.length > bestLen) { best = s; bestLen = n.length; }
+      });
+    });
+    return best;
+  }
+
+  function dayFrom(dayNum, offset) {
+    const label = offset === 0 ? 'today' : offset === 1 ? 'tomorrow' : offset === -1 ? 'yesterday' : DAY_NAMES[dayNum];
+    return { dayNum, offset, date: nDaysFromNow(offset), label, title: offset === 0 || offset === 1 || offset === -1 ? label[0].toUpperCase() + label.slice(1) : DAY_NAMES[dayNum] };
+  }
+
+  function findDay(text) {
+    const now = new Date().getDay();
+    if (/\bday after tomorrow\b/.test(text)) return dayFrom((now + 2) % 7, 2);
+    if (/\btomorrow\b/.test(text)) return dayFrom((now + 1) % 7, 1);
+    if (/\byesterday\b/.test(text)) return dayFrom((now + 6) % 7, -1);
+    if (/\b(today|tonight)\b/.test(text)) return dayFrom(now, 0);
+    for (let i = 0; i < 7; i++) {
+      if (new RegExp(`\\b(${DAY_NAMES[i].toLowerCase()}|${DAY_ABBR[i]})\\b`).test(text)) {
+        let offset = (i - now + 7) % 7;
+        if (offset === 0 && new RegExp(`\\bnext (${DAY_NAMES[i].toLowerCase()}|${DAY_ABBR[i]})\\b`).test(text)) offset = 7;
+        return dayFrom(i, offset);
+      }
+    }
+    return null;
+  }
+
+  const GREETING_RE = /^(hi+|hey+|hello+|helo|hiya|yo|sup|namaste|good (morning|afternoon|evening|night)|ok(ay)?|so|desk|ask desk|thanks|thank you|thx)\b[\s,!.?]*/;
+  const FILLER_RE = /^((can|could|would|will) you (please )?(tell|show|give|let) me( know)?|(please )?(tell|show) me|i (want|wanna|need) to know|let me know)\b\s*/;
+  const FOLLOW_UP_RE = /^((what|how) about|and|also|same for|what of|for)\b\s*/;
+  const SKIP_RE = /\b(skip|safe to skip|can i skip|afford to skip|safe to (not go|stay home)|stay home|not go)\b/;
+  const ATTENDANCE_RE = /\b(attendance|percentage|%|below \d+|at risk|how am i doing)\b/;
+  const DUE_RE = /\b(due|tasks?|deadlines?|submit|submission)\b/;
+
+  // Intents that use a subject and/or a day, and so can be continued with
+  // "what about OS?" or "and tomorrow?".
+  const SUBJECT_INTENTS = ['subject_skip', 'subject_attendance', 'subject_info', 'next_class'];
+  const DAY_INTENTS = ['day_skip', 'day_schedule', 'tasks_day', 'day_end'];
+  let lastAsked = null;
+
+  function understand(query) {
+    const raw = String(query || '');
+    let text = plainText(raw);
+    const subject = findSubject(raw, text);
+    const keep = new Set(subject ? subjectNames(subject).flatMap(n => n.split(' ')) : []);
+    let greeted = false;
+    for (let i = 0; i < 4; i++) {
+      const before = text;
+      if (GREETING_RE.test(text)) { greeted = true; text = text.replace(GREETING_RE, ''); }
+      text = text.replace(FILLER_RE, '').trim();
+      if (text === before) break;
+    }
+    if (!text) return { intent: greeted ? (/thank|thx/.test(plainText(raw)) ? 'thanks' : 'greeting') : 'unknown', subject: null, day: null };
+
+    SLANG.forEach(([re, to]) => { text = text.replace(re, to); });
+    text = fixTypos(text.replace(/\s+/g, ' ').trim(), keep);
+    const day = findDay(text);
+
+    // "what about OS?" / "and tomorrow?" continue the last question.
+    if (lastAsked && FOLLOW_UP_RE.test(text) && (subject || day)) {
+      let intent = lastAsked.intent;
+      if (subject && !day && DAY_INTENTS.includes(intent)) intent = intent === 'day_skip' ? 'subject_skip' : 'subject_info';
+      if (day && !subject && !DAY_INTENTS.includes(intent) && intent !== 'subject_skip') intent = 'day_schedule';
+      if (SUBJECT_INTENTS.includes(intent) || DAY_INTENTS.includes(intent)) {
+        return { intent, subject: subject || lastAsked.subject, day: day || lastAsked.day };
+      }
+    }
+
+    let intent = null;
+    if (SKIP_RE.test(text)) intent = subject ? 'subject_skip' : day ? 'day_skip' : 'skip_overview';
+    else if (subject && ATTENDANCE_RE.test(text)) intent = 'subject_attendance';
+    else if (day && day.offset !== 0 && DUE_RE.test(text) && !/\b(class|classes|lab)\b/.test(text)) intent = 'tasks_day';
+
+    if (!intent) {
+      for (const rule of INTENTS) {
+        if (rule.test.test(text)) { intent = rule.id; break; }
+      }
+    }
+
+    // A day other than today turns "what do I have" / "classes" into that day's list.
+    if (day && day.offset !== 0 && ['today_summary', 'day_schedule', 'classes_left', 'next_class', 'unknown', null].includes(intent) && !(intent === 'next_class' && subject)) intent = 'day_schedule';
+    if (intent === 'day_schedule' && (!day || day.offset === 0)) intent = 'today_summary';
+    if (!intent && subject) intent = 'subject_info';
+    if (!intent && day) intent = 'today_summary';
+    if (!intent && greeted) intent = 'greeting';
+    return { intent: intent || 'unknown', subject, day };
   }
 
   // ── Data Readers ──────────────────────────────────────────────
@@ -15751,19 +15820,21 @@ const ClarityAssistant = (() => {
     }
 
     const todayClasses = getTodayClasses();
-    if (todayClasses.length === 0) {
-      return `No classes scheduled for today.`;
-    }
-
     const next = getNextClass();
     const now = currentTimeMinutes();
 
     if (!next) {
-      const remaining = getRemainingTodayClasses();
-      if (remaining.length === 0) {
-        return `🎉 All classes for today are finished! You're done for the day.`;
+      const first = todayClasses.length === 0 ? 'No classes today.' : `You're done with today's classes.`;
+      // Say when the next one is instead of stopping at "none today".
+      for (let off = 1; off < 8; off++) {
+        const dn = (new Date().getDay() + off) % 7;
+        const c = getDayClasses(dn).sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))[0];
+        if (c) {
+          const when = off === 1 ? 'tomorrow' : DAY_NAMES[dn];
+          return `${first} Next class: <strong>${escHtml(c.subject)}</strong>, ${when} at ${formatTime(c.time)}${c.room && c.room !== '—' ? ' in ' + escHtml(c.room) : ''}.`;
+        }
       }
-      return `No upcoming class found. Check your timetable.`;
+      return first;
     }
 
     const startMin = timeToMinutes(next.time);
@@ -15943,32 +16014,224 @@ const ClarityAssistant = (() => {
     return `<strong>${remaining.length} class${remaining.length !== 1 ? 'es' : ''}</strong> remaining today:<ul class="cd-list">${items}</ul>`;
   }
 
-  function buildDaySchedule(q) {
-    const lower = q.toLowerCase();
-    let dayNum = -1;
-    for (let i = 0; i < DAY_ABBR.length; i++) {
-      if (lower.includes(DAY_ABBR[i]) || lower.includes(DAY_NAMES[i].toLowerCase())) {
-        dayNum = i;
-        break;
-      }
-    }
-    if (dayNum < 0) return buildTodaySummary();
-
-    const classes = getDayClasses(dayNum);
-    const dayName = DAY_NAMES[dayNum];
-
-    if (dayNum === 0) return `No classes on Sundays.`;
-    if (classes.length === 0) return `No classes scheduled on ${dayName}.`;
+  function buildDaySchedule(day) {
+    if (!day) return buildTodaySummary();
+    if (!hasTimetable()) return noTimetableMsg();
+    const classes = getDayClasses(day.dayNum);
+    const when = day.offset === 0 || day.offset === 1 || day.offset === -1 ? `${day.title} (${DAY_NAMES[day.dayNum]})` : DAY_NAMES[day.dayNum];
+    if (classes.length === 0) return `<strong>${when}</strong>: no classes. ${day.offset > 0 ? 'A free day.' : ''}`;
 
     const items = classes.map(c => {
       const timeStr = `${formatTime(c.time)} – ${formatTime(c.end)}`;
-      return `<li><span class="cd-item-label">${escHtml(c.subject)}</span><span class="cd-item-meta">${timeStr}</span></li>`;
+      const meta = [c.room && c.room !== '—' ? c.room : null, c.teacher && c.teacher !== '—' ? c.teacher : null].filter(Boolean).join(' · ');
+      return `<li><span class="cd-item-label">${escHtml(c.subject)}</span><span class="cd-item-meta">${timeStr}${meta ? ' · ' + escHtml(meta) : ''}</span></li>`;
     }).join('');
 
-    return `<strong>${dayName}</strong>, ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>`;
+    const due = day.offset >= 0 ? pendingDueOn(day.date) : [];
+    const dueLine = due.length ? `<div style="margin-top:8px;font-size:var(--text-sm);color:var(--text-secondary)">Also due ${escHtml(day.label)}: ${due.map(t => `<strong>${escHtml(t.title)}</strong>`).join(', ')}</div>` : '';
+    return `<strong>${when}</strong>, ${classes.length} class${classes.length !== 1 ? 'es' : ''}:<ul class="cd-list">${items}</ul>${dueLine}`;
   }
 
-  function buildTasksWeek() {
+  // ── Answers that use a subject or a day ───────────────────────
+
+  function hasTimetable() {
+    return Object.values(loadTimetable() || {}).some(arr => Array.isArray(arr) && arr.some(c => !isBreakEntry(c)));
+  }
+
+  function noTimetableMsg() {
+    return `No timetable yet. Scan a photo of it and I can answer questions about your classes.<br><br>
+    <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan timetable →</button>`;
+  }
+
+  function jsArg(str) {
+    return escHtml(String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  }
+
+  function sameSubject(a, b) {
+    const k = (x) => (typeof getCanonicalSubjectKey === 'function' ? getCanonicalSubjectKey(x || '') : String(x || '').toLowerCase().trim());
+    return !!a && !!b && k(a) === k(b);
+  }
+
+  function pendingDueOn(iso) {
+    return allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate === iso);
+  }
+
+  function subjectButtons(subject, extra = '') {
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${jsArg(subject.name)}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.book()} Open ${escHtml(subject.name)} →</button>${extra}
+    </div>`;
+  }
+
+  function noAttendanceFor(subject) {
+    return `I don't have attendance for <strong>${escHtml(subject.name)}</strong> yet. Add your counts from the college portal once and I can tell you how many classes you can miss.<br><br>
+    <button class="btn btn-sm btn-primary" onclick="showBaselineModal(null, 'scan')" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan portal screenshot</button>
+    <button class="btn btn-sm btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-sm);padding:5px 12px">${icons.edit()} Enter counts</button>`;
+  }
+
+  function projectionLine(att) {
+    const line = typeof attV2ProjectionText === 'function' ? attV2ProjectionText(att) : '';
+    return line ? `<div style="margin-top:6px;font-size:var(--text-sm);color:var(--text-secondary)">${escHtml(line)}.</div>` : '';
+  }
+
+  // Yes/no first, then the numbers.
+  function skipVerdict(subject, att) {
+    const target = att.targetPct || getAttendanceTarget();
+    const pct = att.pctLabel ?? att.pct;
+    const name = escHtml(subject.name);
+    if (att.isSafe && att.safeSkips > 0) {
+      return { ok: true, html: `<span class="cd-tag cd-tag-safe">Yes</span> You can miss <strong>${att.safeSkips} more ${name} class${att.safeSkips !== 1 ? 'es' : ''}</strong> and stay at or above ${target}% (now ${pct}%).` };
+    }
+    if (att.isSafe) {
+      return { ok: false, html: `<span class="cd-tag is-warning">Better not</span> ${name} is at ${pct}%, right at the ${target}% line. Missing one more would drop you below it.` };
+    }
+    const n = att.classesToAttend;
+    return { ok: false, html: `<span class="cd-tag cd-tag-risk">No</span> ${name} is at <strong>${pct}%</strong>, below ${target}%.${n ? ` Attend the next <strong>${n} class${n !== 1 ? 'es' : ''}</strong> in a row to get back to ${target}%.` : ''}` };
+  }
+
+  function buildSubjectSkip(subject, day) {
+    if (!subject) return buildSkipOverview();
+    const att = getSubjectAttendance(subject);
+    if (att.pct === null) return noAttendanceFor(subject);
+    let dayNote = '';
+    if (day && hasTimetable()) {
+      const onDay = getDayClasses(day.dayNum).filter(c => sameSubject(c.subject, subject.name));
+      dayNote = onDay.length
+        ? `<div style="margin-top:6px;font-size:var(--text-sm);color:var(--text-secondary)">${escHtml(day.title)} you have ${onDay.length} ${escHtml(subject.name)} class${onDay.length !== 1 ? 'es' : ''} (${onDay.map(c => formatTime(c.time)).join(', ')}).</div>`
+        : `<div style="margin-top:6px;font-size:var(--text-sm);color:var(--text-secondary)">${escHtml(subject.name)} isn't on your timetable ${day.offset === 0 || day.offset === 1 ? escHtml(day.label) : 'on ' + DAY_NAMES[day.dayNum]}.</div>`;
+    }
+    return `${skipVerdict(subject, att).html}${dayNote}${projectionLine(att)}${subjectButtons(subject)}`;
+  }
+
+  function buildSubjectAttendance(subject) {
+    const att = getSubjectAttendance(subject);
+    if (att.pct === null) return noAttendanceFor(subject);
+    const tag = att.isSafe ? '<span class="cd-tag cd-tag-safe">Safe</span>' : '<span class="cd-tag cd-tag-risk">Below target</span>';
+    const verdict = skipVerdict(subject, att);
+    return `${tag} <strong>${escHtml(subject.name)}: ${att.pctLabel ?? att.pct}%</strong> (${att.present} of ${att.total} attended).<br><br>${verdict.html}${projectionLine(att)}${subjectButtons(subject)}`;
+  }
+
+  function buildDaySkip(day) {
+    if (!hasTimetable()) return noTimetableMsg();
+    const classes = getDayClasses(day.dayNum);
+    if (classes.length === 0) return `No classes ${day.offset === 0 || day.offset === 1 ? escHtml(day.label) : 'on ' + DAY_NAMES[day.dayNum]}, so nothing to skip.`;
+    const seen = new Set();
+    const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
+    const rows = [];
+    let unsafe = 0, unknown = 0;
+    classes.forEach(c => {
+      const key = String(c.subject || '').toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const subj = subjects.find(s => sameSubject(s.name, c.subject)) || { name: c.subject, code: c.code };
+      const att = getSubjectAttendance(subj);
+      let tag;
+      if (att.pct === null) { unknown++; tag = '<span class="cd-tag">No data</span>'; }
+      else if (att.isSafe && att.safeSkips > 0) tag = `<span class="cd-tag cd-tag-safe">Can miss ${att.safeSkips}</span>`;
+      else { unsafe++; tag = `<span class="cd-tag cd-tag-risk">${att.isSafe ? 'At the line' : 'Attend'}</span>`; }
+      rows.push(`<li>${tag}<span class="cd-item-label">${escHtml(c.subject)}</span><span class="cd-item-meta">${formatTime(c.time)}${att.pct !== null ? ` · ${att.pctLabel ?? att.pct}%` : ''}</span></li>`);
+    });
+    const when = day.offset === 0 || day.offset === 1 ? day.label : 'on ' + DAY_NAMES[day.dayNum];
+    const head = unsafe === 0 && unknown === 0
+      ? `<span class="cd-tag cd-tag-safe">Yes</span> Every class ${escHtml(when)} can be missed without dropping below ${getAttendanceTarget()}%.`
+      : unsafe > 0
+        ? `<span class="cd-tag cd-tag-risk">Not all of it</span> ${unsafe} class${unsafe !== 1 ? 'es' : ''} ${escHtml(when)} ${unsafe !== 1 ? 'are' : 'is'} at or below your ${getAttendanceTarget()}% target. Go to ${unsafe !== 1 ? 'those' : 'that one'}.`
+        : `Some subjects ${escHtml(when)} have no attendance yet, so I can't be sure.`;
+    return `${head}<ul class="cd-list" style="margin-top:8px">${rows.join('')}</ul>`;
+  }
+
+  function buildSkipOverview() {
+    const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
+    const rows = subjects.map(s => ({ s, att: getSubjectAttendance(s) })).filter(r => r.att.pct !== null);
+    if (rows.length === 0) return buildAttendanceGeneral();
+    rows.sort((a, b) => (a.att.isSafe === b.att.isSafe ? (a.att.safeSkips || 0) - (b.att.safeSkips || 0) : a.att.isSafe ? 1 : -1));
+    const items = rows.map(({ s, att }) => {
+      const tag = att.isSafe && att.safeSkips > 0
+        ? `<span class="cd-tag cd-tag-safe">Can miss ${att.safeSkips}</span>`
+        : `<span class="cd-tag cd-tag-risk">${att.isSafe ? 'At the line' : `Attend ${att.classesToAttend || ''}`.trim()}</span>`;
+      return `<li>${tag}<span class="cd-item-label">${escHtml(s.name)}</span><span class="cd-item-meta">${att.pctLabel ?? att.pct}%</span></li>`;
+    }).join('');
+    return `How many classes you can still miss in each subject (target ${getAttendanceTarget()}%):<ul class="cd-list" style="margin-top:8px">${items}</ul>
+    <div style="font-size:var(--text-sm);color:var(--text-secondary)">Ask "can I skip DBMS?" or "can I skip tomorrow?" for one subject or day.</div>`;
+  }
+
+  function buildTasksDay(day) {
+    const due = pendingDueOn(day.date);
+    const when = day.offset === 1 ? 'tomorrow' : `on ${DAY_NAMES[day.dayNum]} (${fmtDate(day.date)})`;
+    if (due.length === 0) return `Nothing due ${when}.`;
+    const items = due.map(t => `<li><span class="cd-item-label">${escHtml(t.title)}</span><span class="cd-item-meta">${escHtml(t.subject || 'Task')}</span></li>`).join('');
+    return `<strong>${due.length} task${due.length !== 1 ? 's' : ''} due ${when}:</strong><ul class="cd-list">${items}</ul>`;
+  }
+
+  function buildDayEnd(day) {
+    if (!hasTimetable()) return noTimetableMsg();
+    const d = day || dayFrom(new Date().getDay(), 0);
+    const classes = getDayClasses(d.dayNum);
+    if (classes.length === 0) return `No classes ${d.offset === 0 || d.offset === 1 ? escHtml(d.label) : 'on ' + DAY_NAMES[d.dayNum]}.`;
+    const last = classes.reduce((a, c) => (timeToMinutes(c.end || c.time) > timeToMinutes(a.end || a.time) ? c : a), classes[0]);
+    const first = classes.reduce((a, c) => (timeToMinutes(c.time) < timeToMinutes(a.time) ? c : a), classes[0]);
+    const finished = d.offset === 0 && timeToMinutes(last.end || last.time) <= currentTimeMinutes();
+    return finished
+      ? `Your last class today, <strong>${escHtml(last.subject)}</strong>, ended at ${formatTime(last.end || last.time)}. You're done for the day.`
+      : `${escHtml(d.title)} you're done at <strong>${formatTime(last.end || last.time)}</strong>, after <strong>${escHtml(last.subject)}</strong>. Classes start at ${formatTime(first.time)}.`;
+  }
+
+  function buildNextSubjectClass(subject) {
+    if (!hasTimetable()) return noTimetableMsg();
+    const now = currentTimeMinutes();
+    const today = new Date().getDay();
+    for (let off = 0; off < 8; off++) {
+      const dn = (today + off) % 7;
+      const hit = getDayClasses(dn)
+        .filter(c => sameSubject(c.subject, subject.name) && (off > 0 || timeToMinutes(c.time) > now))
+        .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))[0];
+      if (hit) {
+        const when = off === 0 ? 'today' : off === 1 ? 'tomorrow' : DAY_NAMES[dn];
+        return `Next <strong>${escHtml(subject.name)}</strong> class: <strong>${when}</strong> at ${formatTime(hit.time)}${hit.room && hit.room !== '—' ? ' in ' + escHtml(hit.room) : ''}.${subjectButtons(subject)}`;
+      }
+    }
+    return `${escHtml(subject.name)} isn't on your weekly timetable.${subjectButtons(subject)}`;
+  }
+
+  function buildTimetableView() {
+    if (!hasTimetable()) return noTimetableMsg();
+    const rows = [1, 2, 3, 4, 5, 6, 0].map(d => {
+      const classes = getDayClasses(d);
+      if (!classes.length) return null;
+      const start = classes.reduce((m, c) => Math.min(m, timeToMinutes(c.time)), Infinity);
+      const end = classes.reduce((m, c) => Math.max(m, timeToMinutes(c.end || c.time)), 0);
+      const fmt = (min) => formatTime(`${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`);
+      return `<li><span class="cd-item-label">${DAY_NAMES[d]}</span><span class="cd-item-meta">${classes.length} class${classes.length !== 1 ? 'es' : ''} · ${fmt(start)} – ${fmt(end)}</span></li>`;
+    }).filter(Boolean).join('');
+    return `Your week:<ul class="cd-list">${rows}</ul>
+    <button class="btn btn-sm btn-primary" onclick="navigate('timetable')" style="font-size:var(--text-sm);padding:5px 12px">${icons.calendar()} Open timetable →</button>`;
+  }
+
+  function buildExams() {
+    const p = (typeof liveProfile === 'object' && liveProfile) || loadProfile() || {};
+    const lines = [];
+    if (p.examDate) {
+      const days = Math.round((new Date(p.examDate + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / 86400000);
+      if (days >= 0) lines.push(`<li><span class="cd-tag is-accent">${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days + ' days'}</span><span class="cd-item-label">End-Sem exams</span><span class="cd-item-meta">${fmtDate(p.examDate)}</span></li>`);
+    }
+    const isExam = (t) => ['exam', 'quiz'].includes(t.taskType) || /\b(exam|test|quiz|viva|oral|mid ?sem|end ?sem)\b/i.test(t.title || '');
+    allTasks().filter(t => t.status === 'pending' && isExam(t))
+      .sort((a, b) => (a.dueDate || '9').localeCompare(b.dueDate || '9'))
+      .forEach(t => lines.push(`<li><span class="cd-item-label">${escHtml(t.title)}</span><span class="cd-item-meta">${escHtml(t.subject || 'Task')}${t.dueDate ? ' · ' + fmtDate(t.dueDate) : ''}</span></li>`));
+    getVisibleNotices().filter(n => /exam|test|quiz|viva/i.test(`${n.category} ${n.title}`)).slice(0, 3)
+      .forEach(n => lines.push(`<li><span class="cd-tag cd-tag-notice">Notice</span><span class="cd-item-label">${escHtml(n.title)}</span><span class="cd-item-meta">${fmtDate(n.date)}</span></li>`));
+    if (lines.length === 0) {
+      return `I don't know any exam dates yet. Set your End-Sem date in Settings, or add a test as a task with the type "Exam".<br><br>
+      <button class="btn btn-sm btn-secondary" onclick="navigate('settings')" style="font-size:var(--text-sm);padding:5px 12px">${icons.settings()} Set exam date</button>
+      <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, null, 'exam')" style="font-size:var(--text-sm);padding:5px 12px">${icons.edit()} Add a test</button>`;
+    }
+    return `<strong>Coming up:</strong><ul class="cd-list">${lines.join('')}</ul>`;
+  }
+
+  function buildThanks() {
+    return `Anytime. Ask me about your classes, attendance or deadlines whenever you need.`;
+  }
+
+    function buildTasksWeek() {
     const today = todayISO();
     const weekEnd = nDaysFromNow(7);
     const upcoming = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= today && t.dueDate <= weekEnd);
@@ -16036,16 +16299,30 @@ const ClarityAssistant = (() => {
     return `<ul class="cd-list">${lines}</ul>`;
   }
 
-  function buildUnknown() {
-    return `I didn't get that. Try asking one of these:
-      <ul class="cd-list" style="margin-top:6px">
-        <li><strong>Plan my week</strong>: a plan for the week ahead</li>
-        <li><strong>Which subject needs the most attention</strong>: the subject you're falling behind in</li>
-        <li><strong>Review timetable import</strong>: imports you haven't confirmed yet</li>
-        <li><strong>What changed after cleanup</strong>: what was removed and how to get it back</li>
-        <li><strong>Help me plan tonight</strong>: a 3-part study plan for tonight</li>
-        <li><strong>Show my day</strong>: today's classes and tasks</li>
-      </ul>`;
+  // Starters for "did you mean": the closest few by shared words.
+  const EXAMPLES = [
+    'What do I have today?', 'What is my next class?', 'Can I skip a class today?', 'How is my attendance?',
+    'Which subjects are at risk?', 'What tasks are urgent?', 'What is due this week?', 'Classes tomorrow',
+    'Show my timetable', 'When are my exams?', 'Plan my week', 'Help me plan tonight',
+    'Which subject needs the most attention?', 'Any notices?', 'Add a task', 'Is anything missing from my setup?',
+    'When does my last class end?', 'How many classes can I skip?'
+  ];
+  const STOP = new Set(['i', 'a', 'an', 'the', 'my', 'me', 'is', 'are', 'what', 'do', 'to', 'of', 'in', 'on', 'any', 'have', 'for', 'can', 'how', 'which', 'when', 'it', 'and']);
+
+  function buildUnknown(query) {
+    const words = (t) => plainText(t).split(' ').filter(w => w && !STOP.has(w));
+    const qWords = words(query);
+    const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
+    const pool = subjects.length ? [...EXAMPLES, `Can I skip ${subjects[0].name}?`] : EXAMPLES;
+    const scored = pool.map(ex => {
+      const ew = words(ex);
+      const score = qWords.reduce((n, w) => n + (ew.some(e => e === w || (w.length >= 4 && e.length >= 4 && e.slice(0, 4) === w.slice(0, 4))) ? 1 : 0), 0);
+      return { ex, score };
+    }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(x => x.ex);
+    const picks = scored.length ? scored : ['What do I have today?', 'How is my attendance?', 'What tasks are urgent?', 'Plan my week'];
+    const buttons = picks.map(ex => `<button class="btn btn-sm btn-secondary" onclick="sendAssistantMessage('${jsArg(ex)}')" style="font-size:var(--text-sm);padding:4px 10px">${escHtml(ex)}</button>`).join('');
+    return `${scored.length ? 'Did you mean:' : "I didn't get that. I answer questions about your classes, attendance, tasks and notices. Try:"}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${buttons}</div>`;
   }
 
   function escHtml(s) {
@@ -16054,13 +16331,12 @@ const ClarityAssistant = (() => {
 
   // ── Main Respond ──────────────────────────────────────────────
   function respond(query) {
-    let intent = matchIntent(query);
-
-    // Refinement: if 'today' in query, prefer today_summary over day_schedule
-    if (intent === 'day_schedule' && /\btoday\b/i.test(query)) intent = 'today_summary';
+    const { intent, subject, day } = understand(query);
+    lastAsked = (SUBJECT_INTENTS.includes(intent) || DAY_INTENTS.includes(intent)) ? { intent, subject, day } : null;
 
     switch (intent) {
       case 'greeting':           return buildGreeting();
+      case 'thanks':             return buildThanks();
       case 'help':               return buildHelp();
       case 'parser_review':      return buildParserReview();
       case 'cleanup_followup':   return buildCleanupFollowup();
@@ -16073,57 +16349,54 @@ const ClarityAssistant = (() => {
       case 'create_task':        return buildCreateTask(query);
       case 'study_plan':         return buildStudyPlan();
       case 'today_summary':      return buildTodaySummary();
-      case 'next_class':         return buildNextClass();
+      case 'next_class':         return subject ? buildNextSubjectClass(subject) : buildNextClass();
       case 'attendance_risk':    return buildAttendanceRisk();
-      case 'attendance_general': return buildAttendanceGeneral();
+      case 'attendance_general': return subject ? buildSubjectAttendance(subject) : buildAttendanceGeneral();
+      case 'subject_attendance': return buildSubjectAttendance(subject);
+      case 'subject_skip':       return buildSubjectSkip(subject, day);
+      case 'day_skip':           return buildDaySkip(day);
+      case 'skip_overview':      return buildSkipOverview();
       case 'tasks_urgent':       return buildTasksUrgent();
       case 'tasks_week':         return buildTasksWeek();
       case 'tasks_all':          return buildTasksAll();
+      case 'tasks_day':          return buildTasksDay(day);
       case 'setup_gaps':         return buildSetupGaps();
       case 'classes_left':       return buildClassesLeft();
-      case 'day_schedule':       return buildDaySchedule(query);
+      case 'day_schedule':       return buildDaySchedule(day);
+      case 'day_end':            return buildDayEnd(day);
+      case 'timetable_view':     return buildTimetableView();
+      case 'exams':              return buildExams();
       case 'notices':            return buildNotices();
       case 'profile':            return buildProfile();
-      default: {
-        // Dynamic check against all user subjects
-        const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
-        const lQuery = query.toLowerCase();
-        for (const s of subjects) {
-          if ((s.name && lQuery.includes(s.name.toLowerCase())) || (s.code && s.code.length >= 2 && lQuery.includes(s.code.toLowerCase()))) {
-            const tt = loadTimetable();
-            const classes = [];
-            [1,2,3,4,5,6,0].forEach(d => {
-              (tt[d] || []).forEach(c => {
-                if (isTeachingClass(c) && c.subject && c.subject.toLowerCase() === s.name.toLowerCase()) {
-                  classes.push(`${DAY_SHORT[d]} ${formatDisplayTimeRange(c.time, c.end)}${c.room ? ' (' + c.room + ')' : ''}`);
-                }
-              });
-            });
-            const pTasks = allTasks().filter(t => t.subject && t.subject.toLowerCase() === s.name.toLowerCase() && t.status === 'pending');
-            const att = getSubjectAttendance(s);
-            let res = `<strong>${escHtml(s.name)}:</strong><br>`;
-            if (classes.length) {
-              res += `Schedule: ${classes.join(' · ')}<br>`;
-            } else {
-              res += `No weekly timetable slots scheduled.<br>`;
-            }
-            if (att.pct !== null) {
-              res += `Attendance: <strong>${att.pctLabel ?? att.pct}%</strong> (${att.present}/${att.total} attended)<br>`;
-            }
-            if (pTasks.length) {
-              res += `${pTasks.length} pending task${pTasks.length !== 1 ? 's' : ''}: ${pTasks.map(t => escHtml(t.title)).join(', ')}`;
-            } else {
-              res += `No pending tasks.`;
-            }
-            return res;
-          }
-        }
-        return buildUnknown();
-      }
+      case 'subject_info':       return buildSubjectInfo(subject);
+      default:                   return buildUnknown(query);
     }
   }
 
-  return { respond };
+  function buildSubjectInfo(s) {
+    const tt = loadTimetable();
+    const classes = [];
+    [1,2,3,4,5,6,0].forEach(d => {
+      (tt[d] || []).forEach(c => {
+        if (isTeachingClass(c) && sameSubject(c.subject, s.name)) {
+          classes.push(`${DAY_SHORT[d]} ${formatDisplayTimeRange(c.time, c.end)}${c.room ? ' (' + escHtml(c.room) + ')' : ''}`);
+        }
+      });
+    });
+    const pTasks = allTasks().filter(t => t.status === 'pending' && sameSubject(t.subject, s.name));
+    const att = getSubjectAttendance(s);
+    let res = `<strong>${escHtml(s.name)}:</strong><br>`;
+    res += classes.length ? `Schedule: ${classes.join(' · ')}<br>` : `No weekly timetable slots scheduled.<br>`;
+    if (att.pct !== null) {
+      res += `Attendance: <strong>${att.pctLabel ?? att.pct}%</strong> (${att.present}/${att.total} attended)<br>`;
+    }
+    res += pTasks.length
+      ? `${pTasks.length} pending task${pTasks.length !== 1 ? 's' : ''}: ${pTasks.map(t => escHtml(t.title)).join(', ')}`
+      : `No pending tasks.`;
+    return res + subjectButtons(s, ` <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${jsArg(s.name)}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.edit()} Add task</button>`);
+  }
+
+  return { respond, understand };
 })();
 
 // ── Assistant Panel UI ────────────────────────────────────────
@@ -16264,6 +16537,9 @@ function sendAssistantMessage(presetText) {
   if (!q) return;
   if (input) input.value = '';
 
+  // Buttons in a Today-box answer ask follow-ups here, so show the panel.
+  if (!_assistantOpen) openAssistant();
+
   const thread = document.getElementById('cd-chat-thread');
   if (!thread) return;
 
@@ -16284,7 +16560,8 @@ function sendAssistantMessage(presetText) {
   thread.appendChild(typingEl);
   thread.scrollTop = thread.scrollHeight;
 
-  // Respond after brief delay (feels natural, not instant)
+  // Answers are computed on the device; the short pause only lets the
+  // typing dots show so the reply doesn't feel like a page jump.
   setTimeout(() => {
     typingEl.remove();
     const response = ClarityAssistant.respond(q);
@@ -16294,12 +16571,24 @@ function sendAssistantMessage(presetText) {
     botMsg.innerHTML = `<div class="cd-bubble">${response}</div>`;
     thread.appendChild(botMsg);
     thread.scrollTop = thread.scrollHeight;
-  }, 380);
+  }, 150);
 }
 
 function escHtml_cd(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// An answer's button that opens a page or a form (Add task, Open DBMS,
+// Scan timetable...) closes the panel first. The panel sits above every
+// form (z-index 1101 vs 200), so on a phone the form used to open hidden
+// behind the chat and the button looked like it did nothing. Buttons that
+// ask Ask Desk another question keep the panel open.
+document.addEventListener('click', (e) => {
+  const target = e.target && e.target.closest ? e.target.closest('#cd-chat-thread .cd-msg-bot button, #cd-chat-thread .cd-msg-bot a') : null;
+  if (!target || !_assistantOpen) return;
+  const action = target.getAttribute('onclick') || '';
+  if (action && !action.includes('sendAssistantMessage')) closeAssistant();
+}, true);
 
 // Keyboard shortcut: Ctrl+/ to toggle assistant
 document.addEventListener('keydown', (e) => {
