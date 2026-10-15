@@ -7964,9 +7964,6 @@ function renderDashboard() {
   const overdue  = overdueCount();
   const classesLeftCount = todayClasses();
 
-  const total          = allTasks().length;
-  const submittedCount = allTasks().filter(a => a.status === 'submitted').length;
-  const progress       = total === 0 ? 0 : Math.round((submittedCount / total) * 100);
 
   const liveTT     = loadTimetable();
   const dayClasses = (liveTT[dayIdx] || []).filter(isTeachingClass);
@@ -8106,48 +8103,12 @@ function renderDashboard() {
   }
   const tickerHTML = tickerItems.join('<span class="desk-ticker-sep">/</span>');
 
-  // Calm glanceable stat grid -- reuses the existing (previously unused)
-  // .vitals-strip/.vitals-tile pattern instead of a row of chips that
-  // just restated the context line and the panels below it.
-  const vitalsTiles = [];
-  vitalsTiles.push(`
-    <div class="vitals-tile" onclick="navigateTo('timetable')" title="View Today's Schedule">
-      <div class="vitals-label">${dayClasses.length > 0 ? 'Classes Left' : 'Today'}</div>
-      <div class="vitals-value">${dayClasses.length > 0 ? `${classesLeftCount}/${dayClasses.length}` : '—'}</div>
-      <div class="vitals-sub">${dayClasses.length > 0 ? formattedDay : 'No classes today'}</div>
-    </div>
-  `);
-  vitalsTiles.push(`
-    <div class="vitals-tile" onclick="filterAndNavigateToAssignments('${overdue > 0 ? 'overdue' : 'pending'}')" title="View Tasks">
-      <div class="vitals-label">Tasks</div>
-      <div class="vitals-value" style="${overdue > 0 ? 'color:var(--red)' : ''}">${pending}</div>
-      <div class="vitals-sub">${overdue > 0 ? `${overdue} overdue` : pending > 0 ? 'Pending' : 'All caught up'}</div>
-    </div>
-  `);
-  vitalsTiles.push(`
-    <div class="vitals-tile" onclick="${attendancePct !== null ? "navigateTo('review')" : "showBaselineModal(null, 'manual')"}" title="View Attendance Guidance">
-      <div class="vitals-label">Attendance</div>
-      <div class="vitals-value" style="${attendancePct !== null ? `color:var(${isAttendanceAtRisk ? '--red' : '--green'})` : ''}">${attendancePct !== null ? `${attendancePctLabel}%` : '—'}</div>
-      <div class="vitals-sub">${monthCheck ? monthCheck.short : attendancePct !== null ? (dashGuidance.isSafe ? 'Safe' : (isAttendanceAtRisk ? `Below ${attTarget}% target` : 'Needs attention')) : 'Not set'}</div>
-    </div>
-  `);
-  if (countdownText && examDaysLeftNum !== null) {
-    vitalsTiles.push(`
-      <div class="vitals-tile" onclick="navigateTo('settings')" title="Exam Date Settings">
-        <div class="vitals-label">To End-Sem</div>
-        <div class="vitals-value">${examDaysLeftNum}d</div>
-        <div class="vitals-sub">${formatDate(liveProfile.examDate)}</div>
-      </div>
-    `);
-  }
-  // Display order only: attendance leads, then tasks, then classes left.
-  const [vtClasses, vtTasks, vtAttendance, ...vtRest] = vitalsTiles;
-  const vitalsOrdered = [vtAttendance, vtTasks, vtClasses, ...vtRest];
-  // A brand-new desk has nothing to count yet: a row of dashes and zeros
-  // reads as broken. Show the tiles once any real data exists.
-  const hasAnyDeskData = hasCustomTT || allTasks().length > 0 || attendancePct !== null || hasAttendanceData || !!countdownText;
-  const vitalsBarHTML = hasAnyDeskData
-    ? `<div class="vitals-strip${vitalsOrdered.length > 3 ? ' is-four' : ''}" style="margin-top:14px">${vitalsOrdered.join('')}</div>`
+  // No stat-tile strip on Today: classes, tasks and attendance each already
+  // have their own section below, so the tiles only repeated them. The exam
+  // countdown is the one figure with no other home, so it gets a quiet line
+  // under the greeting (the context line already covers the final week).
+  const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7)
+    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to End-Sem (${formatDate(liveProfile.examDate)})</div>`
     : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
@@ -8333,14 +8294,15 @@ function renderDashboard() {
         <div>
           <div class="desk-greeting">${greeting}</div>
           <div class="desk-greeting-sub">${contextLine}</div>
+          ${examNoteHTML}
         </div>
+        ${(dayIdx === 0 || dayIdx === 6) ? `
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
           <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
           </button>
-        </div>
+        </div>` : ''}
       </div>
-      ${vitalsBarHTML}
     </div>
 
     <!-- 2. PRIMARY FOCUS ANCHOR (CHRONO BEACON) -->
@@ -8374,11 +8336,11 @@ function renderDashboard() {
                       <div class="schedule-slot-title">${c.subject}</div>
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                    ${isPast ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                       <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">Present</button>
                       <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">Absent</button>
                       ${attStatusChipHTML(status)}
-                    </div>
+                    </div>` : isNow ? `<span class="schedule-slot-now">Now</span>` : ''}
                   </div>`;
               }).join('')}
             </div>
@@ -8404,15 +8366,6 @@ function renderDashboard() {
               <button class="btn btn-xs btn-secondary" data-testid="add-task-button" onclick="showAddTaskModal()" style="font-size:var(--text-sm);padding:3px 8px">+ Add</button>
               <button class="panel-action" onclick="navigateTo('assignments')">All tasks (${pending}) →</button>
             </div>
-          </div>
-
-          <!-- Progress bar -->
-          <div style="margin-bottom:8px">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">${submittedCount} of ${total} completed</span>
-              <span style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-muted)">${progress}%</span>
-            </div>
-            <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${progress}%"></div></div>
           </div>
 
           <!-- Open task rows -->
@@ -8447,15 +8400,6 @@ function renderDashboard() {
           </div>
         </div>
 
-        <!-- ASK DESK ASSISTANT DOCK -->
-        <div class="desk-command-dock" style="margin-top:16px">
-          <div class="command-dock-field">
-            <span style="color:var(--accent);opacity:0.8;font-size:var(--text-sm)">✨</span>
-            <input type="text" id="assistant-input" enterkeyhint="send" placeholder="Ask Desk… e.g. 'Classes today?' or 'Safe to miss OS?'" onkeypress="if(event.key==='Enter') handleAssistantQuestion()">
-            <span class="command-dock-kbd">Ask</span>
-          </div>
-        </div>
-        <div id="assistant-answer-container"></div>
       </div>
 
       <!-- RIGHT COLUMN: AMBIENT CONTEXT -->
@@ -8517,7 +8461,7 @@ function renderDashboard() {
 
         <!-- STUDY SHORTCUTS -->
         ${quickLinksPreview.length > 0 ? `
-          <div class="dashboard-panel">
+          <div class="dashboard-panel dash-shortcuts">
             <div class="panel-header">
               <div class="panel-title">Study Shortcuts</div>
               <button class="panel-action" onclick="navigateTo('links')">Vault →</button>
