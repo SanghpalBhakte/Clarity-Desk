@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clarity-desk-v182';
+const CACHE_NAME = 'clarity-desk-v183';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
