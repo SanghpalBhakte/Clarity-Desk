@@ -20,6 +20,8 @@ const KEY_ATTENDANCE_V2       = 'cos_attendance_v2';
 const KEY_ATT_V2_STATE        = 'cos_att_v2_state';
 // Local-only (never synced): undo log for old marks moved to a subject.
 const KEY_ATT_REASSIGN_LOG    = 'cos_att_reassign_log';
+// Local-only (never synced): attendance as last synced, for sending deletes.
+const KEY_SYNC_LAST_PUSHED    = 'cos_sync_last_pushed';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -4928,6 +4930,9 @@ function applyCloudDataToLocalState(data) {
   if (data.attendanceLive && typeof data.attendanceLive === 'object') {
     safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
   }
+  // What the cloud has now: the base the next push diffs against, so a mark
+  // another device added is never mistaken for one deleted here.
+  rememberSyncedAttendance();
   if (data.theme && typeof data.theme === 'string') {
     let cloudTheme = data.theme;
     if (LEGACY_THEME_MAP[cloudTheme]) cloudTheme = LEGACY_THEME_MAP[cloudTheme];
@@ -5006,12 +5011,69 @@ function pushLocalDataToCloud(uid) {
   // mistaken for an incoming remote change and doesn't trigger a needless
   // full re-render of whatever page is currently open.
   lastCloudPayloadHash = calculatePayloadHash(payload);
-  db.collection('users').doc(uid).set(payload, { merge: true }).catch(err => {
+  const ref = db.collection('users').doc(uid);
+  const deletes = computeSyncDeletePaths(safeGetStorage(KEY_SYNC_LAST_PUSHED, null), payload);
+  ref.set(payload, { merge: true }).catch(err => {
     if (err.code === 'permission-denied') {
       updateSyncUI('denied');
     }
     console.warn("Cloud push error:", err);
   });
+  // set(merge:true) never removes a map key, so a cleared mark used to come
+  // back from the cloud on the next sync. Delete exactly the paths that were
+  // in the last synced copy and are gone now (queued offline like any write).
+  if (deletes.length) {
+    const FV = firebase.firestore.FieldValue, FP = firebase.firestore.FieldPath;
+    for (let i = 0; i < deletes.length; i += 400) {
+      const args = [];
+      deletes.slice(i, i + 400).forEach(p => args.push(new FP(...p), FV.delete()));
+      ref.update(...args).catch(err => console.warn('Cloud delete error:', err));
+    }
+  }
+  rememberSyncedAttendance(payload);
+}
+
+// ── Sync deletions (step 5) ─────────────────────────────────────
+// Local-only: the three attendance maps as last pushed to / received from
+// the cloud. Missing (first push after the update, a new device): no
+// deletes are sent, so nothing in the cloud can be removed by mistake.
+function rememberSyncedAttendance(src) {
+  const from = src || {
+    attendance: safeGetStorage(KEY_ATTENDANCE, {}),
+    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
+    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, {})
+  };
+  safeSetStorage(KEY_SYNC_LAST_PUSHED, {
+    attendance: from.attendance || {},
+    attendanceBaseline: from.attendanceBaseline || {},
+    attendanceLive: from.attendanceLive || {}
+  });
+}
+
+// Paths in `prev` that are gone from `cur`: [field, date(, classKey)] in
+// attendance, [field, key] in the baseline and +1 maps. A map that is now
+// completely empty while the last copy had data is skipped: that looks like
+// a failed read or a wipe, not a student's edit.
+function computeSyncDeletePaths(prev, cur) {
+  const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+  if (!isObj(prev) || !isObj(cur)) return [];
+  const paths = [];
+  const pa = isObj(prev.attendance) ? prev.attendance : {};
+  const ca = isObj(cur.attendance) ? cur.attendance : {};
+  if (Object.keys(ca).length || !Object.keys(pa).length) {
+    Object.keys(pa).forEach(date => {
+      if (!isObj(ca[date])) { paths.push(['attendance', date]); return; }
+      if (!isObj(pa[date])) return;
+      Object.keys(pa[date]).forEach(k => { if (!(k in ca[date])) paths.push(['attendance', date, k]); });
+    });
+  }
+  ['attendanceBaseline', 'attendanceLive'].forEach(f => {
+    const p = isObj(prev[f]) ? prev[f] : {};
+    const c = isObj(cur[f]) ? cur[f] : {};
+    if (!Object.keys(c).length && Object.keys(p).length > 1) return;
+    Object.keys(p).forEach(k => { if (!(k in c)) paths.push([f, k]); });
+  });
+  return paths;
 }
 
 // ── Notice Channels (Official & WhatsApp Links) ───────────────
