@@ -4480,7 +4480,7 @@ function renderTimetablePreviewModalContent(backdrop) {
         <div>
           <h2 class="modal-title">Extracted Timetable Preview</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-            ${visibleSchedule.length} class${visibleSchedule.length !== 1 ? 'es' : ''} shown ${selectedTimetablePreviewBatch !== 'all' ? `(Filtered for Batch ${selectedTimetablePreviewBatch})` : ''} ${uncertainCount > 0 ? `· <span style="color:var(--yellow);font-weight:600">${uncertainCount} entries need review</span>` : '· <span style="color:var(--green);font-weight:600">All fields structured</span>'}
+            ${visibleSchedule.length} class${visibleSchedule.length !== 1 ? 'es' : ''} shown ${selectedTimetablePreviewBatch !== 'all' ? `(Filtered for Batch ${selectedTimetablePreviewBatch})` : ''} ${pendingExtractionNeedsReview ? '· <span style="color:var(--yellow);font-weight:600">Check every row</span>' : uncertainCount > 0 ? `· <span style="color:var(--yellow);font-weight:600">${uncertainCount} ${uncertainCount !== 1 ? 'rows need' : 'row needs'} a check</span>` : '· <span style="color:var(--green);font-weight:600">All rows read clearly</span>'}
           </div>
         </div>
         <button class="modal-close" onclick="document.getElementById('tt-preview-backdrop').remove()">${icons.x()}</button>
@@ -4496,7 +4496,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       <div style="display:flex;align-items:flex-start;gap:10px;background:color-mix(in srgb, var(--yellow) 12%, var(--surface-2));border:1px solid var(--yellow);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px">
         <span style="font-size:var(--text-md);line-height:1">⚠️</span>
         <div style="font-size:var(--text-sm);line-height:1.4">
-          <strong>Unverified scan.</strong> This table came from local OCR only. No AI provider was available to double-check it against the photo (add a free Gemini/Groq/OpenRouter key, or check your existing key/quota). Please review every row below carefully before saving.
+          <strong>Unverified scan.</strong> The AI that double-checks photos couldn't be reached, so your phone read this one alone and it may have mistakes. Check every row before saving, or cancel and scan again in a few minutes.
         </div>
       </div>
       ` : ''}
