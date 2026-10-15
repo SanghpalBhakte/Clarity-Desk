@@ -16807,3 +16807,93 @@ function setupFABDrag() {
     }
   }, true); // use capture phase
 }
+
+// ── Calm navigation: collapsible sidebar, mobile "More" sheet, chip overflow ──
+// Self-contained on purpose: it never touches navigate() or any cos_* data.
+// The rail state is a UI-only preference under its own key (cd_sidebar_collapsed),
+// read early in index.html's head script so there is no layout flash on load.
+(function () {
+  var root = (typeof document !== 'undefined') && document.documentElement;
+  if (!root || !root.classList) return; // headless test harness: nothing to wire
+
+  function syncSidebarBtn() {
+    var btn = document.getElementById('sidebar-collapse-btn');
+    if (!btn) return;
+    var collapsed = root.classList.contains('sidebar-collapsed');
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    btn.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    btn.title = (collapsed ? 'Expand' : 'Collapse') + ' sidebar ( [ )';
+  }
+
+  window.toggleSidebar = function () {
+    var collapsed = root.classList.toggle('sidebar-collapsed');
+    try { localStorage.setItem('cd_sidebar_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+    syncSidebarBtn();
+  };
+
+  function isTyping(t) {
+    return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '[' && !e.ctrlKey && !e.metaKey && !e.altKey && !isTyping(e.target)
+        && !document.querySelector('.modal-backdrop')) {
+      e.preventDefault();
+      window.toggleSidebar();
+    }
+    if (e.key === 'Escape' && root.classList.contains('more-sheet-open')) window.closeMoreSheet();
+  });
+
+  // Mobile "More" sheet
+  window.openMoreSheet = function () {
+    root.classList.add('more-sheet-open');
+    var sheet = document.getElementById('more-sheet');
+    var btn = document.getElementById('bnav-more');
+    if (sheet) sheet.setAttribute('aria-hidden', 'false');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    var first = sheet && sheet.querySelector('.more-sheet-item');
+    if (first) first.focus({ preventScroll: true });
+  };
+  window.closeMoreSheet = function () {
+    if (!root.classList.contains('more-sheet-open')) return;
+    root.classList.remove('more-sheet-open');
+    var sheet = document.getElementById('more-sheet');
+    var btn = document.getElementById('bnav-more');
+    if (sheet) sheet.setAttribute('aria-hidden', 'true');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  };
+  window.toggleMoreSheet = function () {
+    root.classList.contains('more-sheet-open') ? window.closeMoreSheet() : window.openMoreSheet();
+  };
+
+  // "More" lights up when the current page lives inside the sheet. navigate()
+  // already toggles .active on every [data-nav] element (sheet items included),
+  // so this just mirrors that instead of hooking into navigation.
+  function syncMoreActive() {
+    var btn = document.getElementById('bnav-more');
+    if (btn) btn.classList.toggle('active', !!document.querySelector('#more-sheet .more-sheet-item.active'));
+  }
+
+  // Ask Desk: three starter chips, the rest behind "More ideas"
+  window.toggleMoreChips = function () {
+    var row = document.getElementById('cd-chip-row');
+    if (!row) return;
+    var open = row.classList.toggle('show-all');
+    var btn = row.querySelector('.cd-chip-more');
+    if (btn) {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.textContent = open ? 'Fewer' : 'More ideas';
+    }
+  };
+
+  function init() {
+    syncSidebarBtn();
+    syncMoreActive();
+    var sheet = document.getElementById('more-sheet');
+    if (sheet && 'MutationObserver' in window) {
+      new MutationObserver(syncMoreActive).observe(sheet, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
