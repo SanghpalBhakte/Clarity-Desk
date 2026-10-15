@@ -6157,3 +6157,36 @@ html.more-sheet-open .more-sheet {
   .bottom-nav-item::before,
   .nav-item::after { transition: none !important; }
 }
+
+/* ═══ Calm Today ════════════════════════════════════════════════════
+   Today shows each thing once: the Now card for the live class, the
+   schedule for the rest of the day, then tasks and attendance. */
+
+/* One-colour wordmark: the mark carries the accent, the name stays quiet */
+.topbar-brand .brand-desk { color: inherit; }
+
+/* Exam countdown, quietly under the greeting (only when the exam is >7 days off) */
+.desk-greeting-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.desk-greeting-note svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* The live class is marked on the Now card, so its schedule row just says Now */
+.schedule-slot-now {
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--status-success, var(--green));
+}
+
+/* Phones: Study shortcuts live in the Study Vault, one tap away under More */
+@media (max-width: 767px) {
+  #page-dashboard .dash-shortcuts { display: none; }
+}

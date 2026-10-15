@@ -105,13 +105,17 @@ for (const width of WIDTHS) {
 
     // v168: the 145px time column pushed Today's Missed button off the
     // screen, where the page's overflow clip hid it from the check above.
+    // Calm Today: the live class is marked on the Now card and ended classes
+    // in the schedule, so both places are checked, and there must be some.
     test("Today's schedule keeps Present / Missed fully on screen", async ({ page }) => {
       await openApp(page);
       const slots = page.locator('#page-dashboard .schedule-slot');
       expect(await slots.count(), 'schedule rows on Today').toBeGreaterThan(0);
-      const offscreen = await page.evaluate(() => [...document.querySelectorAll('#page-dashboard .schedule-slot button')]
+      const markButtons = '#page-dashboard .schedule-slot button, #page-dashboard .chrono-beacon .beacon-att';
+      expect(await page.locator(markButtons, { hasText: 'Present' }).count(), 'a Present button on Today').toBeGreaterThan(0);
+      const offscreen = await page.evaluate((sel) => [...document.querySelectorAll(sel)]
         .map((b) => b.getBoundingClientRect()).filter((r) => r.left < 0 || r.right > innerWidth + 0.5)
-        .map((r) => `${Math.round(r.left)}–${Math.round(r.right)}`));
+        .map((r) => `${Math.round(r.left)}–${Math.round(r.right)}`), markButtons);
       expect(offscreen, `buttons past the ${width}px screen edge`).toEqual([]);
     });
   });
@@ -135,7 +139,7 @@ test.describe('Today on a phone', () => {
 
     const masthead = page.locator('#page-dashboard .desk-masthead');
     await expect(masthead, 'arriving on Today plays the settle-in').not.toHaveClass(/is-settled/);
-    await page.locator('#page-dashboard .schedule-slot button', { hasText: 'Present' }).first().click();
+    await page.locator('#page-dashboard .chrono-beacon .beacon-att', { hasText: 'Present' }).first().click();
     await expect(masthead, 'in-place re-render keeps the greeting still').toHaveClass(/is-settled/);
     await page.evaluate(() => (window as any).navigate('timetable'));
     await page.evaluate(() => (window as any).navigate('dashboard'));
