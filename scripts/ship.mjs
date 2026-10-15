@@ -7,7 +7,8 @@
 //   node scripts/ship.mjs --skip-tests   emergencies only
 //
 // Order: bump the cache version if app files changed and it wasn't bumped
-// -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
+// (changed = uncommitted, or different from what the live site serves, e.g.
+// merged through a pull request) -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
 // -> push -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
 // test (npm run test:smoke against SITE; a failure warns in red and exits 1,
 // but the deploy stays live -- nothing is rolled back). Stops at the
@@ -81,8 +82,36 @@ for (const f of ['index.html', '404.html']) {
 const runtime = new Set(['404.html', ...[...(swSrc.match(/PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\]/) || [, ''])[1]
   .matchAll(/'([^']*)'/g)].map((m) => m[1].replace(/^\.\//, '')).filter(Boolean)]);
 const appChanged = changes.some((c) => runtime.has(c.file));
-const needsBump = appChanged && cur === head;
+
+// Changes merged through a pull request are already committed, so the check
+// above misses them. Compare with what the live site serves instead: same
+// version number but different app files means phones would keep the old
+// cached copy. Unreachable site: warn and fall back to the check above.
+async function liveCheck() {
+  const get = async (f) => {
+    const r = await fetch(`${SITE}/${f}`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  };
+  try {
+    const liveVer = verOf((await get('sw.js')).toString('utf8'));
+    if (!liveVer) throw new Error('no version in the live sw.js');
+    if (liveVer !== cur) return { liveVer, differs: [] };
+    const files = [...new Set([...runtime].map((f) => f || 'index.html'))].filter((f) => fs.existsSync(f));
+    const differs = [];
+    for (const f of files) if (!(await get(f)).equals(fs.readFileSync(f))) differs.push(f);
+    return { liveVer, differs };
+  } catch (err) {
+    console.warn(`\x1b[33m! Couldn't compare with the live site (${err.message}). Only uncommitted changes count for the cache version.\x1b[0m`);
+    return null;
+  }
+}
+const live = await liveCheck();
+const liveStale = !!live && live.liveVer === cur && live.differs.length > 0;
+const needsBump = (appChanged && cur === head) || liveStale;
 const ver = needsBump ? cur + 1 : cur;
+// A bump with nothing else to commit still needs its own commit.
+const bumpOnly = needsBump && !changes.length;
 const workerChanged = changes.some((c) => c.file.startsWith('ai-proxy/'));
 
 // ── Plan ──────────────────────────────────────────────────────────────
@@ -93,7 +122,9 @@ if (changes.length) {
 } else {
   console.log('Nothing new to commit: will push and deploy what is already committed.');
 }
-console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (app files changed)` : `v${ver}${cur !== head ? ' (already bumped)' : ''}`}`);
+const bumpWhy = appChanged && cur === head ? 'app files changed' : `the live site is v${cur} but ${live && live.differs.join(', ')} ${live && live.differs.length === 1 ? 'differs' : 'differ'} from it`;
+console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (${bumpWhy})` : `v${ver}${cur !== head ? ' (already bumped)' : ''}`}`);
+if (bumpOnly) console.log(`The bump gets its own commit: "chore: bump the cache version to v${ver}".`);
 if (workerChanged) console.log('ai-proxy/ changed: the AI proxy will be deployed too.');
 console.log(`After deploy: live smoke test against ${SITE} (npm run test:smoke).`);
 if (DRY) {
@@ -124,7 +155,8 @@ if (!SKIP_TESTS) {
   if (sh('npm test').status !== 0) fail('Tests failed. Nothing was committed, pushed or deployed.');
 }
 
-if (changes.length) {
+if (bumpOnly) message = `chore: bump the cache version to v${ver}`;
+if (changes.length || bumpOnly) {
   step(`Committing: ${message}`);
   git('add', '-A', '--', '.');
   if (run('git', ['commit', '-m', message]).status !== 0) fail('Commit failed. Nothing was pushed or deployed.');
