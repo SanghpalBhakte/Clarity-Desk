@@ -5952,7 +5952,7 @@ body::before {
 @media (prefers-reduced-motion: no-preference) {
   .beacon-att[aria-pressed="true"] svg,
   .tt-att .btn.btn-primary svg { animation: checkPop 0.28s ease-out; }
-  .sj-ring-fill { animation: sjRingIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .sj-ring.animate .sj-ring-fill { animation: sjRingIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
 }
 
 /* Day complete / rest day: the badge and its note wrap instead of squeezing the note into a 1-word column */

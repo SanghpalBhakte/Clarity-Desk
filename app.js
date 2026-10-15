@@ -6017,8 +6017,14 @@ function updateThemeSelector(theme) {
 const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'notices', 'resources', 'links', 'summary', 'settings', 'review'];
 const sectionHistory = [];
 
+// Subject rings animate once per view (opening the tab or a hub), not on
+// every background re-render (sync, focus, manage mode).
+let subjectViewSeq = 0;
+let subjectRingsAnimatedSeq = -1;
+
 function navigate(page, isBack = false, keepActiveSubject = false) {
   if (!PAGES.includes(page)) page = 'dashboard';
+  subjectViewSeq++;
 
   // Unless explicitly instructed to keep active subject, clear activeSubject state
   if (!keepActiveSubject) {
@@ -6088,6 +6094,7 @@ window.navigateBack = function() {
   // If currently inside a single subject hub detail view, back action returns to list or previous route
   if (state.currentPage === 'subjects' && state.activeSubject) {
     state.activeSubject = null;
+    subjectViewSeq++;
     if (sectionHistory.length > 0) {
       const prev = sectionHistory.pop();
       if (prev === 'subjects_overview' || prev === 'subjects') {
@@ -8625,6 +8632,7 @@ function renderTimetable() {
 // ── Subject Hub System ─────────────────────────────────────────
 window.openSubjectHub = function(subjName) {
   if (!subjName) return;
+  subjectViewSeq++;
   const current = state.currentPage;
   if (current === 'subjects' && !state.activeSubject) {
     sectionHistory.push('subjects_overview');
@@ -8639,6 +8647,7 @@ window.openSubjectHub = function(subjName) {
 
 window.closeSubjectHub = function() {
   state.activeSubject = null;
+  subjectViewSeq++;
   if (sectionHistory.length > 0 && sectionHistory[sectionHistory.length - 1] === 'subjects_overview') {
     sectionHistory.pop();
   }
@@ -12701,6 +12710,8 @@ function renderSubjectsOverview(el, subjects) {
     (!riskN && !watchN && ranked.some(r => r.tier === 'safe') ? ' · all on track' : '');
   const TIER_WORD = { risk: 'At risk', watch: 'Watch', safe: 'Safe', none: 'No data' };
   const RING_C = 2 * Math.PI * 20;
+  const animateRings = subjectRingsAnimatedSeq !== subjectViewSeq;
+  subjectRingsAnimatedSeq = subjectViewSeq;
 
   const cardsHTML = ranked.map(({ s, att, tier }) => {
     const pending = allTasks().filter(t => t.status === 'pending' && ((t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase())).length;
@@ -12716,7 +12727,7 @@ function renderSubjectsOverview(el, subjects) {
 
     return `
       <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
-        <svg class="sj-ring ${tier}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${s.name} attendance ${label}, target ${att.targetPct}%">
+        <svg class="sj-ring ${tier}${animateRings ? ' animate' : ''}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${s.name} attendance ${label}, target ${att.targetPct}%">
           <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
           <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
           <line class="sj-ring-tick" x1="${tick[0]}" y1="${tick[1]}" x2="${tick[2]}" y2="${tick[3]}"/>
