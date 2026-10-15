@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u42",
+    date: "2026-10-15",
+    title: "Ask Desk understands everyday questions: \"can I bunk OS tomorrow?\", subject attendance, other days, exams, follow-ups; its buttons now open forms in front of the chat; scans try AI models that just failed last",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Ask Desk understands everyday questions: \"can I bunk OS tomorrow?\", subject attendance, other days, exams, follow-ups; its buttons now open forms in front of the chat; scans try AI models that just failed last",
+    points: [
+
+    ]
+  },
+  {
     id: "u41",
     date: "2026-10-15",
     title: "Calmer navigation: phone tabs cut to five with a More sheet, desktop sidebar folds to icons",
