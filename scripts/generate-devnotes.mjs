@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripFooter, toSummaryAndPoints } from './devnotes-text.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -107,40 +108,6 @@ function classify(subject) {
   return { tag: 'Update', tagColor: 'var(--blue)' };
 }
 
-function stripFooter(body) {
-  return body
-    .split('\n')
-    .filter((line) => !/^Co-Authored-By:/i.test(line.trim()) && !/^Claude-Session:/i.test(line.trim()))
-    .join('\n')
-    .trim();
-}
-
-function toPoints(subject, cleanBody) {
-  const bulletLines = cleanBody
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => /^[-*]\s+/.test(l))
-    .map((l) => l.replace(/^[-*]\s+/, ''));
-  if (bulletLines.length) return bulletLines;
-
-  const prose = cleanBody
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .filter((l) => !/^[-*]\s+/.test(l));
-  if (prose.length) return prose;
-
-  return [subject];
-}
-
-function toSummary(subject, cleanBody) {
-  const firstProseLine = cleanBody
-    .split('\n')
-    .map((l) => l.trim())
-    .find((l) => l && !/^[-*]\s+/.test(l));
-  return firstProseLine || subject;
-}
-
 // Existing ids look like 'u1'..'u6' -- find the next free number.
 const existingSrc = fs.readFileSync(DATA_FILE, 'utf8');
 const idNums = [...existingSrc.matchAll(/id:\s*['"]u(\d+)['"]/g)].map((m) => parseInt(m[1], 10));
@@ -150,6 +117,7 @@ const newEntries = relevant
   .map((c) => {
     const cleanBody = stripFooter(c.body);
     const { tag, tagColor } = classify(c.subject);
+    const { summary, points } = toSummaryAndPoints(c.subject, cleanBody);
     return {
       id: `u${nextIdNum++}`,
       date: c.date,
@@ -157,8 +125,8 @@ const newEntries = relevant
       category: tag,
       tag,
       tagColor,
-      summary: toSummary(c.subject, cleanBody),
-      points: toPoints(c.subject, cleanBody),
+      summary,
+      points,
     };
   })
   .reverse(); // newest first, matching the existing array's order
