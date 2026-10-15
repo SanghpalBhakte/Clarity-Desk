@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u40",
+    date: "2026-10-15",
+    title: "Picking your exam date or briefing time in Settings no longer closes by itself when your desk syncs",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Picking your exam date or briefing time in Settings no longer closes by itself when your desk syncs",
+    points: [
+
+    ]
+  },
+  {
+    id: "u39",
+    date: "2026-10-15",
+    title: "Picking your exam date or briefing time in Settings no longer closes by itself when your desk syncs",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "A cloud sync arriving while a date, time or dropdown picker was open rebuilt the page under it, closing the picker and putting the old value back.",
+    points: [
+      "Page refreshes now wait until you leave the field, and unsaved Settings changes are kept through a refresh."
+    ]
+  },
+  {
     id: "u38",
     date: "2026-10-15",
     title: "Clearing an attendance mark now stays cleared on all your signed-in devices",
