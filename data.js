@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u46",
+    date: "2026-10-15",
+    title: "Declutter now removes subjects that aren't in your timetable, and merges short-name duplicates like \"Prob & Stats\"",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Declutter now removes subjects that aren't in your timetable, and merges short-name duplicates like \"Prob & Stats\"",
+    points: [
+
+    ]
+  },
+  {
     id: "u45",
     date: "2026-10-15",
     title: "Calmer Today: each thing shows once, so the page is shorter and easier to read",
