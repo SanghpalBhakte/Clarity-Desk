@@ -201,50 +201,51 @@ export const DEV_UPDATES = [
   {
     id: "u37",
     date: "2026-10-14",
-    title: "Mark a class as OD or \"didn't happen\", add extra classes, and sort out old marks that had no subject",
+    title: "Mark a class as OD or \"didn't happen\", add extra classes, and sort out old marks with no subject",
     category: "Update",
     tag: "Update",
     tagColor: "var(--blue)",
-    summary: "Step 4 of the attendance redesign.",
+    summary: "More ways to record what really happened in class.",
     points: [
-      "New mark values in cos_attendance: od_pending (absent, as the ERP shows",
-      "Attendance page: a ⋯ menu per class sets \"OD (waiting for teacher)\" or",
-      "Subject page: \"1 OD waiting for the teacher · 80.00% if accepted\" with",
-      "Settings → Attendance: \"N old marks need a subject\" with a picker. On"
+      "Tap ⋯ on a class in Attendance to mark it OD (waiting for the teacher) or Didn't happen.",
+      "When the teacher decides, tap Accepted or Rejected on the OD. Until then it counts as absent, like on the ERP.",
+      "A class that didn't happen isn't counted at all, the same as on the ERP.",
+      "Add an extra or make-up class from the subject page with + Add extra class.",
+      "Old marks the app couldn't match to a subject are listed in Settings, under Attendance, where you can pick the right subject."
     ]
   },
   {
     id: "u36",
     date: "2026-10-14",
-    title: "Attendance shows how many classes you can still miss this semester, flags a lab at risk, and warns before the monthly defaulter list",
+    title: "See how many classes you can still miss this semester, and whether you're safe for the monthly defaulter list",
     category: "Update",
     tag: "Update",
     tagColor: "var(--blue)",
-    summary: "Step 3b of the attendance redesign, on the ERP-exact numbers.",
+    summary: "Plan ahead for the end of the semester and the monthly check.",
     points: [
-      "Scan review has a \"Total sessions\" box (the ERP's planned count for the",
-      "Subject cards and the subject page show the end-of-semester projection:",
-      "A card's Safe/Watch/At risk takes the worse of theory and lab; the line",
-      "Dashboard shows the monthly defaulter check on the overall %:",
-      "Background notifications: the app syncs attSummary (the overall % it"
+      "Each subject shows how many more classes you can miss this semester and still finish at your target.",
+      "When you scan your ERP, fill in Total sessions so this can be worked out.",
+      "A lab that's falling behind now turns its subject card red too.",
+      "The dashboard shows whether you're on track for this month's defaulter list.",
+      "Low-attendance notifications now use the same percentage you see in the app."
     ]
   },
   {
     id: "u35",
     date: "2026-10-14",
-    title: "Attendance now matches your college ERP exactly: 2 decimals, labs counted separately, nothing counted twice",
+    title: "Attendance now matches your college ERP exactly",
     category: "Update",
     tag: "Update",
     tagColor: "var(--blue)",
-    summary: "Step 3a of the attendance redesign. getSubjectAttendance and",
+    summary: "Your percentages are now worked out the same way as on the college ERP.",
     points: [
-      "Choice is per device in cos_att_v2_state (local, not synced). A",
-      "Exact \"safe\": 74.50% is below 75% on cards, dashboard, guidance,",
-      "Overall = every subject, labs included (ERP totals row). Subject cards",
-      "On-device low-attendance alert uses the overall %, not daily marks.",
-      "Weekly review uses the student's own target, not a fixed 75%.",
-      "A new ERP scan replaces the undated +1 taps it covers (v2 only).",
-      "Re-saving the timetable no longer deletes marks already taken today."
+      "Percentages show two decimals, like the ERP, and 74.50% now counts as below 75%.",
+      "Labs have their own percentage, shown on the matching subject.",
+      "Classes you marked before an ERP scan are no longer counted twice.",
+      "Your overall percentage includes every subject, labs too.",
+      "The first time you open the app you'll see what changed, and you can keep the old numbers if you prefer. You can switch any time in Settings.",
+      "Re-saving your timetable no longer clears classes you already marked today.",
+      "The weekly review uses your own attendance target."
     ]
   },
   {
