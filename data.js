@@ -199,6 +199,37 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u45",
+    date: "2026-10-15",
+    title: "Calmer Today: each thing shows once, so the page is shorter and easier to read",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calmer Today: each thing shows once, so the page is shorter and easier to read",
+    points: [
+      "Removed the row of number tiles at the top. Classes, tasks and attendance each already have their own section below, so the tiles only repeated them.",
+      "Present / Absent now appear once: on the big card for the class that's on now, and in the schedule only for classes that have ended. The class on now says \"Now\" in the schedule. Upcoming classes have no buttons yet.",
+      "Removed the \"0 of 0 completed\" bar from Tasks and the second Ask Desk box (the Ask Desk button at the top still opens it).",
+      "Weekly Review shows on Saturday and Sunday. It's always under Attendance > Guidance.",
+      "Your exam countdown stays as a small line under the greeting.",
+      "Phones: study shortcuts moved off Today (they're in Study Vault under More).",
+      "\"Clarity Desk\" in the header is one colour now."
+    ]
+  },
+  {
+    id: "u44",
+    date: "2026-10-15",
+    title: "New Clarity Desk logo, and notification icons that show properly on Android",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New Clarity Desk logo, and notification icons that show properly on Android",
+    points: [
+      "New mark: an open C around one dot, the one thing to do right now. Used for the tab icon, home-screen icon, iPhone icon, the app header and the link preview image.",
+      "The small notification icon in the Android status bar is now one clean white shape with room around it. The old \"CD\" letters were too detailed at that size and showed up as a smudge."
+    ]
+  },
+  {
     id: "u43",
     date: "2026-10-15",
     title: "The timetable review screen explains plainly when the AI couldn't check your photo, and no longer says \"All fields structured\" above that warning",
