@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u48",
+    date: "2026-10-18",
+    title: "Ask Desk now gives a correct answer when you have no safe skips and says \"next Sunday\" when that's what it means. Today reads better with one class and shows how many classes are left. The + button on the Timetable page now adds a class, the profile button shows a person icon instead of \"?\", the welcome card shows the new logo, and the top bar no longer overflows on mid-size screens. (v188)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Ask Desk now gives a correct answer when you have no safe skips and says \"next Sunday\" when that's what it means. Today reads better with one class and shows how many classes are left. The + button on the Timetable page now adds a class, the profile button shows a person icon instead of \"?\", the welcome card shows the new logo, and the top bar no longer overflows on mid-size screens. (v188)",
+    points: [
+
+    ]
+  },
+  {
     id: "u47",
     date: "2026-10-15",
     title: "Attendance rings on Subjects now animate only when you open the page, not every few seconds",
