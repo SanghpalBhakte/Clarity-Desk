@@ -440,6 +440,33 @@ await scenario('App does not retry a 503 the proxy answered itself', async () =>
   } finally { restore(); upstreamMode = 'ok'; }
 });
 
+await scenario('App does not retry a 503 that took over 15 s (an overloaded model), but still retries a quick one', async () => {
+  const realNow = Date.now, realFetch = globalThis.fetch;
+  let offset = 0;
+  Date.now = () => realNow() + offset;
+  const run = async (slowMs) => {
+    const calls = [];
+    globalThis.fetch = async (url) => {
+      calls.push(String(url));
+      if (String(url).includes('gemini-slow-test')) {
+        offset += slowMs;   // pretend the model took this long to refuse
+        return new Response(JSON.stringify({ error: { code: 503, message: 'high demand', status: 'UNAVAILABLE' } }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"schedule":[{"day":"Mon"}]}' }] }, finishReason: 'STOP' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    const AI = loadAIService({ CAMPUS_OS_GEMINI_KEY: 'gem-local', location: { origin: SITE } }, null);
+    AI.getModelsList = () => ['gemini-slow-test', 'gemini-next-test'];
+    const out = await AI.generateContentFromImage('iVBORw0KGgo=', 'image/png', 'read it');
+    return { slowCalls: calls.filter(u => u.includes('gemini-slow-test')).length, ok: out?.schedule?.[0]?.day === 'Mon' };
+  };
+  try {
+    const slow = await run(20000);
+    if (!slow.ok || slow.slowCalls !== 1) return `slow 503: expected 1 call then the next model, got ${slow.slowCalls} calls, ok=${slow.ok}`;
+    const quick = await run(0);
+    if (!quick.ok || quick.slowCalls !== 2) return `quick 503: expected one retry (2 calls), got ${quick.slowCalls}`;
+    return true;
+  } finally { Date.now = realNow; globalThis.fetch = realFetch; }
+});
 await scenario('Direct mode (no proxy set) is unchanged: same endpoints and key placement as before', async () => {
   upstreamCalls = [];
   const AI = loadAIService({ CAMPUS_OS_GEMINI_KEY: 'gem-local', CAMPUS_OS_GROQ_KEY: 'groq-local', location: { origin: SITE } }, null);

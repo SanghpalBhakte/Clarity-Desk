@@ -391,8 +391,15 @@ const AIService = {
   // on every attempt that day while allowing only 20 free requests each.
   // Google counts free quota per model, so each model in this list adds its
   // own daily allowance; the AI proxy skips ones already used up.
-  MODEL: 'gemini-3.1-flash-lite',
-  FALLBACK_MODELS: ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-flash-lite-latest'],
+  //
+  // Re-measured 2026-10-19 on all 9 kit timetables (timetable-test-kit +
+  // scanner-practice-kit): 3.1-flash-lite was overloaded on 3 of 9 (each
+  // failure 35-54 s, the main cause of 2-minute scans) and scored 55-69% on
+  // other colleges' layouts; flash-lite-latest failed 0 of 9, answered in
+  // 9-34 s and averaged ~82% (83-90% on our own SY-AIDS samples, 71-100% on
+  // the others). Reliability for a public launch wins, so it goes first.
+  MODEL: 'gemini-flash-lite-latest',
+  FALLBACK_MODELS: ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.6-flash'],
   // Re-verified live against the real key: llama-4-scout (the previous
   // value) returns "model does not exist" -- it isn't in the key's
   // /v1/models list -- so this Groq leg always failed. qwen/qwen3.8-27b IS
@@ -654,6 +661,7 @@ const AIService = {
   async _generateContent(route, body, model) {
     let response;
     for (let attempt = 1; attempt <= 2; attempt++) {
+      const startedAt = Date.now();
       response = await this._post(`gemini:${model}`, route.url, {
         method: 'POST',
         headers: route.headers,
@@ -662,6 +670,10 @@ const AIService = {
       // A 503 the AI proxy answered itself (model known to be overloaded)
       // would only be answered the same way again -- move on instead.
       if (response.status !== 503 || attempt === 2 || response.headers.get('X-Proxy-Skipped')) break;
+      // An overloaded model answers slowly and then refuses (measured 35-54 s
+      // before the 503). Retrying it just repeats that wait, so only a quick
+      // refusal -- a momentary spike -- gets its second try.
+      if (Date.now() - startedAt > 15000) break;
       console.warn(`[AIService] Model ${model} returned 503 (overloaded), retrying once...`);
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
@@ -921,11 +933,13 @@ const AIService = {
 // Every AI provider call goes through this. Without a timeout, one
 // provider that accepts the connection but never answers (free endpoints
 // under load do this) left the scan spinner running forever instead of
-// moving on to the next provider/model. 60s is well above a normal vision
-// response (5-40s measured on the test-kit images) so it only cuts off
+// moving on to the next provider/model. 45s is above every successful
+// vision response measured on the kit images (5-40s, slowest a six-
+// department sheet at ~34s) and below the 35-54s an overloaded model takes
+// to refuse, so it only cuts off
 // genuinely stuck calls; the abort surfaces as an ordinary error, which
 // every caller's existing provider/model rotation already handles.
-async function fetchWithTimeout(url, options = {}, ms = 60000) {
+async function fetchWithTimeout(url, options = {}, ms = 45000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   try {
@@ -3696,6 +3710,28 @@ function parseTimetableFromTextStream(rawText, existingSubjects = []) {
   return schedule;
 }
 
+// True when an on-device (Tesseract) timetable row is evidently misread.
+// Measured on scanner-practice-kit samples 07 and 11: rows like "c", "R R",
+// "General Subject", "6102CR 6201LA CT 6103CR" (only room codes), a whole
+// day's cells glued into one 25-word row, and classes at 00:10 all reached
+// review unflagged. Short real codes ("DT", "OS", "MA", "OE-1") pass.
+function looksLikeJunkTimetableRow(row) {
+  const subject = String(row?.subject || '').trim();
+  if (!subject || /^general subject$/i.test(subject)) return true;
+  const hm = String(row.time || '').match(/^(\d{1,2}):(\d{2})/);
+  if (hm && Number(hm[1]) < 6) return true;                                 // no classes between midnight and 6 AM
+  const tokens = subject.split(/[\s,/|]+/).filter(Boolean);
+  if (tokens.length > 8) return true;                                       // several cells glued together
+  // Room / batch codes: 6102CR, W101, A1043, B212A, B1 (not OE-1 or EM-I).
+  const isCode = t => /^(?:[A-Za-z]{0,3}\d{2,}[A-Za-z]{0,3}|[A-Za-z]\d)$/.test(t);
+  const words = tokens.filter(t => !isCode(t) && /[A-Za-z]/.test(t));
+  const codes = tokens.filter(isCode).length;
+  if (words.join('').replace(/[^A-Za-z]/g, '').length < 2) return true;     // "c", "T1", nothing but codes
+  if (codes >= 2 && codes > words.length) return true;                      // mostly room numbers
+  if (words.length >= 2 && words.every(w => w.replace(/[^A-Za-z]/g, '').length === 1)) return true; // "R R"
+  return false;
+}
+
 async function extractTimetableFromImage(base64Data, mimeType) {
   const existingSubjects = getSubjectList();
 
@@ -3897,7 +3933,14 @@ async function extractTimetableFromImage(base64Data, mimeType) {
       console.warn("[TimetableParser] Cell-region retry OCR failed, continuing with prior result:", err);
     }
   }
-  
+
+  // Flag rows the on-device read clearly got wrong, BEFORE the confidence
+  // gate below, so junk can't make a bad read look confident (which skipped
+  // the AI) and the review screen highlights it. Flags only, never drops.
+  (deterministicResult?.schedule || []).forEach(row => {
+    if (!row.isUncertain && looksLikeJunkTimetableRow(row)) row.isUncertain = true;
+  });
+
   // If the deterministic parser found a confident result, return
   // immediately -- "confident" now means non-empty, not mostly flagged
   // uncertain, AND covering a plausible chunk of a real week, so a photo

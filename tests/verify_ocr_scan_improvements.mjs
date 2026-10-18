@@ -67,7 +67,8 @@ const sandboxCode = `
     detectDayAndTimeTokens,
     mapRawOcrWordsForDetection,
     reconstructTimetable2DGrid,
-    formatDisplayTime
+    formatDisplayTime,
+    looksLikeJunkTimetableRow
   };
 `;
 
@@ -82,7 +83,8 @@ const {
   mapRawOcrWordsForDetection,
   normalizeSubjectIdentity,
   reconstructTimetable2DGrid,
-  formatDisplayTime
+  formatDisplayTime,
+  looksLikeJunkTimetableRow
 } = mod;
 
 let passed = 0;
@@ -391,6 +393,19 @@ check('10C. Real-world time ranges: "12.10am" typos, "X to Y" ranges and misread
     const r = normalizeTimetableTime(raw);
     if (r.time !== start || r.end !== end) return `"${raw}" -> expected ${start}-${end}, got ${r.time}-${r.end}`;
   }
+  return true;
+});
+
+check('10D. Evidently misread on-device rows are flagged for review; short real subjects are not', () => {
+  // Junk taken from real on-device reads of scanner-practice-kit samples 07 and 11.
+  const junk = ['c', 'R R', 'T1', 'General Subject', '', '6102CR 6201LA CT 6103CR', 'OE 6102cR 6103CR 6201CR 6202CR',
+    'Statistics B205B W101 MF Maths II Web W5066 BS SHM Int Prg to & Wrt Com ADS ED Al B212B RDM W103 Lab'];
+  const real = ['DT', 'OS', 'MA', 'OE-1', 'EM-I', 'Library', 'Maths II W101 MF', 'DSA 6103CR', 'Int to Web Prg W5067 BS', 'Data Structures',
+    'DT Tut - B1 & B2', 'COA /SC', 'WS-I (Lab)', 'Community Engagement-AI-C2,D2(SDJ)'];
+  for (const s of junk) if (!looksLikeJunkTimetableRow({ subject: s, time: '10:00' })) return `missed junk "${s}"`;
+  for (const s of real) if (looksLikeJunkTimetableRow({ subject: s, time: '10:00' })) return `flagged real subject "${s}"`;
+  if (!looksLikeJunkTimetableRow({ subject: 'MA', time: '00:10' })) return 'missed a class at 00:10';
+  if (looksLikeJunkTimetableRow({ subject: 'Library', time: '' })) return 'flagged a row just for having no time';
   return true;
 });
 
