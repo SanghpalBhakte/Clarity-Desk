@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u49",
+    date: "2026-10-19",
+    title: "Timetable scans now read times like \"12:10am\" and \"9.00 to 10.55\" correctly, so classes no longer show up at midnight. Attendance scans highlight any subject whose numbers don't match the printed percentage or that appears twice, and lab subjects no longer get mixed up with the theory subject of the same name. (v189)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Timetable scans now read times like \"12:10am\" and \"9.00 to 10.55\" correctly, so classes no longer show up at midnight. Attendance scans highlight any subject whose numbers don't match the printed percentage or that appears twice, and lab subjects no longer get mixed up with the theory subject of the same name. (v189)",
+    points: [
+
+    ]
+  },
+  {
     id: "u48",
     date: "2026-10-18",
     title: "Ask Desk now gives a correct answer when you have no safe skips and says \"next Sunday\" when that's what it means. Today reads better with one class and shows how many classes are left. The + button on the Timetable page now adds a class, the profile button shows a person icon instead of \"?\", the welcome card shows the new logo, and the top bar no longer overflows on mid-size screens. (v188)",
