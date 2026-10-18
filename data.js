@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u50",
+    date: "2026-10-19",
+    title: "Photo scans are faster and more reliable: the app now starts with the AI model that answers quickest and doesn't wait on an overloaded one, so most scans finish in 10 to 20 seconds. When your phone reads a timetable without the AI, rows it clearly misread are now marked for you to check. (v190)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Photo scans are faster and more reliable: the app now starts with the AI model that answers quickest and doesn't wait on an overloaded one, so most scans finish in 10 to 20 seconds. When your phone reads a timetable without the AI, rows it clearly misread are now marked for you to check. (v190)",
+    points: [
+
+    ]
+  },
+  {
     id: "u49",
     date: "2026-10-19",
     title: "Timetable scans now read times like \"12:10am\" and \"9.00 to 10.55\" correctly, so classes no longer show up at midnight. Attendance scans highlight any subject whose numbers don't match the printed percentage or that appears twice, and lab subjects no longer get mixed up with the theory subject of the same name. (v189)",
