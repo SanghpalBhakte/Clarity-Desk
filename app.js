@@ -149,8 +149,9 @@ function updateTopbarProfile() {
       av.textContent = getInitials(nameToDisplay);
       av.title       = nameToDisplay;
     } else {
-      av.textContent = '?';
-      av.title       = 'Set up your profile';
+      // A person icon, not "?": new users read "?" as a Help button.
+      av.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      av.title     = 'Set up your profile';
     }
   }
   // Sidebar semester label
@@ -6084,8 +6085,18 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   if (fabEl) {
     const onboardingShowing = page === 'dashboard' && !!document.querySelector('.desk-setup-guide');
     fabEl.style.display = (page === 'assignments' || onboardingShowing) ? 'none' : '';
+    // On the Timetable page the + adds a class; everywhere else it adds a task.
+    const addsClass = page === 'timetable';
+    fabEl.setAttribute('aria-label', addsClass ? 'Add class' : 'Add new task');
+    const fabLabel = fabEl.querySelector('.fab-label');
+    if (fabLabel) fabLabel.textContent = addsClass ? 'Add Class' : 'Add Task';
   }
 }
+
+window.fabAction = function() {
+  if (state.currentPage === 'timetable') showTimetableEntryModal(state.ttDay, null);
+  else showAddTaskModal();
+};
 
 // Immediately attach to window so inline onclick handlers work without waiting for full script load
 window.navigateTo = function(page) { navigate(page, false, false); };
@@ -7732,9 +7743,9 @@ window.showOnboardingModal = function() {
     <div class="modal onboarding-card" id="onboarding-modal-box">
       <div id="onboarding-step-1">
         <div style="width:44px;height:44px;border-radius:12px;background:var(--accent-dim);color:var(--accent);display:grid;place-items:center;margin-bottom:16px">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M 23.36 11.75 A 8.5 8.5 0 1 0 23.36 20.25" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="16" cy="16" r="3.2" fill="currentColor"/>
           </svg>
         </div>
         <h2 style="margin:0 0 6px 0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.025em;color:var(--text-primary)">Welcome to Clarity Desk</h2>
@@ -8203,7 +8214,7 @@ function renderDashboard() {
         <div style="flex:1;min-width:180px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 12%, transparent);color:var(--status-success)">${icons.check()} Day Complete</span>
-            <span style="font-size:var(--text-sm);color:var(--text-muted)">All ${dayClasses.length} classes finished today</span>
+            <span style="font-size:var(--text-sm);color:var(--text-muted)">${dayClasses.length === 1 ? 'Your only class is finished' : `All ${dayClasses.length} classes finished today`}</span>
           </div>
           <div class="chrono-beacon-title">Classes Done for Today</div>
           <div class="chrono-beacon-meta">
@@ -8325,7 +8336,7 @@ function renderDashboard() {
         <!-- SCHEDULE LEDGER -->
         <div class="dashboard-panel">
           <div class="panel-header">
-            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length}</span>` : ''}</div>
+            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
           </div>
           <!-- Open ledger: no card box -->
@@ -15855,7 +15866,7 @@ const ClarityAssistant = (() => {
         const dn = (new Date().getDay() + off) % 7;
         const c = getDayClasses(dn).sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))[0];
         if (c) {
-          const when = off === 1 ? 'tomorrow' : DAY_NAMES[dn];
+          const when = off === 1 ? 'tomorrow' : off === 7 ? `next ${DAY_NAMES[dn]}` : DAY_NAMES[dn];
           return `${first} Next class: <strong>${escHtml(c.subject)}</strong>, ${when} at ${formatTime(c.time)}${c.room && c.room !== '—' ? ' in ' + escHtml(c.room) : ''}.`;
         }
       }
@@ -16107,7 +16118,7 @@ const ClarityAssistant = (() => {
       return { ok: true, html: `<span class="cd-tag cd-tag-safe">Yes</span> You can miss <strong>${att.safeSkips} more ${name} class${att.safeSkips !== 1 ? 'es' : ''}</strong> and stay at or above ${target}% (now ${pct}%).` };
     }
     if (att.isSafe) {
-      return { ok: false, html: `<span class="cd-tag is-warning">Better not</span> ${name} is at ${pct}%, right at the ${target}% line. Missing one more would drop you below it.` };
+      return { ok: false, html: `<span class="cd-tag is-warning">Better not</span> ${name} is at ${pct}%, but there's no safe skip yet. Missing the next class would drop you below ${target}%.` };
     }
     const n = att.classesToAttend;
     return { ok: false, html: `<span class="cd-tag cd-tag-risk">No</span> ${name} is at <strong>${pct}%</strong>, below ${target}%.${n ? ` Attend the next <strong>${n} class${n !== 1 ? 'es' : ''}</strong> in a row to get back to ${target}%.` : ''}` };

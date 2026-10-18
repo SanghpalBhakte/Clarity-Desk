@@ -76,13 +76,13 @@
 
   <!-- Favicon & App Icons -->
   <link rel="icon" href="favicon.ico" sizes="any" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=187" />
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=187" />
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=187" />
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=187" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=188" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=188" />
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=188" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=188" />
 
   <!-- Styles -->
-  <link rel="stylesheet" href="style.css?v=187" />
+  <link rel="stylesheet" href="style.css?v=188" />
 </head>
 <body>
 
@@ -135,7 +135,7 @@
         </svg>
         <span>Ask Desk</span>
       </button>
-      <div class="avatar" id="topbar-avatar" onclick="navigateTo('settings')" title="Your Profile" style="cursor:pointer" role="button" tabindex="0" aria-label="Your profile and settings">?</div>
+      <div class="avatar" id="topbar-avatar" onclick="navigateTo('settings')" title="Your Profile" style="cursor:pointer" role="button" tabindex="0" aria-label="Your profile and settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
     </div>
   </header>
 
@@ -335,7 +335,7 @@
 </div>
 
 <!-- Floating Action Button — Add Task -->
-<button class="fab" data-testid="add-task-button" onclick="showAddTaskModal()" aria-label="Add new task">
+<button class="fab" data-testid="add-task-button" onclick="fabAction()" aria-label="Add new task">
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
@@ -434,8 +434,8 @@
     document.write('<script src="firebase-config.local.js" onerror="this.remove()"><\/script>');
   }
 </script>
-<script src="firebase-config.js?v=187"></script>
-<script type="module" src="app.js?v=187"></script>
+<script src="firebase-config.js?v=188"></script>
+<script type="module" src="app.js?v=188"></script>
 
 <!-- Cloudflare Web Analytics. Only loads on the live site, so local runs and tests aren't counted. -->
 <script>

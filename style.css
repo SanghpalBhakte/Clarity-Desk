@@ -715,6 +715,22 @@ img { display: block; max-width: 100%; }
   }
 }
 
+/* Between phone and laptop widths the topbar ran out of room: the clock
+   wrapped onto 2-3 lines, the page scrolled sideways by about 20px, and
+   the search box was squeezed to a few pixels. Keep labels on one line
+   and drop the extras until there is room for them. */
+#topbar-clock-text,
+.btn-assistant-toggle {
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .theme-toggle-label { display: none; }
+  .topbar-theme-toggle { padding: 5px 8px; }
+}
+@media (max-width: 980px) {
+  #topbar-clock-text { display: none; }
+}
+
 /* ── Storage / Sync Status Badge in Topbar ────────────────── */
 .storage-status-badge {
   display: inline-flex;
