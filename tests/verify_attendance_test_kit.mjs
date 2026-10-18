@@ -28,8 +28,10 @@ import { fileURLToPath } from 'url';
 import { chromium } from '@playwright/test';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const KIT = path.join(ROOT, 'attendance-practice-kit');
 const argAfter = (flag) => { const i = process.argv.indexOf(flag); return i !== -1 ? process.argv[i + 1] : null; };
+// --kit <folder> scores another fixture set with the same layout, e.g. the
+// invented-data practice screenshots in scanner-practice-kit/attendance.
+const KIT = argAfter('--kit') ? path.resolve(ROOT, argAfter('--kit')) : path.join(ROOT, 'attendance-practice-kit');
 const PROXY = argAfter('--proxy');
 const FORCE_PROVIDER = argAfter('--provider');
 const FORCE_MODELS = argAfter('--models') ? argAfter('--models').split(',') : null;
@@ -129,13 +131,17 @@ function score(expected, rows) {
   }
   let fieldsOk = 0;
   const wrong = [];
-  for (const [e, r] of pairs) for (const f of FIELDS) {
+  // A field set to null in the answer key isn't printed on that portal
+  // (e.g. no "Total Sessions" column), so it isn't scored.
+  const scored = (e) => FIELDS.filter(f => e[f] !== null && e[f] !== undefined);
+  const fieldsTotal = expected.rows.reduce((n, e) => n + scored(e).length, 0);
+  for (const [e, r] of pairs) for (const f of scored(e)) {
     if (Number(r[f]) === e[f]) fieldsOk++;
     else wrong.push(`${e.code} ${f}: got ${r[f]}, expected ${e[f]}`);
   }
   return {
     found: pairs.length / expected.rows.length,
-    fields: fieldsOk / (expected.rows.length * FIELDS.length),
+    fields: fieldsOk / Math.max(1, fieldsTotal),
     extra: extra.length,
     flagged: rows.filter(r => r.isUncertain).length,
     missing: [...unmatched].map(i => expected.rows[i].code),

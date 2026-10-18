@@ -42,7 +42,14 @@ import { fileURLToPath } from 'url';
 import { chromium } from '@playwright/test';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const KIT = path.join(ROOT, 'timetable-test-kit');
+// --kit <folder> scores a different fixture set with the same layout
+// (images/ + expected-output/), e.g. the web-practice kit kept out of git.
+const kitIdx = process.argv.indexOf('--kit');
+const KIT = kitIdx !== -1 ? path.resolve(ROOT, process.argv[kitIdx + 1]) : path.join(ROOT, 'timetable-test-kit');
+if (!fs.existsSync(path.join(KIT, 'expected-output'))) {
+  console.log(`⏭  Skipped: no kit at ${path.relative(ROOT, KIT) || KIT} (expected images/ and expected-output/ there).`);
+  process.exit(0);
+}
 const proxyIdx = process.argv.indexOf('--proxy');                    // e.g. --proxy http://127.0.0.1:8787
 const PROXY = proxyIdx !== -1 ? process.argv[proxyIdx + 1] : null;
 const AI_MODE = process.argv.includes('--ai') || !!PROXY;
@@ -133,13 +140,31 @@ const ALIASES = [
   [['business', 'bussiness', 'bmfa'], 'BMFA'], [['constitution', 'coi'], 'COI'], [['webdev', 'webdevelopment'], 'WD'],
   [['communityengagement'], 'CE'], [['openelective1', 'oe1'], 'OE-1'], [['openelective2', 'oe2'], 'OE-2'], [['multidisciplinary', 'mdm'], 'MDM']
 ];
+// A sample may carry its own "aliases": { "ABBR": ["full name", ...] }.
+// When it does, those (longest first) replace the built-in list above,
+// which was written for samples 01-03 and would misfile other colleges'
+// subjects (e.g. "Data Structures and Algorithms" -> DS).
+let LOCAL = null;
+const setLocalAliases = (aliases) => {
+  LOCAL = aliases ? Object.entries(aliases)
+    .flatMap(([abbr, names]) => [abbr, ...names].map(x => [norm(x), norm(abbr)]))
+    .filter(([needle]) => needle.length >= 2)
+    .sort((a, b) => b[0].length - a[0].length) : null;
+};
 const key = (s) => {
   const n = norm(s);
+  if (LOCAL) {
+    const exact = LOCAL.find(([needle]) => needle === n);
+    if (exact) return exact[1];
+    const hit = LOCAL.find(([needle]) => needle.length >= 4 && n.includes(needle));
+    return hit ? hit[1] : (n || '?');
+  }
   for (const [needles, k] of ALIASES) if (needles.some(x => n.includes(x))) return k;
   return ({ ds: 'DS', wd: 'WD', ce: 'CE' })[n] || n || '?';
 };
 
 function score(expected, schedule) {
+  setLocalAliases(expected.aliases);
   const periods = new Map(expected.periods.filter(p => p.type === 'class').map(p => [p.period, [toMin(p.start), toMin(p.end)]]));
   const E = new Map(); const bump = (map, k) => map.set(k, (map.get(k) || 0) + 1);
   for (const d of DAYS) for (const slot of expected.grid[d] || []) for (const p of slot.periods) {
@@ -230,7 +255,7 @@ for (const file of samples) {
   const id = file.replace('.json', '');
   const expected = JSON.parse(fs.readFileSync(path.join(KIT, 'expected-output', file), 'utf8'));
   const image = expected.source_image;
-  if (!fs.existsSync(path.join(KIT, 'images', image))) { console.error(`✗ [FAIL] ${id}: image ${image} missing from timetable-test-kit/images`); failed++; continue; }
+  if (!fs.existsSync(path.join(KIT, 'images', image))) { console.error(`✗ [FAIL] ${id}: image ${image} missing from ${path.relative(ROOT, KIT)}/images`); failed++; continue; }
   logs.length = 0;
   const t0 = Date.now();
   let result;

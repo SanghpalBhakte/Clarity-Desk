@@ -1492,8 +1492,11 @@ function reencodeDataUrl(dataUrl, mimeType, quality) {
 function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
   if (!timeRaw || typeof timeRaw !== 'string') return { time: '', end: '', isValid: false };
   let str = timeRaw.trim()
-    .replace(/[OoQ](?=\d|:|\s|$)/g, '0')
-    .replace(/(?<=\d|:|\s|^)[OoQ]/g, '0')
+    // Only an O touching a digit or colon is a misread zero ("1O:OO").
+    // The old rule also fired on an O before a space, which turned the
+    // "to" in "9.00 to 10.55" into "t0" and broke every "X to Y" range.
+    .replace(/[OoQ]+(?=\d|:)/g, m => '0'.repeat(m.length))
+    .replace(/(?<=\d|:)[OoQ]+/g, m => '0'.repeat(m.length))
     .replace(/(?<=\s|^)[lI|i](?=\d|:)/g, '1')
     .replace(/\s+/g, ' ');
 
@@ -1520,6 +1523,11 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
     // 12-hour clock midnight rule: "12:00 AM" means hour 0, not 12.
     if (mer1 === 'am' && h1 === 12) h1 = 0;
     if (mer2 === 'am' && h2 === 12) h2 = 0;
+    // No college class runs past midnight: "12.10am" printed on a day
+    // timetable is a typo for 12:10 PM. Without this, "11:10 AM - 12:10 AM"
+    // ended at midnight and "12:10 AM - 1:10 PM" started at 00:10.
+    if (h1 === 0 && mer1 === 'am' && (mer2 === 'pm' || h2 > 0)) h1 = 12;
+    if (h2 === 0 && mer2 === 'am' && h1 > 0) h2 = 12;
 
     // College afternoon heuristic for non-AM/PM timetables
     if (!mer1 && !mer2) {
@@ -10616,6 +10624,7 @@ Return JSON matching this exact structure:
       "notEntered": 0,
       "totalSessions": 60,
       "totalCount": 18,
+      "percentage": 55.56,
       "isUncertain": false
     }
   ]
@@ -10635,6 +10644,8 @@ Rules:
    present + absent + leave + notEntered should equal totalCount; if it
    doesn't add up, or a number is genuinely illegible, set isUncertain: true.
 5. Skip a totals/summary row at the bottom of the table -- it isn't a course.
+   If the table prints an attendance percentage per course, copy it into
+   "percentage" exactly as printed; if there is no percentage, use null.
 6. "subject" must be the actual course NAME printed in the table, never a
    course code -- if a name is genuinely unreadable, still read the code
    into "code" and leave "subject" as your best plain-language guess at the
@@ -10648,7 +10659,8 @@ ${rawOcrText}`;
     const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt,
       name => updateAttendanceScanLoadingMessage(`Reading the screenshot with AI (${name})…`));
     if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
-      return aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
+      const rows = aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
+      return flagAttendanceScanRows(rows, aiResult.schedule);
     }
   } catch (aiErr) {
     console.warn('[AttendancePhotoScan] Vision AI extraction failed, falling back to local OCR:', aiErr);
@@ -11326,7 +11338,9 @@ function matchScannedRowToSubjects(rawRow, existingSubjects = []) {
 
   // 1. Run raw text through canonical normalizer
   const norm = normalizeSubjectIdentity(rawName, existingSubjects);
-  const isLab = norm.isLab || /\blab\b/i.test(rawName) || rawCode.endsWith('-LAB');
+  // "Laboratory" counts as a lab too: ERPs print the full word, and without
+  // it a lab row matched the theory course of the same name.
+  const isLab = norm.isLab || /\blab(oratory)?\b/i.test(rawName) || rawCode.endsWith('-LAB');
   const targetName = norm.canonicalName || rawName;
   const targetCode = norm.canonicalCode || rawCode;
 
@@ -11385,7 +11399,12 @@ function matchScannedRowToSubjects(rawRow, existingSubjects = []) {
     }
   }
 
-  const finalSubject = bestMatch ? bestMatch.name : (targetName || 'General Subject');
+  // With no saved subject to match (a new student scanning attendance
+  // first), the normalizer strips "Laboratory" from a lab course's name, so
+  // the theory course and its lab came out with the same name and could be
+  // saved as one subject. Keep the lab visibly a lab.
+  const unmatchedName = (isLab && targetName && !/\blab(oratory)?\b/i.test(targetName)) ? `${targetName} Lab` : targetName;
+  const finalSubject = bestMatch ? bestMatch.name : (unmatchedName || 'General Subject');
   const finalCode = bestMatch ? bestMatch.code : targetCode;
   const isSubjectValid = finalSubject && finalSubject !== 'General Subject' && finalSubject.length >= 3;
 
@@ -11399,6 +11418,16 @@ function matchScannedRowToSubjects(rawRow, existingSubjects = []) {
   // picking up the next course's counts.
   const printedTotal = parseInt(rawRow.totalCount);
   const countsDisagree = Number.isFinite(printedTotal) && printedTotal > 0 && present + absent + leave + notEntered !== printedTotal;
+  // Second check: the printed percentage. A misread count can still add up
+  // to the printed total (seen on a blurry photo: Absent 3 read as 2 and
+  // Not Entered 0 read as 1), but it won't reproduce the percentage.
+  // Portals compute it either from present+absent or from every session
+  // held, so it passes if either way matches within 1 point.
+  const printedPct = parseFloat(rawRow.percentage);
+  const pctOf = (den) => den > 0 ? (present / den) * 100 : null;
+  const pctCandidates = [pctOf(present + absent), pctOf(present + absent + leave + notEntered)].filter(v => v !== null);
+  const pctDisagree = Number.isFinite(printedPct) && printedPct >= 0 && printedPct <= 100 && pctCandidates.length > 0
+    && pctCandidates.every(v => Math.abs(v - printedPct) > 1);
 
   return {
     subject: finalSubject,
@@ -11410,8 +11439,39 @@ function matchScannedRowToSubjects(rawRow, existingSubjects = []) {
     totalSessions: Math.max(0, parseInt(rawRow.totalSessions) || 0),
     // (parsed numbers here: the AI can return "0"/"0" as text, and
     // "0" + "0" === 0 is false, so a 0/0 row slipped through unflagged)
-    isUncertain: !isSubjectValid || (present + absent === 0) || countsDisagree || !!rawRow.isUncertain
+    isUncertain: !isSubjectValid || (present + absent === 0) || countsDisagree || pctDisagree || !!rawRow.isUncertain
   };
+}
+
+// Table-wide checks on AI-read attendance rows (rows[i] came from raw[i]).
+// Both catch misreads that still look self-consistent row by row, so the
+// student sees them highlighted in review instead of saving wrong counts.
+function flagAttendanceScanRows(rows, raw = []) {
+  // 1. The same course read twice: flag both copies. Keyed by course code
+  //    when there is one -- a theory course and its lab share a name once
+  //    "Laboratory" is normalized away, but never share a code.
+  const keyOf = r => String(r.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    || 'name:' + String(r.subject || '').toLowerCase().replace(/[^a-z0-9]/g, '').replace(/s$/, '');
+  const seen = new Map();
+  rows.forEach(r => { const k = keyOf(r); if (k) seen.set(k, (seen.get(k) || 0) + 1); });
+  rows.forEach(r => { if (seen.get(keyOf(r)) > 1) r.isUncertain = true; });
+
+  // 2. A portal computes its percentage one way for every row: present out
+  //    of present+absent, or out of every session held. Work out which from
+  //    the rows that fit only one formula, then hold every row to it. A row
+  //    check alone can't do this: Absent 3 misread as 2 and Not Entered 0
+  //    as 1 still matches the "every session" formula by coincidence.
+  const fits = rows.map((r, i) => {
+    const pct = parseFloat((raw[i] || {}).percentage);
+    if (!Number.isFinite(pct)) return null;
+    const a = r.present + r.absent, b = a + r.leave + r.notEntered;
+    return { pa: a > 0 && Math.abs((r.present / a) * 100 - pct) <= 1, all: b > 0 && Math.abs((r.present / b) * 100 - pct) <= 1 };
+  });
+  const onlyPA = fits.filter(f => f && f.pa && !f.all).length;
+  const onlyAll = fits.filter(f => f && f.all && !f.pa).length;
+  const formula = onlyPA > onlyAll ? 'pa' : onlyAll > onlyPA ? 'all' : null;
+  if (formula) rows.forEach((r, i) => { if (fits[i] && !fits[i][formula]) r.isUncertain = true; });
+  return rows;
 }
 
 function showAttendanceScanReviewModal(rows = []) {

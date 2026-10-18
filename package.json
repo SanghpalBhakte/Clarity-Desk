@@ -17,6 +17,8 @@
     "test:ocr-kit:ai": "node tests/verify_ocr_test_kit.mjs --proxy https://clarity-desk-ai.sanghapal2006.workers.dev",
     "test:attendance-kit": "node tests/verify_attendance_test_kit.mjs",
     "test:attendance-kit:ai": "node tests/verify_attendance_test_kit.mjs --proxy https://clarity-desk-ai.sanghapal2006.workers.dev",
+    "test:practice-kit": "node tests/verify_ocr_test_kit.mjs --kit scanner-practice-kit && node tests/verify_attendance_test_kit.mjs --kit scanner-practice-kit/attendance",
+    "test:practice-kit:ai": "node tests/verify_ocr_test_kit.mjs --kit scanner-practice-kit --proxy https://clarity-desk-ai.sanghapal2006.workers.dev && node tests/verify_attendance_test_kit.mjs --kit scanner-practice-kit/attendance --proxy https://clarity-desk-ai.sanghapal2006.workers.dev",
     "release:check": "node tests/release-check.mjs",
     "clear:pwa-cache": "node tests/clear-pwa-cache.mjs",
     "clear:pwa-cache:full": "node tests/clear-pwa-cache.mjs --full",

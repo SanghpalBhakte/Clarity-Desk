@@ -17,6 +17,7 @@
       "tests/**",
       "timetable-test-kit/**",
       "attendance-practice-kit/**",
+      "scanner-practice-kit/**",
       "scripts/**",
       "playwright-report/**",
       "test-results/**",

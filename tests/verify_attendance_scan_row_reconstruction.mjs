@@ -56,7 +56,7 @@ let codeToRun = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, 
 const sandboxCode = `
   ${codeToRun}
 
-  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects };
+  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects, flagAttendanceScanRows };
 `;
 
 function createSandbox() {
@@ -266,6 +266,46 @@ check('The printed Total Count is only a check -- it is not added to the saved r
   const row = rowMod.matchScannedRowToSubjects({ subject: 'Data Structures', code: 'AID21PCL202', present: 13, absent: 12, leave: 0, notEntered: 0, totalSessions: 60, totalCount: 25 }, []);
   const keys = Object.keys(row).sort().join(',');
   return keys === 'absent,code,isUncertain,leave,notEntered,present,subject,totalSessions' ? true : `row shape changed: ${keys}`;
+});
+
+check('A misread count that still adds up to the Total Count is caught by the table-wide percentage formula', () => {
+  // Blurry-photo case from scanner-practice-kit attendance sample-02: the portal
+  // computes Present/(Present+Absent). Real 11/3/0/0 at 78.57%, read as 11/2/0/1.
+  const raw = [
+    { subject: 'Operating Systems', code: 'CSE23PCC301', present: 24, absent: 4, leave: 1, notEntered: 0, totalCount: 29, percentage: 85.71 },
+    { subject: 'Computer Networks', code: 'CSE23PCC304', present: 15, absent: 11, leave: 2, notEntered: 0, totalCount: 28, percentage: 57.69 },
+    { subject: 'Business Management and Financial Accounting', code: 'CSE23ESC305', present: 11, absent: 2, leave: 0, notEntered: 1, totalCount: 14, percentage: 78.57 },
+    { subject: 'Database Management Systems', code: 'CSE23PCC302', present: 20, absent: 6, leave: 0, notEntered: 2, totalCount: 28, percentage: 76.92 },
+    { subject: 'Database Management Systems', code: 'CSE23PCL303', present: 9, absent: 1, leave: 0, notEntered: 0, totalCount: 10, percentage: 90.00 },
+    { subject: 'Universal Human Values', code: 'CSE23HSM307', present: 5, absent: 7, leave: 0, notEntered: 0, totalCount: 12, percentage: 41.67 },
+    { subject: 'Universal Human Value', code: 'CSE23HSM307', present: 5, absent: 7, leave: 0, notEntered: 0, totalCount: 12, percentage: 41.67 }
+  ];
+  const rows = rowMod.flagAttendanceScanRows(raw.map(r => rowMod.matchScannedRowToSubjects(r, [])), raw);
+  const flags = rows.map(r => r.isUncertain).join(',');
+  // Theory course and its lab share a name but not a code: not duplicates. The same code twice is.
+  return flags === 'false,false,true,false,false,true,true' ? true : `expected false,false,true,false,false,true,true, got ${flags}`;
+});
+check('A row whose counts reproduce the printed percentage (either formula, rounded) is not flagged', () => {
+  const a = rowMod.matchScannedRowToSubjects({ subject: 'Operating Systems', code: 'CSE23PCC301', present: 24, absent: 4, leave: 1, notEntered: 0, totalSessions: 60, totalCount: 29, percentage: 85.71 }, []);
+  const b = rowMod.matchScannedRowToSubjects({ subject: 'Engineering Mathematics III', code: 'BSC301', present: 27, absent: 5, percentage: '84%' }, []);
+  const c = rowMod.matchScannedRowToSubjects({ subject: 'Computer Networks', code: 'CSE23PCC304', present: 15, absent: 11, leave: 2, notEntered: 0, totalCount: 28, percentage: null }, []);
+  return !a.isUncertain && !b.isUncertain && !c.isUncertain ? true : `unexpected flag: ${[a, b, c].map(r => r.isUncertain).join(',')}`;
+});
+
+check('A new student scanning attendance first keeps a theory course and its lab as two differently named subjects', () => {
+  const theory = rowMod.matchScannedRowToSubjects({ subject: 'Database Management Systems', code: 'CSE23PCC302', present: 20, absent: 6 }, []);
+  const lab = rowMod.matchScannedRowToSubjects({ subject: 'Database Management Systems Laboratory', code: 'CSE23PCL303', present: 9, absent: 1 }, []);
+  const labWord = rowMod.matchScannedRowToSubjects({ subject: 'Operating Systems Lab', code: 'CSE23PCL306', present: 8, absent: 2 }, []);
+  if (theory.subject === lab.subject) return `theory and lab both named "${theory.subject}"`;
+  if (!/\blab\b/i.test(lab.subject)) return `lab lost its lab marker: "${lab.subject}"`;
+  if (/lab\s+lab/i.test(labWord.subject)) return `doubled suffix: "${labWord.subject}"`;
+  return true;
+});
+
+check('A "...Laboratory" row matches the saved lab subject, not the theory course of the same name', () => {
+  const saved = [{ name: 'Database Management Systems', code: 'DBMS', type: 'lecture' }, { name: 'Database Management Systems Lab', code: 'DBMS', type: 'lab' }];
+  const row = rowMod.matchScannedRowToSubjects({ subject: 'Database Management Systems Laboratory', code: 'CSE23PCL303', present: 9, absent: 1 }, saved);
+  return row.subject === 'Database Management Systems Lab' ? true : `matched "${row.subject}"`;
 });
 
 console.log('\n========================================');

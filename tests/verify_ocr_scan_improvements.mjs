@@ -381,6 +381,19 @@ check('10B. Editing a review-modal time field in 12-hour form round-trips to the
   return true;
 });
 
+check('10C. Real-world time ranges: "12.10am" typos, "X to Y" ranges and misread zeros parse correctly', () => {
+  // From scanner-practice-kit sample-07 (PCCOE prints "11.10am to 12.10am"
+  // and "12.10am to 01.10pm") and sample-11 (Nirma "9.00 - 10.55").
+  const cases = [['11.10am to 12.10am', '11:10', '12:10'], ['12.10am to 01.10pm', '12:10', '13:10'], ['11:30 AM - 12:30 AM', '11:30', '12:30'],
+    ['9.00 to 10.55', '09:00', '10:55'], ['3:00 PM to 4:00 PM', '15:00', '16:00'], ['1O:OO - 11:OO', '10:00', '11:00'],
+    ['12:00 PM - 1:00 PM', '12:00', '13:00'], ['2.00 - 2.55', '14:00', '14:55'], ['9.00-10.00', '09:00', '10:00']];
+  for (const [raw, start, end] of cases) {
+    const r = normalizeTimetableTime(raw);
+    if (r.time !== start || r.end !== end) return `"${raw}" -> expected ${start}-${end}, got ${r.time}-${r.end}`;
+  }
+  return true;
+});
+
 // ── 11. A scan-legend-only abbreviation resolves end-to-end through the ──
 // full grid reconstructor (not just normalizeSubjectIdentity directly).
 check('11. A scan-legend-only abbreviation resolves end-to-end via reconstructTimetable2DGrid', () => {

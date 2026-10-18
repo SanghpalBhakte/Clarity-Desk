@@ -19,6 +19,8 @@ ai-proxy/.dev.vars
 .wrangler/
 # Real student attendance + faculty names -- keep local only
 attendance-practice-kit/
+# Other colleges' published timetables used as scanner practice -- not ours to redistribute
+scanner-practice-kit/
 
 # Dependencies
 node_modules/
