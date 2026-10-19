@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u51",
+    date: "2026-10-20",
+    title: "Scanning a timetable now sets up your subjects for you: only the subjects you scanned show in Subject Hubs, and each one gets its own Study Vault folder. Rows that are really a room, a teacher, a batch or a free period like Library or T&P are marked \"Not a subject\" before you save. After a rescan, old subjects that aren't in the new timetable can be hidden in one tap, and your attendance and vault files stay safe. (v191)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Scanning a timetable now sets up your subjects for you: only the subjects you scanned show in Subject Hubs, and each one gets its own Study Vault folder. Rows that are really a room, a teacher, a batch or a free period like Library or T&P are marked \"Not a subject\" before you save. After a rescan, old subjects that aren't in the new timetable can be hidden in one tap, and your attendance and vault files stay safe. (v191)",
+    points: [
+
+    ]
+  },
+  {
     id: "u50",
     date: "2026-10-19",
     title: "Photo scans are faster and more reliable: the app now starts with the AI model that answers quickest and doesn't wait on an overloaded one, so most scans finish in 10 to 20 seconds. When your phone reads a timetable without the AI, rows it clearly misread are now marked for you to check. (v190)",
