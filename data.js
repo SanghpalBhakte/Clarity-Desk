@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u52",
+    date: "2026-10-20",
+    title: "Import deadlines from your WhatsApp class group: pick an exported chat or paste messages on the Tasks page, check what was found, and add the ones you want. The chat is read on your phone only and is never saved or uploaded. You can fix a title, date or time first, undo the import, or save the deadlines to your calendar. On Android you can share an exported chat straight to Clarity Desk. (v192)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Import deadlines from your WhatsApp class group: pick an exported chat or paste messages on the Tasks page, check what was found, and add the ones you want. The chat is read on your phone only and is never saved or uploaded. You can fix a title, date or time first, undo the import, or save the deadlines to your calendar. On Android you can share an exported chat straight to Clarity Desk. (v192)",
+    points: [
+
+    ]
+  },
+  {
     id: "u51",
     date: "2026-10-20",
     title: "Scanning a timetable now sets up your subjects for you: only the subjects you scanned show in Subject Hubs, and each one gets its own Study Vault folder. Rows that are really a room, a teacher, a batch or a free period like Library or T&P are marked \"Not a subject\" before you save. After a rescan, old subjects that aren't in the new timetable can be hidden in one tap, and your attendance and vault files stay safe. (v191)",
