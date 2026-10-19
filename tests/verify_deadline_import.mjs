@@ -161,5 +161,45 @@ console.log('\n7. Speed');
   check(`5,000-line chat parses in under 300 ms (${ms.toFixed(1)} ms, ${res.items.length} found)`, ms < 300 && res.items.length > 0);
 }
 
+console.log('\n8. Task schema (sanitizeTask in app.js)');
+{
+  const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const fnSrc = appSrc.match(/const VALID_TASK_TYPES[\s\S]*?\nfunction sanitizeTask\(t\) \{[\s\S]*?\n\}\n/)[0];
+  const sanitizeTask = new Function(`const todayStr = () => '2026-10-20';\n${fnSrc}\nreturn sanitizeTask;`)();
+  const old = { id: 'c-1', subject: 'DBMS', code: 'CS301', title: 'Lab 3', taskType: 'lab', dueDate: '2026-10-22', priority: 'high', status: 'pending', marks: 5 };
+  const oldOut = sanitizeTask(old);
+  check('an existing task keeps exactly its old keys', JSON.stringify(Object.keys(oldOut)) === JSON.stringify(['id', 'subject', 'code', 'title', 'taskType', 'noDeadline', 'description', 'dueDate', 'priority', 'status', 'marks', 'isCustom']), Object.keys(oldOut).join(','));
+  const wa = sanitizeTask({ ...old, source: 'whatsapp', startTime: '10:00', endTime: '12:00' });
+  check('source, startTime and endTime survive a save', wa.source === 'whatsapp' && wa.startTime === '10:00' && wa.endTime === '12:00');
+  const bad = sanitizeTask({ ...old, source: 'evil', startTime: '25:00', endTime: '09:00' });
+  check('unknown source and invalid times are dropped', !('source' in bad) && !('startTime' in bad) && !('endTime' in bad));
+  const backwards = sanitizeTask({ ...old, startTime: '14:00', endTime: '13:00' });
+  check('end time before start is dropped, start kept', backwards.startTime === '14:00' && !('endTime' in backwards));
+  const ongoing = sanitizeTask({ ...old, taskType: 'mission', dueDate: '', startTime: '10:00' });
+  check('no-deadline tasks never carry a time', !('startTime' in ongoing));
+}
+
+console.log('\n9. Share target and offline');
+{
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+  const st = manifest.share_target || {};
+  check('manifest share_target posts multipart to ./share-target', st.action === './share-target' && st.method === 'POST' && st.enctype === 'multipart/form-data');
+  const accept = (st.params && st.params.files && st.params.files[0] && st.params.files[0].accept) || [];
+  check('share_target accepts text/plain and zip files plus text', accept.includes('text/plain') && accept.includes('application/zip') && st.params.text === 'text');
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  check('sw.js handles POST /share-target before the GET-only guard', sw.indexOf("endsWith('/share-target')") > -1 && sw.indexOf("endsWith('/share-target')") < sw.indexOf("if (e.request.method !== 'GET') return;"));
+  const shareBlock = sw.slice(sw.indexOf('let pendingShare'), sw.indexOf("self.addEventListener('fetch'"));
+  check('shared chat is never written to the Cache API or storage', !/caches\.|cache\.put|indexedDB|localStorage/.test(shareBlock));
+  for (const f of ['./deadline-import.js', './deadline-import-worker.js', './vendor/jszip.min.js']) {
+    check(`sw.js precaches ${f} for offline use`, sw.includes(`'${f}'`));
+  }
+  check('vendored JSZip is present', fs.existsSync(path.join(ROOT, 'vendor', 'jszip.min.js')));
+  const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const waBlock = appSrc.slice(appSrc.indexOf('// ── Import from WhatsApp'), appSrc.indexOf('// Android share target: sw.js'));
+  check('import screen never stores, sends or logs the chat', !/localStorage|safeSetStorage|indexedDB|fetch\(|sendBeacon|console\./.test(waBlock));
+  check('import saves through saveCustomTasks()', /saveCustomTasks\(\)/.test(waBlock));
+  check('no em dashes in import UI copy', !/—/.test(waBlock.replace(/^\s*\/\/.*$/gm, '')));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

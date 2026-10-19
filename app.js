@@ -5053,6 +5053,17 @@ function sanitizeTask(t) {
   const finalSubject = String(t.subject || 'General');
   const finalCode = String(t.code || (finalSubject === 'General' ? 'GEN' : finalSubject === 'Mission' ? 'MIS' : 'OTH'));
 
+  // Optional fields added by the WhatsApp import (v192). Only written when
+  // present and valid, so every older task keeps exactly its old shape and
+  // older app versions just drop them.
+  const isHHMM = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+  const extra = {};
+  if (t.source === 'whatsapp') extra.source = 'whatsapp';
+  if (!isNoDeadline && isHHMM(t.startTime)) {
+    extra.startTime = t.startTime;
+    if (isHHMM(t.endTime) && t.endTime > t.startTime) extra.endTime = t.endTime;
+  }
+
   return {
     id:          String(t.id || `c-${Date.now()}`),
     subject:     finalSubject,
@@ -5066,6 +5077,7 @@ function sanitizeTask(t) {
     status:      t.status === 'submitted' ? 'submitted' : 'pending',
     marks:       typeof t.marks === 'number' ? Math.max(0, Math.min(100, t.marks)) : (parseInt(t.marks) || 0),
     isCustom:    true,
+    ...extra,
   };
 }
 
@@ -13705,6 +13717,7 @@ function renderAssignments() {
         <div class="empty-state-title">No Tasks Yet</div>
         <div class="empty-state-desc">Stay on top of coursework, deadlines, and project milestones. Tap Add Task to get started.</div>
         <button class="btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-base);padding:7px 16px">+ Add Task</button>
+        <button class="btn-secondary" onclick="showWhatsAppImport()" style="font-size:var(--text-base);padding:7px 16px;margin-top:8px">Import from WhatsApp</button>
       </div>`
     : (state.assignFilter === 'ongoing' || state.assignFilter === 'missions')
     ? `<div class="empty-state-card" style="margin-top:14px">
@@ -13726,7 +13739,10 @@ function renderAssignments() {
         <div class="page-title">Tasks &amp; Deadlines</div>
         <div class="page-subtitle">${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed</div>
       </div>
-      <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
+      <div class="tk-header-actions">
+        <button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>
+        <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
+      </div>
     </div>
     ${all.length ? `
       <div class="tk-seg" role="group" aria-label="Show tasks">${segBar}</div>
@@ -13779,6 +13795,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
         <h2 class="modal-title">${editTask ? 'Edit Task' : initialType === 'mission' ? 'Create Mission' : 'Add Task'}</h2>
         <button class="modal-close" onclick="document.getElementById('add-task-backdrop').remove()">${icons.x()}</button>
       </div>
+      ${editTask ? '' : `<button type="button" class="wa-modal-link" onclick="showWhatsAppImport()">Deadlines in a WhatsApp group? Import them</button>`}
 
       <div class="form-group">
         <label class="form-label">Subject / Category <span class="req">*</span></label>
@@ -13979,6 +13996,468 @@ function submitAddTask(editTaskId = null) {
   showToast(editTaskId ? 'Task updated ✓' : (taskType === 'mission' || isNoDeadline) ? 'Mission added to desk ✓' : 'Task added to desk ✓', 'success');
   renderPage(state.currentPage);
   updateNavBadges();
+}
+
+// ── Import from WhatsApp ──────────────────────────────────────
+// Reads a class-group chat ON THIS DEVICE and lists the deadlines it finds
+// for review. Privacy rules (the chat holds other students' messages):
+//   - the raw chat is never stored, uploaded, logged or synced; it only
+//     lives in local variables / the paste box while this screen is open
+//   - only the rows the student ticks become tasks, via saveCustomTasks()
+//   - nothing is imported without the review step
+// Parser: deadline-import.js (lazy-loaded). Long chats are scanned in
+// deadline-import-worker.js. JSZip (vendor/) is loaded only for a .zip.
+const WA_MAX_BYTES = 20 * 1024 * 1024;
+const WA_WORKER_LINES = 3000;
+const WA_KIND_LABEL = { exam: 'Exam', sub: 'Submission', pres: 'Presentation', lec: 'Lecture', oth: 'Notice' };
+const WA_NOT_A_CHAT = 'Couldn’t read this as a WhatsApp chat. Use Export chat, or copy messages including their date and time.';
+const WA_DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WA_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Review state: { P, items, stats, sel:Set, dup:Set, open, now }. Memory only;
+// set back to null when the screen closes.
+let _wa = null;
+let _waParser = null;
+let _jszipPromise = null;
+
+function waEsc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function loadWaParser() {
+  if (!_waParser) _waParser = import('./deadline-import.js').catch(err => { _waParser = null; throw err; });
+  return _waParser;
+}
+
+function loadJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (!_jszipPromise) {
+    _jszipPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = './vendor/jszip.min.js';
+      s.onload = () => (window.JSZip ? resolve(window.JSZip) : reject(new Error('zip reader missing')));
+      s.onerror = () => { _jszipPromise = null; s.remove(); reject(new Error('Could not load the zip reader. Check your connection and try again.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return _jszipPromise;
+}
+
+async function waReadChatFile(file) {
+  if (file.size > WA_MAX_BYTES) throw new Error('This file is over 20 MB. Export a single group chat Without media and try again.');
+  const isZip = /\.zip$/i.test(file.name || '') || /zip/i.test(file.type || '');
+  if (!isZip) return await file.text();
+  const JSZip = await loadJSZip();
+  const zip = await JSZip.loadAsync(file);
+  const txts = Object.values(zip.files).filter(f => !f.dir && /\.txt$/i.test(f.name));
+  if (!txts.length) throw new Error('This zip has no chat .txt file inside. Export the chat again Without media.');
+  const pick = txts.find(f => /(^|\/)_chat\.txt$|whatsapp/i.test(f.name)) || txts[0];
+  return await pick.async('string');
+}
+
+// Scans in a worker for long chats so the screen never freezes; falls back
+// to the main thread if workers are unavailable or fail.
+async function waScan(P, raw, now) {
+  const lines = (raw.match(/\n/g) || []).length + 1;
+  if (lines > WA_WORKER_LINES && typeof Worker !== 'undefined') {
+    try {
+      return await new Promise((resolve, reject) => {
+        const w = new Worker('./deadline-import-worker.js', { type: 'module' });
+        const done = (fn, v) => { w.terminate(); fn(v); };
+        w.onmessage = (e) => (e.data && e.data.ok ? done(resolve, e.data.result) : done(reject, new Error('scan failed')));
+        w.onerror = (e) => { e.preventDefault?.(); done(reject, new Error('worker failed')); };
+        w.postMessage({ raw, now: now.getTime() });
+      });
+    } catch (_) { /* fall through to the main thread */ }
+  }
+  return P.scanChat(raw, now);
+}
+
+function waClose() {
+  _wa = null;
+  document.getElementById('wa-import-backdrop')?.remove();
+}
+
+function waIsOpen() { return !!document.getElementById('wa-import-backdrop'); }
+
+// Opens the import screen. prefill = { file?, text? } from the Android
+// share target; when given, it skips straight to the review list.
+function showWhatsAppImport(prefill = null) {
+  document.getElementById('add-task-backdrop')?.remove();
+  waClose();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'wa-import-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal wa-modal" data-testid="wa-import-modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2 class="modal-title">Import from WhatsApp</h2>
+        <button class="modal-close" aria-label="Close" onclick="waClose()">${icons.x()}</button>
+      </div>
+      <div id="wa-body"></div>
+    </div>`;
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) waClose(); });
+  const escHandler = (e) => {
+    if (!waIsOpen()) { document.removeEventListener('keydown', escHandler); return; }
+    if (e.key === 'Escape') { waClose(); document.removeEventListener('keydown', escHandler); }
+  };
+  document.addEventListener('keydown', escHandler);
+  document.body.appendChild(backdrop);
+  waRenderAddChat();
+  if (prefill && prefill.file) waHandleFile(prefill.file);
+  else if (prefill && prefill.text) waHandleText(prefill.text);
+}
+
+function waRenderAddChat(errorMsg = '') {
+  const body = document.getElementById('wa-body');
+  if (!body) return;
+  body.innerHTML = `
+    <p class="wa-lead">Pick a class group chat. It’s read on this phone only and never uploaded.</p>
+    <input type="file" id="wa-file" accept=".txt,.zip,text/plain,application/zip" hidden onchange="waFilePicked(this)">
+    <button type="button" class="btn-primary wa-choose" data-testid="wa-choose" onclick="document.getElementById('wa-file').click()">Choose chat file</button>
+    <div class="form-group wa-paste-group">
+      <label class="form-label" for="wa-paste">Or paste messages</label>
+      <textarea class="form-input form-textarea" id="wa-paste" data-testid="wa-paste" rows="5" placeholder="Paste messages with their date and time"></textarea>
+      <button type="button" class="btn-secondary wa-find" data-testid="wa-find" onclick="waScanPasted()">Find deadlines</button>
+    </div>
+    <div class="wa-error" id="wa-error" role="alert" ${errorMsg ? '' : 'hidden'}>${waEsc(errorMsg)}</div>
+    <details class="wa-howto">
+      <summary>How to export</summary>
+      <ol>
+        <li>Open the class group in WhatsApp.</li>
+        <li>Tap ⋮ › More › Export chat. On iPhone, tap the group name › Export Chat.</li>
+        <li>Choose Without media.</li>
+        <li>Save the file, then pick it here.</li>
+      </ol>
+    </details>`;
+}
+
+function waShowError(msg) {
+  const el = document.getElementById('wa-error');
+  if (el) { el.textContent = msg; el.hidden = false; }
+  else waRenderAddChat(msg);
+}
+
+function waShowBusy(msg) {
+  const body = document.getElementById('wa-body');
+  if (body) body.innerHTML = `<div class="wa-busy" role="status">${waEsc(msg)}</div>`;
+}
+
+async function waFilePicked(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (file) await waHandleFile(file);
+}
+
+async function waHandleFile(file) {
+  if (file.size > WA_MAX_BYTES) { waRenderAddChat('This file is over 20 MB. Export a single group chat Without media and try again.'); return; }
+  waShowBusy('Reading chat…');
+  let raw;
+  try { raw = await waReadChatFile(file); }
+  catch (err) { if (waIsOpen()) waRenderAddChat(err && err.message ? err.message : WA_NOT_A_CHAT); return; }
+  await waHandleText(raw);
+}
+
+function waScanPasted() {
+  const text = document.getElementById('wa-paste')?.value || '';
+  if (!text.trim()) { waShowError('Paste some messages first, or choose a chat file.'); return; }
+  waHandleText(text);
+}
+
+async function waHandleText(raw) {
+  waShowBusy('Finding deadlines…');
+  let P, result;
+  const now = new Date();
+  try {
+    P = await loadWaParser();
+    result = await waScan(P, String(raw || ''), now);
+  } catch (_) {
+    if (waIsOpen()) waRenderAddChat('Couldn’t open the chat reader. Check your connection once and try again.');
+    return;
+  }
+  raw = null; // drop the chat text; only the found rows are kept
+  if (!waIsOpen()) return;
+  if (!result || result.stats.recognised < 2) { waRenderAddChat(WA_NOT_A_CHAT); return; }
+
+  const today = waMidnight(now);
+  const existing = allTasks();
+  const sel = new Set(), dup = new Set();
+  for (const c of result.items) {
+    if (waIsDuplicate(P, c, existing)) dup.add(c.id);
+    else if (waMidnight(c.date) >= today) sel.add(c.id);
+  }
+  _wa = { P, items: result.items, stats: result.stats, sel, dup, open: null, now };
+  waRenderReview();
+}
+
+function waMidnight(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function waNormTitle(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+// Same day and a similar title as a task already on the desk.
+function waIsDuplicate(P, c, tasks) {
+  const day = P.ymd(c.date);
+  const t = waNormTitle(c.title);
+  if (!t) return false;
+  const original = String(c.text || '').slice(0, 300);
+  return tasks.some(x => {
+    if (x.dueDate !== day) return false;
+    // Imported before (title may have been edited): same original message.
+    if (x.source === 'whatsapp' && original && x.description === original) return true;
+    const n = waNormTitle(x.title);
+    if (!n) return false;
+    const k = Math.min(20, n.length, t.length);
+    return n === t || n.slice(0, k) === t.slice(0, k);
+  });
+}
+
+function waDayLabel(d, now) {
+  const diff = Math.round((waMidnight(d) - waMidnight(now)) / 864e5);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return `${WA_DAY[d.getDay()]} ${d.getDate()} ${WA_MON[d.getMonth()]}`;
+}
+
+function waTimeLabel(c) {
+  if (!c.hasTime) return 'All day';
+  const P = _wa.P;
+  const start = formatDisplayTime(P.hhmm(c.date));
+  if (c.end) return `${start} to ${formatDisplayTime(P.hhmm(c.end))}`;
+  return c.kind === 'sub' ? `by ${start}` : start;
+}
+
+function waRowMain(c) {
+  return `
+    <span class="wa-when"><span class="wa-day">${waDayLabel(c.date, _wa.now)}</span><span class="wa-time">${waEsc(waTimeLabel(c))}</span></span>
+    <span class="wa-what">
+      <span class="wa-chip wa-chip-${c.kind}">${WA_KIND_LABEL[c.kind] || 'Notice'}</span>
+      ${_wa.dup.has(c.id) ? '<span class="wa-dup">Already in tasks</span>' : ''}
+      <span class="wa-title">${waEsc(c.title || 'Untitled')}</span>
+    </span>`;
+}
+
+function waRowEditor(c) {
+  const P = _wa.P;
+  const kinds = Object.entries(WA_KIND_LABEL).map(([k, v]) => `<option value="${k}" ${k === c.kind ? 'selected' : ''}>${v}</option>`).join('');
+  return `
+    <div class="wa-edit">
+      <div class="wa-orig">${c.who ? `<strong>${waEsc(c.who)}:</strong> ` : ''}${waEsc(c.text)}</div>
+      <div class="form-group">
+        <label class="form-label" for="wa-t-${c.id}">Title</label>
+        <input class="form-input" id="wa-t-${c.id}" maxlength="150" value="${waEsc(c.title)}" onchange="waEdit('${c.id}','title',this.value)">
+      </div>
+      <div class="wa-edit-row">
+        <div class="form-group"><label class="form-label" for="wa-d-${c.id}">Date</label>
+          <input type="date" class="form-input" id="wa-d-${c.id}" value="${P.ymd(c.date)}" onchange="waEdit('${c.id}','date',this.value)"></div>
+        <div class="form-group"><label class="form-label" for="wa-k-${c.id}">Type</label>
+          <select class="form-select" id="wa-k-${c.id}" onchange="waEdit('${c.id}','kind',this.value)">${kinds}</select></div>
+      </div>
+      <div class="wa-edit-row">
+        <div class="form-group"><label class="form-label" for="wa-s-${c.id}">Start time</label>
+          <input type="time" class="form-input" id="wa-s-${c.id}" value="${c.hasTime ? P.hhmm(c.date) : ''}" onchange="waEdit('${c.id}','start',this.value)"></div>
+        <div class="form-group"><label class="form-label" for="wa-e-${c.id}">End time</label>
+          <input type="time" class="form-input" id="wa-e-${c.id}" value="${c.end ? P.hhmm(c.end) : ''}" onchange="waEdit('${c.id}','end',this.value)"></div>
+      </div>
+    </div>`;
+}
+
+function waRow(c) {
+  const open = _wa.open === c.id;
+  return `
+    <div class="wa-row ${open ? 'open' : ''}" data-wa-id="${c.id}">
+      <label class="wa-check"><input type="checkbox" ${_wa.sel.has(c.id) ? 'checked' : ''} aria-label="Import ${waEsc(c.title)}" onchange="waToggle('${c.id}', this.checked)"></label>
+      <button type="button" class="wa-row-main" aria-expanded="${open}" onclick="waToggleOpen('${c.id}')">${waRowMain(c)}</button>
+      ${open ? waRowEditor(c) : ''}
+    </div>`;
+}
+
+function waRenderReview() {
+  const body = document.getElementById('wa-body');
+  if (!body || !_wa) return;
+  const { items, stats, now } = _wa;
+  const today = waMidnight(now);
+  const week = new Date(today); week.setDate(week.getDate() + 8);
+  const past = items.filter(c => waMidnight(c.date) < today);
+  const next = items.filter(c => waMidnight(c.date) >= today && c.date < week);
+  const later = items.filter(c => c.date >= week);
+  const fmt = (d) => `${d.getDate()} ${WA_MON[d.getMonth()]}`;
+  const range = stats.first && stats.last ? `, ${fmt(stats.first)} to ${fmt(stats.last)}` : '';
+  const header = `Read ${stats.messages} message${stats.messages === 1 ? '' : 's'}${range}. Found ${next.length + later.length} upcoming.`;
+
+  if (!items.length) {
+    body.innerHTML = `
+      <p class="wa-summary">${waEsc(header)}</p>
+      <div class="empty-state-card wa-empty">
+        <div class="empty-state-desc">No deadlines found in these messages. If one was missed, the wording might be new.</div>
+        <button type="button" class="btn-secondary" onclick="waRenderAddChat()">Try another chat</button>
+      </div>`;
+    return;
+  }
+  const section = (title, list) => list.length ? `<h3 class="wa-section">${title}</h3>${list.map(waRow).join('')}` : '';
+  body.innerHTML = `
+    <p class="wa-summary" data-testid="wa-summary">${waEsc(header)}</p>
+    <div class="wa-list">
+      ${section('Next 7 days', next)}
+      ${section('Later', later)}
+      ${past.length ? `<details class="wa-past"><summary>Already past (${past.length})</summary>${past.map(waRow).join('')}</details>` : ''}
+    </div>
+    <div class="wa-bar">
+      <button type="button" class="btn-secondary" id="wa-ics" onclick="waExportIcs()">Export .ics</button>
+      <button type="button" class="btn-primary" id="wa-import" data-testid="wa-import" onclick="waImportSelected()"></button>
+    </div>`;
+  waUpdateBar();
+}
+
+function waUpdateBar() {
+  if (!_wa) return;
+  const n = _wa.sel.size;
+  const btn = document.getElementById('wa-import');
+  const ics = document.getElementById('wa-ics');
+  if (btn) { btn.textContent = `Import ${n} task${n === 1 ? '' : 's'}`; btn.disabled = !n; }
+  if (ics) ics.disabled = !n;
+}
+
+function waToggle(id, on) {
+  if (!_wa) return;
+  if (on) _wa.sel.add(id); else _wa.sel.delete(id);
+  waUpdateBar();
+}
+
+function waToggleOpen(id) {
+  if (!_wa) return;
+  const prev = _wa.open;
+  _wa.open = prev === id ? null : id;
+  for (const rid of [prev, _wa.open]) {
+    if (!rid) continue;
+    const row = document.querySelector(`.wa-row[data-wa-id="${rid}"]`);
+    const c = _wa.items.find(x => x.id === rid);
+    if (row && c) row.outerHTML = waRow(c);
+  }
+}
+
+// Inline edits change the in-memory row only; the summary line updates in
+// place so the open editor keeps focus on a phone.
+function waEdit(id, field, value) {
+  const c = _wa && _wa.items.find(x => x.id === id);
+  if (!c) return;
+  if (field === 'title') c.title = String(value).trim().slice(0, 150) || c.title;
+  else if (field === 'kind' && WA_KIND_LABEL[value]) c.kind = value;
+  else if (field === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    const shift = (x) => { const n = new Date(x); n.setFullYear(y, m - 1, d); return n; };
+    c.date = shift(c.date);
+    if (c.end) c.end = shift(c.end);
+  } else if (field === 'start') {
+    if (/^\d{2}:\d{2}$/.test(value)) {
+      const [h, mi] = value.split(':').map(Number);
+      c.date.setHours(h, mi, 0, 0);
+      c.hasTime = true;
+      if (c.end && c.end <= c.date) c.end = null;
+    } else { c.date.setHours(0, 0, 0, 0); c.hasTime = false; c.end = null; }
+  } else if (field === 'end') {
+    if (/^\d{2}:\d{2}$/.test(value) && c.hasTime) {
+      const [h, mi] = value.split(':').map(Number);
+      const e = new Date(c.date); e.setHours(h, mi, 0, 0);
+      c.end = e > c.date ? e : null;
+    } else c.end = null;
+  }
+  const main = document.querySelector(`.wa-row[data-wa-id="${id}"] .wa-row-main`);
+  if (main) main.innerHTML = waRowMain(c);
+}
+
+function waSelected() {
+  return _wa ? _wa.items.filter(c => _wa.sel.has(c.id)) : [];
+}
+
+function waExportIcs() {
+  const chosen = waSelected();
+  if (!chosen.length) return;
+  const blob = new Blob([_wa.P.buildIcs(chosen)], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'clarity-desk-deadlines.ics';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function waImportSelected() {
+  const chosen = waSelected();
+  if (!chosen.length) return;
+  const P = _wa.P;
+  const stamp = Date.now();
+  const ids = [];
+  chosen.forEach((c, i) => {
+    const id = `c-${stamp}-wa${i}`;
+    ids.push(id);
+    state.customTasks.push({
+      id,
+      subject: 'General',
+      code: 'GEN',
+      ...P.candidateToTaskFields(c),
+      noDeadline: false,
+      priority: c.kind === 'exam' ? 'high' : 'medium',
+      status: 'pending',
+      marks: 0,
+      isCustom: true,
+    });
+  });
+  saveCustomTasks();
+  waClose();
+  navigate('assignments');
+  updateNavBadges();
+  const n = ids.length;
+  showUndoToast(`Imported ${n} task${n === 1 ? '' : 's'}`, () => {
+    const drop = new Set(ids);
+    state.customTasks = state.customTasks.filter(t => !drop.has(t.id));
+    saveCustomTasks();
+    renderPage(state.currentPage);
+    updateNavBadges();
+    showToast('Import undone', 'info');
+  });
+}
+
+// A toast with one action button (used for Undo). Stays a little longer
+// than showToast() so there is time to tap it.
+function showUndoToast(msg, onUndo) {
+  showToast(msg, 'success');
+  const container = document.getElementById('toast-container');
+  const toast = container && container.lastElementChild;
+  if (!toast) return;
+  toast.classList.add('toast-has-action');
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'toast-action';
+  btn.textContent = 'Undo';
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    toast.remove();
+    onUndo();
+  }, { once: true });
+  toast.appendChild(btn);
+  setTimeout(() => { toast.classList.remove('toast-show'); setTimeout(() => toast.remove(), 250); }, 7000);
+}
+
+// Android share target: sw.js holds the shared chat in memory and hands it
+// over once. Anything missing or failing just opens the normal first step.
+async function waReceiveShare() {
+  let payload = null;
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 3000))]);
+      const sw = navigator.serviceWorker.controller || (reg && reg.active);
+      if (sw) {
+        payload = await new Promise((resolve) => {
+          const ch = new MessageChannel();
+          const timer = setTimeout(() => resolve(null), 3000);
+          ch.port1.onmessage = (e) => { clearTimeout(timer); resolve(e.data || null); };
+          sw.postMessage({ type: 'wa-share-get' }, [ch.port2]);
+        });
+      }
+    }
+  } catch (_) { payload = null; }
+  showWhatsAppImport(payload && (payload.file || payload.text) ? payload : null);
 }
 
 // ── Notices ───────────────────────────────────────────────────
@@ -17027,6 +17506,16 @@ window.filterNotices    = (q) => { state.noticeSearch = q; renderNotices(); };
 window.showNotice       = showNotice;
 window.showAddTaskModal = showAddTaskModal;
 window.submitAddTask    = submitAddTask;
+window.showWhatsAppImport = showWhatsAppImport;
+window.waClose          = waClose;
+window.waFilePicked     = waFilePicked;
+window.waScanPasted     = waScanPasted;
+window.waRenderAddChat  = waRenderAddChat;
+window.waToggle         = waToggle;
+window.waToggleOpen     = waToggleOpen;
+window.waEdit           = waEdit;
+window.waExportIcs      = waExportIcs;
+window.waImportSelected = waImportSelected;
 window.saveSettings     = saveSettings;
 window.exportData       = exportData;
 window.importData       = importData;
@@ -17209,6 +17698,12 @@ function init() {
   updateNavBadges();
   checkOnboarding();
   checkAttendanceV2Preview();
+
+  // Opened from the Android share sheet (manifest share_target -> sw.js).
+  if (new URLSearchParams(window.location.search).get('share') === 'whatsapp') {
+    history.replaceState(null, '', window.location.pathname + window.location.hash);
+    waReceiveShare();
+  }
 
   // Check and schedule task & notice notifications
   checkScheduledNotifications();

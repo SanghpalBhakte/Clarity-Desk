@@ -38,6 +38,7 @@
   },
   "homepage": "https://github.com/SanghpalBhakte/Clarity-Desk#readme",
   "devDependencies": {
-    "@playwright/test": "^1.64.0"
+    "@playwright/test": "^1.64.0",
+    "jszip": "3.10.1"
   }
 }
