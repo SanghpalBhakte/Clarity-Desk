@@ -6267,3 +6267,93 @@ html.more-sheet-open .more-sheet {
 @media (max-width: 767px) {
   #page-dashboard .dash-shortcuts { display: none; }
 }
+
+/* ── Import from WhatsApp (Tasks) ─────────────────────────────── */
+.tk-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.wa-entry { white-space: nowrap; }
+.wa-modal-link {
+  display: block; width: 100%; margin: -4px 0 14px; padding: 8px 12px;
+  background: var(--surface-2); border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  color: var(--text-secondary); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer;
+}
+.wa-modal-link:hover { color: var(--text-primary); }
+.wa-modal { padding-bottom: 0; }
+.wa-lead { font-size: var(--text-base); color: var(--text-secondary); margin: 0 0 14px; line-height: 1.5; }
+.wa-choose { width: 100%; min-height: 48px; justify-content: center; }
+.wa-paste-group { margin-top: 16px; }
+.wa-find { margin-top: 8px; width: 100%; min-height: 44px; }
+.wa-error {
+  margin: 12px 0; padding: 10px 12px; border-radius: var(--radius-sm); font-size: var(--text-sm); line-height: 1.45;
+  background: color-mix(in srgb, var(--red) 10%, var(--surface)); color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+}
+.wa-howto { margin: 14px 0 20px; font-size: var(--text-sm); color: var(--text-secondary); }
+.wa-howto summary { cursor: pointer; font-weight: 600; color: var(--text-primary); padding: 6px 0; }
+.wa-howto ol { margin: 6px 0 0; padding-left: 20px; line-height: 1.6; }
+.wa-busy { padding: 36px 0 44px; text-align: center; color: var(--text-secondary); font-size: var(--text-base); }
+.wa-summary { font-size: var(--text-base); color: var(--text-secondary); margin: 0 0 6px; line-height: 1.45; }
+.wa-empty { margin-bottom: 20px; }
+.wa-empty .btn-secondary { margin-top: 12px; }
+.wa-section {
+  font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted); margin: 16px 0 6px;
+}
+.wa-row {
+  display: grid; grid-template-columns: 44px 1fr; align-items: stretch;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+  margin-bottom: 8px; overflow: hidden;
+}
+.wa-check { display: flex; align-items: center; justify-content: center; cursor: pointer; min-height: 56px; }
+.wa-check input { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; }
+.wa-row-main {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 10px 0; min-width: 0;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.wa-when { display: flex; gap: 8px; align-items: baseline; font-size: var(--text-sm); }
+.wa-day { font-weight: 700; color: var(--text-primary); }
+.wa-time { color: var(--text-secondary); }
+.wa-what { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.wa-title { font-size: var(--text-base); color: var(--text-primary); line-height: 1.35; flex: 1 1 100%; overflow-wrap: anywhere; }
+.wa-chip {
+  font-size: var(--text-2xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 4px; border: 1px solid transparent;
+  --wa-c: var(--text-muted);
+  color: var(--wa-c); background: color-mix(in srgb, var(--wa-c) 12%, transparent);
+  border-color: color-mix(in srgb, var(--wa-c) 30%, transparent);
+}
+.wa-chip-exam { --wa-c: var(--red); }
+.wa-chip-sub  { --wa-c: var(--accent-warm); }
+.wa-chip-pres { --wa-c: var(--purple); }
+.wa-chip-lec  { --wa-c: var(--blue); }
+.wa-dup { font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); }
+.wa-edit { grid-column: 1 / -1; padding: 0 12px 12px; border-top: 1px solid var(--border); }
+.wa-orig {
+  margin: 12px 0; padding: 10px 12px; border-left: 3px solid var(--border); background: var(--surface-2);
+  border-radius: var(--radius-xs); font-size: var(--text-sm); color: var(--text-secondary);
+  line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.wa-edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wa-edit .form-group { margin-bottom: 10px; }
+.wa-past { margin-top: 16px; }
+.wa-past summary {
+  cursor: pointer; font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted); padding: 6px 0; margin-bottom: 6px;
+}
+.wa-list { padding-bottom: 8px; }
+.wa-bar {
+  position: sticky; bottom: 0; display: flex; gap: 10px; justify-content: flex-end;
+  margin: 0 -24px; padding: 12px 24px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--modal-bg, var(--color-surface, #fffdfc)); border-top: 1px solid var(--border);
+}
+.wa-bar .btn-primary { flex: 1 1 auto; min-height: 48px; justify-content: center; }
+.wa-bar .btn-secondary { min-height: 48px; }
+.wa-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+.toast.toast-has-action { padding-right: 8px; }
+.toast-action {
+  margin-left: 6px; padding: 6px 12px; min-height: 36px; border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.4);
+  color: inherit; font: inherit; font-weight: 700; cursor: pointer;
+}
+@media (max-width: 540px) {
+  .wa-entry { padding-left: 10px; padding-right: 10px; }
+}

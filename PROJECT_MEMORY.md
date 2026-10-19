@@ -157,6 +157,7 @@ D:\Clarity Desk\
 | `KEY_CUSTOM_TIMETABLE` | `cos_custom_timetable` | Day-indexed schedule map `{ 0: [], 1: [...slots], ... 6: [] }` |
 | `KEY_PROFILE` | `cos_profile` | User profile `{ name, roll, batch, semester, branch, examDate }` |
 | `KEY_TASKS` | `cos_custom_assignments`| Array of tasks `{ id, title, subject, dueDate, priority, status, taskType }` |
+| (task fields, v192) | `cos_custom_tasks` | Optional, additive: `source: 'whatsapp'`, `startTime`/`endTime` ('HH:MM', 24h). Only present on tasks made by the WhatsApp import; `sanitizeTask()` keeps them when valid and never adds them to other tasks. Older app versions drop them on save, which is harmless. See §12. |
 | `KEY_CUSTOM_LINKS` | `cos_custom_links` | Subject vault items `{ subject, code, color, resources: [...] }` |
 | `KEY_BACKUP_SNAPSHOTS` | `cos_backup_snapshots` | Array of rollback snapshots for instant undo/restore |
 | `KEY_THEME` | `cos_theme` | Current theme key (`paper-slate` or `midnight-ink` — legacy names alias into these, see §7) |
@@ -305,3 +306,17 @@ Also, while auditing #1-3: `normalizeTimetableTime()` didn't handle the 12-hour-
 ---
 
 *This document is the definitive source of truth for the Clarity Desk codebase. All future enhancements should respect the local-first, zero-silent-write, and calm UX foundations established here. Keep §7's rebrand-trap note, §9's known-gaps list, and §10's setup/scope notes current — the whole point of this file is that the next person (or agent) doesn't have to re-discover them from scratch.*
+
+---
+
+## 12. Import from WhatsApp (deadline catcher, v192)
+
+Students paste or pick an exported WhatsApp class-group chat; the app lists the exams, submissions, presentations and lecture changes it finds, the student reviews them, and only ticked rows become tasks.
+
+- **Files**: `deadline-import.js` (pure parser + `.ics` builder, no DOM, lazy-loaded by `import()` so the `new Function` test harnesses that strip `app.js` imports keep working), `deadline-import-worker.js` (module worker used above 3,000 lines), `vendor/jszip.min.js` (JSZip 3.10.1, loaded by a script tag only when a `.zip` is picked). All three are in the SW precache so the feature works offline.
+- **UI**: `showWhatsAppImport()` in `app.js` (Tasks header "From WhatsApp", the empty state, and a link at the top of the Add Task modal). Imported tasks are saved through `saveCustomTasks()` with subject General, the original message trimmed to 300 chars in `description`, priority high for exams. Undo removes exactly the imported ids.
+- **Privacy (hard rule)**: the raw chat is never stored, uploaded, logged or synced. It lives only in local variables, the paste box, and the worker for the length of one scan. `tests/verify_deadline_import.mjs` checks the parser, worker, import block and SW share handler for storage/network/console calls.
+- **Android share target**: `manifest.json` `share_target` POSTs the file to `./share-target`; `sw.js` keeps it in a memory variable (never the Cache API), redirects to `index.html?share=whatsapp#assignments`, and hands it over once on a `wa-share-get` message. If the worker restarted in between, the page just opens the normal first step. iPhone PWAs have no share target.
+- **Tests**: `tests/verify_deadline_import.mjs` (in `npm test`), fixtures in `tests/fixtures/deadline-import/` (Android, iPhone, Web copy, 24-hour layouts).
+- **Known limits**: Hinglish "kal" is ignored on purpose (yesterday or tomorrow). Task cards do not show `startTime` yet; the time is kept on the task and in the `.ics` export.
+

@@ -19,7 +19,10 @@ const PRECACHE_ASSETS = [
   './icon-192-maskable.png',
   './icon-512.png',
   './icon-512-maskable.png',
-  './badge-96.png'
+  './badge-96.png',
+  './deadline-import.js',
+  './deadline-import-worker.js',
+  './vendor/jszip.min.js'
 ];
 
 self.addEventListener('install', (e) => {
@@ -42,7 +45,41 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// ── Android share target (manifest.json share_target) ─────────
+// WhatsApp "Export chat" -> Clarity Desk posts the chat file here. It is
+// kept in this worker's memory only (never the Cache API or any storage),
+// handed to the page once via postMessage, then dropped. If the worker is
+// restarted in between, the page just opens the normal "Add chat" step.
+let pendingShare = null;
+const SHARE_TTL_MS = 5 * 60 * 1000;
+
+async function receiveShare(request) {
+  pendingShare = null;
+  try {
+    const form = await request.formData();
+    const file = form.get('chat');
+    const text = form.get('text');
+    pendingShare = {
+      file: file && typeof file === 'object' && file.size ? file : null,
+      text: typeof text === 'string' ? text : '',
+      at: Date.now()
+    };
+  } catch (_) { pendingShare = null; }
+  return Response.redirect(new URL('./index.html?share=whatsapp#assignments', self.registration.scope).href, 303);
+}
+
+self.addEventListener('message', (e) => {
+  if (!e.data || e.data.type !== 'wa-share-get' || !e.ports || !e.ports[0]) return;
+  const share = pendingShare && Date.now() - pendingShare.at < SHARE_TTL_MS ? pendingShare : null;
+  pendingShare = null;
+  e.ports[0].postMessage(share ? { file: share.file, text: share.text } : null);
+});
+
 self.addEventListener('fetch', (e) => {
+  if (e.request.method === 'POST' && new URL(e.request.url).pathname.endsWith('/share-target')) {
+    e.respondWith(receiveShare(e.request));
+    return;
+  }
   if (e.request.method !== 'GET') return;
 
   const url = new URL(e.request.url);
