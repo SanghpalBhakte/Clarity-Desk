@@ -1725,6 +1725,17 @@ function getCanonicalSubjectName(rawText) {
   return clean || rawText.trim();
 }
 
+// Timetable slots that are real periods but not academic subjects. Used
+// only by the scan preview to pre-set such rows to "Off" (the student can
+// switch any of them back to Lecture). Kept separate from
+// TIMETABLE_NON_CLASS_KEYWORDS so the OCR parser's behaviour is unchanged.
+const NON_SUBJECT_SLOT_PATTERN = /^(?:library|sports?|games|mentor(?:ing)?|assembly|t\s*&\s*p|tnp|training\s*(?:&|and)\s*placements?|placements?|counsel+ing|nss|ncc|free|break|short break|lunch|recess)(?:\s+(?:period|session|slot|time))?$/i;
+
+function isNonSubjectSlotName(name) {
+  if (!name || typeof name !== 'string') return false;
+  return NON_SUBJECT_SLOT_PATTERN.test(name.trim().replace(/\s+/g, ' '));
+}
+
 function getCanonicalSubjectKey(rawText) {
   const name = getCanonicalSubjectName(rawText);
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1755,12 +1766,27 @@ function isLikelyGarbledSubjectName(name) {
 
   if (clean.length <= 2 && clean !== clean.toUpperCase()) return true;
 
+  // Cells a scan sometimes reads as the subject even though they are only
+  // the room, the teacher, the batch, or the time printed in that slot.
+  // getCanonicalSubjectName falls back to the raw text when stripping
+  // leaves nothing, so these arrive here unchanged. A code-only name
+  // ("CS401") is a real subject and is deliberately not matched.
+  if (!clean.replace(/\b[ap]\.?m\.?\b/gi, '').replace(/[^a-zA-Z]/g, '')) return true;
+  if (/^(?:room|rm|lt|lh|cr|hall|cabin|class\s*room)\s*[-#.:]?\s*(?:no\.?\s*)?[a-z]?\d{1,4}[a-z]?$/i.test(clean)) return true;
+  if (/^[A-Z]{1,2}-\d{2,4}$/.test(clean)) return true;
+  if (/^(?:prof|dr|mr|mrs|shri|smt)\.?(?:\s|$)/i.test(clean)) return true;
+  if (/^(?:(?:batch(?:es)?|all|[A-D][1-4])[\s,/&+-]*)+$/i.test(clean)) return true;
+  // Only short scraps and no real word, e.g. "Rm l1 2x" (all-caps short
+  // labels such as "OS" or "AI & DS" are real subjects and pass).
+  if (!/[A-Za-z]{3,}/.test(clean) && clean !== clean.toUpperCase()) return true;
+
   const words = clean.split(/\s+/);
   for (const w of words) {
     const letters = w.replace(/[^a-zA-Z]/g, '');
     if (!letters) continue;
     if (/[A-Z]{2,}[a-z]/.test(letters)) return true;
-    if (letters.length >= 4 && !/[aeiouAEIOU]/.test(letters)) return true;
+    // An all-caps short word is an acronym ("DBMS", "CPPL"), not noise.
+    if (letters.length >= 4 && !/[aeiouAEIOU]/.test(letters) && !(letters.length <= 6 && letters === letters.toUpperCase())) return true;
   }
   return false;
 }
@@ -4433,8 +4459,24 @@ function showTimetablePreviewModal(schedule) {
       // has no legend context) whether the OCR extraction step resolved
       // this subject via the scan's own legend table or an OCR digit/letter
       // correction, rather than reading it directly off the grid.
-      subjectInferred: !!item.subjectInferred
+      subjectInferred: !!item.subjectInferred,
+      rawSubject: (item.subject || '').trim()
     };
+  }).map(row => {
+    // A row whose "subject" is really a room, a teacher, a batch, a time,
+    // or a non-academic slot (Library, Sports, T&P...) starts as Off so it
+    // never becomes a Subject Hub card or a Study Vault folder. The Type
+    // dropdown still lets the student turn it back into a Lecture.
+    // normalizeSubjectIdentity answers "General Subject" when it found no
+    // subject text at all, so that placeholder counts too, and the row then
+    // shows what was actually read ("Room 304") instead of the placeholder.
+    const { rawSubject, ...rest } = row;
+    const subj = (rest.subject || '').trim();
+    const placeholder = subj === 'General Subject';
+    if (subj && rest.type !== 'off' && (placeholder || isNonSubjectSlotName(subj) || isLikelyGarbledSubjectName(subj) || isNonSubjectSlotName(rawSubject))) {
+      return { ...rest, subject: placeholder && rawSubject ? rawSubject : rest.subject, type: 'off', autoOff: true };
+    }
+    return rest;
   });
 
   // Collect all discovered batches across schedule
@@ -4469,6 +4511,7 @@ function renderTimetablePreviewModalContent(backdrop) {
     .filter(({ item }) => shouldKeepClassForUserBatch(item, selectedTimetablePreviewBatch));
 
   const uncertainCount = visibleSchedule.filter(({ item }) => item.isUncertain || !item.subject).length;
+  const autoOffCount = visibleSchedule.filter(({ item }) => item.autoOff && item.type === 'off').length;
 
   const rowsHtml = visibleSchedule.map(({ item, originalIdx }) => {
     const isRowUncertain = item.isUncertain || !item.subject;
@@ -4518,7 +4561,7 @@ function renderTimetablePreviewModalContent(backdrop) {
         <input type="text" class="form-input" style="padding:4px 6px;font-size:var(--text-sm);width:85px" value="${(item.teacher || '').replace(/"/g, '&quot;')}" placeholder="Faculty" onchange="updatePreviewEntry(${originalIdx}, 'teacher', this.value)">
       </td>
       <td style="text-align:center">
-        ${isRowUncertain ? '<span class="uncertain-badge" title="Please review or edit missing details">⚠️ Review</span>' : '<span style="color:var(--green);font-size:var(--text-sm);font-weight:600">✓ Ready</span>'}
+        ${item.type === 'off' && item.subject ? '<span class="not-subject-badge" title="Saved as a free slot. It will not become a subject.">Not a subject</span>' : isRowUncertain ? '<span class="uncertain-badge" title="Please review or edit missing details">⚠️ Review</span>' : '<span style="color:var(--green);font-size:var(--text-sm);font-weight:600">✓ Ready</span>'}
       </td>
       <td style="text-align:center">
         <button class="task-delete-btn" onclick="removePreviewEntry(${originalIdx})" title="Remove class entry">${icons.trash()}</button>
@@ -4578,6 +4621,11 @@ function renderTimetablePreviewModalContent(backdrop) {
           We found lab groups ${batchList.map(escHtml_cd).join(', ')}. Pick yours so you only see your own labs.
         </div>` : ''}
       </div>
+
+      ${autoOffCount > 0 ? `
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px;line-height:1.4">
+        ${autoOffCount} ${autoOffCount !== 1 ? 'rows look' : 'row looks'} like a room, teacher, batch or free period, so ${autoOffCount !== 1 ? 'they are' : 'it is'} marked <strong style="color:var(--text-primary)">Not a subject</strong>. If one is a real credited subject, set its Type to Lecture.
+      </div>` : ''}
 
       <div style="overflow-x:auto;max-height:380px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm)">
         <table class="preview-table">
@@ -4646,6 +4694,13 @@ window.updatePreviewEntry = function(idx, key, val) {
       pendingExtractedSchedule[idx].subjectInferred = false;
       const subjEl = document.getElementById(`preview-subject-${idx}`);
       if (subjEl) subjEl.classList.remove('error');
+    }
+    if (key === 'type') {
+      // The student decided, so drop the automatic flag, then redraw so
+      // the Status column matches the new Type.
+      pendingExtractedSchedule[idx].autoOff = false;
+      const backdrop = document.getElementById('tt-preview-backdrop');
+      if (backdrop) renderTimetablePreviewModalContent(backdrop);
     }
   }
 };
@@ -4741,8 +4796,147 @@ window.confirmSaveExtractedTimetable = function() {
     syncToCloud();
   }
 
+  const subjectSync = syncSubjectsAfterTimetableSave(newTT);
+
   document.getElementById('tt-preview-backdrop')?.remove();
   showToast(`Timetable saved! ${toSave.length} classes loaded${selectedTimetablePreviewBatch !== 'all' ? ` for Batch ${selectedTimetablePreviewBatch}` : ''}.`, "success");
+  renderPage(state.currentPage);
+  if (subjectSync.stale.length) showStaleSubjectsModal(subjectSync.stale);
+};
+
+// The subjects a saved timetable actually teaches, keyed by canonical key.
+// Free/break slots and names that are only a room, teacher, batch or OCR
+// scrap are left out, matching what getSubjectList would show.
+function getTimetableSubjectMap(tt) {
+  const map = new Map();
+  Object.values(tt || {}).forEach(day => {
+    (day || []).forEach(c => {
+      if (!isTeachingClass(c) || !c.subject) return;
+      const name = getCanonicalSubjectName(c.subject);
+      // "General" is what the "General Subject" scan placeholder normalizes to.
+      if (!name || isLikelyGarbledSubjectName(name) || name.toLowerCase() === 'general') return;
+      const key = getCanonicalSubjectKey(name);
+      if (!key || map.has(key)) return;
+      map.set(key, { key, name, code: getCanonicalSubjectCode(c.subject, c.code) });
+    });
+  });
+  return map;
+}
+
+// Runs once after a scanned timetable is confirmed, so Subject Hub and
+// Study Vault follow the scan:
+//  1. a subject the student hid earlier comes back if the new scan has it;
+//  2. every scanned subject gets a Study Vault folder (existing folders and
+//     their files are never touched);
+//  3. subjects that are NOT in the new timetable are returned so the
+//     student can choose to hide them. Nothing is hidden or removed here.
+function syncSubjectsAfterTimetableSave(newTT) {
+  const scanned = getTimetableSubjectMap(newTT);
+  if (!scanned.size) return { added: 0, stale: [] };
+
+  const hidden = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
+  const keptHidden = hidden.filter(k => !scanned.has(k));
+  if (keptHidden.length !== hidden.length) safeSetStorage(KEY_HIDDEN_SUBJECTS, keptHidden);
+
+  const links = loadCustomLinks();
+  const linkKeys = new Set(links.map(l => getCanonicalSubjectKey(l.subject || '')).filter(Boolean));
+  let added = 0;
+  scanned.forEach(s => {
+    if (linkKeys.has(s.key)) return;
+    links.push({ subject: s.name, code: s.code || s.name.slice(0, 4).toUpperCase(), color: '#394B63', resources: [] });
+    linkKeys.add(s.key);
+    added++;
+  });
+  if (added || keptHidden.length !== hidden.length) {
+    if (added) safeSetStorage(KEY_CUSTOM_LINKS, links);
+    syncToCloud();
+  }
+
+  const baselines = loadAttendanceBaselines();
+  const baselineKeys = new Set(Object.entries(baselines || {}).map(([k, b]) =>
+    getCanonicalSubjectKey((b && typeof b === 'object' && b.subjectName) || k)).filter(Boolean));
+
+  const stale = getSubjectList()
+    .filter(s => !scanned.has(getCanonicalSubjectKey(s.name)))
+    .map(s => {
+      const key = getCanonicalSubjectKey(s.name);
+      let held = baselineKeys.has(key) ? 1 : 0;
+      try {
+        const att = getSubjectAttendance(s) || {};
+        held = Math.max(held, Number(att.held || att.total || 0));
+      } catch (e) { held = 0; }
+      const vaultFiles = links
+        .filter(l => getCanonicalSubjectKey(l.subject || '') === key)
+        .reduce((n, l) => n + ((l.resources || []).length), 0);
+      return { key, name: s.name, hasAttendance: held > 0, vaultFiles };
+    });
+
+  return { added, stale };
+}
+
+let pendingStaleSubjects = [];
+
+function showStaleSubjectsModal(stale) {
+  pendingStaleSubjects = stale.slice();
+  document.getElementById('stale-subjects-backdrop')?.remove();
+
+  const rows = pendingStaleSubjects.map((s, i) => {
+    const notes = [];
+    if (s.hasAttendance) notes.push('has attendance');
+    if (s.vaultFiles) notes.push(`${s.vaultFiles} vault file${s.vaultFiles !== 1 ? 's' : ''} kept`);
+    return `
+      <label class="stale-subject-row" for="stale-subj-${i}">
+        <input type="checkbox" id="stale-subj-${i}" ${s.hasAttendance ? '' : 'checked'}>
+        <span class="stale-subject-name">${escHtml_cd(s.name)}</span>
+        ${notes.length ? `<span class="stale-subject-note">${notes.join(' · ')}</span>` : ''}
+      </label>`;
+  }).join('');
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'stale-subjects-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;width:95%">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Not in your new timetable</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
+            Hide these from Subject Hub? Their attendance history and vault files are kept.
+          </div>
+        </div>
+        <button class="modal-close" onclick="document.getElementById('stale-subjects-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="stale-subject-list">${rows}</div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:16px">
+        <button class="btn-secondary" onclick="document.getElementById('stale-subjects-backdrop')?.remove()">Keep all</button>
+        <button class="btn-primary" onclick="applyStaleSubjectCleanup()">Hide selected</button>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+// Hides the chosen subjects (the same non-destructive list the card "X"
+// safety net uses) and removes only their EMPTY Study Vault folders. A
+// folder with files, attendance records, tasks and baselines stay as they
+// are, and a later scan that includes the subject brings it back.
+window.applyStaleSubjectCleanup = function() {
+  const chosen = pendingStaleSubjects.filter((s, i) => document.getElementById(`stale-subj-${i}`)?.checked);
+  document.getElementById('stale-subjects-backdrop')?.remove();
+  pendingStaleSubjects = [];
+  if (!chosen.length) return;
+
+  const keys = new Set(chosen.map(s => s.key));
+  const hidden = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
+  keys.forEach(k => { if (!hidden.includes(k)) hidden.push(k); });
+  safeSetStorage(KEY_HIDDEN_SUBJECTS, hidden);
+
+  const links = loadCustomLinks();
+  const keptLinks = links.filter(l => !(keys.has(getCanonicalSubjectKey(l.subject || '')) && !(l.resources || []).length));
+  if (keptLinks.length !== links.length) safeSetStorage(KEY_CUSTOM_LINKS, keptLinks);
+
+  syncToCloud();
+  showToast(`${chosen.length} old subject${chosen.length !== 1 ? 's' : ''} hidden`, 'info');
   renderPage(state.currentPage);
 };
 
@@ -8737,6 +8931,9 @@ function getSubjectList(options = {}) {
     // OCR name that got saved via any of those paths (not just a scanned
     // timetable slot) is kept out of the picker just the same.
     if (isLikelyGarbledSubjectName(canonicalName)) return null;
+    // "General" is the scan's "General Subject" placeholder (no subject
+    // text was found in that cell), never a real course.
+    if (canonicalName.toLowerCase() === 'general') return null;
     const canonicalCode = getCanonicalSubjectCode(cleanRaw, rawCode);
     const key = getCanonicalSubjectKey(canonicalName);
     if (!key) return null;
@@ -11979,7 +12176,10 @@ function detectDeskPollution() {
   const rawTT = loadTimetable();
   for (const d of [1, 2, 3, 4, 5, 6, 0]) {
     for (const c of (rawTT[d] || [])) {
-      if (c && c.subject && isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) return true;
+      // Off/break rows never become subject cards, so a free slot the scan
+      // preview labelled with what it read ("Room 304", "Library") is not
+      // desk pollution.
+      if (c && c.subject && isTeachingClass(c) && isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) return true;
     }
   }
 
