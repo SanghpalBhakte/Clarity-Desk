@@ -424,6 +424,10 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
       if (msg.type() !== 'error') return;
       const text = msg.text();
       if (SEL.consoleErrorIgnore.some((pattern) => pattern.test(text))) return;
+      // index.html probes for an optional, git-ignored local Firebase config;
+      // its 404 is expected on any machine without one. Chrome's message
+      // doesn't name the file, so match on the failed resource URL instead.
+      if (/firebase-config\.local\.js/.test(msg.location()?.url || '')) return;
       errors.push(text);
     });
 
