@@ -36,6 +36,7 @@ const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
 const KEY_ATT_DATEFIX_CUTOFF  = 'cos_att_datefix_cutoff';
 const KEY_ATT_DATEFIX_BACKUP  = 'cos_att_datefix_backup';
 const KEY_PUSH_REGISTERED     = 'cos_push_registered';
+const KEY_SYLLABUS            = 'cos_syllabus';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
@@ -5289,6 +5290,9 @@ function applyCloudDataToLocalState(data) {
   if (Array.isArray(data.customLinks)) {
     safeSetStorage(KEY_CUSTOM_LINKS, data.customLinks);
   }
+  if (Array.isArray(data.syllabus)) {
+    safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
+  }
   if (data.assignmentStatuses && typeof data.assignmentStatuses === 'object') {
     safeSetStorage(KEY_ASSIGNMENTS, data.assignmentStatuses);
     state.assignments = loadAssignments();
@@ -5371,6 +5375,7 @@ function pushLocalDataToCloud(uid) {
     attendance:         safeGetStorage(KEY_ATTENDANCE, {}),
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
     attendanceLive:     safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
+    syllabus:           loadSyllabus(),
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
     accent:             localStorage.getItem(KEY_ACCENT) || 'terracotta',
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
@@ -8581,6 +8586,9 @@ function renderDashboard() {
     ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). ${countdownCheer(examDaysLeftNum)}</div>`
     : '';
 
+  const sylTodayText = syllabusTodayLine();
+  const sylTodayHTML = sylTodayText ? `<div class="desk-greeting-note syl-today-note">${icons.book()} ${sylTodayText}</div>` : '';
+
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
 
@@ -8798,6 +8806,7 @@ function renderDashboard() {
           <div class="desk-greeting">${greeting}</div>
           <div class="desk-greeting-sub">${contextLine}</div>
           ${examNoteHTML}
+          ${sylTodayHTML}
         </div>
         ${(dayIdx === 0 || dayIdx === 6) ? `
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
@@ -9258,7 +9267,10 @@ function getSubjectList(options = {}) {
     }
   });
 
-  // 5. Drop anything the student explicitly dismissed from Subject Hubs
+  // 5. Subjects added for a syllabus (students without a timetable)
+  loadSyllabus().forEach(e => { getOrCreateSubject(e.subjectName, '', 'lecture'); });
+
+  // 6. Drop anything the student explicitly dismissed from Subject Hubs
   // (the small X on a card) -- this only hides the merged card, it never
   // deletes the underlying timetable/task/baseline data it was built from,
   // so it can't corrupt attendance history for a subject that legitimately
@@ -13195,6 +13207,606 @@ window.deleteSelectedSubjects = function() {
   showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
 };
 
+// ── Syllabus tracker ──────────────────────────────────────────
+// One list per subject in cos_syllabus:
+//   [{ subjectKey, subjectName, examDate, updatedAt,
+//      topics: [{ id, title, status: 'todo'|'done'|'revised',
+//                 importance: 1|2|3, marks?, doneAt?, revisedAt? }] }]
+// Stored as an ARRAY on purpose: cloud sync writes with set(merge:true),
+// which deep-merges maps and never removes a key, so a deleted topic in a
+// map would come back from the cloud. Arrays are replaced whole.
+// Topics only ever change through the paste preview or a tap the student
+// makes; nothing here writes on its own.
+const SYL_MAX_TOPICS = 300;
+const SYL_MAX_TITLE = 160;
+const SYL_IMPORTANCE = { 1: 'Low', 2: 'Medium', 3: 'High' };
+const SYL_STATUS_NEXT = { todo: 'done', done: 'revised', revised: 'todo' };
+const SYL_STATUS_LABEL = { todo: 'Not started', done: 'Done', revised: 'Revised' };
+
+function sylEsc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function sylNewId() {
+  return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function sylValidDate(d) {
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
+}
+
+function sanitizeSyllabusTopic(t) {
+  if (!t || typeof t !== 'object') return null;
+  const title = String(t.title || '').replace(/\s+/g, ' ').trim().slice(0, SYL_MAX_TITLE);
+  if (!title) return null;
+  const out = {
+    id: /^[a-z0-9]{1,64}$/i.test(String(t.id || '')) ? String(t.id) : sylNewId(),
+    title,
+    status: SYL_STATUS_LABEL[t.status] ? t.status : 'todo',
+    importance: [1, 2, 3].includes(Number(t.importance)) ? Number(t.importance) : 2
+  };
+  const marks = Number(t.marks);
+  if (Number.isFinite(marks) && marks > 0 && marks <= 500) out.marks = Math.round(marks * 10) / 10;
+  if (out.status !== 'todo' && typeof t.doneAt === 'string') out.doneAt = t.doneAt;
+  if (out.status === 'revised' && typeof t.revisedAt === 'string') out.revisedAt = t.revisedAt;
+  return out;
+}
+
+// Cleans whatever arrives from storage, a backup file or the cloud. Bad
+// entries are dropped; two entries for the same subject are merged.
+function sanitizeSyllabus(raw) {
+  if (!Array.isArray(raw)) return [];
+  const byKey = new Map();
+  raw.forEach(e => {
+    if (!e || typeof e !== 'object') return;
+    const subjectName = String(e.subjectName || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const subjectKey = getCanonicalSubjectKey(subjectName || e.subjectKey || '');
+    if (!subjectKey) return;
+    const topics = (Array.isArray(e.topics) ? e.topics : []).map(sanitizeSyllabusTopic).filter(Boolean);
+    const prev = byKey.get(subjectKey);
+    if (prev) {
+      const seen = new Set(prev.topics.map(t => t.id));
+      topics.forEach(t => { if (!seen.has(t.id)) prev.topics.push(t); });
+      prev.topics = prev.topics.slice(0, SYL_MAX_TOPICS);
+      if (!prev.examDate) prev.examDate = sylValidDate(e.examDate);
+      return;
+    }
+    byKey.set(subjectKey, {
+      subjectKey,
+      subjectName: subjectName || getCanonicalSubjectName(e.subjectKey) || subjectKey,
+      examDate: sylValidDate(e.examDate),
+      updatedAt: typeof e.updatedAt === 'string' ? e.updatedAt : '',
+      topics: topics.slice(0, SYL_MAX_TOPICS)
+    });
+  });
+  return Array.from(byKey.values());
+}
+
+function loadSyllabus() {
+  return sanitizeSyllabus(safeGetStorage(KEY_SYLLABUS, []) || []);
+}
+
+function saveSyllabus(list) {
+  safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(list));
+  syncToCloud();
+}
+
+function findSyllabusEntry(list, subjectNameOrKey) {
+  const key = getCanonicalSubjectKey(subjectNameOrKey || '');
+  return key ? list.find(e => e.subjectKey === key) || null : null;
+}
+
+// Marks count when every topic has them; otherwise importance (1/2/3).
+function syllabusStats(entry) {
+  const topics = (entry && entry.topics) || [];
+  const total = topics.length;
+  const done = topics.filter(t => t.status !== 'todo').length;
+  const revised = topics.filter(t => t.status === 'revised').length;
+  const byMarks = total > 0 && topics.every(t => t.marks > 0);
+  const w = (t) => byMarks ? t.marks : t.importance;
+  const totalW = topics.reduce((s, t) => s + w(t), 0);
+  const doneW = topics.filter(t => t.status !== 'todo').reduce((s, t) => s + w(t), 0);
+  const pct = totalW > 0 ? Math.round((doneW / totalW) * 100) : 0;
+  return { total, done, revised, left: total - done, pct, byMarks, complete: total > 0 && done === total, allRevised: total > 0 && revised === total };
+}
+
+// Days until this subject's exam: its own date, else the Settings countdown.
+function syllabusExamInfo(entry) {
+  const own = entry && entry.examDate;
+  const date = own || (liveProfile && sylValidDate(liveProfile.examDate)) || '';
+  if (!date) return null;
+  const days = Math.round((new Date(date + 'T00:00:00') - new Date(todayStr() + 'T00:00:00')) / 86400000);
+  return { date, days, own: !!own };
+}
+
+// Subjects the student can see (hidden ones are skipped) that have topics.
+function visibleSyllabusEntries(list = loadSyllabus()) {
+  const hidden = new Set(safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || []);
+  return list.filter(e => e.topics.length > 0 && !hidden.has(e.subjectKey));
+}
+
+// ── Paste → topics ────────────────────────────────────────────
+const SYL_BULLET_RE = /^\s*(?:[-*•▪◦·–—>]+|\(?\d{1,3}(?:\.\d{1,3})*[.)]|\(?[a-z][.)]|\(?(?:i{1,3}|iv|v|vi{0,3}|ix|x)[.)])\s+/i;
+const SYL_HEADING_RE = /^\s*(?:unit|module|chapter|ch\.?|part|topic)\s*[-#]?\s*(?:\d{1,2}|[ivx]{1,4})\s*[:.\-–—)]\s*/i;
+const SYL_MARKS_RE = /\s*[-–—:|,]?\s*[(\[]?\s*(\d{1,3}(?:\.\d)?)\s*(?:marks?|mks?|m)\.?\s*[)\]]?\s*$/i;
+const SYL_HIGH_RE = /\s*(?:[(\[]\s*(?:high|imp|important|v\.?\s*imp)\s*[)\]]|★+|\*{1,3}|\b(?:imp|important)\b!?)\s*$/i;
+const SYL_MED_RE = /\s*[(\[]\s*(?:medium|med)\s*[)\]]\s*$/i;
+const SYL_LOW_RE = /\s*[(\[]\s*low\s*[)\]]\s*$/i;
+
+function parseSyllabusLine(line) {
+  let text = String(line || '').replace(/\s+/g, ' ').trim();
+  let importance = 2, marks = null;
+  for (let i = 0; i < 4; i++) {
+    const before = text;
+    let m;
+    if ((m = text.match(SYL_MARKS_RE)) && m.index > 0) { marks = Number(m[1]); text = text.slice(0, m.index); }
+    else if ((m = text.match(SYL_HIGH_RE)) && m.index > 0) { importance = 3; text = text.slice(0, m.index); }
+    else if ((m = text.match(SYL_MED_RE)) && m.index > 0) { importance = 2; text = text.slice(0, m.index); }
+    else if ((m = text.match(SYL_LOW_RE)) && m.index > 0) { importance = 1; text = text.slice(0, m.index); }
+    text = text.trim();
+    if (text === before) break;
+  }
+  for (let i = 0; i < 3; i++) {
+    const before = text;
+    text = text.replace(SYL_HEADING_RE, '').replace(SYL_BULLET_RE, '').trim();
+    if (text === before) break;
+  }
+  text = text.replace(/[\s,;:.\-–—]+$/, '').trim().slice(0, SYL_MAX_TITLE);
+  if (!text || !/[a-z0-9]/i.test(text)) return null;
+  const out = { title: text, importance };
+  if (marks > 0 && marks <= 500) out.marks = marks;
+  return out;
+}
+
+// existingTitles: titles already in the subject, so a re-paste doesn't
+// add them twice. Returns { topics, skipped } where skipped counts lines
+// that were blank-ish or duplicates.
+function parseSyllabusPaste(text, existingTitles = []) {
+  const seen = new Set(existingTitles.map(t => String(t).toLowerCase().replace(/\s+/g, ' ').trim()));
+  const topics = [];
+  let duplicates = 0;
+  String(text || '').split(/\r?\n|;/).forEach(line => {
+    if (!line.trim()) return;
+    const t = parseSyllabusLine(line);
+    if (!t) return;
+    const k = t.title.toLowerCase();
+    if (seen.has(k)) { duplicates++; return; }
+    seen.add(k);
+    topics.push(t);
+  });
+  return { topics, duplicates };
+}
+
+// ── Pop-ups ───────────────────────────────────────────────────
+// Each fires once a day per subject (seen-markers share the reminder
+// history map, "card_" prefix like the countdown cards).
+function celebrateSyllabusOnce(key, icon, title, subtitle) {
+  const seen = safeGetStorage('cos_notified_history', {}) || {};
+  const k = `card_${key}_${todayStr()}`;
+  if (seen[k]) return;
+  seen[k] = true;
+  safeSetStorage('cos_notified_history', seen);
+  showCelebration(icon, title, subtitle);
+}
+
+function checkSyllabusCelebrations(before, list, subjectKey) {
+  const entry = list.find(e => e.subjectKey === subjectKey);
+  if (!entry) return;
+  const was = syllabusStats(before.find(e => e.subjectKey === subjectKey));
+  const now = syllabusStats(entry);
+  const allBefore = visibleSyllabusEntries(before);
+  const allNow = visibleSyllabusEntries(list);
+  const everyDone = (arr) => arr.length > 0 && arr.every(e => syllabusStats(e).complete);
+  if (!everyDone(allBefore) && everyDone(allNow) && allNow.length > 1) {
+    celebrateSyllabusOnce('syllabus_all', '🏁', 'Whole syllabus done', `Every topic in all ${allNow.length} subjects is covered. Time to revise.`);
+  } else if (!was.allRevised && now.allRevised) {
+    celebrateSyllabusOnce(`syllabus_rev_${subjectKey}`, '✅', `${entry.subjectName} fully revised`, `All ${now.total} topics revised. You're ready for this one.`);
+  } else if (!was.complete && now.complete) {
+    celebrateSyllabusOnce(`syllabus_done_${subjectKey}`, '📘', `${entry.subjectName} syllabus done`, `All ${now.total} topics covered. Revision next.`);
+  }
+}
+
+// ── Topic actions (every one is a tap the student made) ───────
+function updateSyllabusEntry(subjectKey, fn, { celebrate = false } = {}) {
+  const before = loadSyllabus();
+  const list = JSON.parse(JSON.stringify(before));
+  const entry = list.find(e => e.subjectKey === subjectKey);
+  if (!entry) return false;
+  if (fn(entry) === false) return false;
+  entry.updatedAt = new Date().toISOString();
+  saveSyllabus(list);
+  if (celebrate) checkSyllabusCelebrations(before, loadSyllabus(), subjectKey);
+  renderPage(state.currentPage);
+  return true;
+}
+
+window.cycleSyllabusTopic = function(subjectKey, id) {
+  updateSyllabusEntry(subjectKey, (e) => {
+    const t = e.topics.find(x => x.id === id);
+    if (!t) return false;
+    t.status = SYL_STATUS_NEXT[t.status] || 'done';
+    const now = new Date().toISOString();
+    if (t.status === 'done') { t.doneAt = now; delete t.revisedAt; }
+    else if (t.status === 'revised') t.revisedAt = now;
+    else { delete t.doneAt; delete t.revisedAt; }
+  }, { celebrate: true });
+};
+
+window.cycleSyllabusImportance = function(subjectKey, id) {
+  updateSyllabusEntry(subjectKey, (e) => {
+    const t = e.topics.find(x => x.id === id);
+    if (!t) return false;
+    t.importance = t.importance === 3 ? 1 : t.importance + 1;
+  });
+};
+
+window.moveSyllabusTopic = function(subjectKey, id, dir) {
+  updateSyllabusEntry(subjectKey, (e) => {
+    const i = e.topics.findIndex(x => x.id === id);
+    const j = i + (dir < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= e.topics.length) return false;
+    [e.topics[i], e.topics[j]] = [e.topics[j], e.topics[i]];
+  });
+};
+
+window.setSyllabusExamDate = function(subjectKey, value) {
+  updateSyllabusEntry(subjectKey, (e) => { e.examDate = sylValidDate(value); });
+};
+
+window.resetSyllabusProgress = function(subjectKey) {
+  const entry = findSyllabusEntry(loadSyllabus(), subjectKey);
+  if (!entry) return;
+  if (!confirm(`Mark every ${entry.subjectName} topic as not started again?\n\nYour topics, weightage and exam date stay.`)) return;
+  updateSyllabusEntry(subjectKey, (e) => {
+    e.topics.forEach(t => { t.status = 'todo'; delete t.doneAt; delete t.revisedAt; });
+  });
+  showToast(`${entry.subjectName} progress reset`, 'info');
+};
+
+window.removeSyllabus = function(subjectKey) {
+  const list = loadSyllabus();
+  const entry = findSyllabusEntry(list, subjectKey);
+  if (!entry) return;
+  if (!confirm(`Remove the ${entry.subjectName} syllabus (${entry.topics.length} topics)?\n\nThis cannot be undone.`)) return;
+  saveSyllabus(list.filter(e => e.subjectKey !== entry.subjectKey));
+  showToast(`${entry.subjectName} syllabus removed`, 'info');
+  renderPage(state.currentPage);
+};
+
+window.showEditSyllabusTopicModal = function(subjectKey, id) {
+  const entry = findSyllabusEntry(loadSyllabus(), subjectKey);
+  const t = entry && entry.topics.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('syl-edit-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'syl-edit-backdrop';
+  backdrop.onclick = () => backdrop.remove();
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px">
+      <div class="modal-header">
+        <h2 class="modal-title">Edit topic</h2>
+        <button class="modal-close" onclick="document.getElementById('syl-edit-backdrop').remove()" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="syl-edit-title">Topic</label>
+        <input type="text" class="form-input" id="syl-edit-title" maxlength="${SYL_MAX_TITLE}" value="${sylEsc(t.title)}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="syl-edit-imp">Importance</label>
+          <select class="form-select" id="syl-edit-imp">
+            ${[3, 2, 1].map(v => `<option value="${v}" ${t.importance === v ? 'selected' : ''}>${SYL_IMPORTANCE[v]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="syl-edit-marks">Marks (optional)</label>
+          <input type="number" class="form-input" id="syl-edit-marks" min="0" max="500" step="0.5" inputmode="decimal" placeholder="e.g. 10" value="${t.marks || ''}">
+        </div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary" style="color:var(--status-error)" onclick="deleteSyllabusTopic('${subjectKey}', '${t.id}')">${icons.trash()} Delete</button>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('syl-edit-backdrop').remove()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveSyllabusTopicEdit('${subjectKey}', '${t.id}')">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  document.getElementById('syl-edit-title')?.focus();
+};
+
+window.saveSyllabusTopicEdit = function(subjectKey, id) {
+  const title = String(document.getElementById('syl-edit-title')?.value || '').replace(/\s+/g, ' ').trim();
+  if (!title) { showToast('Give the topic a name', 'error'); return; }
+  const importance = Number(document.getElementById('syl-edit-imp')?.value) || 2;
+  const marks = Number(document.getElementById('syl-edit-marks')?.value);
+  const ok = updateSyllabusEntry(subjectKey, (e) => {
+    const t = e.topics.find(x => x.id === id);
+    if (!t) return false;
+    if (e.topics.some(x => x.id !== id && x.title.toLowerCase() === title.toLowerCase())) { showToast('That topic is already in the list', 'error'); return false; }
+    t.title = title.slice(0, SYL_MAX_TITLE);
+    t.importance = importance;
+    if (marks > 0) t.marks = marks; else delete t.marks;
+  });
+  if (ok) document.getElementById('syl-edit-backdrop')?.remove();
+};
+
+window.deleteSyllabusTopic = function(subjectKey, id) {
+  const entry = findSyllabusEntry(loadSyllabus(), subjectKey);
+  const t = entry && entry.topics.find(x => x.id === id);
+  if (!t || !confirm(`Delete "${t.title}"?`)) return;
+  updateSyllabusEntry(subjectKey, (e) => { e.topics = e.topics.filter(x => x.id !== id); });
+  document.getElementById('syl-edit-backdrop')?.remove();
+  showToast('Topic deleted', 'info');
+};
+
+// ── Add topics: paste → preview → save ────────────────────────
+let sylPasteDraft = null;   // { subjectName, topics } while the preview is open
+
+window.showSyllabusPasteModal = function(subjectName) {
+  document.getElementById('syl-paste-backdrop')?.remove();
+  sylPasteDraft = { subjectName, topics: [] };
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'syl-paste-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:560px">
+      <div class="modal-header">
+        <h2 class="modal-title">Add topics · ${sylEsc(subjectName)}</h2>
+        <button class="modal-close" onclick="closeSyllabusPasteModal()" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div id="syl-paste-body"></div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  renderSyllabusPasteStep();
+};
+
+window.closeSyllabusPasteModal = function() {
+  sylPasteDraft = null;
+  document.getElementById('syl-paste-backdrop')?.remove();
+};
+
+function renderSyllabusPasteStep(prefill = '') {
+  const body = document.getElementById('syl-paste-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="form-group">
+      <label class="form-label" for="syl-paste-text">Paste your syllabus, one topic per line</label>
+      <textarea class="form-input syl-paste-text" id="syl-paste-text" rows="9" placeholder="Unit 1: Introduction to DBMS&#10;ER model - 10 marks&#10;Normalization (High)&#10;Transactions and concurrency">${sylEsc(prefill)}</textarea>
+      <div class="syl-hint">Numbers, bullets and "Unit 1:" are removed for you. Add weightage at the end of a line if you know it: <strong>10 marks</strong>, <strong>(10m)</strong>, <strong>(High)</strong>, <strong>(Low)</strong> or <strong>★</strong>. You can check everything before it's saved.</div>
+    </div>
+    <div class="modal-footer" style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px">
+      <button type="button" class="btn btn-secondary" onclick="closeSyllabusPasteModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="previewSyllabusPaste()">Preview topics →</button>
+    </div>`;
+  document.getElementById('syl-paste-text')?.focus();
+}
+
+window.previewSyllabusPaste = function() {
+  if (!sylPasteDraft) return;
+  const text = document.getElementById('syl-paste-text')?.value || '';
+  const entry = findSyllabusEntry(loadSyllabus(), sylPasteDraft.subjectName);
+  const existing = entry ? entry.topics.map(t => t.title) : [];
+  const { topics, duplicates } = parseSyllabusPaste(text, existing);
+  const room = SYL_MAX_TOPICS - existing.length;
+  if (!topics.length) {
+    showToast(duplicates ? 'Those topics are already in your list' : 'No topics found. Put one topic on each line.', 'info');
+    return;
+  }
+  sylPasteDraft.text = text;
+  sylPasteDraft.topics = topics.slice(0, Math.max(0, room));
+  sylPasteDraft.duplicates = duplicates;
+  sylPasteDraft.overflow = Math.max(0, topics.length - room);
+  renderSyllabusPreviewStep();
+};
+
+function renderSyllabusPreviewStep() {
+  const body = document.getElementById('syl-paste-body');
+  if (!body || !sylPasteDraft) return;
+  const d = sylPasteDraft;
+  const notes = [
+    d.duplicates ? `${d.duplicates} duplicate${d.duplicates !== 1 ? 's' : ''} skipped` : '',
+    d.overflow ? `${d.overflow} over the ${SYL_MAX_TOPICS}-topic limit, left out` : ''
+  ].filter(Boolean).join(' · ');
+  body.innerHTML = `
+    <div class="syl-preview-head">
+      <strong>${d.topics.length} topic${d.topics.length !== 1 ? 's' : ''} to add</strong>${notes ? ` <span class="syl-hint">${notes}</span>` : ''}
+      <div class="syl-hint">Nothing is saved yet. Fix a name, set importance or marks, or remove a row.</div>
+    </div>
+    <div class="syl-preview-list">
+      ${d.topics.map((t, i) => `
+        <div class="syl-preview-row">
+          <input type="text" class="form-input syl-pv-title" aria-label="Topic ${i + 1}" maxlength="${SYL_MAX_TITLE}" value="${sylEsc(t.title)}" oninput="setSyllabusPreviewField(${i}, 'title', this.value)">
+          <select class="form-select syl-pv-imp" aria-label="Importance for topic ${i + 1}" onchange="setSyllabusPreviewField(${i}, 'importance', this.value)">
+            ${[3, 2, 1].map(v => `<option value="${v}" ${t.importance === v ? 'selected' : ''}>${SYL_IMPORTANCE[v]}</option>`).join('')}
+          </select>
+          <input type="number" class="form-input syl-pv-marks" aria-label="Marks for topic ${i + 1}" min="0" max="500" step="0.5" inputmode="decimal" placeholder="Marks" value="${t.marks || ''}" oninput="setSyllabusPreviewField(${i}, 'marks', this.value)">
+          <button type="button" class="btn btn-secondary syl-pv-remove" aria-label="Remove topic ${i + 1}" onclick="removeSyllabusPreviewRow(${i})">${icons.x()}</button>
+        </div>`).join('')}
+    </div>
+    <div class="modal-footer" style="margin-top:14px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-secondary" onclick="renderSyllabusPasteStepAgain()">← Edit text</button>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn btn-secondary" onclick="closeSyllabusPasteModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="confirmSyllabusPaste()" ${d.topics.length ? '' : 'disabled'}>Save ${d.topics.length} topic${d.topics.length !== 1 ? 's' : ''}</button>
+      </div>
+    </div>`;
+}
+
+window.renderSyllabusPasteStepAgain = function() {
+  renderSyllabusPasteStep(sylPasteDraft ? sylPasteDraft.text || '' : '');
+};
+
+window.setSyllabusPreviewField = function(i, field, value) {
+  const t = sylPasteDraft && sylPasteDraft.topics[i];
+  if (!t) return;
+  if (field === 'title') t.title = String(value);
+  else if (field === 'importance') t.importance = Number(value) || 2;
+  else if (field === 'marks') { const m = Number(value); if (m > 0) t.marks = m; else delete t.marks; }
+};
+
+window.removeSyllabusPreviewRow = function(i) {
+  if (!sylPasteDraft) return;
+  sylPasteDraft.topics.splice(i, 1);
+  renderSyllabusPreviewStep();
+};
+
+window.confirmSyllabusPaste = function() {
+  if (!sylPasteDraft) return;
+  const { subjectName } = sylPasteDraft;
+  const list = loadSyllabus();
+  let entry = findSyllabusEntry(list, subjectName);
+  if (!entry) {
+    entry = { subjectKey: getCanonicalSubjectKey(subjectName), subjectName, examDate: '', topics: [] };
+    list.push(entry);
+  }
+  const have = new Set(entry.topics.map(t => t.title.toLowerCase()));
+  let added = 0;
+  sylPasteDraft.topics.forEach(raw => {
+    const t = sanitizeSyllabusTopic({ ...raw, id: sylNewId(), status: 'todo' });
+    if (!t || have.has(t.title.toLowerCase()) || entry.topics.length >= SYL_MAX_TOPICS) return;
+    have.add(t.title.toLowerCase());
+    entry.topics.push(t);
+    added++;
+  });
+  entry.updatedAt = new Date().toISOString();
+  saveSyllabus(list);
+  closeSyllabusPasteModal();
+  showToast(`${added} topic${added !== 1 ? 's' : ''} added to ${subjectName} ✓`, 'success');
+  renderPage(state.currentPage);
+};
+
+// ── Add a subject by name (students without a timetable) ──────
+window.showAddSyllabusSubjectModal = function() {
+  document.getElementById('syl-subj-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'syl-subj-backdrop';
+  backdrop.onclick = () => backdrop.remove();
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+      <div class="modal-header">
+        <h2 class="modal-title">Add a subject</h2>
+        <button class="modal-close" onclick="document.getElementById('syl-subj-backdrop').remove()" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="syl-subj-name">Subject name</label>
+        <input type="text" class="form-input" id="syl-subj-name" maxlength="80" placeholder="e.g. Physics, Quantitative Aptitude">
+        <div class="syl-hint">Next you can paste its syllabus.</div>
+      </div>
+      <div class="modal-footer" style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('syl-subj-backdrop').remove()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="confirmAddSyllabusSubject()">Add subject</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  document.getElementById('syl-subj-name')?.focus();
+};
+
+window.confirmAddSyllabusSubject = function() {
+  const raw = String(document.getElementById('syl-subj-name')?.value || '').replace(/\s+/g, ' ').trim();
+  const name = getCanonicalSubjectName(raw) || raw;
+  const key = getCanonicalSubjectKey(raw);
+  if (!key || key === 'general' || isLikelyGarbledSubjectName(name)) { showToast('Type the subject name, e.g. Physics', 'error'); return; }
+  const existing = getSubjectList().find(s => getCanonicalSubjectKey(s.name) === key);
+  const subjectName = existing ? existing.name : name;
+  const list = loadSyllabus();
+  if (!findSyllabusEntry(list, subjectName)) {
+    list.push({ subjectKey: key, subjectName, examDate: '', topics: [] });
+    saveSyllabus(list);
+  }
+  const hidden = safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [];
+  if (hidden.includes(key)) safeSetStorage(KEY_HIDDEN_SUBJECTS, hidden.filter(k => k !== key));
+  document.getElementById('syl-subj-backdrop')?.remove();
+  openSubjectHub(subjectName);
+  showSyllabusPasteModal(subjectName);
+};
+
+// ── Subject Hub card ──────────────────────────────────────────
+function syllabusCardHTML(subj) {
+  const entry = findSyllabusEntry(loadSyllabus(), subj.name);
+  const nameArg = String(subj.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const addBtn = `<button class="btn btn-sm btn-primary" onclick="showSyllabusPasteModal('${nameArg}')" style="font-size:var(--text-sm);padding:3px 9px">+ Add topics</button>`;
+  if (!entry || !entry.topics.length) {
+    return `
+      <div class="syl-section" id="syllabus">
+        <div class="syl-section-head">
+          <div class="section-heading" style="margin-bottom:0">Syllabus</div>
+          ${addBtn}
+        </div>
+        <div class="empty-state-card syl-empty">
+          <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary);margin-bottom:2px">Track your ${sylEsc(subj.name)} syllabus</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px">Paste the topics, tick them off as you finish and revise them, and see how much is left before the exam.</div>
+          <button class="btn btn-sm btn-primary" onclick="showSyllabusPasteModal('${nameArg}')">+ Add topics</button>
+        </div>
+      </div>`;
+  }
+  const key = entry.subjectKey;
+  const st = syllabusStats(entry);
+  const exam = syllabusExamInfo(entry);
+  const examText = !exam ? '' : exam.days < 0 ? 'Exam date has passed' : exam.days === 0 ? 'Exam is today' : `Exam in ${exam.days} day${exam.days !== 1 ? 's' : ''}${st.left ? ` · ${st.left} topic${st.left !== 1 ? 's' : ''} left` : ''}`;
+  const rows = entry.topics.map((t, i) => `
+    <li class="syl-topic ${t.status}">
+      <button type="button" class="syl-state" onclick="cycleSyllabusTopic('${key}', '${t.id}')" aria-label="${sylEsc(t.title)}: ${SYL_STATUS_LABEL[t.status]}. Tap for ${SYL_STATUS_LABEL[SYL_STATUS_NEXT[t.status]]}." title="${SYL_STATUS_LABEL[t.status]} · tap for ${SYL_STATUS_LABEL[SYL_STATUS_NEXT[t.status]]}">
+        ${t.status === 'todo' ? '' : t.status === 'done' ? icons.check() : '<span aria-hidden="true">R</span>'}
+      </button>
+      <span class="syl-title">${sylEsc(t.title)}</span>
+      <span class="syl-tags">
+        ${t.marks ? `<span class="syl-marks">${t.marks}m</span>` : ''}
+        <button type="button" class="syl-imp imp-${t.importance}" onclick="cycleSyllabusImportance('${key}', '${t.id}')" aria-label="Importance ${SYL_IMPORTANCE[t.importance]}. Tap to change." title="Importance · tap to change">${SYL_IMPORTANCE[t.importance]}</button>
+      </span>
+      <span class="syl-row-actions">
+        <button type="button" class="syl-icon-btn" onclick="moveSyllabusTopic('${key}', '${t.id}', -1)" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="syl-icon-btn" onclick="moveSyllabusTopic('${key}', '${t.id}', 1)" aria-label="Move down" ${i === entry.topics.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="syl-icon-btn" onclick="showEditSyllabusTopicModal('${key}', '${t.id}')" aria-label="Edit ${sylEsc(t.title)}">✎</button>
+      </span>
+    </li>`).join('');
+  return `
+    <div class="syl-section" id="syllabus">
+      <div class="syl-section-head">
+        <div class="section-heading" style="margin-bottom:0">Syllabus</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${addBtn}
+          <details class="tk-more syl-more">
+            <summary aria-label="Syllabus options">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)}</summary>
+            <div class="tk-more-menu">
+              <button type="button" onclick="resetSyllabusProgress('${key}')">Reset progress</button>
+              <button type="button" onclick="removeSyllabus('${key}')">Remove syllabus</button>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="card syl-card">
+        <div class="syl-progress-row">
+          <div class="syl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${st.pct}" aria-label="${sylEsc(subj.name)} syllabus ${st.pct}% done"><span style="width:${st.pct}%"></span></div>
+          <span class="syl-pct">${st.pct}%</span>
+        </div>
+        <div class="syl-meta">${st.done} of ${st.total} topics done${st.revised ? ` · ${st.revised} revised` : ''}${st.byMarks ? ' · % counts marks' : ''}</div>
+        <div class="syl-exam">
+          <label for="syl-exam-${key}">Exam date</label>
+          <input type="date" class="form-input syl-exam-input" id="syl-exam-${key}" value="${entry.examDate}" onchange="setSyllabusExamDate('${key}', this.value)">
+          <span class="syl-exam-text">${examText}${exam && !exam.own ? ' (from Settings)' : ''}</span>
+        </div>
+        <ul class="syl-list">${rows}</ul>
+        <div class="syl-hint" style="margin-top:8px">Tap the circle: not started → done → revised.</div>
+      </div>
+    </div>`;
+}
+
+// One quiet line for Today, or '' when there is no syllabus yet.
+function syllabusTodayLine() {
+  const entries = visibleSyllabusEntries();
+  if (!entries.length) return '';
+  const avg = Math.round(entries.reduce((s, e) => s + syllabusStats(e).pct, 0) / entries.length);
+  const next = entries
+    .map(e => ({ e, ex: e.examDate ? syllabusExamInfo(e) : null }))
+    .filter(x => x.ex && x.ex.days >= 0)
+    .sort((a, b) => a.ex.days - b.ex.days)[0];
+  const nextText = next ? ` · next exam ${sylEsc(next.e.subjectName)} ${next.ex.days === 0 ? 'today' : `in ${next.ex.days} day${next.ex.days !== 1 ? 's' : ''}`}` : '';
+  return `Syllabus: ${avg}% across ${entries.length} subject${entries.length !== 1 ? 's' : ''}${nextText}`;
+}
+
 function renderSubjects() {
   const el = document.getElementById('page-subjects');
   if (!el) return;
@@ -13235,13 +13847,14 @@ function renderSubjectsOverview(el, subjects) {
           <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:7px 14px">${icons.camera()} Scan Timetable Photo</button>
           <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:7px 14px">${icons.chartLine()} Set Attendance Baseline</button>
           <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:7px 14px">${icons.filetext()} Sample Template</button>
+          <button class="btn-secondary" onclick="showAddSyllabusSubjectModal()" style="font-size:var(--text-base);padding:7px 14px">+ Add a subject</button>
         </div>
       </div>
     `;
     return;
   }
 
-  const anyMissingBaseline = subjects.some(s => !getSubjectAttendance(s).hasBaseline);
+  const anyMissingBaseline = !isSelfStudyMode() && subjects.some(s => !getSubjectAttendance(s).hasBaseline);
 
   // Display-only grouping of the existing attendance numbers: Safe at/above the
   // target, Watch within 10 points under it, At risk below that. Lowest first so
@@ -13268,6 +13881,8 @@ function renderSubjectsOverview(el, subjects) {
   const animateRings = subjectRingsAnimatedSeq !== subjectViewSeq;
   subjectRingsAnimatedSeq = subjectViewSeq;
 
+  const sylList = loadSyllabus();
+  const sylLine = (s) => { const e = findSyllabusEntry(sylList, s.name); return e && e.topics.length ? ` · Syllabus ${syllabusStats(e).pct}%` : ''; };
   const cardsHTML = ranked.map(({ s, att, tier }) => {
     const pending = allTasks().filter(t => t.status === 'pending' && ((t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase())).length;
     const label = att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}%` : '—';
@@ -13291,7 +13906,7 @@ function renderSubjectsOverview(el, subjects) {
           <div class="card-title sj-title">${s.name}</div>
           <div class="sj-line">${line}</div>
           ${projection ? `<div class="sj-meta">${projection}</div>` : ''}
-          <div class="sj-meta">${s.code}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}</div>
+          <div class="sj-meta">${s.code}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}${sylLine(s)}</div>
         </div>
         <div class="sj-side">
           ${subjectManageMode ? `
@@ -13316,6 +13931,7 @@ function renderSubjectsOverview(el, subjects) {
       <details class="tk-more sj-manage">
         <summary aria-label="Manage subjects">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage${hasPollution ? '<span class="sj-dot" title="Duplicate subject cards found"></span>' : ''}</summary>
         <div class="tk-more-menu">
+          <button type="button" onclick="showAddSyllabusSubjectModal()">+ Add a subject</button>
           <button type="button" onclick="showBaselineModal(null, 'manual')">${icons.chartLine()} Set attendance baseline</button>
           <button type="button" onclick="showBaselineModal(null, 'scan')">${icons.camera()} Scan from photo</button>
           <button type="button" onclick="showDeclutterDeskModal()" title="Declutter duplicate or other-batch subject cards">${icons.declutter()} Declutter my desk</button>
@@ -13523,6 +14139,8 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
         `}
       </div>
     </div>
+
+    ${syllabusCardHTML(subj)}
 
     <!-- 1. Timetable Slots -->
     <div style="margin-bottom:20px">
@@ -15772,6 +16390,7 @@ function exportData() {
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
     attendanceLive:     safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
     hiddenSubjects:     safeGetStorage(KEY_HIDDEN_SUBJECTS, []),
+    syllabus:           loadSyllabus(),
     userBatch:          safeGetStorage(KEY_USER_BATCH, ''),
     attTarget:          getAttendanceTarget(),
     notificationPrefs:  loadNotifPrefs(),
@@ -15814,6 +16433,7 @@ function importData(event) {
       if (data.attendanceBaseline) safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
       if (data.attendanceLive) safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
       if (Array.isArray(data.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, data.hiddenSubjects);
+      if (Array.isArray(data.syllabus)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
       if (data.userBatch) safeSetStorage(KEY_USER_BATCH, data.userBatch);
       if (data.attTarget) safeSetStorage(KEY_ATT_TARGET, data.attTarget);
       if (data.assignmentStatuses) {
