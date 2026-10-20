@@ -46,13 +46,16 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 
 ## Git safety
 - No `git reset --hard`, `git clean -fd`, force push, or branch deletion.
-- - Claude may commit and push to its own `claude/*` branch and open a PR without asking. Never push to `main`; never deploy (the user ships).
-- Claude may merge its own `claude/*` PR into `main` without asking, only when CI (`Tests`) is green on the latest commit, there is no merge conflict, and no review thread is unresolved. Never merge Dependabot or anyone else's PR. Merging does not deploy; the user still runs `npm run ship`.
+- Claude may commit and push to its own `claude/*` branch and open a PR without asking. Never push to `main` directly; `main` only changes through a merged PR or `npm run ship`.
+- Claude may merge its own `claude/*` PR into `main` without asking, only when CI (`Tests`) is green on the latest commit, there is no merge conflict, and no review thread is unresolved. Never merge Dependabot or anyone else's PR.
 - Before pull/merge/rebase, report `git status`, branch, and remotes first.
 
-## Shipping (the user runs it)
-- The user ships with `npm run ship` (`scripts/ship.mjs`): bumps the cache version if app files changed, runs `npm test`, commits, adds Dev Notes, pushes, runs `firebase deploy --only hosting` (plus the AI proxy if `ai-proxy/` changed), then runs the live smoke test (`npm run test:smoke` against the live site). A smoke failure prints a red warning and exits 1; the deploy stays live, nothing is rolled back. `npm run ship:check` previews it.
-- After every change, end the report with a **Ready to ship** block: the exact commit message to type at the prompt, and anything the script does not do (e.g. `npm run test:visual:update` on Windows when screenshots changed, a check on the live site). Write the message in plain words for students, because it becomes a Dev Note in the app. Start it with `chore:` for tooling/test-only changes. Leave out `(vN)`: the script adds it.
+## Shipping (Claude runs it after every change)
+- After every change, once CI (`Tests`) is green, there's no conflict and no review thread is unresolved: merge the `claude/*` PR, pull `main` (`git pull --ff-only`), run `npm run ship`, and confirm the folder matches `origin/main` (same `HEAD`, clean `git status`).
+- Before running ship, remove stray untracked files: the script runs `git add -A`.
+- Changes that arrive through a merged PR leave ship nothing to commit, so the PR's commit subject becomes the Dev Note. Write that subject in plain words for students.
+- `npm run ship` (`scripts/ship.mjs`): bumps the cache version if app files changed, runs `npm test`, commits, adds Dev Notes, pushes, runs `firebase deploy --only hosting` (plus the AI proxy if `ai-proxy/` changed), then runs the live smoke test (`npm run test:smoke` against the live site). A smoke failure prints a red warning and exits 1; the deploy stays live, nothing is rolled back. `npm run ship:check` previews it.
+- After shipping, report the shipped version, the smoke result, and anything the script does not do (e.g. `npm run test:visual:update` on Windows when screenshots changed). Commit messages: plain words for students, because they become Dev Notes. Start with `chore:` for tooling/test-only changes. Leave out `(vN)`: the script adds it.
 - Git commands run from the Cowork VM on this folder (e.g. `git status`) can leave a `.git/index.lock` the VM cannot delete, which blocks the user's commit. If one appears, move it aside (`mv .git/index.lock .git/index.lock.stale`).
 
 ## Reporting format
