@@ -279,7 +279,7 @@ function initFirebase() {
 // triggerConfetti removed — calm confirmation used instead
 
 
-function showToast(msg, type = 'info') {
+function getToastContainer() {
   let toastContainer = document.getElementById('toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
@@ -291,6 +291,11 @@ function showToast(msg, type = 'info') {
     toastContainer.setAttribute('aria-atomic', 'true');
     document.body.appendChild(toastContainer);
   }
+  return toastContainer;
+}
+
+function showToast(msg, type = 'info') {
+  const toastContainer = getToastContainer();
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
@@ -315,6 +320,59 @@ function showToast(msg, type = 'info') {
     toast.classList.remove('toast-show');
     setTimeout(() => toast.remove(), 250);
   }, 3200);
+}
+
+// A calm "well done" card for real milestones (all tasks done, attendance
+// back on target, countdown days). Shares the toast container so screen
+// readers announce it; tap to close, otherwise it fades after ~4.5s.
+function showCelebration(icon, title, subtitle = '') {
+  const container = getToastContainer();
+
+  const card = document.createElement('div');
+  card.className = 'toast celebrate-card';
+  const iconEl = document.createElement('span');
+  iconEl.className = 'celebrate-icon';
+  iconEl.setAttribute('aria-hidden', 'true');
+  iconEl.textContent = icon;
+  const body = document.createElement('span');
+  body.className = 'celebrate-body';
+  const titleEl = document.createElement('strong');
+  titleEl.textContent = title;
+  body.appendChild(titleEl);
+  if (subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'celebrate-sub';
+    sub.textContent = subtitle;
+    body.appendChild(sub);
+  }
+  card.appendChild(iconEl);
+  card.appendChild(body);
+
+  const close = () => {
+    card.classList.remove('toast-show');
+    setTimeout(() => card.remove(), 250);
+  };
+  card.addEventListener('click', close);
+  container.appendChild(card);
+  requestAnimationFrame(() => card.classList.add('toast-show'));
+  setTimeout(close, 4500);
+}
+
+// true/false once there is attendance data, null before. Same rule the
+// Today page uses (v2 decides from the exact fraction).
+function isOverallAttendanceOnTarget() {
+  const o = getOverallAttendance();
+  if (!o || !o.hasAnyData || o.pct === null) return null;
+  return o.pctLabel ? o.isSafe !== false : o.pct >= getAttendanceTarget();
+}
+
+// Call with the value from before a student's own attendance tap.
+function maybeCelebrateAttendanceTarget(wasOnTarget) {
+  if (wasOnTarget !== false) return;
+  if (isOverallAttendanceOnTarget() !== true) return;
+  const o = getOverallAttendance();
+  const pct = o.pctLabel ?? o.pct;
+  showCelebration('🎯', 'Back on track', `You're at ${pct}%, at or above your ${getAttendanceTarget()}% target.`);
 }
 
 // One-tap "a new version is ready" banner, shown when the service worker
@@ -6906,6 +6964,24 @@ function countdownCheer(days) {
   return 'Plenty of time. A little every day adds up.';
 }
 
+// On Today, the countdown milestone days (30, 14, 7, 3, 1 and the day
+// itself) get one in-app card each. Seen-markers share the reminder
+// history map, with their own "card_" prefix.
+function maybeShowCountdownCelebration() {
+  if (!liveProfile || !liveProfile.examDate) return;
+  const today = todayStr();
+  const days = Math.round((new Date(liveProfile.examDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+  if (![30, 14, 7, 3, 1, 0].includes(days)) return;
+  const seen = safeGetStorage('cos_notified_history', {}) || {};
+  const key = `card_countdown_${days}_${liveProfile.examDate}`;
+  if (seen[key]) return;
+  seen[key] = true;
+  safeSetStorage('cos_notified_history', seen);
+  const label = getCountdownLabel();
+  const title = days === 0 ? `${label} is today` : `${days} day${days === 1 ? '' : 's'} to ${label}`;
+  setTimeout(() => showCelebration(days === 0 ? '🌟' : '📅', title, countdownCheer(days)), 600);
+}
+
 function buildDashboardContextLine(opts = {}) {
   const { attendancePct, attendancePctLabel, attendanceAtRisk, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, firstName, dayClasses } = opts;
   const isWeekend = dayClasses !== undefined && dayClasses.length === 0;
@@ -7804,6 +7880,7 @@ window.setAttendanceWeekOffset = function(offset) {
 };
 
 window.setAttendance = function(dateStr, classKey, status) {
+  const wasOnTarget = isOverallAttendanceOnTarget();
   const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   if (!data[dateStr]) data[dateStr] = {};
   
@@ -7823,6 +7900,7 @@ window.setAttendance = function(dateStr, classKey, status) {
   }
   
   safeSetStorage(KEY_ATTENDANCE, data);
+  maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
   if (['timetable', 'review', 'dashboard', 'resources', 'links'].includes(state.currentPage)) {
     renderPage(state.currentPage);
@@ -8328,6 +8406,7 @@ function renderDashboard() {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
   liveProfile    = loadProfile();
+  maybeShowCountdownCelebration();
   const now      = new Date();
   const dateStr  = todayStr();
   const currentMin = currentTimeMinutes();
@@ -9361,6 +9440,7 @@ function logSubjectAttendanceAction(subjectKey, action) {
   const subjects = getSubjectList();
   const subj = subjects.find(s => (s.code || s.name) === subjectKey || s.name.toLowerCase() === subjectKey.toLowerCase()) || { name: subjectKey, code: subjectKey };
   const storageKey = (subj.code || subj.name).trim();
+  const wasOnTarget = isOverallAttendanceOnTarget();
 
   const liveActions = loadLiveAttendanceActions();
   if (!liveActions[storageKey]) {
@@ -9379,6 +9459,7 @@ function logSubjectAttendanceAction(subjectKey, action) {
   }
 
   saveLiveAttendanceActions(liveActions);
+  maybeCelebrateAttendanceTarget(wasOnTarget);
   renderPage(state.currentPage);
 }
 
@@ -17761,6 +17842,12 @@ window.closeAssistant        = closeAssistant;
 window.sendAssistantMessage  = sendAssistantMessage;
 window.clearAssistantChat    = clearAssistantChat;
 
+// The last pending task gets the "all caught up" card; any other gets the usual toast.
+function celebrateTaskDone() {
+  if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
+  else showToast('Task marked completed ✓', 'success');
+}
+
 window.toggleAssignment = (id) => {
   // Custom task
   const ct = state.customTasks.find(x => x.id === id);
@@ -17769,7 +17856,7 @@ window.toggleAssignment = (id) => {
     ct.status = isNowDone ? 'submitted' : 'pending';
     saveCustomTasks();
     if (isNowDone) {
-      showToast('Task marked completed ✓', 'success');
+      celebrateTaskDone();
     } else {
       showToast('Task moved back to pending', 'info');
     }
@@ -17784,7 +17871,7 @@ window.toggleAssignment = (id) => {
   a.status = isNowDone ? 'submitted' : 'pending';
   saveAssignments();
   if (isNowDone) {
-    showToast('Task marked completed ✓', 'success');
+    celebrateTaskDone();
   } else {
     showToast('Task moved back to pending', 'info');
   }
