@@ -13582,8 +13582,12 @@ function renderSyllabusPasteStep(prefill = '') {
   const body = document.getElementById('syl-paste-body');
   if (!body) return;
   body.innerHTML = `
+    <div class="syl-scan-row">
+      <button type="button" class="btn btn-secondary" onclick="chooseSyllabusScanFile()">${icons.camera()} Scan a photo or PDF</button>
+      <span class="syl-hint" style="margin-top:0">Needs internet. You check every topic before it's saved.</span>
+    </div>
     <div class="form-group">
-      <label class="form-label" for="syl-paste-text">Paste your syllabus, one topic per line</label>
+      <label class="form-label" for="syl-paste-text">Or paste your syllabus, one topic per line</label>
       <textarea class="form-input syl-paste-text" id="syl-paste-text" rows="9" placeholder="Unit 1: Introduction to DBMS&#10;ER model - 10 marks&#10;Normalization (High)&#10;Transactions and concurrency">${sylEsc(prefill)}</textarea>
       <div class="syl-hint">Numbers, bullets and "Unit 1:" are removed for you. Add weightage at the end of a line if you know it: <strong>10 marks</strong>, <strong>(10m)</strong>, <strong>(High)</strong>, <strong>(Low)</strong> or <strong>★</strong>. You can check everything before it's saved.</div>
     </div>
@@ -13606,6 +13610,7 @@ window.previewSyllabusPaste = function() {
     return;
   }
   sylPasteDraft.text = text;
+  sylPasteDraft.scanned = false;
   sylPasteDraft.topics = topics.slice(0, Math.max(0, room));
   sylPasteDraft.duplicates = duplicates;
   sylPasteDraft.overflow = Math.max(0, topics.length - room);
@@ -13623,6 +13628,7 @@ function renderSyllabusPreviewStep() {
   body.innerHTML = `
     <div class="syl-preview-head">
       <strong>${d.topics.length} topic${d.topics.length !== 1 ? 's' : ''} to add</strong>${notes ? ` <span class="syl-hint">${notes}</span>` : ''}
+      ${d.scanned ? `<div class="syl-hint syl-scan-note">Read by AI from your file. It can misread or miss a topic, so check each row against the syllabus.</div>` : ''}
       <div class="syl-hint">Nothing is saved yet. Fix a name, set importance or marks, or remove a row.</div>
     </div>
     <div class="syl-preview-list">
@@ -13687,6 +13693,174 @@ window.confirmSyllabusPaste = function() {
   showToast(`${added} topic${added !== 1 ? 's' : ''} added to ${subjectName} ✓`, 'success');
   renderPage(state.currentPage);
 };
+
+// ── Scan a syllabus (photo, screenshot or PDF) ────────────────
+// Reuses the scanners' AI path and its {"schedule":[...]} answer shape
+// (the attendance scan does the same), so "schedule" here holds topics.
+// The answer only ever fills the same preview as pasting: nothing is
+// saved until the student taps Save. PDFs are read by Gemini only; the
+// other providers take images, so a PDF falls through to an error there.
+const SYL_SCAN_MAX_BYTES = 8 * 1024 * 1024;   // ~11 MB once base64'd; the AI proxy allows 12 MB
+const SYL_SCAN_PROMPT = `This is a college course syllabus (a photo, screenshot or PDF page).
+List the topics a student has to study.
+Return JSON matching this exact structure:
+{
+  "schedule": [
+    { "title": "Normalization: 1NF, 2NF, 3NF and BCNF", "unit": "Unit 3", "marks": 10, "importance": "high" }
+  ]
+}
+Rules:
+1. One row per topic, in the order printed. When a unit lists several topics
+   separated by commas or semicolons, make each one its own row.
+2. "title" is the topic text only: no unit number, bullet or numbering.
+3. "marks": only when the document prints marks or weightage for exactly
+   that topic. Otherwise null. Never guess.
+4. "importance": "high" only when the document marks the topic as important
+   (a star, "imp", "important"). Otherwise null.
+5. Skip everything that is not a topic: course code and title, objectives,
+   outcomes, prerequisites, teaching hours, credits, exam/assessment scheme,
+   textbooks and reference books.
+6. Do not invent topics. If you cannot read the page, return {"schedule": []}.`;
+
+// Turns AI rows into preview topics: cleaned like a pasted line, weightage
+// kept only when valid, duplicates (with each other or the existing list)
+// dropped.
+function topicsFromSyllabusScan(rows, existingTitles = []) {
+  const seen = new Set(existingTitles.map(t => String(t).toLowerCase().replace(/\s+/g, ' ').trim()));
+  const topics = [];
+  let duplicates = 0;
+  (Array.isArray(rows) ? rows : []).forEach(r => {
+    const raw = typeof r === 'string' ? r : (r && (r.title || r.topic || r.name)) || '';
+    const t = parseSyllabusLine(String(raw));
+    if (!t) return;
+    if (r && typeof r === 'object') {
+      const m = Number(r.marks);
+      if (Number.isFinite(m) && m > 0 && m <= 500) t.marks = m;
+      const imp = String(r.importance ?? '').toLowerCase();
+      if (/high|imp|^3$/.test(imp)) t.importance = 3;
+      else if (/low|^1$/.test(imp)) t.importance = 1;
+    }
+    const k = t.title.toLowerCase();
+    if (seen.has(k)) { duplicates++; return; }
+    seen.add(k);
+    topics.push(t);
+  });
+  return { topics, duplicates };
+}
+
+// Why a file can't be scanned, or '' when it can.
+function syllabusScanFileProblem(file) {
+  if (!file) return 'No file chosen.';
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  if (!isPdf && !String(file.type || '').startsWith('image/')) return 'Choose a photo, a screenshot or a PDF of the syllabus.';
+  if (file.size > SYL_SCAN_MAX_BYTES) return `That file is ${(file.size / 1048576).toFixed(1)} MB. The limit is 8 MB: crop the photo, or save just the syllabus pages as a PDF.`;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'Scanning needs an internet connection. You can paste the topics instead, which works offline.';
+  return '';
+}
+
+// Big phone photos are shrunk before upload (faster, and fits every
+// provider's size limit). Falls back to the original on any problem.
+async function shrinkSyllabusImage(dataUrl, maxSide = 2200) {
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl; });
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    if (scale >= 1 && dataUrl.length < 2.5 * 1048576) return dataUrl;
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * scale);
+    c.height = Math.round(img.naturalHeight * scale);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.85);
+  } catch (_) {
+    return dataUrl;
+  }
+}
+
+window.chooseSyllabusScanFile = function() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,application/pdf';
+  input.onchange = (e) => handleSyllabusScanFile(e.target.files?.[0]);
+  input.click();
+};
+
+async function handleSyllabusScanFile(file) {
+  if (!sylPasteDraft) return;
+  const problem = syllabusScanFileProblem(file);
+  if (problem) { renderSyllabusScanError(problem); return; }
+  renderSyllabusScanLoading('Reading the file…');
+  let dataUrl;
+  try {
+    dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+  } catch (_) {
+    renderSyllabusScanError('Could not open that file. Try another one, or paste the topics.');
+    return;
+  }
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  if (!isPdf) dataUrl = await shrinkSyllabusImage(dataUrl);
+  const mimeType = isPdf ? 'application/pdf' : (String(dataUrl).split(';')[0].split(':')[1] || 'image/jpeg');
+  await runSyllabusScan(String(dataUrl).split(',')[1] || '', mimeType);
+}
+
+async function runSyllabusScan(base64Data, mimeType) {
+  if (!sylPasteDraft) return;
+  const draft = sylPasteDraft;
+  renderSyllabusScanLoading('Reading your syllabus with AI…');
+  let rows = null;
+  try {
+    const res = await AIService.extractStructuredFromImage(base64Data, mimeType, SYL_SCAN_PROMPT,
+      name => renderSyllabusScanLoading(`Reading your syllabus with AI (${name})…`));
+    rows = res && res.schedule;
+  } catch (err) {
+    console.warn('[SyllabusScan] AI read failed:', err && err.message);
+  }
+  if (sylPasteDraft !== draft) return;   // closed or reopened while waiting
+  if (!Array.isArray(rows) || !rows.length) {
+    renderSyllabusScanError(mimeType === 'application/pdf'
+      ? "Couldn't read topics from that PDF. Try a clear photo or screenshot of the syllabus page, or paste the text."
+      : "Couldn't read topics from that photo. Try a sharper, straight-on photo of just the syllabus, or paste the text.");
+    return;
+  }
+  const entry = findSyllabusEntry(loadSyllabus(), draft.subjectName);
+  const existing = entry ? entry.topics.map(t => t.title) : [];
+  const { topics, duplicates } = topicsFromSyllabusScan(rows, existing);
+  if (!topics.length) {
+    renderSyllabusScanError(duplicates ? 'Every topic in that file is already in your list.' : "Couldn't find any topics in that file. You can paste them instead.");
+    return;
+  }
+  const room = SYL_MAX_TOPICS - existing.length;
+  draft.topics = topics.slice(0, Math.max(0, room));
+  draft.duplicates = duplicates;
+  draft.overflow = Math.max(0, topics.length - room);
+  draft.scanned = true;
+  draft.text = draft.topics.map(t => `${t.title}${t.marks ? ` - ${t.marks} marks` : ''}${t.importance === 3 ? ' (High)' : t.importance === 1 ? ' (Low)' : ''}`).join('\n');
+  renderSyllabusPreviewStep();
+}
+
+function renderSyllabusScanLoading(message) {
+  const body = document.getElementById('syl-paste-body');
+  if (!body || !sylPasteDraft) return;
+  body.innerHTML = `
+    <div class="syl-scan-status" role="status" aria-live="polite">
+      <div class="syl-spinner" aria-hidden="true"></div>
+      <div><strong>${sylEsc(message)}</strong><div class="syl-hint">Usually 10–40 seconds. Nothing is saved until you check the list.</div></div>
+    </div>
+    <div class="modal-footer" style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px">
+      <button type="button" class="btn btn-secondary" onclick="closeSyllabusPasteModal()">Cancel</button>
+    </div>`;
+}
+
+function renderSyllabusScanError(message) {
+  const body = document.getElementById('syl-paste-body');
+  if (!body || !sylPasteDraft) return;
+  body.innerHTML = `
+    <div class="syl-scan-status is-error" role="alert">
+      <div><strong>Scan didn't work</strong><div class="syl-hint" style="font-size:var(--text-sm)">${sylEsc(message)}</div></div>
+    </div>
+    <div class="modal-footer" style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-secondary" onclick="renderSyllabusPasteStepAgain()">Paste instead</button>
+      <button type="button" class="btn btn-primary" onclick="chooseSyllabusScanFile()">Try another file</button>
+    </div>`;
+}
 
 // ── Add a subject by name (students without a timetable) ──────
 window.showAddSyllabusSubjectModal = function() {

@@ -76,7 +76,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const NOTICES = [];
 `);
 let lastApp = null;
-const makeApp = () => lastApp = new Function('__fakeDb', `${code}\n db = __fakeDb;\n return { state, parseSyllabusPaste, parseSyllabusLine, sanitizeSyllabus, loadSyllabus, saveSyllabus, syllabusStats, syllabusCardHTML, syllabusTodayLine, getSubjectList, renderDashboard, pushLocalDataToCloud, applyCloudDataToLocalState, exportData };`)(fakeDb);
+const makeApp = () => lastApp = new Function('__fakeDb', `${code}\n db = __fakeDb;\n return { state, AIService, topicsFromSyllabusScan, syllabusScanFileProblem, runSyllabusScan, parseSyllabusPaste, parseSyllabusLine, sanitizeSyllabus, loadSyllabus, saveSyllabus, syllabusStats, syllabusCardHTML, syllabusTodayLine, getSubjectList, renderDashboard, pushLocalDataToCloud, applyCloudDataToLocalState, exportData };`)(fakeDb);
 
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];
@@ -334,6 +334,78 @@ check('Cloud: broken syllabus data is cleaned on arrival', () => {
   app.applyCloudDataToLocalState({ syllabus: [{ subjectName: 'DBMS', topics: [{ title: 'Keys', status: 'nope' }, null] }, 7] });
   const e = syl();
   return e.length === 1 && e[0].topics.length === 1 && e[0].topics[0].status === 'todo' ? true : JSON.stringify(e);
+});
+
+// ── Scan a photo or PDF (stored AI answer, no network) ─────────
+const scanFixture = JSON.parse(fs.readFileSync(`${ROOT}/tests/fixtures/syllabus-scan/dbms-answer.json`, 'utf8'));
+
+check('Scan: AI rows are cleaned, weightage kept only when valid, duplicates dropped', () => {
+  seed(); const app = makeApp();
+  const { topics, duplicates } = app.topicsFromSyllabusScan(scanFixture.schedule);
+  const got = topics.map(t => `${t.title}:${t.importance}:${t.marks || ''}`).join('|');
+  const want = 'Introduction to DBMS:2:|ER model:2:10|Relational algebra:2:8|Normalization: 1NF, 2NF, 3NF and BCNF:3:12|Transactions:3:|Concurrency control:1:|Indexing and hashing:2:';
+  return got === want && duplicates === 1 ? true : `${got} (dups ${duplicates})`;
+});
+
+check('Scan: topics already in the subject are skipped', () => {
+  seed(); const app = makeApp();
+  const { topics, duplicates } = app.topicsFromSyllabusScan(scanFixture.schedule, ['ER model', 'indexing and hashing']);
+  return topics.length === 5 && duplicates === 3 ? true : `${topics.length} topics, ${duplicates} dups`;
+});
+
+await (async () => {
+  seed(); const app = makeApp();
+  app.AIService.extractStructuredFromImage = async () => JSON.parse(JSON.stringify(scanFixture));
+  window.showSyllabusPasteModal('DBMS');
+  await app.runSyllabusScan('AAAA', 'image/jpeg');
+  const body = domStub('syl-paste-body').innerHTML;
+  check('Scan → preview shows 7 topics with the "check each row" note', () =>
+    body.includes('7 topics to add') && body.includes('Read by AI from your file') ? true : body.slice(0, 300));
+  check('Scan → nothing saved before Save', () => store.cos_syllabus ? 'saved before Save' : true);
+  window.confirmSyllabusPaste();
+  const e = syl()[0];
+  check('Scan → Save stores the previewed topics as not started', () =>
+    e && e.topics.length === 7 && e.topics.every(t => t.status === 'todo') && e.topics[3].marks === 12 ? true : JSON.stringify(e));
+})();
+
+await (async () => {
+  seed(); const app = makeApp();
+  app.AIService.extractStructuredFromImage = async () => { throw new Error('All configured vision providers failed.'); };
+  window.showSyllabusPasteModal('DBMS');
+  await app.runSyllabusScan('AAAA', 'application/pdf');
+  const body = domStub('syl-paste-body').innerHTML;
+  check('Scan failure: friendly message, paste offered, nothing saved', () =>
+    body.includes('read topics from that PDF') && body.includes('Paste instead') && !store.cos_syllabus ? true : body.slice(0, 300));
+})();
+
+await (async () => {
+  seed(); const app = makeApp();
+  let resolveScan;
+  app.AIService.extractStructuredFromImage = () => new Promise(r => { resolveScan = r; });
+  window.showSyllabusPasteModal('DBMS');
+  const pending = app.runSyllabusScan('AAAA', 'image/png');
+  window.closeSyllabusPasteModal();
+  domStub('syl-paste-body').innerHTML = 'closed';
+  resolveScan(JSON.parse(JSON.stringify(scanFixture)));
+  await pending;
+  check('Scan: closing the window while waiting ignores the late answer', () =>
+    domStub('syl-paste-body').innerHTML === 'closed' && !store.cos_syllabus ? true : 'late answer was used');
+})();
+
+check('Scan: file checks (type, 8 MB limit, offline)', () => {
+  seed(); const app = makeApp();
+  const ok = app.syllabusScanFileProblem({ type: 'image/jpeg', size: 2e6, name: 'a.jpg' });
+  const pdf = app.syllabusScanFileProblem({ type: 'application/pdf', size: 3e6, name: 'syllabus.pdf' });
+  const doc = app.syllabusScanFileProblem({ type: 'application/msword', size: 1e5, name: 'a.doc' });
+  const big = app.syllabusScanFileProblem({ type: 'image/png', size: 9 * 1048576, name: 'b.png' });
+  const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+  const off = app.syllabusScanFileProblem({ type: 'image/png', size: 1e5, name: 'c.png' });
+  if (nav) Object.defineProperty(globalThis, 'navigator', nav); else delete globalThis.navigator;
+  if (ok || pdf) return `valid file refused: ${ok || pdf}`;
+  if (!doc.includes('photo, a screenshot or a PDF')) return doc;
+  if (!big.includes('8 MB')) return big;
+  return off.includes('internet') ? true : off;
 });
 
 console.log('==================================================================');
