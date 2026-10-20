@@ -117,6 +117,10 @@ function loadProfile() {
     rollNo:   getCleanVal(saved.rollNo, STUDENT.rollNo, ['your roll no.', 'your roll number', 'your student id']),
     batch:    getCleanVal(saved.batch, '', ['your batch', 'batch']),
     examDate: (saved.examDate || '').trim(),
+    // Optional extras (blank = old behaviour): what the countdown is for,
+    // and 'self' for students who study on their own without a timetable.
+    examLabel: String(saved.examLabel || '').trim().slice(0, 30),
+    studyMode: saved.studyMode === 'self' ? 'self' : '',
   };
 }
 
@@ -5210,6 +5214,8 @@ function applyCloudDataToLocalState(data) {
     applyIfPresent('rollNo', 50);
     applyIfPresent('batch', 30);
     applyIfPresent('examDate', 20);
+    applyIfPresent('examLabel', 30);
+    applyIfPresent('studyMode', 10);
     safeSetStorage(KEY_PROFILE, cleanProfile);
   }
   if (Array.isArray(data.customTasks)) {
@@ -5845,11 +5851,30 @@ function checkScheduledNotifications() {
       const attKey = `att_warning_${today}`;
       if (!notifiedMap[attKey]) {
         dispatchNotification(`Attendance Alert: ${pct}%`, {
-          body: `Your attendance is currently ${pct}% (below ${getAttendanceTarget()}% target). Tap to review.`,
+          body: `You're at ${pct}%, target ${getAttendanceTarget()}%. A few classes in a row will bring it back up. Tap to see how many.`,
           tag: attKey,
           data: { url: './#review' }
         });
         notifiedMap[attKey] = true;
+      }
+    }
+  }
+
+  // 4b. Countdown milestones: one calm nudge at 30, 14, 7, 3 and 1 days
+  // left and on the day itself. Rides on the daily summary switch and time,
+  // so there is no new setting, and each fires at most once.
+  if (liveProfile.examDate && prefs.dailySummaryTime && prefs.dailySummaryTime !== 'off' && currentHHMM >= prefs.dailySummaryTime) {
+    const cdDays = Math.round((new Date(liveProfile.examDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    if ([30, 14, 7, 3, 1, 0].includes(cdDays)) {
+      const cdKey = `countdown_${cdDays}_${liveProfile.examDate}`;
+      if (!notifiedMap[cdKey]) {
+        const cdLabel = getCountdownLabel();
+        dispatchNotification(cdDays === 0 ? `${cdLabel} is today` : `${cdDays} day${cdDays === 1 ? '' : 's'} to ${cdLabel}`, {
+          body: countdownCheer(cdDays),
+          tag: cdKey,
+          data: { url: './#dashboard' }
+        });
+        notifiedMap[cdKey] = true;
       }
     }
   }
@@ -6858,6 +6883,29 @@ function getAttendanceTarget() {
 
 // Builds a situation-aware context line for the dashboard masthead.
 // Priority: attendance risk > overdue tasks > exam imminent > normal > all clear.
+// What the Today countdown is counting down to. Blank keeps the original
+// End-Sem wording, so nothing changes for students who never set it.
+function getCountdownLabel() {
+  const l = String((liveProfile && liveProfile.examLabel) || '').trim();
+  return l || 'End-Sem exams';
+}
+
+function isSelfStudyMode() {
+  return !!(liveProfile && liveProfile.studyMode === 'self');
+}
+
+// One short, calm line of encouragement picked by how far away the
+// countdown date is. Used on Today and in the countdown reminder.
+function countdownCheer(days) {
+  if (days === null || days === undefined || isNaN(days) || days < 0) return '';
+  if (days === 0) return 'Today is the day. You are ready.';
+  if (days === 1) return 'One more day. Make it count.';
+  if (days <= 7) return 'Final stretch. You can do this.';
+  if (days <= 30) return 'One topic at a time. You can do this.';
+  if (days <= 60) return 'Steady beats rushed. Keep going.';
+  return 'Plenty of time. A little every day adds up.';
+}
+
 function buildDashboardContextLine(opts = {}) {
   const { attendancePct, attendancePctLabel, attendanceAtRisk, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, firstName, dayClasses } = opts;
   const isWeekend = dayClasses !== undefined && dayClasses.length === 0;
@@ -6874,12 +6922,20 @@ function buildDashboardContextLine(opts = {}) {
 
   // Exam imminent (≤ 7 days)
   if (examDaysLeft !== null && examDaysLeft >= 0 && examDaysLeft <= 7) {
-    if (examDaysLeft === 0) return 'End-Sem exam is <strong>today</strong>. Good luck.';
-    if (examDaysLeft === 1) return 'End-Sem exam is <strong>tomorrow</strong>. Make today count.';
-    return `<strong>${examDaysLeft} days</strong> to End-Sem. Stay consistent.`;
+    const examLabel = escHtml_cd(opts.examLabel || 'End-Sem exams');
+    if (examDaysLeft === 0) return `${examLabel}: <strong>today</strong>. You are ready. Good luck.`;
+    if (examDaysLeft === 1) return `${examLabel}: <strong>tomorrow</strong>. Make today count.`;
+    return `<strong>${examDaysLeft} days</strong> to ${examLabel}. Final stretch, you can do this.`;
   }
 
   // Brand-new desk: no timetable yet, so "no classes today" would be wrong
+  // Self-study with no timetable: talk about the plan, never about classes
+  if (opts.selfStudy && opts.hasTimetable === false) {
+    return pending > 0
+      ? `${pending} task${pending !== 1 ? 's' : ''} on your plan. One at a time.`
+      : 'Add a study task for today to plan your day.';
+  }
+
   if (opts.hasTimetable === false && pending === 0) {
     return 'Add your timetable to see your day here.';
   }
@@ -8025,6 +8081,7 @@ window.showOnboardingModal = function() {
         <div style="display:flex;flex-direction:column;gap:10px">
           <button class="btn-primary" onclick="onboardingScanTimetable()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">${icons.camera()} Scan your timetable</button>
           <button class="btn-secondary" onclick="onboardingAddClasses()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Add classes myself</button>
+          <button class="btn-secondary" onclick="onboardingSelfStudy()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">I study on my own (no timetable)</button>
           <button class="btn-secondary" onclick="dismissOnboarding()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center;background:none;border-color:transparent">Just look around</button>
         </div>
       </div>
@@ -8144,6 +8201,33 @@ window.onboardingScanTimetable = function() {
   triggerTimetableImport();
 };
 
+// Self-study: no class timetable. Marks the profile so Today skips the
+// timetable/attendance setup and asks for a countdown instead. Writes only
+// the additive studyMode field; nothing else in the profile changes.
+window.setSelfStudyMode = function() {
+  const p = { ...loadProfile(), studyMode: 'self' };
+  safeSetStorage(KEY_PROFILE, p);
+  liveProfile.studyMode = 'self';
+  if (!safeGetStorage(KEY_TIMETABLE_CHOICE, null)) safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
+  syncToCloud();
+  showToast('Got it. Today will focus on your tasks and countdown.', 'success');
+  renderPage(state.currentPage);
+};
+
+window.openCountdownSettings = function() {
+  navigateTo('settings');
+  setTimeout(() => {
+    const el = document.getElementById('s-exam-label');
+    if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'center' }); el.focus(); }
+  }, 200);
+};
+
+window.onboardingSelfStudy = function() {
+  window.dismissOnboarding();
+  window.setSelfStudyMode();
+  window.openCountdownSettings();
+};
+
 window.onboardingAddClasses = function() {
   window.dismissOnboarding();
   navigateTo('timetable');
@@ -8195,6 +8279,8 @@ window.finishOnboarding = function() {
     year: yearVal,
     batch: (document.getElementById('ob-batch')?.value || '').trim(),
     examDate: liveProfile.examDate || '',
+    examLabel: liveProfile.examLabel || '',
+    studyMode: liveProfile.studyMode || '',
   };
 
   safeSetStorage(KEY_PROFILE, profile);
@@ -8295,9 +8381,9 @@ function renderDashboard() {
     const examDay  = new Date(liveProfile.examDate + 'T00:00:00');
     const daysLeft = Math.ceil((examDay - today) / 86400000);
     if (daysLeft > 0) {
-      countdownText = `${daysLeft} days to End-Sem (${formatDate(liveProfile.examDate)})`;
+      countdownText = `${daysLeft} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)})`;
     } else if (daysLeft === 0) {
-      countdownText = `End-Sem Exam is today`;
+      countdownText = `${escHtml_cd(getCountdownLabel())} is today`;
     }
   }
 
@@ -8323,6 +8409,8 @@ function renderDashboard() {
     classesLeft: classesLeftCount,
     totalClasses: dayClasses.length,
     examDaysLeft: examDaysLeftNum,
+    examLabel: getCountdownLabel(),
+    selfStudy: isSelfStudyMode(),
     firstName,
     dayClasses,
     hasTimetable: hasAnyTimetable(),
@@ -8334,9 +8422,12 @@ function renderDashboard() {
   // student's group in its review screen.
   const setupSteps = [];
   const hasCustomTT = hasAnyTimetable();
+  // Self-study: no class timetable or attendance to set up; the useful
+  // first step is the countdown instead.
+  const selfStudy = isSelfStudyMode();
 
   // 1. Timetable
-  if (!hasCustomTT) {
+  if (!hasCustomTT && !selfStudy) {
     setupSteps.push({
       id: 'tt',
       label: 'Scan your timetable',
@@ -8362,7 +8453,17 @@ function renderDashboard() {
   // 3. Set Attendance Starting Counts
   const currentBaselines = loadAttendanceBaselines();
   const hasBaselinesConfigured = Object.keys(currentBaselines).length > 0;
-  if (!hasAttendanceData && !hasBaselinesConfigured) {
+  if (selfStudy && !liveProfile.examDate) {
+    setupSteps.push({
+      id: 'countdown',
+      label: 'Set your exam countdown',
+      desc: 'Pick your exam date. Today counts down the days and cheers you on.',
+      action: `openCountdownSettings()`,
+      icon: icons.target()
+    });
+  }
+
+  if (!selfStudy && !hasAttendanceData && !hasBaselinesConfigured) {
     setupSteps.push({
       id: 'att',
       label: 'Set your attendance so far',
@@ -8373,6 +8474,9 @@ function renderDashboard() {
   }
 
   const isFullySetup = setupSteps.length === 0;
+  // Self-study without a timetable: the class schedule and attendance
+  // panels would only ever say "not set up", so Today leaves them out.
+  const hideClassPanels = selfStudy && !hasCustomTT;
 
   // Masthead ticker items in monospace ledger strip
   const formattedDay = `${DAY_NAMES[dayIdx]}, ${now.getDate()} ${MONTH_NAMES[now.getMonth()]}`;
@@ -8395,7 +8499,7 @@ function renderDashboard() {
   // countdown is the one figure with no other home, so it gets a quiet line
   // under the greeting (the context line already covers the final week).
   const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7)
-    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to End-Sem (${formatDate(liveProfile.examDate)})</div>`
+    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). ${countdownCheer(examDaysLeftNum)}</div>`
     : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
@@ -8543,6 +8647,14 @@ function renderDashboard() {
               <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">Type in your classes one by one.</div>
             </div>
             <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Add →</span>
+          </button>
+          <button class="setup-guide-step" onclick="setSelfStudyMode()" aria-label="I study on my own">
+            <span class="setup-step-icon">${icons.target()}</span>
+            <div style="flex:1;min-width:0">
+              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">I study on my own</div>
+              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">No class timetable? Plan with tasks and an exam countdown.</div>
+            </div>
+            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Choose →</span>
           </button>` : ''}
         `).join('')}
       </div>
@@ -8628,7 +8740,7 @@ function renderDashboard() {
       <!-- LEFT COLUMN: WORKBENCH -->
       <div class="dashboard-left">
         <!-- SCHEDULE LEDGER -->
-        <div class="dashboard-panel">
+        <div class="dashboard-panel"${hideClassPanels ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
@@ -8718,7 +8830,7 @@ function renderDashboard() {
       <div class="dashboard-right-panel">
 
         <!-- ATTENDANCE: Redesigned ambient right panel -->
-        <div class="dashboard-panel">
+        <div class="dashboard-panel"${hideClassPanels ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title">Attendance</div>
             <button class="panel-action" onclick="navigateTo('review')">Guidance →</button>
@@ -15257,11 +15369,17 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">End-Semester Exam Date</label>
+          <label class="form-label">Counting down to</label>
+          <input type="text" class="form-input" id="s-exam-label" maxlength="30" value="${(p.examLabel || '').replace(/"/g, '&quot;')}" placeholder="End-Sem exams, GATE, Boards, Syllabus done" style="max-width:280px;margin-bottom:8px">
+          <label class="form-label">Date</label>
           <input type="date" class="form-input" id="s-exam-date" value="${p.examDate || ''}" style="max-width:240px">
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
-            Shows a calm daily countdown on your dashboard once set.
+            Shows a daily countdown with a short cheer on Today once set. Leave the first box empty for End-Sem exams.
           </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:var(--text-base);cursor:pointer">
+            <input type="checkbox" id="s-self-study" ${p.studyMode === 'self' ? 'checked' : ''} style="accent-color:var(--accent)">
+            <span>I study on my own (no class timetable)</span>
+          </label>
         </div>
         <div class="form-group">
           <label class="form-label">Attendance Target (%)</label>
@@ -15505,6 +15623,8 @@ function saveSettings() {
     rollNo:   (rawRoll.toLowerCase() === 'your roll no.' || rawRoll.toLowerCase() === 'your roll number' || rawRoll.toLowerCase() === 'your student id') ? '' : rawRoll,
     batch:    (rawBatch.toLowerCase() === 'your batch' || rawBatch.toLowerCase() === 'batch') ? '' : rawBatch,
     examDate: document.getElementById('s-exam-date')?.value || '',
+    examLabel: (document.getElementById('s-exam-label')?.value || '').trim().slice(0, 30),
+    studyMode: (() => { const cb = document.getElementById('s-self-study'); return cb ? (cb.checked ? 'self' : '') : (liveProfile.studyMode || ''); })(),
   };
   safeSetStorage(KEY_PROFILE, profile);
   Object.assign(liveProfile, profile);
@@ -17085,7 +17205,7 @@ const ClarityAssistant = (() => {
     const lines = [];
     if (p.examDate) {
       const days = Math.round((new Date(p.examDate + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / 86400000);
-      if (days >= 0) lines.push(`<li><span class="cd-tag is-accent">${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days + ' days'}</span><span class="cd-item-label">End-Sem exams</span><span class="cd-item-meta">${fmtDate(p.examDate)}</span></li>`);
+      if (days >= 0) lines.push(`<li><span class="cd-tag is-accent">${days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days + ' days'}</span><span class="cd-item-label">${escHtml_cd(getCountdownLabel())}</span><span class="cd-item-meta">${fmtDate(p.examDate)}</span></li>`);
     }
     const isExam = (t) => ['exam', 'quiz'].includes(t.taskType) || /\b(exam|test|quiz|viva|oral|mid ?sem|end ?sem)\b/i.test(t.title || '');
     allTasks().filter(t => t.status === 'pending' && isExam(t))
