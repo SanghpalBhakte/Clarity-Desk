@@ -6426,7 +6426,9 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   // quick-add field, so a second floating "Add Task" there is a duplicate.
   const fabEl = document.querySelector('.fab');
   if (fabEl) {
-    fabEl.style.display = (page === 'assignments' || page === 'dashboard') ? 'none' : '';
+    // Calendar has its own "Add deadline for <date>" action, and the FAB
+    // covered its empty state's "Set Up Timetable" button on phones.
+    fabEl.style.display = (page === 'assignments' || page === 'dashboard' || page === 'calendar') ? 'none' : '';
     // On the Timetable page the + adds a class; everywhere else it adds a task.
     const addsClass = page === 'timetable';
     fabEl.setAttribute('aria-label', addsClass ? 'Add class' : 'Add new task');
@@ -6879,7 +6881,12 @@ function refreshIfDayChanged() {
   lastRenderedDayKey = nowKey;
   // The timetable follows "today" unless the student had picked another day.
   if (state.ttDay === previousWeekday) state.ttDay = new Date().getDay();
-  if (['dashboard', 'timetable', 'review'].includes(state.currentPage)) renderPage(state.currentPage);
+  // The calendar's month and selected date live only in `state`, so a tab
+  // left open overnight kept whatever month it was on (e.g. November after
+  // a Next tap, with the 1st selected) and ringed yesterday as "today".
+  state.calMonth = nowKey.slice(0, 7);
+  state.calSelected = nowKey;
+  if (['dashboard', 'timetable', 'review', 'calendar'].includes(state.currentPage)) renderPage(state.currentPage);
   return true;
 }
 
@@ -9073,6 +9080,34 @@ function renderDashboard() {
 // Read-only month view of getCalendarItems(). The visible month and the
 // selected date live only in `state`; nothing here is saved.
 const CAL_TYPE_LABELS = { class: ['class', 'classes'], deadline: ['deadline', 'deadlines'], task: ['task', 'tasks'] };
+const CAL_MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const CAL_MAX_DOTS = 3;
+const CAL_TYPE_NAMES = { class: 'Class', deadline: 'Deadline', task: 'Task' };
+
+// Deadlines and tasks (no classes) from today through the next 6 days,
+// grouped by date in date order. Read-only, like getCalendarItems().
+function getCalendarAgenda(todayKey = todayStr(), src = {}) {
+  const end = new Date(todayKey + 'T00:00:00');
+  end.setDate(end.getDate() + 6);
+  const groups = [];
+  getCalendarItems(todayKey, localDateKey(end), src).forEach(it => {
+    if (it.type === 'class') return;
+    let g = groups[groups.length - 1];
+    if (!g || g.date !== it.date) groups.push(g = { date: it.date, items: [] });
+    g.items.push(it);
+  });
+  return groups;
+}
+
+function calItemHtml(it, esc) {
+  return `
+      <li><button type="button" class="cal-item cal-item-${it.type} ${it.done ? 'done' : ''}" data-type="${it.type}" data-id="${esc(it.sourceId)}" onclick="calOpenItem(this.dataset.type, this.dataset.id)">
+        <span class="cal-dot cal-dot-${it.type}" aria-hidden="true"></span>
+        <span class="cal-item-time">${it.time ? esc(it.time) : 'Any time'}</span>
+        <span class="cal-item-title">${esc(it.title)}</span>
+        <span class="cal-item-type">${CAL_TYPE_NAMES[it.type]}${it.done ? ' · Done' : ''}</span>
+      </button></li>`;
+}
 
 function renderCalendar() {
   const el = document.getElementById('page-calendar');
@@ -9097,19 +9132,22 @@ function renderCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${state.calMonth}-${String(d).padStart(2, '0')}`;
     const dayItems = byDate[key] || [];
-    const counts = { class: 0, deadline: 0, task: 0 };
+    const counts = { deadline: 0, task: 0, class: 0 };
     dayItems.forEach(it => { counts[it.type]++; });
     const parts = Object.keys(counts).filter(t => counts[t]).map(t => `${counts[t]} ${CAL_TYPE_LABELS[t][counts[t] === 1 ? 0 : 1]}`);
-    const label = `${d} ${MONTH_NAMES[m - 1]}${key === todayKey ? ', today' : ''}: ${parts.length ? parts.join(', ') : 'nothing'}`;
-    const dots = Object.keys(counts).filter(t => counts[t]).map(t => `<span class="cal-dot cal-dot-${t}"></span>`).join('');
-    cells += `<button type="button" class="cal-cell ${key === todayKey ? 'today' : ''} ${key === state.calSelected ? 'selected' : ''}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${dots}</span></button>`;
+    const label = `${d} ${CAL_MONTH_LONG[m - 1]}${key === todayKey ? ', today' : ''}, ${parts.length ? parts.join(', ') : 'nothing scheduled'}`;
+    // One dot per item in the day's order, up to CAL_MAX_DOTS, then "+N".
+    const extra = dayItems.length - CAL_MAX_DOTS;
+    const dots = dayItems.slice(0, CAL_MAX_DOTS).map(it => `<span class="cal-dot cal-dot-${it.type}"></span>`).join('')
+      + (extra > 0 ? `<span class="cal-more">+${extra}</span>` : '');
+    const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${dots}</span></button>`;
   }
 
   const hasData = hasAnyTimetable() || allTasks().some(t => t && t.dueDate && !t.noDeadline);
   const selItems = byDate[state.calSelected] || [];
   const selDate = new Date(state.calSelected + 'T00:00:00');
   const selTitle = `${DAY_NAMES[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
-  const typeName = { class: 'Class', deadline: 'Deadline', task: 'Task' };
 
   let dayList;
   if (!hasData) {
@@ -9126,13 +9164,29 @@ function renderCalendar() {
   } else if (!selItems.length) {
     dayList = `<p class="cal-day-empty">Nothing on this day.</p>`;
   } else {
-    dayList = `<ul class="cal-day-list">${selItems.map(it => `
-      <li><button type="button" class="cal-item cal-item-${it.type} ${it.done ? 'done' : ''}" data-type="${it.type}" data-id="${esc(it.sourceId)}" onclick="calOpenItem(this.dataset.type, this.dataset.id)">
-        <span class="cal-dot cal-dot-${it.type}" aria-hidden="true"></span>
-        <span class="cal-item-time">${it.time ? esc(it.time) : 'Any time'}</span>
-        <span class="cal-item-title">${esc(it.title)}</span>
-        <span class="cal-item-type">${typeName[it.type]}${it.done ? ' · Done' : ''}</span>
-      </button></li>`).join('')}</ul>`;
+    dayList = `<ul class="cal-day-list">${selItems.map(it => calItemHtml(it, esc)).join('')}</ul>`;
+  }
+  // Quick-add opens the existing Add Task form with this date filled in.
+  if (hasData && state.calSelected >= todayKey) {
+    const shortTitle = `${DAY_SHORT[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
+    dayList += `<button type="button" class="btn-secondary cal-quick-add" onclick="calQuickAdd('${state.calSelected}')">+ Add deadline for ${shortTitle}</button>`;
+  }
+
+  let agenda = '';
+  const agendaGroups = hasData ? getCalendarAgenda(todayKey) : [];
+  if (agendaGroups.length) {
+    const tomorrow = new Date(todayKey + 'T00:00:00');
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowKey = localDateKey(tomorrow);
+    agenda = `
+    <section class="cal-agenda" aria-label="Next 7 days">
+      <h2 class="cal-day-title">Next 7 days</h2>
+      ${agendaGroups.map(g => {
+        const gd = new Date(g.date + 'T00:00:00');
+        const name = g.date === todayKey ? 'Today' : g.date === tomorrowKey ? 'Tomorrow' : `${DAY_SHORT[gd.getDay()]}, ${gd.getDate()} ${MONTH_NAMES[gd.getMonth()]}`;
+        return `<h3 class="cal-agenda-day">${name}</h3><ul class="cal-day-list">${g.items.map(it => calItemHtml(it, esc)).join('')}</ul>`;
+      }).join('')}
+    </section>`;
   }
 
   el.innerHTML = `
@@ -9162,7 +9216,28 @@ function renderCalendar() {
     <section class="cal-day" aria-label="${selTitle}">
       <h2 class="cal-day-title">${selTitle}</h2>
       ${dayList}
-    </section>`;
+    </section>${agenda}`;
+  wireCalendarSwipe(el);
+}
+
+// Swipe left/right on the month grid changes month (the arrows stay).
+// Wired once on the page element, which survives re-renders.
+function wireCalendarSwipe(el) {
+  if (!el || !el.dataset || el.dataset.calSwipe || typeof el.addEventListener !== 'function') return;
+  el.dataset.calSwipe = '1';
+  let sx = null, sy = 0;
+  el.addEventListener('touchstart', (e) => {
+    const t = e.touches && e.touches[0];
+    sx = (t && e.target.closest && e.target.closest('.cal-grid')) ? t.clientX : null;
+    sy = t ? t.clientY : 0;
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    const t = e.changedTouches && e.changedTouches[0];
+    if (sx === null || !t) return;
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    sx = null;
+    if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) calShiftMonth(dx < 0 ? 1 : -1);
+  }, { passive: true });
 }
 
 window.calSelectDate = (key) => { state.calSelected = key; renderCalendar(); };
@@ -9179,6 +9254,7 @@ window.calGoToday = () => {
   state.calMonth = state.calSelected.slice(0, 7);
   renderCalendar();
 };
+window.calQuickAdd = (key) => showAddTaskModal(null, null, 'assignment', key);
 // Opens the item's existing screen: a class's weekday on Timetable, a task's
 // edit form. The calendar has no edit UI of its own.
 window.calOpenItem = (type, id) => {
@@ -15005,10 +15081,11 @@ window.showAssignmentModal = function(id = null, prefilledSubject = null, defaul
   showAddTaskModal(id, prefilledSubject, defaultType);
 };
 
-function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultType = null) {
+function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultType = null, prefilledDate = null) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultDate = localDateKey(tomorrow);
+  // prefilledDate: the Calendar's "Add deadline for <date>" passes the tapped day.
+  const defaultDate = (typeof prefilledDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(prefilledDate)) ? prefilledDate : localDateKey(tomorrow);
 
   const editTask = editTaskId ? state.customTasks.find(t => t.id === editTaskId) : null;
   const initialType = editTask ? editTask.taskType : (defaultType || 'assignment');

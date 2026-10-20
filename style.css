@@ -6537,11 +6537,16 @@ html.more-sheet-open .more-sheet {
 }
 .cal-cell-pad { cursor: default; }
 .cal-cell:not(.cal-cell-pad):hover { background: var(--surface-2); }
-.cal-cell.today { border-color: var(--accent); font-weight: 700; }
+/* Today = ring, selected = filled, today + selected = filled with an outer ring. */
+.cal-cell.past .cal-num { color: var(--text-muted); }
+.cal-cell.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; }
 .cal-cell.today .cal-num { color: var(--accent); }
-.cal-cell.selected { background: var(--accent); border-color: var(--accent); }
+.cal-cell.selected { background: var(--accent); border-color: var(--accent); box-shadow: none; }
 .cal-cell.selected .cal-num { color: var(--brand-primary-text, #ffffff); }
-.cal-dots { display: flex; gap: 3px; min-height: 6px; }
+.cal-cell.today.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cal-dots { display: flex; align-items: center; gap: 3px; min-height: 6px; }
+.cal-more { font-size: var(--text-xs); line-height: 1; color: var(--text-secondary); }
+.cal-cell.selected .cal-more { color: var(--brand-primary-text, #ffffff); }
 .cal-dot { display: inline-block; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; }
 .cal-dot-class { background: var(--color-info); }
 .cal-dot-deadline { background: var(--color-error); }
@@ -6552,6 +6557,9 @@ html.more-sheet-open .more-sheet {
 .cal-day { margin-top: var(--space-16); }
 .cal-day-title { font-size: var(--text-md); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--space-8); }
 .cal-day-empty { color: var(--text-muted); font-size: var(--text-base); margin: 0; }
+.cal-quick-add { margin-top: var(--space-10); font-size: var(--text-sm); padding: 6px 14px; }
+.cal-agenda { margin-top: var(--space-16); }
+.cal-agenda-day { font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); margin: var(--space-12) 0 var(--space-6); }
 .cal-day-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-6); }
 .cal-item {
   width: 100%;

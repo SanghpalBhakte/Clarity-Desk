@@ -52,7 +52,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, getCalendarItems, renderCalendar };`)();
+const makeApp = () => new Function(`${code}\n return { state, getCalendarItems, renderCalendar, getCalendarAgenda, refreshIfDayChanged, showAddTaskModal, navigate };`)();
 
 // Monday: a General lecture, a lab for A2 and a lab for B1, plus recess.
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', type: 'lecture', batches: [] };
@@ -166,7 +166,8 @@ check('Page: month grid with dots, today highlighted, and the selected day\'s li
   const app = makeApp(); app.renderCalendar();
   const h = domCache['page-calendar'].innerHTML;
   const ok = h.includes('October 2026') && h.includes('cal-cell today selected')
-    && h.includes('aria-label="19 Oct: 2 classes"') && h.includes('aria-label="14 Oct: 1 deadline, 1 task"')
+    && h.includes('aria-label="19 October, 2 classes"') && h.includes('aria-label="14 October, 1 deadline, 1 task"')
+    && h.includes('aria-label="20 October, today, nothing scheduled"')
     && h.includes('Tuesday, 20 Oct') && h.includes('Nothing on this day.');
   return ok ? true : 'calendar markup missing pieces';
 });
@@ -176,6 +177,120 @@ check('Page: a student with no data sees the empty state with the add-deadline a
   const app = makeApp(); app.renderCalendar();
   const h = domCache['page-calendar'].innerHTML;
   return h.includes('Nothing on your calendar yet') && h.includes('showAddTaskModal()') && h.includes("navigateTo('timetable')") ? true : 'empty state missing';
+});
+
+const setNow = (iso) => { NOW = new RealDate(iso).getTime(); };
+const cellFor = (h, key) => (h.match(new RegExp(`<button type="button" class="cal-cell[^"]*" onclick="calSelectDate\\('${key}'\\)"[\\s\\S]*?</button>`)) || [''])[0];
+
+console.log('\n📅 CALENDAR V2');
+
+check('B1: a tab left open past midnight comes back on the current month with today selected', () => {
+  seed(); setNow('2026-10-20T23:50:00+05:30');
+  const app = makeApp();
+  app.state.currentPage = 'calendar';
+  app.renderCalendar();
+  window.calShiftMonth(1);                     // e.g. a Next tap before midnight
+  const before = `${app.state.calMonth}/${app.state.calSelected}`;
+  setNow('2026-10-21T00:05:00+05:30');          // day changes while the view is open
+  const changed = app.refreshIfDayChanged();
+  const h = domCache['page-calendar'].innerHTML;
+  setNow('2026-10-20T10:00:00+05:30');
+  const ok = before === '2026-11/2026-11-01' && changed === true
+    && app.state.calMonth === '2026-10' && app.state.calSelected === '2026-10-21'
+    && h.includes('October 2026') && h.includes('aria-label="21 October, today, nothing scheduled"')
+    && cellFor(h, '2026-10-21').includes('today selected') && cellFor(h, '2026-10-20').includes('past');
+  return ok ? true : `${before} -> ${app.state.calMonth}/${app.state.calSelected}, changed=${changed}`;
+});
+
+check('B1: month arrows never overflow (31 Jan -> Feb, 31 Mar -> Feb)', () => {
+  seed(); setNow('2027-01-31T10:00:00+05:30');
+  const app = makeApp(); app.renderCalendar();
+  window.calShiftMonth(1); const a = app.state.calMonth;
+  app.state.calMonth = '2027-03'; window.calShiftMonth(-1); const b = app.state.calMonth;
+  setNow('2026-10-20T10:00:00+05:30');
+  return a === '2027-02' && b === '2027-02' ? true : `${a}, ${b}`;
+});
+
+check('B2: the floating + is hidden on the Calendar page', () => {
+  seed();
+  const app = makeApp();
+  const fab = { style: {}, setAttribute() {}, querySelector: () => null };
+  const realQS = document.querySelector;
+  document.querySelector = (sel) => (sel === '.fab' ? fab : null);
+  globalThis.scrollTo = () => {};
+  globalThis.location ||= { hash: '', pathname: '/', search: '', protocol: 'http:' };
+  globalThis.history ||= { pushState() {}, replaceState() {} };
+  try { app.navigate('calendar'); } finally { document.querySelector = realQS; }
+  const onCal = fab.style.display;
+  document.querySelector = (sel) => (sel === '.fab' ? fab : null);
+  try { app.navigate('resources'); } finally { document.querySelector = realQS; }
+  return onCal === 'none' && fab.style.display === '' ? true : `calendar=${onCal}, resources=${fab.style.display}`;
+});
+
+const AGENDA_TASKS = [...TASKS,
+  { id: 'a-0', title: 'Yesterday task', taskType: 'study', dueDate: '2026-10-19', status: 'pending' },
+  { id: 'a-1', title: 'Read chapter 4', taskType: 'study', dueDate: '2026-10-20', startTime: '19:30', status: 'pending' },
+  { id: 'a-7', title: 'Day after range', taskType: 'assignment', dueDate: '2026-10-27', status: 'pending' },
+];
+
+check('F2 adapter: next 7 days = today..today+6, deadlines and tasks only, grouped by day in order', () => {
+  seed({ tasks: AGENDA_TASKS });
+  const groups = makeApp().getCalendarAgenda('2026-10-20');
+  const got = groups.map(g => `${g.date}:${g.items.map(i => `${i.sourceId}@${i.time ?? '-'}`).join('+')}`).join(' | ');
+  const want = '2026-10-20:a-1@7:30 PM | 2026-10-26:c-3@6:00 PM';
+  return got === want ? true : got;
+});
+
+check('F2 page: agenda shows under the grid with 12-hour times and opens items; hidden when empty', () => {
+  seed({ tasks: AGENDA_TASKS });
+  let app = makeApp(); app.renderCalendar();
+  const h = domCache['page-calendar'].innerHTML;
+  const agenda = h.slice(h.indexOf('aria-label="Next 7 days"'));
+  const shown = h.indexOf('cal-grid') < h.indexOf('Next 7 days') && agenda.includes('>Today<')
+    && agenda.includes('Mon, 26 Oct') && agenda.includes('6:00 PM') && agenda.includes('7:30 PM')
+    && agenda.includes('calOpenItem(this.dataset.type, this.dataset.id)') && !agenda.includes('Data Structures')
+    && !agenda.includes('Day after range');
+  seed({ tasks: [TASKS[3]] });                 // only a November quiz: nothing in the next 7 days
+  app = makeApp(); app.renderCalendar();
+  const hidden = !domCache['page-calendar'].innerHTML.includes('Next 7 days');
+  return shown && hidden ? true : `shown=${shown}, hidden=${hidden}`;
+});
+
+check('F1: quick-add opens the existing Add Task form with the tapped date prefilled', () => {
+  seed();
+  const app = makeApp(); app.renderCalendar();
+  const h = domCache['page-calendar'].innerHTML;
+  const hasAction = h.includes(`calQuickAdd('2026-10-20')`) && h.includes('+ Add deadline for Tue, 20 Oct');
+  window.calSelectDate('2026-10-14');            // past day: no quick-add
+  const pastHidden = !domCache['page-calendar'].innerHTML.includes('calQuickAdd(');
+  const before = JSON.stringify(store);
+  const opened = [];
+  const realAppend = document.body.appendChild;
+  document.body.appendChild = (n) => { opened.push(n); };
+  try { window.calQuickAdd('2026-10-25'); app.showAddTaskModal(); } finally { document.body.appendChild = realAppend; }
+  const due = (n) => ((n && n.innerHTML || '').match(/id="task-due"[^>]*value="([^"]*)"/) || [])[1];
+  const ok = hasAction && pastHidden && opened.length === 2 && opened[0].id === 'add-task-backdrop'
+    && due(opened[0]) === '2026-10-25' && due(opened[1]) === '2026-10-21' && JSON.stringify(store) === before;
+  return ok ? true : `action=${hasAction} past=${pastHidden} n=${opened.length} due=${due(opened[0])}/${due(opened[1])}`;
+});
+
+check('F3: one dot per item up to 3, then "+N"; past days marked; labels list counts', () => {
+  const many = [1, 2, 3, 4, 5].map(i => ({ id: `m-${i}`, title: `Item ${i}`, taskType: i < 3 ? 'quiz' : 'study', dueDate: '2026-10-28', status: 'pending' }));
+  seed({ tasks: [...TASKS, ...many] });
+  const app = makeApp(); app.renderCalendar();
+  const h = domCache['page-calendar'].innerHTML;
+  const c28 = cellFor(h, '2026-10-28');
+  const dots = (c28.match(/class="cal-dot /g) || []).length;
+  const ok = dots === 3 && c28.includes('+2</span>') && c28.includes('aria-label="28 October, 2 deadlines, 3 tasks"')
+    && cellFor(h, '2026-10-14').includes('past') && !cellFor(h, '2026-10-22').includes('past');
+  return ok ? true : `dots=${dots} cell=${c28.slice(0, 200)}`;
+});
+
+check('F3: calendar styles have no hover/active transforms', () => {
+  const css = fs.readFileSync(`${ROOT}/style.css`, 'utf8');
+  const rules = css.match(/[^{}]*\.cal-[^{}]*\{[^}]*\}/g) || [];
+  const bad = rules.filter(r => /transform\s*:/.test(r));
+  return rules.length > 0 && bad.length === 0 ? true : bad.join('\n');
 });
 
 console.log('\n========================================');
