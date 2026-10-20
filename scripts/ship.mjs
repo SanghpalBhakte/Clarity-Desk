@@ -8,7 +8,8 @@
 //
 // Order: bump the cache version if app files changed and it wasn't bumped
 // (changed = uncommitted, or different from what the live site serves, e.g.
-// merged through a pull request) -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
+// merged through a pull request; if the site can't be reached, committed
+// after the commit that set the current version) -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
 // -> push -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
 // test (npm run test:smoke against SITE; a failure warns in red and exits 1,
 // but the deploy stays live -- nothing is rolled back). Stops at the
@@ -86,7 +87,7 @@ const appChanged = changes.some((c) => runtime.has(c.file));
 // Changes merged through a pull request are already committed, so the check
 // above misses them. Compare with what the live site serves instead: same
 // version number but different app files means phones would keep the old
-// cached copy. Unreachable site: warn and fall back to the check above.
+// cached copy. Unreachable site: fall back to committedSinceBump() below.
 async function liveCheck() {
   const get = async (f) => {
     const r = await fetch(`${SITE}/${f}`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
@@ -102,13 +103,40 @@ async function liveCheck() {
     for (const f of files) if (!(await get(f)).equals(fs.readFileSync(f))) differs.push(f);
     return { liveVer, differs };
   } catch (err) {
-    console.warn(`\x1b[33m! Couldn't compare with the live site (${err.message}). Only uncommitted changes count for the cache version.\x1b[0m`);
+    const cause = err.cause ? ` / ${err.cause.code || err.cause.message}` : '';
+    console.warn(`\x1b[33m! Couldn't compare with the live site (${err.message}${cause}). Checking git history instead.\x1b[0m`);
     return null;
   }
 }
+
+// Fallback when the live site can't be reached: app files committed after the
+// commit that set the current version in sw.js have not been shipped under a
+// new version yet. Ship's own "chore: update Dev Notes" commits are skipped:
+// they are deployed in the same run as the version they follow. If that
+// commit can't be found, stop rather than guess -- a missed bump leaves
+// phones on the old cached app.
+function committedSinceBump() {
+  // A shallow clone's oldest commit looks like it added everything.
+  const shallow = git('rev-parse', '--is-shallow-repository').trim() === 'true';
+  const anchor = shallow ? '' : git('log', '-1', '--format=%H', `-Sclarity-desk-v${cur}`, '--', 'sw.js').trim();
+  if (!anchor) {
+    fail(`Couldn't reach the live site, and couldn't find the commit that set v${cur} in sw.js, so it's unclear whether the cache version needs a bump.\n` +
+      '  Nothing was changed. Run npm run ship again once the live site is reachable.');
+  }
+  const files = new Set();
+  const log = git('log', '--format=%x00%s', '--name-only', `${anchor}..HEAD`, '--', ...runtime);
+  for (const chunk of log.split('\0').filter(Boolean)) {
+    const [subject, ...names] = chunk.split('\n').map((l) => l.trim());
+    if (subject === 'chore: update Dev Notes') continue;
+    names.filter(Boolean).forEach((f) => files.add(f));
+  }
+  return [...files];
+}
+
 const live = await liveCheck();
 const liveStale = !!live && live.liveVer === cur && live.differs.length > 0;
-const needsBump = (appChanged && cur === head) || liveStale;
+const committed = !live && cur === head ? committedSinceBump() : [];
+const needsBump = (appChanged && cur === head) || liveStale || committed.length > 0;
 const ver = needsBump ? cur + 1 : cur;
 // A bump with nothing else to commit still needs its own commit.
 const bumpOnly = needsBump && !changes.length;
@@ -122,7 +150,9 @@ if (changes.length) {
 } else {
   console.log('Nothing new to commit: will push and deploy what is already committed.');
 }
-const bumpWhy = appChanged && cur === head ? 'app files changed' : `the live site is v${cur} but ${live && live.differs.join(', ')} ${live && live.differs.length === 1 ? 'differs' : 'differ'} from it`;
+const bumpWhy = appChanged && cur === head ? 'app files changed'
+  : liveStale ? `the live site is v${cur} but ${live.differs.join(', ')} ${live.differs.length === 1 ? 'differs' : 'differ'} from it`
+  : `${committed.join(', ')} changed in commits after v${cur} was set`;
 console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (${bumpWhy})` : `v${ver}${cur !== head ? ' (already bumped)' : ''}`}`);
 if (bumpOnly) console.log(`The bump gets its own commit: "chore: bump the cache version to v${ver}".`);
 if (workerChanged) console.log('ai-proxy/ changed: the AI proxy will be deployed too.');
