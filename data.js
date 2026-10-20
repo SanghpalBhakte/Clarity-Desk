@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u60",
+    date: "2026-10-20",
+    title: "Today is calmer: before you add a timetable it shows just your greeting, the Get started card and your tasks. The class schedule and attendance cards appear once a timetable exists, and attendance stays hidden if you study on your own. The extra floating Add Task button is gone from Today (use the quick-add box), and the theme name and save status moved from the top bar into Desk Settings.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today is calmer: before you add a timetable it shows just your greeting, the Get started card and your tasks. The class schedule and attendance cards appear once a timetable exists, and attendance stays hidden if you study on your own. The extra floating Add Task button is gone from Today (use the quick-add box), and the theme name and save status moved from the top bar into Desk Settings.",
+    points: [
+
+    ]
+  },
+  {
     id: "u59",
     date: "2026-10-20",
     title: "New Calendar view: see your classes, deadlines and tasks by date in a month grid. Open it from the sidebar, or from More on your phone. Tap a date to see that day's list, and tap anything to open it. It only shows what you already have, so nothing new to set up, and it works offline.",
