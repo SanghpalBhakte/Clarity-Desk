@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u57",
+    date: "2026-10-20",
+    title: "Ask Desk now knows your syllabus. Ask \"how much syllabus is left\", \"what should I revise\", \"important topics left\", \"am I on track\" or \"have I done normalization\". \"What should I study today\" now picks three topics for you, by weightage and how close each exam is.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Ask Desk now knows your syllabus. Ask \"how much syllabus is left\", \"what should I revise\", \"important topics left\", \"am I on track\" or \"have I done normalization\". \"What should I study today\" now picks three topics for you, by weightage and how close each exam is.",
+    points: [
+
+    ]
+  },
+  {
     id: "u56",
     date: "2026-10-20",
     title: "Track your syllabus: open any subject, paste its topics, and tick each one as done and then revised. Mark topics High, Medium or Low, or add marks, so the progress bar shows how much of the exam you have covered. Set an exam date per subject, see your syllabus progress on Today, and get a small \"well done\" when you finish or fully revise a subject. Studying on your own? Add a subject by name from Subject Hubs.",
