@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u59",
+    date: "2026-10-20",
+    title: "New Calendar view: see your classes, deadlines and tasks by date in a month grid. Open it from the sidebar, or from More on your phone. Tap a date to see that day's list, and tap anything to open it. It only shows what you already have, so nothing new to set up, and it works offline.",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New Calendar view: see your classes, deadlines and tasks by date in a month grid. Open it from the sidebar, or from More on your phone. Tap a date to see that day's list, and tap anything to open it. It only shows what you already have, so nothing new to set up, and it works offline.",
+    points: [
+
+    ]
+  },
+  {
     id: "u58",
     date: "2026-10-20",
     title: "Add your syllabus faster: in any subject, tap Add topics, then \"Scan a photo or PDF\". Clarity Desk reads the topics (and any marks or important stars) from your syllabus and shows you the list to check and fix before anything is saved. Pasting still works offline.",
