@@ -429,6 +429,9 @@ function updateSyncUI(status = null) {
     if (btn) btn.title = 'Local offline storage active · All data is saved automatically on this device';
     if (btn) btn.setAttribute('aria-label', 'Saved on this device. Opens Settings, where backup is');
   }
+  // The save status shows in Settings (the topbar badge is hidden).
+  const settingsText = document.getElementById('settings-sync-text');
+  if (settingsText && text) settingsText.textContent = text.textContent;
 }
 
 // ── Vision AI Service (Groq primary → Gemini fallback) ────────
@@ -6419,17 +6422,11 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   // The Tasks & Deadlines page already has its own persistent "+ Add Task"
   // header button doing the exact same thing, so the floating quick-add FAB
   // is pure redundant clutter there (and visibly collides with that page's
-  // own empty-state CTA). Same story on the dashboard while the setup
-  // checklist is still showing: on a short dashboard the FAB's fixed
-  // bottom-right position can land directly on top of a checklist step's
-  // "Start" link, hiding a real onboarding CTA behind it. The dashboard's
-  // own Tasks panel keeps its quick-add field either way, so nothing is
-  // lost by hiding the floating one here. Checked after renderPage() so
-  // the checklist markup (or its absence) actually reflects this page.
+  // own empty-state CTA). Same on Today: its Tasks panel has the inline
+  // quick-add field, so a second floating "Add Task" there is a duplicate.
   const fabEl = document.querySelector('.fab');
   if (fabEl) {
-    const onboardingShowing = page === 'dashboard' && !!document.querySelector('.desk-setup-guide');
-    fabEl.style.display = (page === 'assignments' || onboardingShowing) ? 'none' : '';
+    fabEl.style.display = (page === 'assignments' || page === 'dashboard') ? 'none' : '';
     // On the Timetable page the + adds a class; everywhere else it adds a task.
     const addsClass = page === 'timetable';
     fabEl.setAttribute('aria-label', addsClass ? 'Add class' : 'Add new task');
@@ -7018,8 +7015,9 @@ function buildDashboardContextLine(opts = {}) {
       : 'Add a study task for today to plan your day.';
   }
 
+  // No timetable and no tasks: the Get started card below says it already.
   if (opts.hasTimetable === false && pending === 0) {
-    return 'Add your timetable to see your day here.';
+    return '';
   }
 
   // Weekend or free day with no tasks
@@ -8617,9 +8615,12 @@ function renderDashboard() {
   }
 
   const isFullySetup = setupSteps.length === 0;
-  // Self-study without a timetable: the class schedule and attendance
-  // panels would only ever say "not set up", so Today leaves them out.
-  const hideClassPanels = selfStudy && !hasCustomTT;
+  // No timetable yet: Today shows only the greeting, the setup card and the
+  // Tasks panel. The schedule waits for a timetable; attendance also waits
+  // for one, and self-study never shows it.
+  const isEmptyDesk = !hasCustomTT && !selfStudy;
+  const hideSchedulePanel = !hasCustomTT;
+  const hideAttendancePanel = !hasCustomTT || selfStudy;
 
   // Masthead ticker items in monospace ledger strip
   const formattedDay = `${DAY_NAMES[dayIdx]}, ${now.getDate()} ${MONTH_NAMES[now.getMonth()]}`;
@@ -8848,14 +8849,14 @@ function renderDashboard() {
   }
 
   const focusOut = {};
-  const focusHTML = todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut });
+  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut });
   // The class card already shows this class; phones leave it out of the list below.
   const heroClass = activeClass || nextClass;
 
   // Latest notice
   const visibleNotices = getVisibleNotices();
-  const latestNotice = visibleNotices.find(n => n.important) || visibleNotices[0];
-  const quickLinksPreview = loadCustomLinks().slice(0, 4);
+  const latestNotice = isEmptyDesk ? null : (visibleNotices.find(n => n.important) || visibleNotices[0]);
+  const quickLinksPreview = isEmptyDesk ? [] : loadCustomLinks().slice(0, 4);
 
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
@@ -8863,7 +8864,7 @@ function renderDashboard() {
       <div class="desk-masthead-top">
         <div>
           <div class="desk-greeting">${greeting}</div>
-          <div class="desk-greeting-sub">${contextLine}</div>
+          ${contextLine ? `<div class="desk-greeting-sub">${contextLine}</div>` : ''}
           ${examNoteHTML}
           ${sylTodayHTML}
         </div>
@@ -8887,7 +8888,7 @@ function renderDashboard() {
       <!-- LEFT COLUMN: WORKBENCH -->
       <div class="dashboard-left">
         <!-- SCHEDULE LEDGER -->
-        <div class="dashboard-panel"${hideClassPanels ? ' style="display:none"' : ''}>
+        <div class="dashboard-panel"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
@@ -8977,7 +8978,7 @@ function renderDashboard() {
       <div class="dashboard-right-panel">
 
         <!-- ATTENDANCE: Redesigned ambient right panel -->
-        <div class="dashboard-panel"${hideClassPanels ? ' style="display:none"' : ''}>
+        <div class="dashboard-panel"${hideAttendancePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title">Attendance</div>
             <button class="panel-action" onclick="navigateTo('review')">Guidance →</button>
@@ -16334,6 +16335,7 @@ function renderSettings() {
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your data stays in this browser. Sign in with Google to sync it across your devices.'}
           </div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
         </div>
         <div>
           ${currentUser ? 

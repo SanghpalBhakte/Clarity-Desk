@@ -133,10 +133,31 @@ check('Self-study context line never mentions classes', () => {
   return /class/i.test(line) ? line : true;
 });
 
-check('College student still sees schedule and attendance panels', () => {
-  seed(); const app = makeApp();
+const withTimetable = { cos_custom_timetable: JSON.stringify({ 1: [], 2: [{ subject: 'Physics', time: '09:00', end: '10:00', type: 'lecture' }], 3: [], 4: [], 5: [], 6: [], 0: [] }) };
+
+check('College student with a timetable still sees schedule and attendance panels', () => {
+  seed(withTimetable); const app = makeApp();
   const html = today(app);
   return html.includes('class="dashboard-panel" style="display:none"') ? 'panels hidden for college student' : true;
+});
+
+check('No timetable yet: Today hides schedule, attendance, notices and the subtitle', () => {
+  seed(profile({ name: 'Asha', batch: 'A2' })); const app = makeApp();
+  const html = today(app);
+  if (!html.includes('Get started')) return 'Get started card missing';
+  if (!html.includes('id="quick-add-input"')) return 'quick-add missing';
+  if ((html.match(/class="dashboard-panel" style="display:none"/g) || []).length !== 2) return 'schedule/attendance panels not hidden';
+  if (html.includes('Notice Board') || html.includes('today-focus')) return 'extra cards shown';
+  if (html.includes('Add your timetable to see your day here') || html.includes('desk-greeting-sub')) return 'duplicate subtitle shown';
+  return true;
+});
+
+check('Self-study with a timetable: attendance stays hidden, schedule shows', () => {
+  seed({ ...profile({ name: 'Ravi', studyMode: 'self' }), ...withTimetable }); const app = makeApp();
+  const html = today(app);
+  const hidden = html.match(/<div class="dashboard-panel" style="display:none">[\s\S]*?panel-title">([^<]+)/g) || [];
+  if (hidden.length !== 1) return `expected 1 hidden panel, got ${hidden.length}`;
+  return hidden[0].includes('Attendance') ? true : 'wrong panel hidden';
 });
 
 check('Self-study with a date set: no setup card left', () => {
