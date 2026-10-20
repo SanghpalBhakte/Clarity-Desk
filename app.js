@@ -6360,7 +6360,7 @@ function updateThemeSelector(theme) {
 }
 
 // ── Routing ───────────────────────────────────────────────────
-const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'notices', 'resources', 'links', 'summary', 'settings', 'review'];
+const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'calendar', 'notices', 'resources', 'links', 'summary', 'settings', 'review'];
 const sectionHistory = [];
 
 // Subject rings animate once per view (opening the tab or a hub), not on
@@ -6629,6 +6629,7 @@ function renderPage(page) {
       case 'timetable':   renderTimetable();   break;
       case 'subjects':    renderSubjects();    break;
       case 'assignments': renderAssignments(); break;
+      case 'calendar':    renderCalendar();    break;
       case 'notices':     renderNotices();     break;
       case 'resources':
       case 'links':
@@ -7156,6 +7157,64 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
 
 function allTasks() {
   return [...state.assignments, ...state.customTasks];
+}
+
+// ── Calendar (read-only) ──────────────────────────────────────
+// Everything the calendar shows comes from here: classes from the saved
+// timetable (repeated weekly, only for the dates asked for -- the expanded
+// list is never stored) and dated tasks, including WhatsApp-imported ones.
+// Reads only, writes nothing. Storage is read once per call, not per day.
+const CAL_DEADLINE_TYPES = ['assignment', 'quiz', 'lab', 'project', 'exam'];
+
+function calendarUserBatch() {
+  const p = liveProfile || loadProfile() || {};
+  return p.batch || safeGetStorage(KEY_USER_BATCH, '') || 'all';
+}
+
+function getCalendarItems(startKey, endKey, src = {}) {
+  const tt = src.tt || loadTimetable() || {};
+  const tasks = src.tasks || allTasks();
+  const batch = src.batch || calendarUserBatch();
+  const out = [];
+  if (!startKey || !endKey || startKey > endKey) return out;
+
+  // Same classes Today shows, plus the group filter (a no-op on a timetable
+  // saved through the preview, which was filtered then).
+  const classesByDay = {};
+  for (let d = 0; d < 7; d++) {
+    classesByDay[d] = (Array.isArray(tt[d]) ? tt[d] : [])
+      .filter(c => isTeachingClass(c) && shouldKeepClassForUserBatch(c, batch))
+      .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  }
+
+  const tasksByDate = {};
+  (tasks || []).forEach(t => {
+    if (!t || t.noDeadline || !t.dueDate || t.dueDate < startKey || t.dueDate > endKey) return;
+    (tasksByDate[t.dueDate] ||= []).push(t);
+  });
+
+  const day = new Date(startKey + 'T00:00:00');
+  for (let key = localDateKey(day); key <= endKey; day.setDate(day.getDate() + 1), key = localDateKey(day)) {
+    const dayIdx = day.getDay();
+    const dayItems = [];
+    classesByDay[dayIdx].forEach(c => {
+      dayItems.push({ min: timeToMinutes(c.time), item: { date: key, time: formatDisplayTime(c.time || ''), title: c.subject || 'Class', type: 'class', sourceId: String(dayIdx) } });
+    });
+    (tasksByDate[key] || []).forEach(t => {
+      const item = {
+        date: key,
+        title: t.title || 'Untitled Task',
+        type: CAL_DEADLINE_TYPES.includes(t.taskType) ? 'deadline' : 'task',
+        sourceId: String(t.id),
+      };
+      if (t.startTime) item.time = formatDisplayTime(t.startTime);
+      if (t.status === 'submitted') item.done = true;
+      // Untimed tasks go after the day's timed items.
+      dayItems.push({ min: t.startTime ? timeToMinutes(t.startTime) : 24 * 60, item });
+    });
+    dayItems.sort((a, b) => a.min - b.min).forEach(x => out.push(x.item));
+  }
+  return out;
 }
 
 function pendingCount() {
@@ -8993,6 +9052,129 @@ function renderDashboard() {
   `;
   dashboardSettled = true;
 }
+
+// ── Calendar ──────────────────────────────────────────────────
+// Read-only month view of getCalendarItems(). The visible month and the
+// selected date live only in `state`; nothing here is saved.
+const CAL_TYPE_LABELS = { class: ['class', 'classes'], deadline: ['deadline', 'deadlines'], task: ['task', 'tasks'] };
+
+function renderCalendar() {
+  const el = document.getElementById('page-calendar');
+  if (!el) return;
+  const todayKey = todayStr();
+  if (!state.calMonth) state.calMonth = todayKey.slice(0, 7);
+  if (!state.calSelected) state.calSelected = todayKey;
+
+  const [y, m] = state.calMonth.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const startKey = `${state.calMonth}-01`;
+  const endKey = `${state.calMonth}-${String(daysInMonth).padStart(2, '0')}`;
+  const items = getCalendarItems(startKey, endKey);
+  const byDate = {};
+  items.forEach(it => { (byDate[it.date] ||= []).push(it); });
+
+  const esc = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const monthName = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long' });
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;   // Monday first, like the Timetable tabs
+
+  let cells = '<span class="cal-cell cal-cell-pad" aria-hidden="true"></span>'.repeat(lead);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${state.calMonth}-${String(d).padStart(2, '0')}`;
+    const dayItems = byDate[key] || [];
+    const counts = { class: 0, deadline: 0, task: 0 };
+    dayItems.forEach(it => { counts[it.type]++; });
+    const parts = Object.keys(counts).filter(t => counts[t]).map(t => `${counts[t]} ${CAL_TYPE_LABELS[t][counts[t] === 1 ? 0 : 1]}`);
+    const label = `${d} ${MONTH_NAMES[m - 1]}${key === todayKey ? ', today' : ''}: ${parts.length ? parts.join(', ') : 'nothing'}`;
+    const dots = Object.keys(counts).filter(t => counts[t]).map(t => `<span class="cal-dot cal-dot-${t}"></span>`).join('');
+    cells += `<button type="button" class="cal-cell ${key === todayKey ? 'today' : ''} ${key === state.calSelected ? 'selected' : ''}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${dots}</span></button>`;
+  }
+
+  const hasData = hasAnyTimetable() || allTasks().some(t => t && t.dueDate && !t.noDeadline);
+  const selItems = byDate[state.calSelected] || [];
+  const selDate = new Date(state.calSelected + 'T00:00:00');
+  const selTitle = `${DAY_NAMES[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
+  const typeName = { class: 'Class', deadline: 'Deadline', task: 'Task' };
+
+  let dayList;
+  if (!hasData) {
+    dayList = `
+      <div class="empty-state-card">
+        <span class="empty-state-icon">${icons.calendar()}</span>
+        <div class="empty-state-title">Nothing on your calendar yet</div>
+        <div class="empty-state-desc">Your classes and deadlines show up here once you add them.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px">
+          <button class="btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-base);padding:6px 14px">+ Add Deadline</button>
+          <button class="btn-secondary" onclick="navigateTo('timetable')" style="font-size:var(--text-base);padding:6px 14px">Set Up Timetable</button>
+        </div>
+      </div>`;
+  } else if (!selItems.length) {
+    dayList = `<p class="cal-day-empty">Nothing on this day.</p>`;
+  } else {
+    dayList = `<ul class="cal-day-list">${selItems.map(it => `
+      <li><button type="button" class="cal-item cal-item-${it.type} ${it.done ? 'done' : ''}" data-type="${it.type}" data-id="${esc(it.sourceId)}" onclick="calOpenItem(this.dataset.type, this.dataset.id)">
+        <span class="cal-dot cal-dot-${it.type}" aria-hidden="true"></span>
+        <span class="cal-item-time">${it.time ? esc(it.time) : 'Any time'}</span>
+        <span class="cal-item-title">${esc(it.title)}</span>
+        <span class="cal-item-type">${typeName[it.type]}${it.done ? ' · Done' : ''}</span>
+      </button></li>`).join('')}</ul>`;
+  }
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Calendar</div>
+        <div class="page-subtitle">Your classes, deadlines and tasks by date</div>
+      </div>
+    </div>
+    <div class="card cal-card">
+      <div class="cal-head">
+        <button type="button" class="icon-btn-sm" onclick="calShiftMonth(-1)" aria-label="Previous month">${svg('<polyline points="15 18 9 12 15 6"/>')}</button>
+        <div class="cal-month" aria-live="polite">${monthName} ${y}</div>
+        <button type="button" class="icon-btn-sm" onclick="calShiftMonth(1)" aria-label="Next month">${svg('<polyline points="9 18 15 12 9 6"/>')}</button>
+        <button type="button" class="btn-secondary cal-today-btn" onclick="calGoToday()">Today</button>
+      </div>
+      <div class="cal-grid" role="group" aria-label="${monthName} ${y}">
+        ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(n => `<span class="cal-wd" aria-hidden="true">${n}</span>`).join('')}
+        ${cells}
+      </div>
+      <div class="cal-legend">
+        <span><span class="cal-dot cal-dot-class" aria-hidden="true"></span>Class</span>
+        <span><span class="cal-dot cal-dot-deadline" aria-hidden="true"></span>Deadline</span>
+        <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
+      </div>
+    </div>
+    <section class="cal-day" aria-label="${selTitle}">
+      <h2 class="cal-day-title">${selTitle}</h2>
+      ${dayList}
+    </section>`;
+}
+
+window.calSelectDate = (key) => { state.calSelected = key; renderCalendar(); };
+window.calShiftMonth = (delta) => {
+  const [y, m] = (state.calMonth || todayStr().slice(0, 7)).split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.calMonth = localDateKey(d).slice(0, 7);
+  const todayKey = todayStr();
+  state.calSelected = todayKey.startsWith(state.calMonth) ? todayKey : `${state.calMonth}-01`;
+  renderCalendar();
+};
+window.calGoToday = () => {
+  state.calSelected = todayStr();
+  state.calMonth = state.calSelected.slice(0, 7);
+  renderCalendar();
+};
+// Opens the item's existing screen: a class's weekday on Timetable, a task's
+// edit form. The calendar has no edit UI of its own.
+window.calOpenItem = (type, id) => {
+  if (type === 'class') {
+    state.ttDay = Number(id);
+    navigateTo('timetable');
+  } else if (state.customTasks.some(t => t.id === id)) {
+    showAddTaskModal(id);
+  } else {
+    navigateTo('assignments');
+  }
+};
 
 // ── Timetable ─────────────────────────────────────────────────
 function renderTimetable() {
