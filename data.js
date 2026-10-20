@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u53",
+    date: "2026-10-20",
+    title: "Today is less crowded: the class in the big card no longer repeats in the schedule on phones, you can mark a finished class straight from the reminder at the top, attendance shows one clear sentence, and the extra Add button is gone so the + button no longer covers the last item. Adding a task is clearer: Subject lists your subjects plus General, Task Type lists the kind of work (General is now Other) and shows as buttons on phones, and the Due Date box lines up with Task Type. The WhatsApp import now explains how to share a chat straight to Clarity Desk on Android. (v193)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today is less crowded: the class in the big card no longer repeats in the schedule on phones, you can mark a finished class straight from the reminder at the top, attendance shows one clear sentence, and the extra Add button is gone so the + button no longer covers the last item. Adding a task is clearer: Subject lists your subjects plus General, Task Type lists the kind of work (General is now Other) and shows as buttons on phones, and the Due Date box lines up with Task Type. The WhatsApp import now explains how to share a chat straight to Clarity Desk on Android. (v193)",
+    points: [
+
+    ]
+  },
+  {
     id: "u52",
     date: "2026-10-20",
     title: "Import deadlines from your WhatsApp class group: pick an exported chat or paste messages on the Tasks page, check what was found, and add the ones you want. The chat is read on your phone only and is never saved or uploaded. You can fix a title, date or time first, undo the import, or save the deadlines to your calendar. On Android you can share an exported chat straight to Clarity Desk. (v192)",
