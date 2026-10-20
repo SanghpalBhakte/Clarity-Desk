@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u62",
+    date: "2026-10-21",
+    title: "Calendar is easier to use: tap a day and add a deadline for that date, see what's due in the next 7 days under the month, and swipe left or right to change month. Today has a ring, the day you pick is filled in, past days are greyed, and each day shows up to 3 dots then \"+N\". A calendar left open overnight now comes back on today, and the + button no longer covers \"Set Up Timetable\".",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calendar is easier to use: tap a day and add a deadline for that date, see what's due in the next 7 days under the month, and swipe left or right to change month. Today has a ring, the day you pick is filled in, past days are greyed, and each day shows up to 3 dots then \"+N\". A calendar left open overnight now comes back on today, and the + button no longer covers \"Set Up Timetable\".",
+    points: [
+
+    ]
+  },
+  {
     id: "u61",
     date: "2026-10-20",
     title: "Today is easier to scan when you have lots of classes and tasks: it shows up to 4 classes (the ones that need you first) and 4 tasks, each with a \"+N more\" link to the full page. The attendance card now has one short line, the \"mark this class\" row is smaller on computers, and the clock is gone from the top bar. Add Task now asks only for subject, title and due date, with type, marks, priority and notes under \"More details\".",
