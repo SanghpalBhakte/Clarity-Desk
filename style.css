@@ -3339,6 +3339,52 @@ a.card:hover,
 .priority-pill.priority-medium:has(input:checked) { background: rgba(245,158,11,0.12); box-shadow: 0 0 0 1px var(--yellow); }
 .priority-pill.priority-low:has(input:checked)    { background: rgba(16,185,129,0.12); box-shadow: 0 0 0 1px var(--green); }
 
+/* ── Add Task: Task Type, Due Date ─────────────────────────────
+   Phones get Task Type as pills (same look as the priority pills) instead
+   of a long native list; the select stays the value the form saves, and
+   desktop keeps showing it. The date box and the selects share one height
+   so the Task Type and Due Date boxes line up top and bottom. */
+.task-type-pills { display: none; }
+.task-type-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.task-type-pill input[type="radio"] { display: none; }
+.task-type-pill:has(input:checked) { color: var(--accent); border-color: currentColor; box-shadow: 0 0 0 1px var(--accent); background: var(--accent-dim); }
+
+@media (max-width: 767px) {
+  .add-task-modal #task-type { display: none; }
+  .add-task-modal .task-type-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .add-task-modal .task-type-pill { flex: 1 1 auto; }
+}
+
+.add-task-modal .form-select,
+.add-task-modal #task-due {
+  height: 40px;
+  line-height: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.add-task-modal #task-due { display: flex; align-items: center; }
+.add-task-modal #task-due::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.add-task-modal #task-due::-webkit-datetime-edit { padding: 0; }
+.task-no-deadline-row { margin-top: 8px; }
+
 .form-actions {
   display: flex;
   gap: 10px;
@@ -6023,6 +6069,27 @@ body::before {
   #page-dashboard .today-focus { order: 1; }
 }
 
+/* One class unmarked: the next-step row marks it in place (Present / Absent
+   on their own line), and the schedule row leaves its buttons out. */
+.today-focus[data-mark] { flex-wrap: wrap; }
+.today-focus-mark {
+  flex: 1 1 100%;
+  display: flex;
+  gap: var(--ds-space-2);
+  padding: 0 var(--ds-space-3) var(--ds-space-3);
+}
+.today-focus-mark .btn { flex: 1 1 0; min-height: 40px; justify-content: center; }
+
+/* Phones: the class card above already shows the current / next class, so
+   the schedule list leaves that row out (desktop keeps the full list).
+   Extra room at the end so the floating + never sits on the last item. */
+.schedule-hero-note { display: none; }
+@media (max-width: 767px) {
+  #page-dashboard .schedule-slot.is-in-hero { display: none; }
+  #page-dashboard .schedule-hero-note { display: block; padding: 6px 0; font-size: var(--text-sm); color: var(--text-muted); }
+  #page-dashboard { padding-bottom: 24px; }
+}
+
 /* Live feel: two short, quiet motions, switched off for reduced motion. */
 @keyframes sjRingIn { from { stroke-dashoffset: 125.66; } }
 
@@ -6290,6 +6357,7 @@ html.more-sheet-open .more-sheet {
 .wa-howto { margin: 14px 0 20px; font-size: var(--text-sm); color: var(--text-secondary); }
 .wa-howto summary { cursor: pointer; font-weight: 600; color: var(--text-primary); padding: 6px 0; }
 .wa-howto ol { margin: 6px 0 0; padding-left: 20px; line-height: 1.6; }
+.wa-howto-note { margin-top: 8px; line-height: 1.5; }
 .wa-busy { padding: 36px 0 44px; text-align: center; color: var(--text-secondary); font-size: var(--text-base); }
 .wa-summary { font-size: var(--text-base); color: var(--text-secondary); margin: 0 0 6px; line-height: 1.45; }
 .wa-empty { margin-bottom: 20px; }

@@ -6335,7 +6335,7 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   // checklist is still showing: on a short dashboard the FAB's fixed
   // bottom-right position can land directly on top of a checklist step's
   // "Start" link, hiding a real onboarding CTA behind it. The dashboard's
-  // own Tasks panel keeps its "+ Add" button either way, so nothing is
+  // own Tasks panel keeps its quick-add field either way, so nothing is
   // lost by hiding the floating one here. Checked after renderPage() so
   // the checklist markup (or its absence) actually reflects this page.
   const fabEl = document.querySelector('.fab');
@@ -6864,7 +6864,7 @@ function buildDashboardContextLine(opts = {}) {
 
   // Attendance at risk — highest urgency, surfaces immediately
   if (attendanceAtRisk ?? (attendancePct !== null && attendancePct < attTarget)) {
-    return `Attendance at <strong>${attendancePctLabel ?? attendancePct}%</strong>, below your ${attTarget}% target. Try not to miss today's classes.`;
+    return `Attendance is <strong>below your ${attTarget}% target</strong>. Try not to miss today's classes.`;
   }
 
   // Overdue tasks — second priority
@@ -6921,6 +6921,9 @@ function buildTodayFocus(o = {}) {
     if (!skip.has(id)) {
       return {
         kind: 'unmarked', id, go: 'Mark',
+        // One class: the row marks it in place (Present / Absent), so Today
+        // has a single place to mark it. Several: the row links to Timetable.
+        markKey: unmarked.length === 1 ? attendanceKeyFor(last) : null,
         title: unmarked.length === 1 ? `Mark ${last.subject}` : `${unmarked.length} classes aren't marked yet`,
         sub: unmarked.length === 1 ? `Ended at ${formatDisplayTime(last.end)}. Your attendance % only counts marked classes.` : 'Your attendance % only counts marked classes.'
       };
@@ -6970,7 +6973,9 @@ window.dismissTodayFocus = function(id) {
 };
 
 // Markup for the row. Wrapped so a bad record can never blank Today.
-function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks }) {
+// out.markKey is set to the class this row marks, so the schedule below can
+// leave out its own Present / Absent for that class.
+function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out = {} }) {
   try {
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const task = (urgentTasks || []).find(a => a.dueDate && !a.noDeadline);
@@ -6988,17 +6993,24 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
     const call = f.kind === 'unmarked' ? `setTTDay(${dayIdx}); navigateTo('timetable')`
       : f.kind === 'task' ? `navigateTo('assignments')`
       : `openSubjectHub(this.dataset.subject)`;
+    const markKey = f.kind === 'unmarked' && f.markKey ? f.markKey : null;
+    out.markKey = markKey;
+    const markHTML = markKey ? `
+      <div class="today-focus-mark">
+        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="${attrSafe(f.title)} as attended" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'attended')">${icons.check()}<span>Present</span></button>
+        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="${attrSafe(f.title)} as skipped" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'skipped')">${icons.x()}<span>Absent</span></button>
+      </div>` : '';
     return `
-    <div class="today-focus is-${f.kind}" role="region" aria-label="Next step">
+    <div class="today-focus is-${f.kind}"${markKey ? ' data-mark' : ''} role="region" aria-label="Next step">
       <button type="button" class="today-focus-main" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">
         <span class="today-focus-ico" aria-hidden="true">${icon}</span>
         <span class="today-focus-text">
           <span class="today-focus-title">${escHtml_cd(f.title)}</span>
           <span class="today-focus-sub">${escHtml_cd(f.sub)}</span>
         </span>
-        <span class="today-focus-go">${f.go} ${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span>
+        ${markKey ? '' : `<span class="today-focus-go">${f.go} ${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span>`}
       </button>
-      <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>
+      <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>${markHTML}
     </div>`;
   } catch (e) {
     return '';
@@ -8555,7 +8567,32 @@ function renderDashboard() {
     })
     .slice(0, 4);
 
-  const focusHTML = todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks });
+  // Attendance panel: the big number plus ONE sentence (it replaces the
+  // month-check line and the Risk/Safe Zone box, which both repeated the %).
+  // Display only: every number comes from dashGuidance / monthCheck above.
+  const plural = (n) => `${n} class${n !== 1 ? 'es' : ''}`;
+  let attSentence = '';
+  if (attendancePct !== null) {
+    const n = dashGuidance.classesToAttend;
+    if (!dashGuidance.isSafe) {
+      const lead = monthCheck ? `Below ${attTarget}%: you'd be on ${monthCheck.month}'s defaulter list.` : `Below your ${attTarget}% target.`;
+      attSentence = `${lead} ` + (n < 1
+        ? `${attTarget}% can't be reached by attending more classes.`
+        : n > 60
+          ? `Getting back would take <strong>${n}</strong> classes in a row, so attend every class and check your counts in Subjects.`
+          : `Attend the next <strong>${plural(n)}</strong> in a row to ${monthCheck ? 'clear it' : 'get back on target'}.`);
+    } else {
+      const k = dashGuidance.safeSkips;
+      attSentence = (monthCheck ? `On track for ${monthCheck.month}'s check. ` : '') + (k > 0
+        ? `You can miss <strong>${plural(k)}</strong> and stay at ${attTarget}% or above.`
+        : `Right at target. Attend your next class to build a buffer.`);
+    }
+  }
+
+  const focusOut = {};
+  const focusHTML = todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut });
+  // The class card already shows this class; phones leave it out of the list below.
+  const heroClass = activeClass || nextClass;
 
   // Latest notice
   const visibleNotices = getVisibleNotices();
@@ -8604,20 +8641,23 @@ function renderDashboard() {
                 const status = attendanceData[dateStr]?.[classKey] || 'unset';
                 const isNow = (currentMin >= timeToMinutes(c.time || '00:00') && currentMin < timeToMinutes(c.end || '23:59'));
                 const isPast = (currentMin >= timeToMinutes(c.end || '23:59'));
+                // The next-step row above marks this class, so no second set of buttons here.
+                const markedAbove = isPast && status === 'unset' && classKey === focusOut.markKey;
                 return `
-                  <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}">
+                  <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${c === heroClass ? ' is-in-hero' : ''}">
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
                     <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub('${c.subject}')">
                       <div class="schedule-slot-title">${c.subject}</div>
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
-                    ${isPast ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                    ${isPast && !markedAbove ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                       <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">Present</button>
                       <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">Absent</button>
                       ${attStatusChipHTML(status)}
                     </div>` : isNow ? `<span class="schedule-slot-now">Now</span>` : ''}
                   </div>`;
               }).join('')}
+              ${dayClasses.length === 1 && heroClass ? `<div class="schedule-hero-note">Your only class today is shown above.</div>` : ''}
             </div>
           ` : `
             <div class="empty-state-card">
@@ -8637,10 +8677,7 @@ function renderDashboard() {
         <div class="dashboard-panel">
           <div class="panel-header">
             <div class="panel-title">Tasks &amp; Deadlines</div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <button class="btn btn-xs btn-secondary" data-testid="add-task-button" onclick="showAddTaskModal()" style="font-size:var(--text-sm);padding:3px 8px">+ Add</button>
-              <button class="panel-action" onclick="navigateTo('assignments')">All tasks (${pending}) →</button>
-            </div>
+            <button class="panel-action" onclick="navigateTo('assignments')">All tasks (${pending}) →</button>
           </div>
 
           <!-- Open task rows -->
@@ -8691,7 +8728,6 @@ function renderDashboard() {
               ${attendancePct !== null ? `${attendancePctLabel}%` : '—'}
             </div>
             <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
-            ${monthCheck ? `<div class="att-month-check" style="margin-top:6px;font-size:var(--text-sm);line-height:1.45;color:${monthCheck.isSafe ? 'var(--text-secondary)' : 'var(--red)'}">${monthCheck.text}</div>` : ''}
             ${attendancePct !== null ? `
               <div style="margin-top:10px">
                 <div class="att-bar-wrap">
@@ -8705,8 +8741,8 @@ function renderDashboard() {
               </div>
               ${!dashGuidance.isSafe ? `
               <div style="margin-top:10px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5;padding:8px 10px;background:color-mix(in srgb, var(--red) 5%, var(--surface-2));border-radius:var(--radius-sm);border-left:2px solid var(--red)">
-                ${dashGuidance.message}
-              </div>` : `<div class="att-stat-message" style="margin-top:8px">${dashGuidance.message}</div>`}
+                ${attSentence}
+              </div>` : `<div class="att-stat-message" style="margin-top:8px">${attSentence}</div>`}
             ` : `<div class="att-stat-message" style="margin-top:8px">${dashGuidance.message}</div>`}
           </div>
         </div>
@@ -13485,11 +13521,19 @@ window.setAssignTypeFilter = function(type) {
 };
 
 window.handleTaskTypeChange = function(type) {
+  const pill = document.querySelector(`input[name="task-type-pill"][value="${type}"]`);
+  if (pill) pill.checked = true;
   const chk = document.getElementById('task-no-deadline');
   if (type === 'mission' && chk && !chk.checked) {
     chk.checked = true;
     window.handleTaskNoDeadlineToggle(true);
   }
+};
+
+window.pickTaskTypePill = function(type) {
+  const sel = document.getElementById('task-type');
+  if (sel) sel.value = type;
+  window.handleTaskTypeChange(type);
 };
 
 window.handleTaskNoDeadlineToggle = function(checked) {
@@ -13541,7 +13585,7 @@ function renderAssignments() {
     { key:'all',        label:'All Types' },
     { key:'assignment', label: chipLabel(icons.filetext(), 'Assignments') },
     { key:'mission',    label: chipLabel(icons.target(), 'Missions') },
-    { key:'general',    label: chipLabel(icons.list(), 'General') },
+    { key:'general',    label: chipLabel(icons.list(), 'Other') },
     { key:'quiz',       label: chipLabel(icons.calculator(), 'Quizzes') },
     { key:'lab',        label: chipLabel(icons.cpu(), 'Labs') },
     { key:'project',    label: chipLabel(icons.code(), 'Projects') },
@@ -13625,7 +13669,7 @@ function renderAssignments() {
   const typeBar    = visibleTypeFilters.map(f => `<button class="filter-chip ${f.key===state.assignTypeFilter?'active':''}" onclick="setAssignTypeFilter('${f.key}')">${f.label}</button>`).join('');
   const subjectBar = subjects.map(s => `<button class="filter-chip ${s===state.assignSubjectFilter?'active':''}" onclick="setAssignSubject('${s}')">${s==='all'?'All Subjects':s}</button>`).join('');
 
-  const typeLabel = (t) => t === 'mission' ? 'Mission' : t.charAt(0).toUpperCase() + t.slice(1);
+  const typeLabel = (t) => t === 'mission' ? 'Mission' : t === 'general' ? 'Other' : t.charAt(0).toUpperCase() + t.slice(1);
 
   // One title line + one meta line per task: subject, when, type, priority, marks.
   const renderTaskCard = (a) => {
@@ -13655,7 +13699,8 @@ function renderAssignments() {
       else                 { when = `${dateText} · ${days} days left`; whenCls = days <= 3 ? 'soon' : ''; }
     }
     const isCategory = ['GEN', 'MIS', 'OTH'].includes(String(a.code || '').toUpperCase());
-    const subjectText = isCategory ? a.subject : ((a.code || '').trim() || a.subject);
+    // The old "Mission" category reads as General (missions are a Task Type now).
+    const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
 
     const bits = [`<span class="tk-subj" onclick="openSubjectHub('${a.subject}')" title="Open ${a.subject} Hub">${subjectText}</span>`];
     if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
@@ -13783,8 +13828,27 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
     return `<option value="${val}" ${isSel ? 'selected' : ''}>${s.name} (${s.code})</option>`;
   }).join('');
 
-  const isGeneralSel = editTask && (editTask.subject === 'General' || editTask.code === 'GEN');
-  const isMissionSubjectSel = (editTask && (editTask.subject === 'Mission' || editTask.code === 'MIS')) || (!editTask && initialType === 'mission' && !prefilledSubject);
+  // Subject / Category is subjects + one "General". A task saved under the
+  // old "Mission" category shows as General, and the option keeps its stored
+  // value (Mission|||MIS) so editing it rewrites nothing. New missions are filed
+  // under General; "Ongoing · No deadline" is what marks long-term items.
+  const isOldMissionSubject = !!(editTask && (editTask.subject === 'Mission' || editTask.code === 'MIS'));
+  const generalValue = isOldMissionSubject ? 'Mission|||MIS' : 'General|||GEN';
+  const isGeneralSel = isOldMissionSubject
+    || (editTask && (editTask.subject === 'General' || editTask.code === 'GEN'))
+    || (!editTask && initialType === 'mission' && !prefilledSubject);
+
+  // Task Type is the kind of work. The stored value 'general' is shown as "Other".
+  const TASK_TYPE_OPTIONS = [
+    ['assignment', '📝 Assignment', 'Assignment'],
+    ['quiz', '⚡ Quiz / Test', 'Quiz / Test'],
+    ['lab', '🧪 Lab Report / Viva', 'Lab / Viva'],
+    ['project', '💻 Project', 'Project'],
+    ['exam', '🎯 Exam', 'Exam'],
+    ['study', '📚 Self Study', 'Self Study'],
+    ['general', '📋 Other', 'Other'],
+    ['mission', '🚀 Mission (Long-term Goal)', 'Mission'],
+  ];
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -13801,13 +13865,8 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
         <label class="form-label">Subject / Category <span class="req">*</span></label>
         <select class="form-select" id="task-subject" data-testid="task-subject">
           <option value="">Select subject or category…</option>
-          <optgroup label="Academic Subjects">
-            ${subjectOptions}
-          </optgroup>
-          <optgroup label="General &amp; Life Goals">
-            <option value="General|||GEN" ${isGeneralSel ? 'selected' : ''}>📋 General Desk Task / Other</option>
-            <option value="Mission|||MIS" ${isMissionSubjectSel ? 'selected' : ''}>🚀 Long-Term Mission / Target</option>
-          </optgroup>
+          ${subjectOptions}
+          <option value="${generalValue}" ${isGeneralSel ? 'selected' : ''}>General</option>
         </select>
       </div>
 
@@ -13824,25 +13883,21 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
             <label class="form-label" for="task-type">Task Type</label>
           </div>
           <select class="form-select" id="task-type" data-testid="task-type" onchange="handleTaskTypeChange(this.value)">
-            <option value="assignment" ${initialType === 'assignment' ? 'selected' : ''}>📝 Assignment</option>
-            <option value="mission" ${initialType === 'mission' ? 'selected' : ''}>🚀 Mission (Long-term Goal)</option>
-            <option value="general" ${initialType === 'general' ? 'selected' : ''}>📋 General / Personal</option>
-            <option value="quiz" ${initialType === 'quiz' ? 'selected' : ''}>⚡ Quiz / Test</option>
-            <option value="lab" ${initialType === 'lab' ? 'selected' : ''}>🧪 Lab Report / Viva</option>
-            <option value="project" ${initialType === 'project' ? 'selected' : ''}>💻 Project</option>
-            <option value="exam" ${initialType === 'exam' ? 'selected' : ''}>🎯 Exam</option>
-            <option value="study" ${initialType === 'study' ? 'selected' : ''}>📚 Self Study</option>
+            ${TASK_TYPE_OPTIONS.map(([v, label]) => `<option value="${v}" ${initialType === v ? 'selected' : ''}>${label}</option>`).join('')}
           </select>
+          <div class="task-type-pills" role="radiogroup" aria-label="Task Type">
+            ${TASK_TYPE_OPTIONS.map(([v, , short]) => `<label class="task-type-pill"><input type="radio" name="task-type-pill" value="${v}" ${initialType === v ? 'checked' : ''} onchange="pickTaskTypePill(this.value)"> ${short}</label>`).join('')}
+          </div>
         </div>
         <div class="form-group" id="task-due-group">
           <div class="form-label-row">
             <label class="form-label" id="task-due-label" for="task-due">Due Date <span class="req" id="task-due-req" style="${isOngoing ? 'display:none' : ''}">*</span></label>
-            <label class="checkbox-inline">
-              <input type="checkbox" id="task-no-deadline" ${isOngoing ? 'checked' : ''} onchange="handleTaskNoDeadlineToggle(this.checked)">
-              <span>Ongoing · No deadline</span>
-            </label>
           </div>
           <input type="date" class="form-input" id="task-due" data-testid="task-due" data-testid-alt="task-date" value="${editTask && !isOngoing ? (editTask.dueDate || '') : defaultDate}" ${isOngoing ? 'disabled style="opacity:0.45;background:var(--surface-2);cursor:not-allowed"' : ''}>
+          <label class="checkbox-inline task-no-deadline-row">
+            <input type="checkbox" id="task-no-deadline" ${isOngoing ? 'checked' : ''} onchange="handleTaskNoDeadlineToggle(this.checked)">
+            <span>Ongoing · No deadline</span>
+          </label>
           <div id="task-ongoing-hint" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px;line-height:1.4;display:${isOngoing ? 'flex' : 'none'};align-items:center;gap:6px">
             <span style="color:var(--purple);font-weight:600">✦ Standing Goal:</span> Stays active on your desk until completed or deleted. Never becomes overdue.
           </div>
@@ -14129,6 +14184,7 @@ function waRenderAddChat(errorMsg = '') {
         <li>Choose Without media.</li>
         <li>Save the file, then pick it here.</li>
       </ol>
+      <p class="wa-howto-note">On Android, if you installed Clarity Desk from Chrome, you can also pick Clarity Desk in the share list after Export chat. On iPhone, save the file and choose it here.</p>
     </details>`;
 }
 
