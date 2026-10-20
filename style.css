@@ -3166,10 +3166,7 @@ a.card:hover,
 
 .fab:hover {
   box-shadow: 0 6px 20px rgba(23, 20, 18, 0.3);
-  transform: translateY(-1px);
 }
-
-.fab:active { transform: scale(0.97); }
 
 /* ── Forms (High Contrast Opaque Inputs for Readability) ───── */
 .add-task-modal { max-width: 460px; }
@@ -4613,7 +4610,6 @@ body {
   background: var(--color-action-primary-hover);
   color: var(--color-action-primary-text);
   box-shadow: var(--shadow-lg);
-  transform: translateY(-1px);
 }
 
 /* ── 13. Chrono Beacon & Form Control Consistency ─────────── */
@@ -6288,10 +6284,10 @@ html.more-sheet-open .more-sheet {
 .cd-chip-row:not(.show-all) .cd-chip.is-extra { display: none; }
 .cd-chip-more { border-style: dashed; color: var(--text-muted); }
 
-/* ── Quieter phone header: save status lives in Settings ─── */
-@media (max-width: 560px) {
-  .topbar .storage-status-badge { display: none; }
-}
+/* ── Quieter header: save status and theme name live in Settings ─── */
+.topbar .storage-status-badge,
+.topbar .theme-toggle-label { display: none; }
+.topbar .topbar-theme-toggle { padding: 5px 8px; }
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
