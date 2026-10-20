@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u55",
+    date: "2026-10-20",
+    title: "feat: calm celebration card for all tasks done, attendance back on target, and countdown milestones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "feat: calm celebration card for all tasks done, attendance back on target, and countdown milestones",
+    points: [
+
+    ]
+  },
+  {
     id: "u54",
     date: "2026-10-20",
     title: "Studying on your own? Pick \"I study on my own\" when you start (or in Settings) and Today skips the timetable and attendance setup and focuses on your tasks. The countdown now works for any exam: type GATE, Boards or anything else in Settings, and Today cheers you on as the date gets closer, with a reminder at 30, 14, 7, 3 and 1 days left. The low attendance alert is friendlier, and the tab icon refreshes properly after updates. (v194)",
