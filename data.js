@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u61",
+    date: "2026-10-20",
+    title: "Today is easier to scan when you have lots of classes and tasks: it shows up to 4 classes (the ones that need you first) and 4 tasks, each with a \"+N more\" link to the full page. The attendance card now has one short line, the \"mark this class\" row is smaller on computers, and the clock is gone from the top bar. Add Task now asks only for subject, title and due date, with type, marks, priority and notes under \"More details\".",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today is easier to scan when you have lots of classes and tasks: it shows up to 4 classes (the ones that need you first) and 4 tasks, each with a \"+N more\" link to the full page. The attendance card now has one short line, the \"mark this class\" row is smaller on computers, and the clock is gone from the top bar. Add Task now asks only for subject, title and due date, with type, marks, priority and notes under \"More details\".",
+    points: [
+
+    ]
+  },
+  {
     id: "u60",
     date: "2026-10-20",
     title: "Today is calmer: before you add a timetable it shows just your greeting, the Get started card and your tasks. The class schedule and attendance cards appear once a timetable exists, and attendance stays hidden if you study on your own. The extra floating Add Task button is gone from Today (use the quick-add box), and the theme name and save status moved from the top bar into Desk Settings.",
