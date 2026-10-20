@@ -1,0 +1,14 @@
+{
+  "_note": "Made-up AI answer in the shape the scan prompt asks for, with the kinds of mistakes models make: numbering left in, a duplicate, marks as a string, junk marks, an importance word.",
+  "schedule": [
+    { "title": "1. Introduction to DBMS", "unit": "Unit 1", "marks": null, "importance": null },
+    { "title": "ER model", "unit": "Unit 1", "marks": "10", "importance": null },
+    { "title": "Relational algebra", "unit": "Unit 2", "marks": 8, "importance": "medium" },
+    { "title": "Normalization: 1NF, 2NF, 3NF and BCNF", "unit": "Unit 3", "marks": 12, "importance": "high" },
+    { "title": "normalization: 1nf, 2nf, 3nf and bcnf", "unit": "Unit 3", "marks": null, "importance": null },
+    { "title": "Transactions ★", "unit": "Unit 4", "marks": -4, "importance": null },
+    { "title": "Concurrency control", "unit": "Unit 4", "marks": 9999, "importance": "low" },
+    { "title": "", "unit": "Unit 5", "marks": null, "importance": null },
+    "Indexing and hashing"
+  ]
+}
