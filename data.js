@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u54",
+    date: "2026-10-20",
+    title: "Studying on your own? Pick \"I study on my own\" when you start (or in Settings) and Today skips the timetable and attendance setup and focuses on your tasks. The countdown now works for any exam: type GATE, Boards or anything else in Settings, and Today cheers you on as the date gets closer, with a reminder at 30, 14, 7, 3 and 1 days left. The low attendance alert is friendlier, and the tab icon refreshes properly after updates. (v194)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Studying on your own? Pick \"I study on my own\" when you start (or in Settings) and Today skips the timetable and attendance setup and focuses on your tasks. The countdown now works for any exam: type GATE, Boards or anything else in Settings, and Today cheers you on as the date gets closer, with a reminder at 30, 14, 7, 3 and 1 days left. The low attendance alert is friendlier, and the tab icon refreshes properly after updates. (v194)",
+    points: [
+
+    ]
+  },
+  {
     id: "u53",
     date: "2026-10-20",
     title: "Today is less crowded: the class in the big card no longer repeats in the schedule on phones, you can mark a finished class straight from the reminder at the top, attendance shows one clear sentence, and the extra Add button is gone so the + button no longer covers the last item. Adding a task is clearer: Subject lists your subjects plus General, Task Type lists the kind of work (General is now Other) and shows as buttons on phones, and the Due Date box lines up with Task Type. The WhatsApp import now explains how to share a chat straight to Clarity Desk on Android. (v193)",
