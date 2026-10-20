@@ -168,6 +168,7 @@ D:\Clarity Desk\
 | `KEY_ATT_REASSIGN_LOG` | `cos_att_reassign_log` | Local only, never synced: undo log `[{ date, from, to, status, at }]` for unmatched old marks the student moved to a subject (Settings → Attendance). Moving renames the mark's key in `cos_attendance`; refused if that subject already has a mark for the class. |
 | `KEY_SYNC_LAST_PUSHED` | `cos_sync_last_pushed` | Local only, never synced: the three attendance maps (attendance, attendanceBaseline, attendanceLive) as last pushed to / received from Firestore. pushLocalDataToCloud diffs against it and sends FieldValue.delete() for removed paths, because set(merge:true) never deletes map keys. Missing = no deletes sent. If attendance is suddenly empty, none of its deletes are sent. For attendanceBaseline and attendanceLive, deletes are skipped only when the map is now empty and the last pushed copy had more than one entry, so clearing the only entry does send its delete. |
 | `KEY_ATTENDANCE_V2` | `cos_attendance_v2` | Reserved for the stored v2 attendance (per-session records + ERP snapshots). Not written yet. |
+| `KEY_SYLLABUS` | `cos_syllabus` | Syllabus tracker (v196). ARRAY `[{ subjectKey, subjectName, examDate, updatedAt, topics: [{ id, title, status: 'todo'\|'done'\|'revised', importance: 1\|2\|3, marks?, doneAt?, revisedAt? }] }]`. Synced to Firestore as `syllabus` and included in backups. Always cleaned through `sanitizeSyllabus()`. See §13. |
 
 ---
 
@@ -320,3 +321,14 @@ Students paste or pick an exported WhatsApp class-group chat; the app lists the 
 - **Tests**: `tests/verify_deadline_import.mjs` (in `npm test`), fixtures in `tests/fixtures/deadline-import/` (Android, iPhone, Web copy, 24-hour layouts).
 - **Known limits**: Hinglish "kal" is ignored on purpose (yesterday or tomorrow). Task cards do not show `startTime` yet; the time is kept on the task and in the `.ics` export.
 
+## 13. Syllabus tracker (v196)
+
+- **Where**: a Syllabus card in each Subject Hub (`syllabusCardHTML`), a "Syllabus N%" note on the Subject Hubs cards, one line on Today (`syllabusTodayLine`). "+ Add a subject" (Subject Hubs → Manage, and the empty state) creates a syllabus-only subject for students without a timetable; `getSubjectList()` source 5 turns syllabus entries into subjects.
+- **Stored as an array on purpose**: cloud sync writes `set(merge:true)`, which deep-merges maps and never removes keys, so a deleted topic in a map would come back. Arrays are replaced whole. `tests/verify_syllabus.mjs` checks the round trip.
+- **Subject matching**: `subjectKey = getCanonicalSubjectKey(subjectName)`, so "DBMS" and "Database Management Systems" are the same entry. Deleting a subject card hides its key (existing behaviour) and so hides the syllabus without erasing it; adding the subject again unhides it.
+- **No silent writes**: topics only arrive through paste → preview → Save (`parseSyllabusPaste`, `confirmSyllabusPaste`). Every other change is a tap the student makes. Reset progress and Remove syllabus ask first.
+- **Weightage**: importance Low/Medium/High (1/2/3) and optional marks. Progress is weighted by marks when every topic has them, otherwise by importance. The paste parser reads "10 marks", "(10m)", "[12 Marks]", "(High)", "(Low)", "★", "imp" at the end of a line.
+- **Exam date**: per subject, optional; falls back to the Settings countdown date.
+- **Pop-ups** (`showCelebration`): subject done, subject fully revised, whole syllabus done (2+ subjects). Once a day each, seen-markers in `cos_notified_history` with a `card_syllabus_` prefix.
+- **Sync conflicts**: two devices editing within the 2.5 s push debounce means last write wins, same as tasks.
+- **Next**: Ask Desk syllabus questions (PR 2), syllabus scan from a photo/PDF through the same preview (PR 3).

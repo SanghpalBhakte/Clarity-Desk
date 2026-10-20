@@ -287,6 +287,27 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
       });
     });
 
+    test(`syllabus card screenshot ${theme} desktop`, async ({ page }) => {
+      await page.setViewportSize(DESKTOP);
+      await page.evaluate(() => {
+        const t = (id: string, title: string, status: string, importance: number, marks?: number) =>
+          ({ id, title, status, importance, ...(marks ? { marks } : {}) });
+        localStorage.setItem('cos_syllabus', JSON.stringify([{
+          subjectKey: 'physics', subjectName: 'Physics', examDate: '2026-02-20', topics: [
+            t('p1', 'Units and measurement', 'revised', 1),
+            t('p2', 'Laws of motion', 'done', 2, 10),
+            t('p3', 'Work, energy and power', 'todo', 3, 12),
+            t('p4', 'Optics', 'todo', 2)
+          ]
+        }]));
+      });
+      await ensureTheme(page, theme);
+      await page.evaluate(() => (window as any).openSubjectHub('Physics'));
+      const card = page.locator('#syllabus');
+      await expect(card).toBeVisible();
+      await expect(card).toHaveScreenshot(`clarity-syllabus-${theme}-desktop.png`, { animations: 'disabled' });
+    });
+
     test(`add-task surface is readable ${theme}`, async ({ page }) => {
       await page.setViewportSize(DESKTOP);
       await ensureTheme(page, theme);
