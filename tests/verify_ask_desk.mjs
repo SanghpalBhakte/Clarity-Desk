@@ -269,6 +269,167 @@ check('Today box and panel give the same answer', () => {
 
 console.log('');
 console.log('──────────────────────────────────────────────────────────────────');
+console.log('📘 SYLLABUS QUESTIONS');
+console.log('──────────────────────────────────────────────────────────────────');
+
+// DBMS exam on Sat 4 Oct (5 days). OS has no exam date.
+const T = (id, title, status, importance, marks) => ({ id, title, status, importance, ...(marks ? { marks } : {}) });
+function seedSyllabus() {
+  seed();
+  store.cos_syllabus = JSON.stringify([
+    { subjectKey: 'databasemanagementsystems', subjectName: 'Database Management Systems', examDate: '2026-10-04', topics: [
+      T('d1', 'ER model', 'done', 2, 10), T('d2', 'Normalization', 'todo', 3, 12), T('d3', 'Transactions', 'todo', 2),
+      T('d4', 'Indexing', 'revised', 2), T('d5', 'Joins', 'done', 3)
+    ] },
+    { subjectKey: 'operatingsystems', subjectName: 'Operating Systems', examDate: '', topics: [
+      T('o1', 'Paging', 'todo', 3), T('o2', 'Deadlocks', 'done', 2), T('o3', 'Scheduling', 'todo', 1)
+    ] }
+  ]);
+}
+seedSyllabus();
+const S = makeApp().ClarityAssistant;
+
+const SYL_CASES = [
+  ['how much syllabus is left', 'syllabus_overview', '-', '-'],
+  ['syllabus progress', 'syllabus_overview', '-', '-'],
+  ['how much of my portion is done', 'syllabus_overview', '-', '-'],
+  ['how many topics are left', 'syllabus_overview', '-', '-'],
+  ['DBMS syllabus', 'subject_syllabus', 'Database Management Systems', '-'],
+  ['how much of DBMS is done', 'subject_syllabus', 'Database Management Systems', '-'],
+  ['os sylabus progress', 'subject_syllabus', 'Operating Systems', '-'],
+  ['what should i revise', 'syllabus_revise', '-', '-'],
+  ['what to revise in DBMS', 'syllabus_revise', 'Database Management Systems', '-'],
+  ['revision plan', 'syllabus_revise', '-', '-'],
+  ['important topics left', 'syllabus_important', '-', '-'],
+  ['which topics carry the most marks', 'syllabus_important', '-', '-'],
+  ['imp topics in OS', 'syllabus_important', 'Operating Systems', '-'],
+  ['high weightage topics', 'syllabus_important', '-', '-'],
+  ['am i on track', 'syllabus_pace', '-', '-'],
+  ['can i finish DBMS before the exam', 'syllabus_pace', 'Database Management Systems', '-'],
+  ['will i complete the syllabus', 'syllabus_pace', '-', '-'],
+  ['how many topics per day', 'syllabus_pace', '-', '-'],
+  ['have i done normalization', 'syllabus_topic', '-', '-'],
+  ['is deadlock done', 'syllabus_topic', '-', '-'],
+  ['did i finish paging yet', 'syllabus_topic', '-', '-'],
+  ['hey, have i revised joins?', 'syllabus_topic', '-', '-'],
+  ['status of er model', 'syllabus_topic', '-', '-'],
+  // Old questions keep their answers.
+  ['what should i study today', 'study_plan', '-', 'today'],
+  ['any important notices', 'notices', '-', '-'],
+  ['am i on track with attendance', 'attendance_general', '-', '-'],
+  ['when do i finish today', 'day_end', '-', 'today'],
+  ['did i finish my tasks', 'tasks_all', '-', '-'],
+  ['when is my exam', 'exams', '-', '-'],
+  ['is it safe to skip today', 'day_skip', '-', 'today'],
+];
+
+SYL_CASES.forEach(([q, intent, s, d]) => {
+  check(`"${q}" → ${intent}${s !== '-' ? ' · ' + s : ''}${d !== '-' ? ' · ' + d : ''}`, () => {
+    const u = S.understand(q);
+    const got = [u.intent, sub(u), day(u)];
+    return got[0] === intent && got[1] === s && got[2] === d ? true : `got ${got.join(' | ')}`;
+  });
+});
+
+check('Follow-up: "what about OS?" after "DBMS syllabus" asks about the OS syllabus', () => {
+  S.respond('DBMS syllabus');
+  const u = S.understand('what about OS?');
+  return u.intent === 'subject_syllabus' && sub(u) === 'Operating Systems' ? true : `${u.intent} ${sub(u)}`;
+});
+
+check('Overview: average and furthest-behind subject first (OS 33% before DBMS 58%)', () => {
+  const html = S.respond('how much syllabus is left');
+  const os = html.indexOf('Operating Systems · 33%'), db = html.indexOf('Database Management Systems · 58%');
+  return html.includes('46% across 2 subjects') && os > -1 && db > os ? true : html.slice(0, 400);
+});
+
+check('Subject syllabus: counts, exam days and the heaviest topic left first', () => {
+  const html = S.respond('how much of DBMS is done');
+  const n = html.indexOf('Normalization'), t = html.indexOf('Transactions');
+  return html.includes('58% done') && html.includes('3 of 5 topics, 1 revised') && html.includes('Exam in 5 days') && n > -1 && t > n ? true : html.slice(0, 400);
+});
+
+check('Study plan: weightage × exam date, revision first in the final week, at most 2 per subject', () => {
+  const html = S.respond('what should i study today');
+  const order = ['ER model', 'Normalization', 'Paging'].map(x => html.indexOf(x));
+  if (order.some(i => i < 0) || !(order[0] < order[1] && order[1] < order[2])) return `order ${order.join(',')}`;
+  if (html.includes('Transactions') || html.includes('Joins')) return 'third DBMS topic picked';
+  return html.includes('not started') && html.includes('done, not revised') && html.includes('exam in 5 days') ? true : 'reasons missing';
+});
+
+check('Revise: done-but-not-revised topics only, ER model (10 marks) before Joins', () => {
+  const html = S.respond('what should i revise');
+  const er = html.indexOf('ER model'), j = html.indexOf('Joins');
+  if (html.includes('Indexing')) return 'already-revised topic listed';
+  return html.includes('3 topics done but not revised') && er > -1 && j > er ? true : html.slice(0, 400);
+});
+
+check('Important: not-started topics with weightage, most marks first', () => {
+  const html = S.respond('important topics left');
+  const n = html.indexOf('Normalization'), p = html.indexOf('Paging');
+  return html.includes('2 important topics not started') && n > -1 && p > n && !html.includes('Joins') ? true : html.slice(0, 400);
+});
+
+check('Pace: topics a day for a dated exam, honest about a missing date', () => {
+  const html = S.respond('am i on track');
+  return html.includes('2 topics left, 5 days') && html.includes('1 a day') && html.includes('no exam date set') ? true : html.slice(0, 500);
+});
+
+check('Topic lookup: done, not started, revised', () => {
+  const a = S.respond('is deadlock done'), b = S.respond('have i done normalization'), c = S.respond('did i study indexing');
+  if (!a.includes('Deadlocks') || !a.includes('Yes, done')) return a.slice(0, 200);
+  if (!b.includes('Not yet')) return b.slice(0, 200);
+  return c.includes('done and revised') ? true : c.slice(0, 200);
+});
+
+check('Topic lookup: an unknown topic falls through to the normal answers', () => {
+  const u = S.understand('have i done quantum physics');
+  return u.intent !== 'syllabus_topic' ? true : 'matched a topic that does not exist';
+});
+
+check('Existing answers gain one syllabus line (subject, week, today, focus radar)', () => {
+  const info = S.respond('DBMS');
+  if (!info.includes('Syllabus: <strong>58%</strong>')) return 'subject info: ' + info.slice(0, 200);
+  const week = S.respond('plan my week');
+  if (!week.includes('Furthest behind: <strong>Operating Systems</strong>')) return 'week: ' + week.slice(0, 300);
+  const today = S.respond('what do i have today');
+  if (!today.includes('Syllabus: 46% across 2 subjects')) return 'today: ' + today.slice(-300);
+  const radar = S.respond('which subject needs the most attention');
+  return radar.includes('syllabus only <strong>58%</strong> done with the exam in 5 days') ? true : 'radar: ' + radar.slice(0, 400);
+});
+
+check('Without a syllabus the answers say so and offer a way to add one', () => {
+  seed();
+  const a = makeApp().ClarityAssistant;
+  const all = a.respond('how much syllabus is left');
+  const one = a.respond('DBMS syllabus');
+  const plan = a.respond('what should i study today');
+  if (!all.includes("haven't added a syllabus")) return all.slice(0, 200);
+  if (!one.includes('openSubjectSyllabus(') || !one.includes('Add Database Management Systems topics')) return one.slice(0, 300);
+  return plan.includes('Add your syllabus in a Subject Hub') ? true : plan.slice(-300);
+});
+
+check('Syllabus answers never write to storage and have well-formed buttons', () => {
+  seedSyllabus();
+  const before = JSON.stringify(store);
+  const a = makeApp().ClarityAssistant;
+  const bad = [];
+  SYL_CASES.forEach(([q]) => (a.respond(q).match(/onclick="[^"]*"/g) || []).forEach(attr => {
+    if ((attr.replace(/\\'/g, '').match(/'/g) || []).length % 2) bad.push(`${q}: ${attr}`);
+  }));
+  if (bad.length) return bad.slice(0, 3).join(' | ');
+  return JSON.stringify(store) === before ? true : 'storage changed';
+});
+
+check('Topic names are escaped in answers', () => {
+  seed();
+  store.cos_syllabus = JSON.stringify([{ subjectName: 'Database Management Systems', examDate: '', topics: [T('x1', '<img src=x onerror=alert(1)> joins', 'todo', 3)] }]);
+  const html = makeApp().ClarityAssistant.respond('important topics left');
+  return !html.includes('<img src=x') && html.includes('&lt;img') ? true : html.slice(0, 300);
+});
+
+console.log('');
+console.log('──────────────────────────────────────────────────────────────────');
 console.log('⚡ SCANS TRY HEALTHY AI MODELS FIRST');
 console.log('──────────────────────────────────────────────────────────────────');
 

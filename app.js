@@ -13463,6 +13463,17 @@ window.resetSyllabusProgress = function(subjectKey) {
   showToast(`${entry.subjectName} progress reset`, 'info');
 };
 
+// Ask Desk's "Open … syllabus" buttons: open the hub and bring the card
+// into view (or straight into Add topics when there is none yet).
+window.openSubjectSyllabus = function(subjectName, addTopics = false) {
+  openSubjectHub(subjectName);
+  if (addTopics) { showSyllabusPasteModal(subjectName); return; }
+  setTimeout(() => {
+    const el = document.getElementById('syllabus');
+    if (el) window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 76), behavior: 'smooth' });
+  }, 80);
+};
+
 window.removeSyllabus = function(subjectKey) {
   const list = loadSyllabus();
   const entry = findSyllabusEntry(list, subjectKey);
@@ -16846,6 +16857,9 @@ const ClarityAssistant = (() => {
     [/\b(tt|time table|timetabel|timtable|time-table)\b/g, 'timetable'],
     [/\b(assignments?|assignmnts?|asignments?|homeworks?|hw)\b/g, 'tasks'],
     [/\b(practicals?|labs)\b/g, 'lab'],
+    [/\b(portions?|syllabi|sylabus|syllabys|sillabus)\b/g, 'syllabus'],
+    [/\b(imp)\b/g, 'important'],
+    [/\b(revison|revisn|rivision)\b/g, 'revision'],
     [/\b(pls|plz|please|kindly)\b/g, ' '],
   ];
 
@@ -16855,7 +16869,8 @@ const ClarityAssistant = (() => {
     'subject', 'subjects', 'notice', 'notices', 'exam', 'exams', 'class', 'classes', 'urgent', 'overdue',
     'pending', 'setup', 'week', 'weekly', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
     'sunday', 'percentage', 'remaining', 'next', 'study', 'plan', 'tonight', 'profile', 'declutter', 'baseline',
-    'import', 'scan', 'attention', 'skip', 'safe', 'risk', 'upcoming', 'schedule', 'finish', 'update', 'updates'];
+    'import', 'scan', 'attention', 'skip', 'safe', 'risk', 'upcoming', 'schedule', 'finish', 'update', 'updates',
+    'syllabus', 'revise', 'revised', 'revision', 'topics', 'important', 'weightage', 'progress'];
 
   function editDistance(a, b, max) {
     if (Math.abs(a.length - b.length) > max) return max + 1;
@@ -16957,7 +16972,7 @@ const ClarityAssistant = (() => {
 
   // Intents that use a subject and/or a day, and so can be continued with
   // "what about OS?" or "and tomorrow?".
-  const SUBJECT_INTENTS = ['subject_skip', 'subject_attendance', 'subject_info', 'next_class'];
+  const SUBJECT_INTENTS = ['subject_skip', 'subject_attendance', 'subject_info', 'next_class', 'subject_syllabus'];
   const DAY_INTENTS = ['day_skip', 'day_schedule', 'tasks_day', 'day_end'];
   let lastAsked = null;
 
@@ -16994,6 +17009,7 @@ const ClarityAssistant = (() => {
     else if (subject && ATTENDANCE_RE.test(text)) intent = 'subject_attendance';
     else if (day && day.offset !== 0 && DUE_RE.test(text) && !/\b(class|classes|lab)\b/.test(text)) intent = 'tasks_day';
 
+    if (!intent) intent = syllabusIntent(text, subject);
     if (!intent) {
       for (const rule of INTENTS) {
         if (rule.test.test(text)) { intent = rule.id; break; }
@@ -17006,7 +17022,7 @@ const ClarityAssistant = (() => {
     if (!intent && subject) intent = 'subject_info';
     if (!intent && day) intent = 'today_summary';
     if (!intent && greeted) intent = 'greeting';
-    return { intent: intent || 'unknown', subject, day };
+    return { intent: intent || 'unknown', subject, day, text };
   }
 
   // ── Data Readers ──────────────────────────────────────────────
@@ -17035,6 +17051,244 @@ const ClarityAssistant = (() => {
     const now = currentTimeMinutes();
     const day = new Date().getDay();
     return (tt[day] || []).filter(c => !isBreakEntry(c) && timeToMinutes(c.end || c.time) > now);
+  }
+
+  // ── Syllabus answers ──────────────────────────────────────────
+  // Read-only, like every other answer: buttons open the Syllabus card,
+  // nothing here ticks a topic. Ranking is plain arithmetic so the reason
+  // shown next to each topic is the real reason it was picked.
+  const SYL_TOPIC_RE = /^(?:have i (?:done|finished|covered|completed|revised|studied|read)|did i (?:do|finish|cover|complete|revise|study|read)|status of|is|are)\s+(.+?)(?:\s+(?:done|finished|covered|completed|revised|studied|over))?(?:\s+(?:yet|already))?\s*$/;
+  const SYL_REVISE_RE = /\b(what (should|do|can) i revise|what to revise|revis(e|ion) (plan|list|today|next)|topics? to revise|need(s)? revision|revise what|which topics? (should i |to )?revise)\b/;
+  const SYL_IMPORTANT_RE = /\b(important topics?|high (weight(age)?|priority|marks?)( topics?)?|(most|more|high) weight(age)?|(most|more|high) marks|carry (the )?(most|more) marks|important (ones|left|remaining))\b/;
+  const SYL_PACE_RE = /\b(am i on track|on track|can i (finish|complete|cover)|will i (finish|complete|cover)|(finish|complete|cover) (the |my )?(syllabus|portion|course|topics)|topics? (per|a|each) day|enough time|my pace|how fast)\b/;
+  const SYL_PROGRESS_RE = /\b(syllabus|topics? (left|remaining|done|covered|completed|pending)|how many topics|how much (is |of )?.*\b(left|remaining|done|covered|completed|finished)\b|progress|coverage)\b/;
+
+  function sylEntries() {
+    return (typeof visibleSyllabusEntries === 'function') ? visibleSyllabusEntries() : [];
+  }
+
+  function sylEntryFor(subject) {
+    if (!subject) return null;
+    return sylEntries().find(e => sameSubject(e.subjectName, subject.name)) || null;
+  }
+
+  function sylDays(entry) {
+    const ex = syllabusExamInfo(entry);
+    return ex ? ex.days : null;
+  }
+
+  function sylWhen(days) {
+    if (days === null) return '';
+    if (days < 0) return 'exam date passed';
+    return days === 0 ? 'exam today' : days === 1 ? 'exam tomorrow' : `exam in ${days} days`;
+  }
+
+  function sylWeightText(t) {
+    return [t.importance === 3 ? 'High' : t.importance === 1 ? 'Low' : '', t.marks ? `${t.marks} marks` : ''].filter(Boolean).join(' · ');
+  }
+
+  // Weightage × how close the exam is. Unknown date counts as "some time".
+  function sylScore(t, days) {
+    const w = t.importance + (t.marks ? Math.min(t.marks / 5, 4) : 0);
+    const urgency = days === null ? 1 : days < 0 ? 0.5 : 1 + 10 / (days + 1);
+    return w * urgency;
+  }
+
+  // Up to `limit` topics, at most 2 from one subject. Not started comes
+  // first; done-but-not-revised moves ahead in the last week before an exam.
+  function sylPicks(entries, limit = 3) {
+    const all = [];
+    entries.forEach(e => {
+      const days = sylDays(e);
+      const finalWeek = days !== null && days >= 0 && days <= 7;
+      e.topics.forEach(t => {
+        if (t.status === 'revised') return;
+        const base = sylScore(t, days);
+        const score = t.status === 'todo' ? base : base * (finalWeek ? 1.5 : 0.4);
+        all.push({ e, t, days, score });
+      });
+    });
+    all.sort((a, b) => b.score - a.score || a.e.topics.indexOf(a.t) - b.e.topics.indexOf(b.t));
+    const perSubject = {};
+    const out = [];
+    for (const p of all) {
+      if ((perSubject[p.e.subjectKey] || 0) >= 2) continue;
+      perSubject[p.e.subjectKey] = (perSubject[p.e.subjectKey] || 0) + 1;
+      out.push(p);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  function sylPickLine(p) {
+    const why = [sylWeightText(p.t), `${escHtml(p.e.subjectName)} ${sylWhen(p.days)}`.trim(), p.t.status === 'todo' ? 'not started' : 'done, not revised'].filter(Boolean).join(' · ');
+    return `<li><span class="cd-item-label">${escHtml(p.t.title)}</span><span class="cd-item-meta">${why}</span></li>`;
+  }
+
+  function sylOpenButton(name, label) {
+    return `<button class="btn btn-sm btn-secondary" onclick="openSubjectSyllabus('${jsArg(name)}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.book()} ${label || `Open ${escHtml(name)} syllabus`} →</button>`;
+  }
+
+  function sylNone(subject) {
+    const name = subject ? subject.name : '';
+    return `${subject ? `There's no syllabus for <strong>${escHtml(name)}</strong> yet.` : "You haven't added a syllabus yet."} Paste the topics once and I can tell you what's left, what to revise and what carries the most marks.<br><br>
+    ${subject
+      ? `<button class="btn btn-sm btn-primary" onclick="openSubjectSyllabus('${jsArg(name)}', true)" style="font-size:var(--text-sm);padding:5px 12px">+ Add ${escHtml(name)} topics</button>`
+      : `<button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">${icons.book()} Open Subject Hubs →</button>`}`;
+  }
+
+  function buildSyllabusOverview() {
+    const entries = sylEntries();
+    if (!entries.length) return sylNone(null);
+    const rows = entries.map(e => ({ e, st: syllabusStats(e), days: sylDays(e) }))
+      .sort((a, b) => a.st.pct - b.st.pct);
+    const avg = Math.round(rows.reduce((s, r) => s + r.st.pct, 0) / rows.length);
+    const left = rows.reduce((s, r) => s + r.st.left, 0);
+    const items = rows.map(r => `<li><span class="cd-item-label">${escHtml(r.e.subjectName)} · ${r.st.pct}%</span><span class="cd-item-meta">${r.st.left ? `${r.st.left} topic${r.st.left !== 1 ? 's' : ''} left` : 'all covered'}${r.st.revised ? ` · ${r.st.revised} revised` : ''}${r.days !== null ? ` · ${sylWhen(r.days)}` : ''}</span></li>`).join('');
+    return `<strong>Syllabus: ${avg}% across ${rows.length} subject${rows.length !== 1 ? 's' : ''}</strong>, ${left ? `${left} topic${left !== 1 ? 's' : ''} left` : 'everything covered'}. Furthest behind first:<ul class="cd-list">${items}</ul>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-sm btn-secondary" onclick="sendAssistantMessage('What should I study today?')" style="font-size:var(--text-sm);padding:4px 10px">What should I study?</button>
+      ${sylOpenButton(rows[0].e.subjectName)}
+    </div>`;
+  }
+
+  function buildSubjectSyllabus(subject) {
+    const e = sylEntryFor(subject);
+    if (!e) return sylNone(subject);
+    const st = syllabusStats(e);
+    const days = sylDays(e);
+    const highLeft = e.topics.filter(t => t.status === 'todo').sort((a, b) => sylScore(b, days) - sylScore(a, days)).slice(0, 5);
+    let res = `<strong>${escHtml(e.subjectName)}: ${st.pct}% done</strong> (${st.done} of ${st.total} topics${st.revised ? `, ${st.revised} revised` : ''}${st.byMarks ? ', counted by marks' : ''}).`;
+    if (days !== null) res += ` ${sylWhen(days)[0].toUpperCase()}${sylWhen(days).slice(1)}.`;
+    if (highLeft.length) {
+      res += `<br><br><strong>Next up, by weightage:</strong><ul class="cd-list">${highLeft.map(t => `<li><span class="cd-item-label">${escHtml(t.title)}</span><span class="cd-item-meta">${sylWeightText(t) || 'Medium'}</span></li>`).join('')}</ul>`;
+    } else {
+      res += st.allRevised ? ' Everything is revised.' : ` Every topic is covered. ${st.total - st.revised} still to revise.`;
+    }
+    return res + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${sylOpenButton(e.subjectName)}</div>`;
+  }
+
+  function buildSyllabusRevise(subject) {
+    const entries = subject ? [sylEntryFor(subject)].filter(Boolean) : sylEntries();
+    if (!entries.length) return sylNone(subject);
+    const list = [];
+    entries.forEach(e => {
+      const days = sylDays(e);
+      e.topics.filter(t => t.status === 'done').forEach(t => list.push({ e, t, days, score: sylScore(t, days) }));
+    });
+    if (!list.length) {
+      const anyRevised = entries.some(e => e.topics.some(t => t.status === 'revised'));
+      return anyRevised
+        ? `Everything you've finished is already revised. Nice. Ask "what should I study" for what's next.`
+        : `Nothing to revise yet: no topic is marked done. Tap a topic's circle once when you finish it, and again when you revise it.<br><br>${sylOpenButton(entries[0].subjectName)}`;
+    }
+    list.sort((a, b) => b.score - a.score);
+    const items = list.slice(0, 6).map(p => `<li><span class="cd-item-label">${escHtml(p.t.title)}</span><span class="cd-item-meta">${[escHtml(p.e.subjectName), sylWeightText(p.t), sylWhen(p.days)].filter(Boolean).join(' · ')}</span></li>`).join('');
+    return `<strong>${list.length} topic${list.length !== 1 ? 's' : ''} done but not revised.</strong> Start with these (weightage and nearest exam first):<ul class="cd-list">${items}</ul>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${sylOpenButton(list[0].e.subjectName)}</div>`;
+  }
+
+  function buildSyllabusImportant(subject) {
+    const entries = subject ? [sylEntryFor(subject)].filter(Boolean) : sylEntries();
+    if (!entries.length) return sylNone(subject);
+    const left = [];
+    entries.forEach(e => e.topics.filter(t => t.status === 'todo').forEach(t => left.push({ e, t })));
+    if (!left.length) return `No topics left${subject ? ` in <strong>${escHtml(entries[0].subjectName)}</strong>` : ''}. Ask "what should I revise" next.`;
+    const weighted = left.filter(p => p.t.importance === 3 || p.t.marks);
+    if (!weighted.length) {
+      return `None of your remaining topics has weightage yet. Mark a topic <strong>High</strong> or add its marks (tap the chip or ✎ on the Syllabus card) and I can rank them.<br><br>${sylOpenButton(left[0].e.subjectName)}`;
+    }
+    weighted.sort((a, b) => (b.t.marks || 0) - (a.t.marks || 0) || b.t.importance - a.t.importance);
+    const items = weighted.slice(0, 8).map(p => `<li><span class="cd-item-label">${escHtml(p.t.title)}</span><span class="cd-item-meta">${[sylWeightText(p.t), escHtml(p.e.subjectName)].filter(Boolean).join(' · ')}</span></li>`).join('');
+    return `<strong>${weighted.length} important topic${weighted.length !== 1 ? 's' : ''} not started yet</strong>, most marks first:<ul class="cd-list">${items}</ul>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${sylOpenButton(weighted[0].e.subjectName)}</div>`;
+  }
+
+  function sylPaceLine(e) {
+    const st = syllabusStats(e);
+    const days = sylDays(e);
+    const name = `<strong>${escHtml(e.subjectName)}</strong>`;
+    if (!st.left) return `${name}: everything covered${st.total - st.revised ? `, ${st.total - st.revised} to revise` : ', all revised'}.`;
+    if (days === null) return `${name}: ${st.left} topic${st.left !== 1 ? 's' : ''} left, no exam date set.`;
+    if (days < 0) return `${name}: exam date has passed, ${st.left} topic${st.left !== 1 ? 's' : ''} left.`;
+    if (days === 0) return `${name}: exam is today with ${st.left} topic${st.left !== 1 ? 's' : ''} left. Go over the High ones first.`;
+    const perDay = Math.ceil(st.left / days);
+    const tight = perDay >= 4;
+    return `${name}: ${st.left} topic${st.left !== 1 ? 's' : ''} left, ${days} day${days !== 1 ? 's' : ''} → about <strong>${perDay} a day</strong>${tight ? '. That is tight, so start with the High-weightage ones' : ''}.`;
+  }
+
+  function buildSyllabusPace(subject) {
+    const entries = subject ? [sylEntryFor(subject)].filter(Boolean) : sylEntries();
+    if (!entries.length) return sylNone(subject);
+    const lines = entries.map(e => ({ e, days: sylDays(e) }))
+      .sort((a, b) => (a.days === null) - (b.days === null) || (a.days ?? 0) - (b.days ?? 0))
+      .map(x => `<li>${sylPaceLine(x.e)}</li>`).join('');
+    const noDates = entries.some(e => sylDays(e) === null);
+    return `<ul class="cd-list">${lines}</ul>${noDates ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:6px">Add an exam date on a subject's Syllabus card (or the countdown in Settings) to see a daily pace.</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-sm btn-secondary" onclick="sendAssistantMessage('What should I study today?')" style="font-size:var(--text-sm);padding:4px 10px">What should I study?</button>
+    </div>`;
+  }
+
+  // "is normalization done": finds the closest topic name, or null.
+  function sylFindTopic(phrase) {
+    const q = plainText(phrase).replace(/^(the|my|topic|chapter|unit)\s+/, '').replace(/\s+(topic|chapter|unit)$/, '').trim();
+    if (q.length < 3) return null;
+    let best = null, bestScore = 0;
+    sylEntries().forEach(e => e.topics.forEach(t => {
+      const title = plainText(t.title);
+      let score = 0;
+      if (title === q) score = 100;
+      else if (title.includes(q) || q.includes(title)) score = 60 + Math.min(q.length, title.length);
+      else {
+        const qw = q.split(' ').filter(w => w.length >= 3);
+        const tw = title.split(' ');
+        const hits = qw.filter(w => tw.some(x => x === w || (w.length >= 5 && editDistance(w, x, 2) <= 2))).length;
+        if (qw.length && hits === qw.length) score = 30 + hits;
+      }
+      if (score > bestScore) { best = { e, t }; bestScore = score; }
+    }));
+    return best;
+  }
+
+  function topicQuestion(text) {
+    const m = text.match(SYL_TOPIC_RE);
+    if (!m) return null;
+    return sylFindTopic(m[1]);
+  }
+
+  function buildSyllabusTopic(query, text) {
+    const hit = topicQuestion(text || '');
+    if (!hit) return buildUnknown(query);
+    const { e, t } = hit;
+    const state = t.status === 'revised' ? `Yes, done and revised${t.revisedAt ? ` (${fmtDate(t.revisedAt.slice(0, 10))})` : ''}.`
+      : t.status === 'done' ? `Yes, done${t.doneAt ? ` on ${fmtDate(t.doneAt.slice(0, 10))}` : ''}, not revised yet.`
+      : 'Not yet. It is still marked not started.';
+    const days = sylDays(e);
+    return `<strong>${escHtml(t.title)}</strong> (${escHtml(e.subjectName)}): ${state}${sylWeightText(t) ? `<br>Weightage: ${sylWeightText(t)}.` : ''}${days !== null && days >= 0 ? ` ${sylWhen(days)[0].toUpperCase()}${sylWhen(days).slice(1)}.` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${sylOpenButton(e.subjectName)}</div>`;
+  }
+
+  // The syllabus rules, checked before the general ones (so "important
+  // topics" isn't read as notices and "finish DBMS before the exam" isn't
+  // read as the exam date).
+  function syllabusIntent(text, subject) {
+    if (topicQuestion(text)) return 'syllabus_topic';
+    if (SYL_REVISE_RE.test(text)) return 'syllabus_revise';
+    if (SYL_IMPORTANT_RE.test(text)) return 'syllabus_important';
+    // Attendance, classes and tasks have their own answers.
+    if (/\b(attendance|class|classes|lab|tasks?|deadlines?)\b/.test(text)) return null;
+    if (SYL_PACE_RE.test(text)) return 'syllabus_pace';
+    if (SYL_PROGRESS_RE.test(text)) return subject ? 'subject_syllabus' : 'syllabus_overview';
+    return null;
+  }
+
+  // One line for answers that already exist (subject overview, week, today).
+  function sylSubjectLine(subject) {
+    const e = sylEntryFor(subject);
+    if (!e) return '';
+    const st = syllabusStats(e);
+    return `Syllabus: <strong>${st.pct}%</strong> (${st.done}/${st.total} topics${st.revised ? `, ${st.revised} revised` : ''})<br>`;
   }
 
   // ── Response Builders ─────────────────────────────────────────
@@ -17071,6 +17325,7 @@ const ClarityAssistant = (() => {
       <li><span class="cd-item-label">Weekly Academic Plan</span><span class="cd-item-meta">"Plan my week" · "Help me rebalance this week"</span></li>
       <li><span class="cd-item-label">Subject Radar</span><span class="cd-item-meta">"Which subject needs the most attention?" · "Where am I falling behind?"</span></li>
       <li><span class="cd-item-label">Today Study Plan</span><span class="cd-item-meta">"Help me plan tonight" · "What should I study today?"</span></li>
+      <li><span class="cd-item-label">Syllabus</span><span class="cd-item-meta">"How much syllabus is left?" · "What should I revise?" · "Important topics left" · "Am I on track?" · "Have I done normalization?"</span></li>
       <li><span class="cd-item-label">Desk Actions</span><span class="cd-item-meta">"Add a task for [Subject]" · "Import timetable" · "Clean my desk"</span></li>
     </ul>`;
   }
@@ -17217,6 +17472,14 @@ const ClarityAssistant = (() => {
       sections.push(`<li><strong>Attendance Health:</strong> All active subjects are in safe standing (≥${target}%).</li>`);
     }
 
+    // 3b. Syllabus
+    const sylRows = sylEntries().map(e => ({ e, st: syllabusStats(e), days: sylDays(e) }));
+    if (sylRows.length) {
+      const behind = [...sylRows].sort((a, b) => a.st.pct - b.st.pct)[0];
+      const avg = Math.round(sylRows.reduce((n, r) => n + r.st.pct, 0) / sylRows.length);
+      sections.push(`<li><strong>Syllabus:</strong> <strong>${avg}%</strong> covered across ${sylRows.length} subject${sylRows.length !== 1 ? 's' : ''}. Furthest behind: <strong>${escHtml(behind.e.subjectName)}</strong> at ${behind.st.pct}%${behind.days !== null && behind.days >= 0 ? ` (${sylWhen(behind.days)})` : ''}.</li>`);
+    }
+
     // 4. Rebalancing Strategy
     if (heaviest && (overdueTasks.length > 0 || thisWeekTasks.length > 0)) {
       const topTask = overdueTasks[0] || thisWeekTasks[0];
@@ -17261,6 +17524,16 @@ const ClarityAssistant = (() => {
       } else if (tasks.length > 0) {
         score += 20;
         signals.push(`${tasks.length} pending task${tasks.length!==1?'s':''}`);
+      }
+
+      const sylE = sylEntryFor(s);
+      if (sylE) {
+        const st = syllabusStats(sylE);
+        const days = sylDays(sylE);
+        if (st.left > 0 && days !== null && days >= 0 && days <= 14 && st.pct < 60) {
+          score += 35;
+          signals.push(`syllabus only <strong>${st.pct}%</strong> done with the ${sylWhen(days)}`);
+        }
       }
 
       const isLab = s.isLab || /lab\b/i.test(s.name);
@@ -17442,8 +17715,11 @@ const ClarityAssistant = (() => {
       planSteps.push(`<strong>1. Course Consolidation (35 min):</strong> No urgent deadlines pending. Review key concepts and lab writeups from today's lectures.`);
     }
 
-    // Block 2: Attendance Recovery & Weak Topics
-    if (atRisk.length > 0) {
+    // Block 2: syllabus topics when there is a syllabus, else the old advice.
+    const picks = sylPicks(sylEntries(), 3);
+    if (picks.length > 0) {
+      planSteps.push(`<strong>2. Syllabus Topics (about 30 min each):</strong> Picked by weightage and how close each exam is:<ul class="cd-list" style="margin-top:4px">${picks.map(sylPickLine).join('')}</ul>`);
+    } else if (atRisk.length > 0) {
       const topRisk = atRisk[0];
       const att = getSubjectAttendance(topRisk);
       planSteps.push(`<strong>2. Attendance Recovery Study (30 min):</strong> Focus on <strong>${escHtml(topRisk.name)}</strong> (currently at ${att.pctLabel ?? att.pct}%). Ensure lecture notes and assignments are up to date so you don't miss future marks.`);
@@ -17461,11 +17737,19 @@ const ClarityAssistant = (() => {
       planSteps.push(`<strong>3. Day Wrap-Up (10 min):</strong> Check off completed tasks and set goals for tomorrow.`);
     }
 
+    const sylNudge = !picks.length && !sylEntries().length
+      ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">Add your syllabus in a Subject Hub and I'll pick the exact topics for you.</div>` : '';
     return `<div class="cd-tag is-accent" style="margin-bottom:8px">Today's Focus Plan</div><br>
-    Here is a realistic study plan grounded in your live desk data:<ul class="cd-list" style="margin-top:8px">${planSteps.map(s => `<li>${s}</li>`).join('')}</ul>`;
+    Here is a realistic study plan grounded in your live desk data:<ul class="cd-list" style="margin-top:8px">${planSteps.map(s => `<li>${s}</li>`).join('')}</ul>${sylNudge}${picks.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${sylOpenButton(picks[0].e.subjectName)}</div>` : ''}`;
   }
 
   function buildTodaySummary() {
+    const line = typeof syllabusTodayLine === 'function' ? syllabusTodayLine() : '';
+    const body = buildTodaySummaryBody();
+    return line ? `${body}<div style="margin-top:8px;font-size:var(--text-sm);color:var(--text-secondary)">📘 ${line}</div>` : body;
+  }
+
+  function buildTodaySummaryBody() {
     const classes = getTodayClasses();
     const dayName = DAY_NAMES[new Date().getDay()];
     const isSunday = new Date().getDay() === 0;
@@ -18000,7 +18284,8 @@ const ClarityAssistant = (() => {
     'Which subjects are at risk?', 'What tasks are urgent?', 'What is due this week?', 'Classes tomorrow',
     'Show my timetable', 'When are my exams?', 'Plan my week', 'Help me plan tonight',
     'Which subject needs the most attention?', 'Any notices?', 'Add a task', 'Is anything missing from my setup?',
-    'When does my last class end?', 'How many classes can I skip?'
+    'When does my last class end?', 'How many classes can I skip?',
+    'How much syllabus is left?', 'What should I revise?', 'Important topics left', 'Am I on track for my exams?'
   ];
   const STOP = new Set(['i', 'a', 'an', 'the', 'my', 'me', 'is', 'are', 'what', 'do', 'to', 'of', 'in', 'on', 'any', 'have', 'for', 'can', 'how', 'which', 'when', 'it', 'and']);
 
@@ -18026,7 +18311,7 @@ const ClarityAssistant = (() => {
 
   // ── Main Respond ──────────────────────────────────────────────
   function respond(query) {
-    const { intent, subject, day } = understand(query);
+    const { intent, subject, day, text } = understand(query);
     lastAsked = (SUBJECT_INTENTS.includes(intent) || DAY_INTENTS.includes(intent)) ? { intent, subject, day } : null;
 
     switch (intent) {
@@ -18064,6 +18349,12 @@ const ClarityAssistant = (() => {
       case 'notices':            return buildNotices();
       case 'profile':            return buildProfile();
       case 'subject_info':       return buildSubjectInfo(subject);
+      case 'syllabus_overview':  return buildSyllabusOverview();
+      case 'subject_syllabus':   return buildSubjectSyllabus(subject);
+      case 'syllabus_revise':    return buildSyllabusRevise(subject);
+      case 'syllabus_important': return buildSyllabusImportant(subject);
+      case 'syllabus_pace':      return buildSyllabusPace(subject);
+      case 'syllabus_topic':     return buildSyllabusTopic(query, text);
       default:                   return buildUnknown(query);
     }
   }
@@ -18085,6 +18376,7 @@ const ClarityAssistant = (() => {
     if (att.pct !== null) {
       res += `Attendance: <strong>${att.pctLabel ?? att.pct}%</strong> (${att.present}/${att.total} attended)<br>`;
     }
+    res += sylSubjectLine(s);
     res += pTasks.length
       ? `${pTasks.length} pending task${pTasks.length !== 1 ? 's' : ''}: ${pTasks.map(t => escHtml(t.title)).join(', ')}`
       : `No pending tasks.`;
