@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u58",
+    date: "2026-10-20",
+    title: "Add your syllabus faster: in any subject, tap Add topics, then \"Scan a photo or PDF\". Clarity Desk reads the topics (and any marks or important stars) from your syllabus and shows you the list to check and fix before anything is saved. Pasting still works offline.",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Add your syllabus faster: in any subject, tap Add topics, then \"Scan a photo or PDF\". Clarity Desk reads the topics (and any marks or important stars) from your syllabus and shows you the list to check and fix before anything is saved. Pasting still works offline.",
+    points: [
+
+    ]
+  },
+  {
     id: "u57",
     date: "2026-10-20",
     title: "Ask Desk now knows your syllabus. Ask \"how much syllabus is left\", \"what should I revise\", \"important topics left\", \"am I on track\" or \"have I done normalization\". \"What should I study today\" now picks three topics for you, by weightage and how close each exam is.",
