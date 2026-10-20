@@ -428,6 +428,26 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     expect(noisy, `Noisy subject hub labels found: ${JSON.stringify(noisy)}`).toEqual([]);
   });
 
+  test('calendar screenshot paper-slate mobile', async ({ page }) => {
+    await page.setViewportSize(MOBILE);
+    await page.evaluate(() => {
+      const lecture = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', type: 'lecture', batches: [] };
+      const lab = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
+      localStorage.setItem('cos_custom_timetable', JSON.stringify({ 0: [], 1: [lecture], 2: [lecture, lab], 3: [], 4: [lecture], 5: [], 6: [] }));
+      localStorage.setItem('cos_custom_tasks', JSON.stringify([
+        { id: 'c-1', title: 'DBMS assignment', subject: 'General', taskType: 'assignment', dueDate: '2026-02-10', status: 'pending' },
+        { id: 'c-2', title: 'Revise trees', subject: 'General', taskType: 'study', dueDate: '2026-02-10', startTime: '18:00', status: 'submitted' },
+        { id: 'c-3', title: 'Lab viva', subject: 'General', taskType: 'exam', dueDate: '2026-02-19', status: 'pending' }
+      ]));
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await ensureTheme(page, 'paper-slate');
+    await page.evaluate(() => (window as any).navigateTo('calendar'));
+    const view = page.locator('#page-calendar');
+    await expect(view.locator('.cal-grid')).toBeVisible();
+    await expect(view).toHaveScreenshot('clarity-calendar-paper-slate-mobile.png', { animations: 'disabled' });
+  });
+
   test('timetable still preserves full operational class labels where present', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await ensureTheme(page, 'paper-slate');
