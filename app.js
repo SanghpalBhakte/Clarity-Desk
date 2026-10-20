@@ -8825,6 +8825,7 @@ function renderDashboard() {
       return (a.dueDate || '').localeCompare(b.dueDate || '');
     })
     .slice(0, 4);
+  const moreTasks = Math.max(0, pending - urgentTasks.length);
 
   // Attendance panel: the big number plus ONE sentence (it replaces the
   // month-check line and the Risk/Safe Zone box, which both repeated the %).
@@ -8833,18 +8834,18 @@ function renderDashboard() {
   let attSentence = '';
   if (attendancePct !== null) {
     const n = dashGuidance.classesToAttend;
+    // One line. The month's defaulter check only shows on Today, so it stays in it.
     if (!dashGuidance.isSafe) {
-      const lead = monthCheck ? `Below ${attTarget}%: you'd be on ${monthCheck.month}'s defaulter list.` : `Below your ${attTarget}% target.`;
-      attSentence = `${lead} ` + (n < 1
+      attSentence = n < 1
         ? `${attTarget}% can't be reached by attending more classes.`
         : n > 60
-          ? `Getting back would take <strong>${n}</strong> classes in a row, so attend every class and check your counts in Subjects.`
-          : `Attend the next <strong>${plural(n)}</strong> in a row to ${monthCheck ? 'clear it' : 'get back on target'}.`);
+          ? `Getting back to ${attTarget}% takes <strong>${n}</strong> classes in a row.`
+          : `Attend the next <strong>${plural(n)}</strong> in a row to ${monthCheck ? `clear ${monthCheck.month}'s defaulter list` : `get back to ${attTarget}%`}.`;
     } else {
       const k = dashGuidance.safeSkips;
-      attSentence = (monthCheck ? `On track for ${monthCheck.month}'s check. ` : '') + (k > 0
-        ? `You can miss <strong>${plural(k)}</strong> and stay at ${attTarget}% or above.`
-        : `Right at target. Attend your next class to build a buffer.`);
+      attSentence = k > 0
+        ? (monthCheck ? `On track for ${monthCheck.month}'s check: you can miss <strong>${plural(k)}</strong>.` : `You can miss <strong>${plural(k)}</strong> and stay at ${attTarget}%+.`)
+        : `Right at target. Attend your next class to build a buffer.`;
     }
   }
 
@@ -8852,11 +8853,29 @@ function renderDashboard() {
   const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut });
   // The class card already shows this class; phones leave it out of the list below.
   const heroClass = activeClass || nextClass;
+  // Up to 4 classes, picked most urgent first (ended but unmarked, now,
+  // coming up, then ended and marked) and listed in time order. The rest
+  // are one tap away in the Timetable. Display only: nothing is saved.
+  const slotRank = (c) => {
+    if (currentMin >= timeToMinutes(c.end || '23:59')) {
+      return (attendanceData[dateStr]?.[attendanceKeyFor(c)] || 'unset') === 'unset' ? 0 : 3;
+    }
+    return currentMin >= timeToMinutes(c.time || '00:00') ? 1 : 2;
+  };
+  const shownClasses = dayClasses
+    .map((c, i) => ({ c, i, r: slotRank(c) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .slice(0, 4)
+    .sort((a, b) => a.i - b.i)
+    .map(x => x.c);
+  const moreClasses = dayClasses.length - shownClasses.length;
 
   // Latest notice
   const visibleNotices = getVisibleNotices();
   const latestNotice = isEmptyDesk ? null : (visibleNotices.find(n => n.important) || visibleNotices[0]);
-  const quickLinksPreview = isEmptyDesk ? [] : loadCustomLinks().slice(0, 4);
+  const allQuickLinks = isEmptyDesk ? [] : loadCustomLinks();
+  const quickLinksPreview = allQuickLinks.slice(0, 3);
+  const moreLinks = allQuickLinks.length - quickLinksPreview.length;
 
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
@@ -8896,7 +8915,7 @@ function renderDashboard() {
           <!-- Open ledger: no card box -->
           ${dayClasses.length > 0 ? `
             <div class="schedule-ledger">
-              ${dayClasses.map(c => {
+              ${shownClasses.map(c => {
                 const classKey = attendanceKeyFor(c);
                 const status = attendanceData[dateStr]?.[classKey] || 'unset';
                 const isNow = (currentMin >= timeToMinutes(c.time || '00:00') && currentMin < timeToMinutes(c.end || '23:59'));
@@ -8918,6 +8937,7 @@ function renderDashboard() {
                   </div>`;
               }).join('')}
               ${dayClasses.length === 1 && heroClass ? `<div class="schedule-hero-note">Your only class today is shown above.</div>` : ''}
+              ${moreClasses > 0 ? `<button type="button" class="dash-more-link" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${moreClasses} more class${moreClasses !== 1 ? 'es' : ''} →</button>` : ''}
             </div>
           ` : `
             <div class="empty-state-card">
@@ -8937,7 +8957,7 @@ function renderDashboard() {
         <div class="dashboard-panel">
           <div class="panel-header">
             <div class="panel-title">Tasks &amp; Deadlines</div>
-            <button class="panel-action" onclick="navigateTo('assignments')">All tasks (${pending}) →</button>
+            <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
           </div>
 
           <!-- Open task rows -->
@@ -8963,6 +8983,7 @@ function renderDashboard() {
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;font-family:var(--font-mono);flex-shrink:0">${rel.label}</span>
                 </div>`;
             }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), 'All caught up. No urgent tasks.')}</div>`}
+            ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
           </div>
 
           <!-- Inline Task Quick Add -->
@@ -8994,15 +9015,8 @@ function renderDashboard() {
                   <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
                   <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;margin-top:5px;font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--text-muted)">
-                  <span>${totalAttended} present</span>
-                  <span>${totalSkipped} missed</span>
-                </div>
               </div>
-              ${!dashGuidance.isSafe ? `
-              <div style="margin-top:10px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5;padding:8px 10px;background:color-mix(in srgb, var(--red) 5%, var(--surface-2));border-radius:var(--radius-sm);border-left:2px solid var(--red)">
-                ${attSentence}
-              </div>` : `<div class="att-stat-message" style="margin-top:8px">${attSentence}</div>`}
+              <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
             ` : `<div class="att-stat-message" style="margin-top:8px">${dashGuidance.message}</div>`}
           </div>
         </div>
@@ -9044,6 +9058,7 @@ function renderDashboard() {
                   <span>${s.subject}</span>
                 </div>
               `).join('')}
+              ${moreLinks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('links')">+${moreLinks} more →</button>` : ''}
             </div>
           </div>
         ` : ''}
@@ -14999,6 +15014,10 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
   const initialType = editTask ? editTask.taskType : (defaultType || 'assignment');
   const isOngoing = editTask ? (!!editTask.noDeadline || (editTask.taskType === 'mission' && !editTask.dueDate)) : (initialType === 'mission');
 
+  // "More details" starts open when it holds anything other than the defaults.
+  const showMoreDetails = initialType !== 'assignment' || !!(editTask && (
+    editTask.marks || (editTask.priority || 'medium') !== 'medium' || (editTask.description && editTask.description !== '—')));
+
   const subjectsList = getSubjectList();
 
   const subjectOptions = subjectsList.map(s => {
@@ -15056,18 +15075,6 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
           value="${editTask ? editTask.title.replace(/"/g, '&quot;') : ''}">
       </div>
 
-      <div class="form-row">
-        <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label" for="task-type">Task Type</label>
-          </div>
-          <select class="form-select" id="task-type" data-testid="task-type" onchange="handleTaskTypeChange(this.value)">
-            ${TASK_TYPE_OPTIONS.map(([v, label]) => `<option value="${v}" ${initialType === v ? 'selected' : ''}>${label}</option>`).join('')}
-          </select>
-          <div class="task-type-pills" role="radiogroup" aria-label="Task Type">
-            ${TASK_TYPE_OPTIONS.map(([v, , short]) => `<label class="task-type-pill"><input type="radio" name="task-type-pill" value="${v}" ${initialType === v ? 'checked' : ''} onchange="pickTaskTypePill(this.value)"> ${short}</label>`).join('')}
-          </div>
-        </div>
         <div class="form-group" id="task-due-group">
           <div class="form-label-row">
             <label class="form-label" id="task-due-label" for="task-due">Due Date <span class="req" id="task-due-req" style="${isOngoing ? 'display:none' : ''}">*</span></label>
@@ -15080,6 +15087,19 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
           <div id="task-ongoing-hint" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px;line-height:1.4;display:${isOngoing ? 'flex' : 'none'};align-items:center;gap:6px">
             <span style="color:var(--purple);font-weight:600">✦ Standing Goal:</span> Stays active on your desk until completed or deleted. Never becomes overdue.
           </div>
+        </div>
+
+      <details class="task-more"${showMoreDetails ? ' open' : ''}>
+      <summary class="task-more-summary">More details</summary>
+      <div class="form-group">
+        <div class="form-label-row">
+          <label class="form-label" for="task-type">Task Type</label>
+        </div>
+        <select class="form-select" id="task-type" data-testid="task-type" onchange="handleTaskTypeChange(this.value)">
+          ${TASK_TYPE_OPTIONS.map(([v, label]) => `<option value="${v}" ${initialType === v ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>
+        <div class="task-type-pills" role="radiogroup" aria-label="Task Type">
+          ${TASK_TYPE_OPTIONS.map(([v, , short]) => `<label class="task-type-pill"><input type="radio" name="task-type-pill" value="${v}" ${initialType === v ? 'checked' : ''} onchange="pickTaskTypePill(this.value)"> ${short}</label>`).join('')}
         </div>
       </div>
 
@@ -15114,6 +15134,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
         <textarea class="form-input form-textarea" id="task-desc"
           placeholder="Milestones, notes, syllabus topics, or links...">${editTask ? editTask.description : ''}</textarea>
       </div>
+      </details>
 
       <div class="form-actions">
         <button class="btn-secondary" onclick="document.getElementById('add-task-backdrop').remove()">Cancel</button>

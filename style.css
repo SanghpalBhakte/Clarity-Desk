@@ -6570,3 +6570,48 @@ html.more-sheet-open .more-sheet {
 @media (max-width: 380px) {
   .cal-item { grid-template-columns: auto 60px minmax(0, 1fr) auto; gap: var(--space-8); }
 }
+
+/* ── Calmer Today with lots of data ───────────────────────────── */
+/* "+N more" under a capped list: opens the existing full page. */
+.dash-more-link {
+  display: inline-flex; align-items: center; min-height: 40px; margin-top: 2px; padding: 4px 0;
+  background: none; border: none; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted);
+}
+.dash-more-link:hover { color: var(--accent); }
+.dash-more-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+.dash-shortcuts .dash-more-link { margin-top: 0; min-height: 0; padding: 3px 4px; font-size: var(--text-xs); }
+
+/* Desktop: the "mark this class" row sits beside its text instead of
+   taking a full-width row of its own, so the class card stays the hero. */
+@media (min-width: 768px) {
+  .today-focus { box-shadow: none; }
+  .today-focus[data-mark] { flex-wrap: nowrap; }
+  .today-focus-mark { flex: 0 0 auto; order: 1; padding: 0; }
+  .today-focus-mark .btn { flex: 0 0 auto; padding-left: 14px; padding-right: 14px; }
+  .today-focus-x { order: 2; }
+}
+
+/* The device already shows the time, and the class card counts down. */
+.topbar #topbar-clock-text { display: none; }
+
+/* Import from WhatsApp: a small link, not a banner. */
+.add-task-modal .wa-modal-link {
+  display: inline-block; width: auto; margin: -6px 0 12px; padding: 2px 0;
+  background: none; border: none; border-radius: 0;
+  color: var(--text-muted); font-size: var(--text-xs); text-decoration: underline; text-underline-offset: 2px;
+}
+.add-task-modal .wa-modal-link:hover { color: var(--text-primary); }
+
+/* Add Task: the optional fields sit behind "More details". */
+.task-more { margin: 2px 0 14px; }
+.task-more-summary {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 0; margin-bottom: 8px;
+  cursor: pointer; list-style: none;
+  font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary);
+}
+.task-more-summary::-webkit-details-marker { display: none; }
+.task-more-summary::before { content: '▸'; font-size: 0.85em; }
+.task-more[open] > .task-more-summary::before { content: '▾'; }
+.task-more-summary:hover { color: var(--text-primary); }
+.task-more-summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }
