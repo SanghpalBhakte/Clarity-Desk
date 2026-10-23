@@ -37,6 +37,8 @@ const KEY_ATT_DATEFIX_CUTOFF  = 'cos_att_datefix_cutoff';
 const KEY_ATT_DATEFIX_BACKUP  = 'cos_att_datefix_backup';
 const KEY_PUSH_REGISTERED     = 'cos_push_registered';
 const KEY_SYLLABUS            = 'cos_syllabus';
+// Holiday mode: { on, since, until|null }. Hides classes on screen only.
+const KEY_HOLIDAY             = 'cos_holiday';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
@@ -5172,7 +5174,8 @@ function calculatePayloadHash(data) {
       a: data.assignmentStatuses,
       att: data.attendance || null,
       attB: data.attendanceBaseline || null,
-      attL: data.attendanceLive || null
+      attL: data.attendanceLive || null,
+      hol: data.holiday || null
       // theme deliberately excluded: it's applied via initTheme()/CSS
       // variables, never needs a dashboard rebuild, and including it here
       // was causing every theme switch (and the first cloud echo after
@@ -5202,7 +5205,8 @@ function subscribeUserCloudData(uid) {
     assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
     attendance: safeGetStorage(KEY_ATTENDANCE, {}),
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
-    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, {})
+    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
+    holiday: safeGetStorage(KEY_HOLIDAY, null)
   });
 
   const userRef = db.collection('users').doc(uid);
@@ -5355,10 +5359,14 @@ function applyCloudDataToLocalState(data) {
   if (typeof data.attTarget === 'number' && data.attTarget >= 50 && data.attTarget <= 100) {
     safeSetStorage(KEY_ATT_TARGET, data.attTarget);
   }
+  if (data.holiday && typeof data.holiday === 'object' && !Array.isArray(data.holiday)) {
+    safeSetStorage(KEY_HOLIDAY, data.holiday);
+    checkHolidayExpiry();
+  }
   updateTopbarProfile();
   setupFABDrag();
   updateNavBadges();
-  if (['settings', 'assignments', 'dashboard', 'notices', 'timetable', 'review', 'subjects'].includes(state.currentPage)) {
+  if (['settings', 'assignments', 'dashboard', 'notices', 'timetable', 'review', 'subjects', 'calendar'].includes(state.currentPage)) {
     renderPage(state.currentPage);
   }
 }
@@ -5385,6 +5393,7 @@ function pushLocalDataToCloud(uid) {
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget:          getAttendanceTarget(),
     attSummary:         buildAttendanceCloudSummary(),
+    holiday:            safeGetStorage(KEY_HOLIDAY, null),
     updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
   };
   // Mark this write's hash as already-seen so its own ack echo (which
@@ -5866,8 +5875,11 @@ function checkScheduledNotifications() {
     });
   }
 
+  // Holiday mode: no class reminders and no "attend more classes" alert.
+  const onHoliday = isHolidayActive(today);
+
   // 3. Class Reminders
-  if (prefs.classReminders !== 'off') {
+  if (prefs.classReminders !== 'off' && !onHoliday) {
     const liveTT = loadTimetable();
     const dayClasses = (liveTT[now.getDay()] || []).filter(isTeachingClass);
     const leadWindow = prefs.classReminders === '1_hour' ? 60 : prefs.classReminders === '30_min' ? 30 : 15;
@@ -5890,7 +5902,7 @@ function checkScheduledNotifications() {
   }
 
   // 4. Low-Attendance Warning Alert
-  if (prefs.attendanceAlerts !== 'off') {
+  if (prefs.attendanceAlerts !== 'off' && !onHoliday) {
     const attendanceData = safeGetStorage(KEY_ATTENDANCE, {}) || {};
     let totalAttended = 0;
     let totalSkipped = 0;
@@ -6879,6 +6891,7 @@ function refreshIfDayChanged() {
   if (nowKey === lastRenderedDayKey) return false;
   const previousWeekday = new Date(`${lastRenderedDayKey}T00:00:00`).getDay();
   lastRenderedDayKey = nowKey;
+  checkHolidayExpiry();
   // The timetable follows "today" unless the student had picked another day.
   if (state.ttDay === previousWeekday) state.ttDay = new Date().getDay();
   // The calendar's month and selected date live only in `state`, so a tab
@@ -6995,6 +7008,14 @@ function maybeShowCountdownCelebration() {
 function buildDashboardContextLine(opts = {}) {
   const { attendancePct, attendancePctLabel, attendanceAtRisk, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, firstName, dayClasses } = opts;
   const isWeekend = dayClasses !== undefined && dayClasses.length === 0;
+
+  // Holiday mode: talk about the break and tasks, never about classes.
+  if (opts.holiday) {
+    if (overdue > 0) return `${overdue} overdue task${overdue !== 1 ? 's' : ''} need${overdue === 1 ? 's' : ''} attention.`;
+    return pending > 0
+      ? `Enjoy the break. ${pending} task${pending !== 1 ? 's' : ''} on your desk when you're ready.`
+      : 'Enjoy the break. Your timetable is safe for when classes start again.';
+  }
 
   // Attendance at risk — highest urgency, surfaces immediately
   if (attendanceAtRisk ?? (attendancePct !== null && attendancePct < attTarget)) {
@@ -7123,7 +7144,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const task = (urgentTasks || []).find(a => a.dueDate && !a.noDeadline);
     let riskSubject = null;
-    getSubjectList().forEach(sj => {
+    if (!isHolidayActive()) getSubjectList().forEach(sj => {
       const att = getSubjectAttendance(sj);
       if (att.pct === null || att.isSafe) return;
       if (!riskSubject || att.exactPct < riskSubject.exactPct) {
@@ -7180,6 +7201,7 @@ function getCalendarItems(startKey, endKey, src = {}) {
   const tt = src.tt || loadTimetable() || {};
   const tasks = src.tasks || allTasks();
   const batch = src.batch || calendarUserBatch();
+  const holiday = 'holiday' in src ? src.holiday : loadHoliday();
   const out = [];
   if (!startKey || !endKey || startKey > endKey) return out;
 
@@ -7202,7 +7224,8 @@ function getCalendarItems(startKey, endKey, src = {}) {
   for (let key = localDateKey(day); key <= endKey; day.setDate(day.getDate() + 1), key = localDateKey(day)) {
     const dayIdx = day.getDay();
     const dayItems = [];
-    classesByDay[dayIdx].forEach(c => {
+    // Holiday mode hides classes on its dates only; tasks always show.
+    if (!isHolidayActive(key, holiday)) classesByDay[dayIdx].forEach(c => {
       dayItems.push({ min: timeToMinutes(c.time), item: { date: key, time: formatDisplayTime(c.time || ''), title: c.subject || 'Class', type: 'class', sourceId: String(dayIdx) } });
     });
     (tasksByDate[key] || []).forEach(t => {
@@ -7344,6 +7367,132 @@ function todayClasses() {
   const currentMin = currentTimeMinutes();
   return (tt[new Date().getDay()] || []).filter(c => isTeachingClass(c) && timeToMinutes(c.end || '23:59') > currentMin).length;
 }
+
+// ── Holiday mode ──────────────────────────────────────────────
+// A display switch only: while it is on, nothing built from the timetable
+// shows on Today, the Calendar, reminders or Ask Desk. The timetable,
+// attendance, group and subjects are never read for writing or changed
+// here, so turning it off brings everything back exactly as it was.
+// `until` is the first day classes come back (local date, exclusive).
+const HOLIDAY_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function loadHoliday() {
+  const h = safeGetStorage(KEY_HOLIDAY, null);
+  if (!h || typeof h !== 'object' || Array.isArray(h) || h.on !== true) return null;
+  if (typeof h.since !== 'string' || !HOLIDAY_DATE_RE.test(h.since)) return null;
+  const until = (typeof h.until === 'string' && HOLIDAY_DATE_RE.test(h.until)) ? h.until : null;
+  if (h.until != null && !until) return null;
+  return { on: true, since: h.since, until };
+}
+
+function isHolidayActive(dateKey = todayStr(), h = loadHoliday()) {
+  if (!h || !dateKey) return false;
+  if (dateKey < h.since) return false;
+  return !h.until || dateKey < h.until;
+}
+
+// The timetable as screens should show it today. Editors, sync, backup and
+// attendance keep calling loadTimetable() so nothing is ever saved empty.
+function timetableForDisplay() {
+  return isHolidayActive() ? getEmptyTimetable() : loadTimetable();
+}
+
+function holidayLabel(h = loadHoliday()) {
+  if (!h) return '';
+  if (!h.until) return 'On break';
+  const d = new Date(h.until + 'T00:00:00');
+  return `Until ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+
+function setHoliday(on, until = null) {
+  if (on) {
+    const today = todayStr();
+    const u = (typeof until === 'string' && HOLIDAY_DATE_RE.test(until) && until > today) ? until : null;
+    safeSetStorage(KEY_HOLIDAY, { on: true, since: today, until: u });
+  } else {
+    safeSetStorage(KEY_HOLIDAY, { on: false, since: null, until: null });
+  }
+  syncToCloud();
+}
+
+// Turns holiday mode off once its end date arrives (on open, focus, a new
+// day, a restore or a sync). Returns true when it switched off.
+function checkHolidayExpiry() {
+  const h = loadHoliday();
+  if (!h || !h.until || todayStr() < h.until) return false;
+  setHoliday(false);
+  showToast('Welcome back, classes are showing again', 'success');
+  return true;
+}
+
+// The box only shows "on" once the dialog is confirmed (Cancel, Esc or a
+// tap outside leave it off).
+function onHolidayToggle(box) {
+  if (!box.checked) { resumeClasses(); return; }
+  box.checked = false;
+  showHolidayModal();
+}
+window.onHolidayToggle = onHolidayToggle;
+
+function showHolidayModal() {
+  document.getElementById('holiday-modal-backdrop')?.remove();
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  const tomorrow = localDateKey(t);
+  const close = `document.getElementById('holiday-modal-backdrop')?.remove()`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'holiday-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px;width:92vw">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:var(--text-xl)">${icons.sun()}</span>
+          <span class="modal-title">Turn on holiday mode</span>
+        </div>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">Classes are hidden from Today, Calendar and reminders. Nothing is deleted, and your attendance % stays as it is.</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
+          <input type="radio" name="holiday-until" value="off" checked style="accent-color:var(--accent)">
+          <span>Until I turn it off</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
+          <input type="radio" name="holiday-until" value="date" style="accent-color:var(--accent)">
+          <span>Until</span>
+          <input type="date" class="form-input" id="holiday-until-date" min="${tomorrow}" value="${tomorrow}" onfocus="document.querySelector('input[name=holiday-until][value=date]').checked = true" style="max-width:170px;padding:4px 8px">
+        </label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">Classes show again on the date you pick.</div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-secondary" onclick="${close}">Cancel</button>
+        <button class="btn-primary" onclick="confirmHolidayModal()">Turn on</button>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+function confirmHolidayModal() {
+  const useDate = document.querySelector('input[name="holiday-until"][value="date"]')?.checked;
+  const until = useDate ? (document.getElementById('holiday-until-date')?.value || '') : null;
+  if (useDate && !(HOLIDAY_DATE_RE.test(until) && until > todayStr())) {
+    showToast('Pick a date after today.', 'error');
+    return;
+  }
+  setHoliday(true, until);
+  document.getElementById('holiday-modal-backdrop')?.remove();
+  showToast('Holiday mode is on. Classes are hidden, nothing is deleted.', 'success');
+  renderPage(state.currentPage);
+}
+window.confirmHolidayModal = confirmHolidayModal;
+
+function resumeClasses() {
+  setHoliday(false);
+  showToast('Welcome back, classes are showing again', 'success');
+  renderPage(state.currentPage);
+}
+window.resumeClasses = resumeClasses;
 
 // ── SVG Icons ─────────────────────────────────────────────────
 function svg(path, size = 16) {
@@ -8483,10 +8632,11 @@ function renderDashboard() {
 
   const pending  = pendingCount();
   const overdue  = overdueCount();
-  const classesLeftCount = todayClasses();
+  const onHoliday = isHolidayActive();
+  const classesLeftCount = onHoliday ? 0 : todayClasses();
 
 
-  const liveTT     = loadTimetable();
+  const liveTT     = onHoliday ? getEmptyTimetable() : loadTimetable();
   const dayClasses = (liveTT[dayIdx] || []).filter(isTeachingClass);
 
   // Attendance calculation & risk assessment (incorporates baseline + live tracking)
@@ -8562,6 +8712,7 @@ function renderDashboard() {
     firstName,
     dayClasses,
     hasTimetable: hasAnyTimetable(),
+    holiday: onHoliday,
   });
 
   // Setup completeness — recommended setup order for first-run users.
@@ -8676,7 +8827,24 @@ function renderDashboard() {
     : '';
 
   let beaconHTML = '';
-  if (activeClass) {
+  if (onHoliday) {
+    beaconHTML = `
+      <div class="chrono-beacon is-free is-holiday" role="region" aria-label="Holiday mode">
+        <div style="flex:1;min-width:180px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span class="chrono-beacon-badge" style="background:var(--surface-2);color:var(--text-secondary)">${icons.sun()} Holiday mode</span>
+            <span style="font-size:var(--text-sm);color:var(--text-muted)">${holidayLabel()}</span>
+          </div>
+          <div class="chrono-beacon-title">Classes are paused</div>
+          <div class="chrono-beacon-meta">
+            <span>Your timetable and attendance are safe. Nothing was deleted.</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="resumeClasses()" style="font-size:var(--text-sm);padding:6px 12px">
+          Resume classes
+        </button>
+      </div>`;
+  } else if (activeClass) {
     const classKey = attendanceKeyFor(activeClass);
     const status = attendanceData[dateStr]?.[classKey] || 'unset';
     beaconHTML = `
@@ -8839,7 +9007,9 @@ function renderDashboard() {
   // Display only: every number comes from dashGuidance / monthCheck above.
   const plural = (n) => `${n} class${n !== 1 ? 'es' : ''}`;
   let attSentence = '';
-  if (attendancePct !== null) {
+  if (onHoliday && attendancePct !== null) {
+    attSentence = 'Paused during holiday mode. Your % stays as it is.';
+  } else if (attendancePct !== null) {
     const n = dashGuidance.classesToAttend;
     // One line. The month's defaulter check only shows on Today, so it stays in it.
     if (!dashGuidance.isSafe) {
@@ -8949,7 +9119,10 @@ function renderDashboard() {
           ` : `
             <div class="empty-state-card">
               <span class="empty-state-icon">${icons.sun()}</span>
-              ${!isCustomTimetableActive() ? `
+              ${onHoliday ? `
+                <div class="empty-state-title">No classes during your break</div>
+                <div class="empty-state-desc">Your timetable is saved and comes back when you resume classes.</div>
+              ` : !isCustomTimetableActive() ? `
                 <div class="empty-state-title">No timetable set up yet</div>
                 <div class="empty-state-desc">Your classes for today will show here once your timetable is added.</div>
               ` : `
@@ -9024,7 +9197,7 @@ function renderDashboard() {
                 </div>
               </div>
               <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
-            ` : `<div class="att-stat-message" style="margin-top:8px">${dashGuidance.message}</div>`}
+            ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
           </div>
         </div>
 
@@ -9213,6 +9386,7 @@ function renderCalendar() {
         <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
       </div>
     </div>
+    ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Classes hidden during holiday mode</span></p>` : ''}
     <section class="cal-day" aria-label="${selTitle}">
       <h2 class="cal-day-title">${selTitle}</h2>
       ${dayList}
@@ -9401,6 +9575,7 @@ function renderTimetable() {
         </div>
       </details>
     </div>
+    ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Holiday mode is on. Classes are hidden from Today, Calendar and reminders.</span> <button type="button" class="holiday-note-action" onclick="resumeClasses()">Resume classes</button></p>` : ''}
     <div class="tt-day-tabs">${tabs}</div>
     ${content}
     ${day===today&&classes.length?'<div class="text-xs text-muted" style="margin-top:12px;text-align:center">Highlighted = current session · Faded = completed · Tap subject to open notes &amp; syllabus</div>':''}
@@ -16305,7 +16480,7 @@ window.saveLinkResource = function(si, ri) {
 function renderSummaryContent(container) {
   const today    = new Date();
   const todayDay = today.getDay();
-  const classes  = loadTimetable()[todayDay] || [];
+  const classes  = timetableForDisplay()[todayDay] || [];
   const dueTodayItems = allTasks().filter(a => !a.noDeadline && a.dueDate === todayStr() && a.status === 'pending');
   const importantNotices = getVisibleNotices().filter(n => n.important).slice(0, 3);
   const overdueItems = allTasks().filter(a => isTaskOverdue(a));
@@ -16491,6 +16666,19 @@ function renderSettings() {
         </button>
       </div>
     </div>
+
+    ${(() => {
+      const h = loadHoliday();
+      if (!h && (!hasAnyTimetable() || p.studyMode === 'self')) return '';
+      return `
+    <div class="section-heading">${icons.sun()} Holiday mode</div>
+    <div class="card" style="padding:20px;margin-bottom:20px">
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
+        <input type="checkbox" id="s-holiday" ${isHolidayActive() ? 'checked' : ''} onchange="onHolidayToggle(this)" style="margin-top:3px;accent-color:var(--accent)">
+        <span>Holiday mode${isHolidayActive() ? ` · ${holidayLabel()}` : ''}<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Classes are hidden from Today, Calendar and reminders. Nothing is deleted.</span></span>
+      </label>
+    </div>`;
+    })()}
 
     <div class="section-heading">${icons.timetable()} Mid-Semester Attendance Baseline</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
@@ -16860,6 +17048,7 @@ function exportData() {
     syllabus:           loadSyllabus(),
     userBatch:          safeGetStorage(KEY_USER_BATCH, ''),
     attTarget:          getAttendanceTarget(),
+    holiday:            safeGetStorage(KEY_HOLIDAY, null),
     notificationPrefs:  loadNotifPrefs(),
     noticeChannels:     loadNoticeChannels(),
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
@@ -16903,6 +17092,10 @@ function importData(event) {
       if (Array.isArray(data.syllabus)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
       if (data.userBatch) safeSetStorage(KEY_USER_BATCH, data.userBatch);
       if (data.attTarget) safeSetStorage(KEY_ATT_TARGET, data.attTarget);
+      if (data.holiday && typeof data.holiday === 'object' && !Array.isArray(data.holiday)) {
+        safeSetStorage(KEY_HOLIDAY, data.holiday);
+        checkHolidayExpiry();
+      }
       if (data.assignmentStatuses) {
         safeSetStorage(KEY_ASSIGNMENTS, data.assignmentStatuses);
         state.assignments = loadAssignments();
@@ -17484,18 +17677,18 @@ const ClarityAssistant = (() => {
   // ── Data Readers ──────────────────────────────────────────────
 
   function getTodayClasses() {
-    const tt = loadTimetable();
+    const tt = timetableForDisplay();
     const day = new Date().getDay();
     return (tt[day] || []).filter(c => !isBreakEntry(c));
   }
 
   function getDayClasses(dayNum) {
-    const tt = loadTimetable();
+    const tt = timetableForDisplay();
     return (tt[dayNum] || []).filter(c => !isBreakEntry(c));
   }
 
   function getNextClass() {
-    const tt = loadTimetable();
+    const tt = timetableForDisplay();
     const now = currentTimeMinutes();
     const day = new Date().getDay();
     const classes = (tt[day] || []).filter(c => !isBreakEntry(c));
@@ -17503,7 +17696,7 @@ const ClarityAssistant = (() => {
   }
 
   function getRemainingTodayClasses() {
-    const tt = loadTimetable();
+    const tt = timetableForDisplay();
     const now = currentTimeMinutes();
     const day = new Date().getDay();
     return (tt[day] || []).filter(c => !isBreakEntry(c) && timeToMinutes(c.end || c.time) > now);
@@ -17877,7 +18070,7 @@ const ClarityAssistant = (() => {
   }
 
   function buildWeeklyPlan() {
-    const tt = loadTimetable();
+    const tt = timetableForDisplay();
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayCounts = [1, 2, 3, 4, 5, 6].map(d => {
       const classes = (tt[d] || []).filter(c => !isBreakEntry(c));
@@ -18157,7 +18350,7 @@ const ClarityAssistant = (() => {
     });
 
     const tomorrowDay = (new Date().getDay() + 1) % 7;
-    const tt = loadTimetable();
+    const tt = timetableForDisplay();
     const tomorrowClasses = (tt[tomorrowDay] || []).filter(c => !isBreakEntry(c));
 
     const planSteps = [];
@@ -18211,6 +18404,11 @@ const ClarityAssistant = (() => {
     const isSunday = new Date().getDay() === 0;
     const pendingOverdue = allTasks().filter(t => isTaskOverdue(t));
     const dueToday = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate === todayISO());
+
+    if (isHolidayActive()) {
+      const n = pendingOverdue.length + dueToday.length;
+      return `Holiday mode is on${loadHoliday()?.until ? ` (${holidayLabel().replace('Until', 'until')})` : ''}, so classes are hidden. Your timetable is safe.${n > 0 ? `<br><br>💡 You have <strong>${n}</strong> urgent/due task${n !== 1 ? 's' : ''} on your desk.` : ''}`;
+    }
 
     if (isSunday) {
       let msg = `Today is <strong>Sunday</strong>, so there are no classes.`;
@@ -19291,6 +19489,7 @@ function init() {
   // restore a stale mid-page scroll offset).
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
+  try { checkHolidayExpiry(); } catch (e) { console.warn('[Holiday] expiry check skipped:', e); }
   initTheme();
   initAccent();
   updateTopbarProfile();
