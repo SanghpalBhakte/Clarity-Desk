@@ -126,6 +126,18 @@ function timeToMinutes(t) {
   return parts[0] * 60 + parts[1];
 }
 
+// Holiday mode (synced as `holiday`: { on, since, until|null }). Same rule
+// as isHolidayActive() in app.js: on from `since`, off from `until` (the
+// first day classes are back). Anything malformed counts as off.
+function isHolidayActive(h, dateStr) {
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  if (!h || typeof h !== "object" || Array.isArray(h) || h.on !== true) return false;
+  if (typeof h.since !== "string" || !re.test(h.since)) return false;
+  if (h.until != null && (typeof h.until !== "string" || !re.test(h.until))) return false;
+  if (dateStr < h.since) return false;
+  return !h.until || dateStr < h.until;
+}
+
 function isBreakEntry(c) {
   if (!c || typeof c !== "object") return true;
   if (c.isBreak === true) return true;
@@ -174,6 +186,9 @@ function evaluateUser(data, notifiedKeys, time) {
   const tasks = [...presetTasks, ...customTasks].filter(
     (t) => t.status === "pending"
   );
+
+  // Holiday mode: no class reminders and no "attend more classes" alert.
+  const onHoliday = isHolidayActive(data.holiday, today);
 
   const push = (key, title, body, url) => {
     if (notifiedKeys[key]) return;
@@ -230,6 +245,7 @@ function evaluateUser(data, notifiedKeys, time) {
   // synced field to read; see PROJECT_MEMORY.md).
   if (
     prefs.classReminders !== "off" &&
+    !onHoliday &&
     data.customTimetable &&
     typeof data.customTimetable === "object"
   ) {
@@ -268,7 +284,9 @@ function evaluateUser(data, notifiedKeys, time) {
     typeof summary === "object" &&
     typeof summary.pct === "string" &&
     typeof summary.isSafe === "boolean";
-  if (prefs.attendanceAlerts !== "off" && hasSummary) {
+  if (onHoliday) {
+    // nothing: attendance is paused during holiday mode
+  } else if (prefs.attendanceAlerts !== "off" && hasSummary) {
     if (!summary.isSafe) {
       const target =
         typeof summary.target === "number" ? summary.target : 75;
