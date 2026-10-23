@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u63",
+    date: "2026-10-23",
+    title: "New holiday mode: turn it on in Settings during a break and your classes are hidden from Today, the Calendar and reminders, with an optional end date. Nothing is deleted and your attendance % stays as it is. Tap \"Resume classes\" any time to bring everything back.",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New holiday mode: turn it on in Settings during a break and your classes are hidden from Today, the Calendar and reminders, with an optional end date. Nothing is deleted and your attendance % stays as it is. Tap \"Resume classes\" any time to bring everything back.",
+    points: [
+
+    ]
+  },
+  {
     id: "u62",
     date: "2026-10-21",
     title: "Calendar is easier to use: tap a day and add a deadline for that date, see what's due in the next 7 days under the month, and swipe left or right to change month. Today has a ring, the day you pick is filled in, past days are greyed, and each day shows up to 3 dots then \"+N\". A calendar left open overnight now comes back on today, and the + button no longer covers \"Set Up Timetable\".",
