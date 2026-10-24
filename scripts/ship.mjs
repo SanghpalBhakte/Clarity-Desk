@@ -11,7 +11,7 @@
 // merged through a pull request; if the site can't be reached, committed
 // after the commit that set the current version) -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
 // -> push -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
-// test (npm run test:smoke against SITE; a failure warns in red and exits 1,
+// test (npm run test:smoke against each of SITES; a failure warns in red and exits 1,
 // but the deploy stays live -- nothing is rolled back). Stops at the
 // first failure. Never resets, cleans or force-pushes. "Claude outputs/" is
 // never committed. The commit message becomes a Dev Note in the app unless it
@@ -31,6 +31,9 @@ const SKIP_TESTS = args.includes('--skip-tests');
 let message = args.filter((a) => !a.startsWith('--')).join(' ').trim();
 const EXCLUDE = ['Claude outputs'].map((p) => `:(exclude)${p}`);
 const SITE = 'https://campusos-83365.web.app';
+// Every Hosting site in the "app" target (.firebaserc) gets the same deploy;
+// each one is smoke-tested. SITE stays the one the live version check reads.
+const SITES = [SITE, 'https://claritydesk.web.app'];
 
 const step = (s) => console.log(`\n▶ ${s}`);
 const fail = (s) => { console.error(`\n✗ ${s}`); process.exit(1); };
@@ -156,7 +159,7 @@ const bumpWhy = appChanged && cur === head ? 'app files changed'
 console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (${bumpWhy})` : `v${ver}${cur !== head ? ' (already bumped)' : ''}`}`);
 if (bumpOnly) console.log(`The bump gets its own commit: "chore: bump the cache version to v${ver}".`);
 if (workerChanged) console.log('ai-proxy/ changed: the AI proxy will be deployed too.');
-console.log(`After deploy: live smoke test against ${SITE} (npm run test:smoke).`);
+console.log(`After deploy: live smoke test against ${SITES.join(' and ')} (npm run test:smoke).`);
 if (DRY) {
   console.log('\nDev Notes (commits so far; this commit is added too unless it starts with chore:/test:):');
   sh('node scripts/generate-devnotes.mjs --dry-run');
@@ -222,13 +225,17 @@ if (workerChanged) {
   if (sh('npx wrangler@latest deploy', 'ai-proxy').status !== 0) fail('AI proxy deploy failed. Hosting is live.');
 }
 
-step(`Live smoke test against ${SITE}`);
-process.env.SMOKE_BASE_URL = SITE;            // read by playwright.config.ts; works the same on Windows
-if (sh('npm run test:smoke').status !== 0) {
-  console.error(`\n\x1b[31m✗ v${ver} is LIVE at ${SITE}, but the live smoke test FAILED.\n` +
+const smokeFailed = [];
+for (const site of SITES) {
+  step(`Live smoke test against ${site}`);
+  process.env.SMOKE_BASE_URL = site;          // read by playwright.config.ts; works the same on Windows
+  if (sh('npm run test:smoke').status !== 0) smokeFailed.push(site);
+}
+if (smokeFailed.length) {
+  console.error(`\n\x1b[31m✗ v${ver} is LIVE, but the live smoke test FAILED on ${smokeFailed.join(' and ')}.\n` +
     '  Nothing was rolled back. Open the site and check it now, then read the failures above.\n' +
     '  If Playwright could not start a browser, run: npx playwright install chromium\x1b[0m');
   process.exit(1);
 }
 
-console.log(`\n✓ Shipped v${ver}: ${SITE}`);
+console.log(`\n✓ Shipped v${ver}: ${SITES.join(' and ')}`);
