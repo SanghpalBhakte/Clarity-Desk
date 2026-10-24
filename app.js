@@ -12871,44 +12871,35 @@ function clearSubjectBaseline() {
 // ── Declutter & Subject Recovery Engine ──────────────────────────
 
 function detectDeskPollution() {
-  // Checked against the RAW timetable (not getSubjectList(), which already
-  // hides garbled OCR names from pickers) so the "Declutter my desk"
-  // prompt still offers to actually clean up the underlying scanned data,
-  // not just its own already-filtered view of it.
+  // True only when "Clean up desk" would actually change the timetable:
+  // runs the same (read-only) plan the preview shows, with the batch the
+  // declutter modal starts with, so the banner can't promise a cleanup
+  // that then finds nothing (or miss one it would do). Checked against the
+  // RAW timetable, not getSubjectList(), which already hides garbled OCR
+  // names and folds near-duplicates into one card.
+  // Off/break rows never become subject cards, so a free slot the scan
+  // preview labelled with what it read ("Room 304", "Library") is not
+  // desk pollution.
   const rawTT = loadTimetable();
+  const teachingTT = {};
+  let hasTeaching = false;
   for (const d of [1, 2, 3, 4, 5, 6, 0]) {
-    for (const c of (rawTT[d] || [])) {
-      // Off/break rows never become subject cards, so a free slot the scan
-      // preview labelled with what it read ("Room 304", "Library") is not
-      // desk pollution.
-      if (c && c.subject && isTeachingClass(c) && isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) return true;
-    }
+    teachingTT[d] = (rawTT[d] || []).filter(c => c && c.subject && isTeachingClass(c));
+    if (teachingTT[d].length) hasTeaching = true;
   }
+  if (!hasTeaching) return false;
 
-  const subjects = getSubjectList();
-  if (!subjects || !subjects.length) return false;
+  const p = liveProfile || loadProfile() || {};
+  const userBatch = (p.batch || safeGetStorage(KEY_USER_BATCH, '') || '').trim() || 'all';
+  const plan = generateDeclutterPlan(teachingTT, loadAttendanceBaselines(), allTasks(), userBatch);
+  if (plan.archivedSlots.length) return true;
 
-  for (const s of subjects) {
-    const raw = (s.name + ' ' + (s.code || '')).toLowerCase();
-    // Check batch markers in subject identity
-    if (/\b(?:batch|sec|section)\s*[a-d0-9]/i.test(raw) || /\b[a-d][1-4]\b/i.test(raw)) return true;
-    // Check room numbers or faculty in subject identity
-    if (/\b(?:prof\.|dr\.|mr\.|ms\.|mrs\.|lab-\d+|lh-\d+|lt-\d+|room\s*\d+)\b/i.test(raw)) return true;
-    // Check timetable junk tokens
-    for (const kw of TIMETABLE_JUNK_TOKENS) {
-      if (raw.includes(kw)) return true;
-    }
+  // Nothing removed, so each kept slot lines up with its original: any
+  // rename is a merge or normalization the cleanup would apply.
+  for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+    const after = plan.newTimetable[d] || [];
+    if (teachingTT[d].some((c, i) => !after[i] || after[i].subject !== c.subject)) return true;
   }
-
-  // Check if multiple subjects map to the same canonical core
-  const seenCanonical = new Set();
-  for (const s of subjects) {
-    const norm = normalizeSubjectIdentity(s.name, [], s.type);
-    const key = `${(norm.canonicalName || s.name).toLowerCase()}|||${s.type}`;
-    if (seenCanonical.has(key)) return true;
-    seenCanonical.add(key);
-  }
-
   return false;
 }
 
