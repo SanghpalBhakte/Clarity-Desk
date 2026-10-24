@@ -8,6 +8,8 @@
 //    junk token "no" inside "Minor");
 //  - a real duplicate ("Data Structure" + "Data Structures" as separate
 //    lectures) still triggers it, and stops once the cleanup is applied;
+//  - numbered subjects ("Open Elective 1" / "Open Elective 2") are never
+//    merged by the cleanup, so they never trigger it either;
 //  - another batch's lab and garbled scan text trigger it; a garbled free
 //    slot (off row) and an empty timetable do not.
 // ==================================================================
@@ -108,6 +110,39 @@ check('6. Garbled scan text in a class shows the banner; the same text on a free
 check('7. Empty timetable shows no banner', () => {
   seed(week({}));
   return a.detectDeskPollution() === false ? true : 'banner on empty desk';
+});
+
+// Numbered subjects ("Open Elective 1" / "Open Elective 2") are different
+// subjects: cleanup must never merge them, whatever else is saved.
+const OE_TT = () => week({ 1: [lecture('Open Elective 1')], 2: [lecture('Open Elective 2')], 3: [lecture('Physics 1')], 4: [lecture('Physics 2')] });
+const planSubjects = () => {
+  const plan = a.generateDeclutterPlan(a.loadTimetable(), a.loadAttendanceBaselines(), [], 'all');
+  return Object.values(plan.newTimetable).flat().map(c => c.subject).sort().join(', ');
+};
+const EXPECTED_OE = 'Open Elective 1, Open Elective 2, Physics 1, Physics 2';
+
+check('8. Open Elective 1/2 and Physics 1/2 stay separate with no saved subjects', () => {
+  seed(OE_TT());
+  localStorage.removeItem('cos_custom_links');
+  const got = planSubjects();
+  if (got !== EXPECTED_OE) return `cleanup would merge: ${got}`;
+  return a.detectDeskPollution() === false ? true : 'banner shown for numbered subjects';
+});
+
+check('9. ...and stay separate when only "Open Elective 1" has attendance saved', () => {
+  seed(OE_TT());
+  localStorage.removeItem('cos_custom_links');
+  a.safeSetStorage('cos_attendance_baseline', { 'OE-1': { subjectCode: 'OE-1', subjectName: 'Open Elective 1', present: 10, absent: 2, leave: 0, notEntered: 0, totalSessions: 0 } });
+  const got = planSubjects();
+  if (got !== EXPECTED_OE) return `cleanup would merge: ${got}`;
+  return a.detectDeskPollution() === false ? true : 'banner shown for numbered subjects';
+});
+
+check('10. A typo with the same number still merges ("Open Electiv 1" -> "Open Elective 1")', () => {
+  seed(week({ 1: [lecture('Open Elective 1')], 2: [lecture('Open Electiv 1')] }));
+  const got = planSubjects();
+  if (got !== 'Open Elective 1, Open Elective 1') return `not merged: ${got}`;
+  return a.detectDeskPollution() === true ? true : 'real numbered duplicate not flagged';
 });
 
 console.log('\n========================================');

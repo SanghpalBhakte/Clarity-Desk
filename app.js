@@ -13069,7 +13069,15 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
         return;
       }
 
-      const norm = normalizeSubjectIdentity(rawName, externalExistingSubjects.concat(Array.from(subjectMap.values())), c.type);
+      let norm = normalizeSubjectIdentity(rawName, externalExistingSubjects.concat(Array.from(subjectMap.values())), c.type);
+      // Numbered subjects are different subjects: the fuzzy match must not
+      // fold "Open Elective 2" into "Open Elective 1". When the slot's own
+      // name and its match both carry numbers and they differ, keep the
+      // slot's own name.
+      const selfNorm = normalizeSubjectIdentity(rawName, [], c.type);
+      const numbersOf = n => (String(n || '').match(/\d+/g) || []).join(',');
+      const selfNums = numbersOf(selfNorm.canonicalName), matchNums = numbersOf(norm.canonicalName);
+      if (selfNums && matchNums && selfNums !== matchNums) norm = selfNorm;
       const isLab = c.type === 'lab' || norm.isLab;
       const canonicalName = norm.canonicalName || rawName;
       const canonicalCode = norm.canonicalCode || c.code || '';
