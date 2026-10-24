@@ -7349,8 +7349,31 @@ function resetTimetableToDefault() {
   showToast("Timetable schedule cleared ✓", "info");
 }
 
+// In-app confirm, not confirm(): embedded/in-app browsers auto-cancel the
+// native dialog, so the button silently did nothing there.
 function loadOfficialAidsTimetable() {
-  if (!confirm("Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.")) return;
+  document.getElementById('sample-tt-modal-backdrop')?.remove();
+  const close = `document.getElementById('sample-tt-modal-backdrop')?.remove()`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'sample-tt-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px;width:92vw">
+      <div class="modal-header">
+        <span class="modal-title">Load sample timetable</span>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.</div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-secondary" onclick="${close}">Cancel</button>
+        <button class="btn-primary" onclick="${close}; confirmLoadOfficialAidsTimetable()">Load</button>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+function confirmLoadOfficialAidsTimetable() {
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
   // Combined lab slots (e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)") need
   // to be split per batch and the whole schedule reviewed/filtered before
@@ -19343,6 +19366,7 @@ window.logoutUser       = logoutUser;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.resetTimetableToDefault = resetTimetableToDefault;
 window.loadOfficialAidsTimetable = loadOfficialAidsTimetable;
+window.confirmLoadOfficialAidsTimetable = confirmLoadOfficialAidsTimetable;
 window.showTimetableEntryModal = showTimetableEntryModal;
 window.saveTimetableEntry      = saveTimetableEntry;
 window.deleteTimetableEntry    = deleteTimetableEntry;
