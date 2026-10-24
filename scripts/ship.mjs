@@ -31,7 +31,7 @@ const SKIP_TESTS = args.includes('--skip-tests');
 let message = args.filter((a) => !a.startsWith('--')).join(' ').trim();
 const EXCLUDE = ['Claude outputs'].map((p) => `:(exclude)${p}`);
 const SITE = 'https://campusos-83365.web.app';
-// Every Hosting site in the "app" target (.firebaserc) gets the same deploy;
+// Both Hosting sites (targets "app" and "claritydesk" in .firebaserc) get the same deploy;
 // each one is smoke-tested. SITE stays the one the live version check reads.
 const SITES = [SITE, 'https://claritydesk.web.app'];
 

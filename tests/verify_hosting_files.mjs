@@ -25,7 +25,11 @@ const RUNTIME_FILES = [
 // Runtime files a fresh clone may legitimately lack (none at the moment).
 const OPTIONAL = new Set();
 
-const hosting = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8')).hosting;
+// One entry per Hosting site (targets in .firebaserc); every site must get
+// the same config, checked below, so the first entry's ignore list is the list.
+const hostingRaw = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8')).hosting;
+const hostings = Array.isArray(hostingRaw) ? hostingRaw : [hostingRaw];
+const hosting = hostings[0];
 const ignore = ['**/firebase-debug.log', '**/firebase-debug.*.log', '.firebase/*', ...hosting.ignore];
 
 // Matcher for the glob shapes firebase.json uses (same results as the
@@ -70,6 +74,11 @@ console.log('=================================================================='
 
 const published = walk(ROOT).filter(p => !matchers.some(match => match(p))).sort();
 
+scenario('Every Hosting site deploys the same config', () => {
+  const strip = ({ target, ...rest }) => JSON.stringify(rest);
+  const differ = hostings.filter(h => strip(h) !== strip(hosting)).map(h => h.target || '(no target)');
+  return differ.length === 0 ? true : `firebase.json hosting entries differ from "${hosting.target}": ${differ.join(', ')}`;
+});
 scenario('Nothing outside the app runtime files is published', () => {
   const extra = published.filter(p => !RUNTIME_FILES.includes(p));
   return extra.length === 0 ? true : `would publish ${extra.length} extra file(s): ${extra.slice(0, 15).join(', ')}${extra.length > 15 ? ' …' : ''} -- add an ignore glob in firebase.json, or add the file to RUNTIME_FILES if the app really loads it`;
