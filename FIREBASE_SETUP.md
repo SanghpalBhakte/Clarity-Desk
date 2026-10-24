@@ -22,7 +22,7 @@ Follow these 5 steps in the [Firebase Console](https://console.firebase.google.c
 
 ### Step 1: Firebase Hosting Setup
 1. Go to **Firebase Console → Hosting**.
-2. Confirm deployment target: `campusos-83365.web.app` and `claritydesk.web.app` (both sites are in the `app` hosting target in `.firebaserc`, so one deploy updates both).
+2. Confirm deployment target: `campusos-83365.web.app` and `claritydesk.web.app` (hosting targets `app` and `claritydesk` in `.firebaserc`, same config in `firebase.json`, so one deploy updates both).
 3. To deploy updates from your terminal:
    ```bash
    firebase deploy --only hosting

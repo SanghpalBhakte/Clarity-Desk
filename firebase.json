@@ -1,60 +1,136 @@
 {
-  "hosting": {
-    "target": "app",
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/.*/**",
-      "**/node_modules/**",
-      "firestore.rules",
-      "task.md",
-      "public/**",
-      "ai-proxy/**",
-      "**/*.md",
-      "**/*.pptx",
-      "**/*.zip",
-      "Claude outputs/**",
-      "tests/**",
-      "timetable-test-kit/**",
-      "attendance-practice-kit/**",
-      "scanner-practice-kit/**",
-      "scripts/**",
-      "playwright-report/**",
-      "test-results/**",
-      "package.json",
-      "package-lock.json",
-      "playwright.config.ts",
-      "firebase-config.local.example.js",
-      "firebase-config.local.js"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "**",
-        "headers": [
-          { "key": "X-Content-Type-Options", "value": "nosniff" }
-        ]
-      },
-      {
-        "source": "/",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
-        ]
-      },
-      {
-        "source": "/@(index.html|404.html|sw.js|manifest.json)",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
-        ]
-      }
-    ]
-  },
+  "hosting": [
+    {
+      "target": "app",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/.*/**",
+        "**/node_modules/**",
+        "firestore.rules",
+        "task.md",
+        "public/**",
+        "ai-proxy/**",
+        "**/*.md",
+        "**/*.pptx",
+        "**/*.zip",
+        "Claude outputs/**",
+        "tests/**",
+        "timetable-test-kit/**",
+        "attendance-practice-kit/**",
+        "scanner-practice-kit/**",
+        "scripts/**",
+        "playwright-report/**",
+        "test-results/**",
+        "package.json",
+        "package-lock.json",
+        "playwright.config.ts",
+        "firebase-config.local.example.js",
+        "firebase-config.local.js"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            }
+          ]
+        },
+        {
+          "source": "/",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/@(index.html|404.html|sw.js|manifest.json)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "claritydesk",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/.*/**",
+        "**/node_modules/**",
+        "firestore.rules",
+        "task.md",
+        "public/**",
+        "ai-proxy/**",
+        "**/*.md",
+        "**/*.pptx",
+        "**/*.zip",
+        "Claude outputs/**",
+        "tests/**",
+        "timetable-test-kit/**",
+        "attendance-practice-kit/**",
+        "scanner-practice-kit/**",
+        "scripts/**",
+        "playwright-report/**",
+        "test-results/**",
+        "package.json",
+        "package-lock.json",
+        "playwright.config.ts",
+        "firebase-config.local.example.js",
+        "firebase-config.local.js"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            }
+          ]
+        },
+        {
+          "source": "/",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/@(index.html|404.html|sw.js|manifest.json)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "firestore": {
     "rules": "firestore.rules"
   }

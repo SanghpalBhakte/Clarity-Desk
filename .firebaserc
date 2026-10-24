@@ -6,7 +6,9 @@
     "campusos-83365": {
       "hosting": {
         "app": [
-          "campusos-83365",
+          "campusos-83365"
+        ],
+        "claritydesk": [
           "claritydesk"
         ]
       }
