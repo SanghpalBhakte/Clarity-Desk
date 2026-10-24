@@ -7349,8 +7349,31 @@ function resetTimetableToDefault() {
   showToast("Timetable schedule cleared ✓", "info");
 }
 
+// In-app confirm, not confirm(): embedded/in-app browsers auto-cancel the
+// native dialog, so the button silently did nothing there.
 function loadOfficialAidsTimetable() {
-  if (!confirm("Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.")) return;
+  document.getElementById('sample-tt-modal-backdrop')?.remove();
+  const close = `document.getElementById('sample-tt-modal-backdrop')?.remove()`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'sample-tt-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px;width:92vw">
+      <div class="modal-header">
+        <span class="modal-title">Load sample timetable</span>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.</div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-secondary" onclick="${close}">Cancel</button>
+        <button class="btn-primary" onclick="${close}; confirmLoadOfficialAidsTimetable()">Load</button>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+function confirmLoadOfficialAidsTimetable() {
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
   // Combined lab slots (e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)") need
   // to be split per batch and the whole schedule reviewed/filtered before
@@ -12871,44 +12894,35 @@ function clearSubjectBaseline() {
 // ── Declutter & Subject Recovery Engine ──────────────────────────
 
 function detectDeskPollution() {
-  // Checked against the RAW timetable (not getSubjectList(), which already
-  // hides garbled OCR names from pickers) so the "Declutter my desk"
-  // prompt still offers to actually clean up the underlying scanned data,
-  // not just its own already-filtered view of it.
+  // True only when "Clean up desk" would actually change the timetable:
+  // runs the same (read-only) plan the preview shows, with the batch the
+  // declutter modal starts with, so the banner can't promise a cleanup
+  // that then finds nothing (or miss one it would do). Checked against the
+  // RAW timetable, not getSubjectList(), which already hides garbled OCR
+  // names and folds near-duplicates into one card.
+  // Off/break rows never become subject cards, so a free slot the scan
+  // preview labelled with what it read ("Room 304", "Library") is not
+  // desk pollution.
   const rawTT = loadTimetable();
+  const teachingTT = {};
+  let hasTeaching = false;
   for (const d of [1, 2, 3, 4, 5, 6, 0]) {
-    for (const c of (rawTT[d] || [])) {
-      // Off/break rows never become subject cards, so a free slot the scan
-      // preview labelled with what it read ("Room 304", "Library") is not
-      // desk pollution.
-      if (c && c.subject && isTeachingClass(c) && isLikelyGarbledSubjectName(getCanonicalSubjectName(c.subject))) return true;
-    }
+    teachingTT[d] = (rawTT[d] || []).filter(c => c && c.subject && isTeachingClass(c));
+    if (teachingTT[d].length) hasTeaching = true;
   }
+  if (!hasTeaching) return false;
 
-  const subjects = getSubjectList();
-  if (!subjects || !subjects.length) return false;
+  const p = liveProfile || loadProfile() || {};
+  const userBatch = (p.batch || safeGetStorage(KEY_USER_BATCH, '') || '').trim() || 'all';
+  const plan = generateDeclutterPlan(teachingTT, loadAttendanceBaselines(), allTasks(), userBatch);
+  if (plan.archivedSlots.length) return true;
 
-  for (const s of subjects) {
-    const raw = (s.name + ' ' + (s.code || '')).toLowerCase();
-    // Check batch markers in subject identity
-    if (/\b(?:batch|sec|section)\s*[a-d0-9]/i.test(raw) || /\b[a-d][1-4]\b/i.test(raw)) return true;
-    // Check room numbers or faculty in subject identity
-    if (/\b(?:prof\.|dr\.|mr\.|ms\.|mrs\.|lab-\d+|lh-\d+|lt-\d+|room\s*\d+)\b/i.test(raw)) return true;
-    // Check timetable junk tokens
-    for (const kw of TIMETABLE_JUNK_TOKENS) {
-      if (raw.includes(kw)) return true;
-    }
+  // Nothing removed, so each kept slot lines up with its original: any
+  // rename is a merge or normalization the cleanup would apply.
+  for (const d of [1, 2, 3, 4, 5, 6, 0]) {
+    const after = plan.newTimetable[d] || [];
+    if (teachingTT[d].some((c, i) => !after[i] || after[i].subject !== c.subject)) return true;
   }
-
-  // Check if multiple subjects map to the same canonical core
-  const seenCanonical = new Set();
-  for (const s of subjects) {
-    const norm = normalizeSubjectIdentity(s.name, [], s.type);
-    const key = `${(norm.canonicalName || s.name).toLowerCase()}|||${s.type}`;
-    if (seenCanonical.has(key)) return true;
-    seenCanonical.add(key);
-  }
-
   return false;
 }
 
@@ -13055,7 +13069,15 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
         return;
       }
 
-      const norm = normalizeSubjectIdentity(rawName, externalExistingSubjects.concat(Array.from(subjectMap.values())), c.type);
+      let norm = normalizeSubjectIdentity(rawName, externalExistingSubjects.concat(Array.from(subjectMap.values())), c.type);
+      // Numbered subjects are different subjects: the fuzzy match must not
+      // fold "Open Elective 2" into "Open Elective 1". When the slot's own
+      // name and its match both carry numbers and they differ, keep the
+      // slot's own name.
+      const selfNorm = normalizeSubjectIdentity(rawName, [], c.type);
+      const numbersOf = n => (String(n || '').match(/\d+/g) || []).join(',');
+      const selfNums = numbersOf(selfNorm.canonicalName), matchNums = numbersOf(norm.canonicalName);
+      if (selfNums && matchNums && selfNums !== matchNums) norm = selfNorm;
       const isLab = c.type === 'lab' || norm.isLab;
       const canonicalName = norm.canonicalName || rawName;
       const canonicalCode = norm.canonicalCode || c.code || '';
@@ -19352,6 +19374,7 @@ window.logoutUser       = logoutUser;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.resetTimetableToDefault = resetTimetableToDefault;
 window.loadOfficialAidsTimetable = loadOfficialAidsTimetable;
+window.confirmLoadOfficialAidsTimetable = confirmLoadOfficialAidsTimetable;
 window.showTimetableEntryModal = showTimetableEntryModal;
 window.saveTimetableEntry      = saveTimetableEntry;
 window.deleteTimetableEntry    = deleteTimetableEntry;

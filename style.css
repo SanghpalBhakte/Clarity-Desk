@@ -5668,7 +5668,7 @@ body::before {
 .sj-ring { flex: none; }
 .sj-ring-track { fill: none; stroke: var(--color-surface-sunken); stroke-width: 5; }
 .sj-ring-fill { fill: none; stroke-width: 5; stroke-linecap: round; }
-.sj-ring-tick { stroke: var(--color-text-primary); stroke-width: 2; }
+.sj-ring-tick { stroke: var(--color-text-tertiary); stroke-width: 1.5; }
 .sj-ring.risk .sj-ring-fill { stroke: var(--color-error); }
 .sj-ring.watch .sj-ring-fill { stroke: var(--color-warning); }
 .sj-ring.safe .sj-ring-fill { stroke: var(--color-success); }
