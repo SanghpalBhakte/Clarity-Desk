@@ -199,6 +199,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u67",
+    date: "2026-10-25",
+    title: "Clean up desk no longer merges numbered subjects like \"Open Elective 1\" and \"Open Elective 2\" into one card. They always stay separate, while real typos like \"Open Electiv 1\" are still merged.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clean up desk no longer merges numbered subjects like \"Open Elective 1\" and \"Open Elective 2\" into one card. They always stay separate, while real typos like \"Open Electiv 1\" are still merged.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u66",
+    date: "2026-10-25",
+    title: "\"Load Sample Template\" now works inside in-app browsers (like the ones that open links from WhatsApp or Instagram). It asks you to confirm in the app's own dialog instead of a browser pop-up that those browsers silently blocked.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "\"Load Sample Template\" now works inside in-app browsers (like the ones that open links from WhatsApp or Instagram). It asks you to confirm in the app's own dialog instead of a browser pop-up that those browsers silently blocked.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u65",
+    date: "2026-10-25",
+    title: "The 75% target mark on each subject's attendance ring is now a softer, thinner line, so it reads as a guide instead of a glitch.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The 75% target mark on each subject's attendance ring is now a softer, thinner line, so it reads as a guide instead of a glitch.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u64",
+    date: "2026-10-25",
+    title: "Subjects no longer show \"Duplicate subject cards found\" when there is nothing to clean up. The banner and the red dot on Manage now appear only when Clean up desk would actually remove or merge something, and real duplicates like \"Data Structure\" and \"Data Structures\" are now caught.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subjects no longer show \"Duplicate subject cards found\" when there is nothing to clean up. The banner and the red dot on Manage now appear only when Clean up desk would actually remove or merge something, and real duplicates like \"Data Structure\" and \"Data Structures\" are now caught.",
+    points: [
+
+    ]
+  },
+  {
     id: "u63",
     date: "2026-10-23",
     title: "New holiday mode: turn it on in Settings during a break and your classes are hidden from Today, the Calendar and reminders, with an optional end date. Nothing is deleted and your attendance % stays as it is. Tap \"Resume classes\" any time to bring everything back.",
