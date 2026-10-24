@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u68",
+    date: "2026-10-25",
+    title: "Clarity Desk now also opens at claritydesk.web.app, an easier address to remember. The old address keeps working. Your data doesn't move on its own: back up in Settings on the old address, then restore it on the new one.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clarity Desk now also opens at claritydesk.web.app, an easier address to remember. The old address keeps working. Your data doesn't move on its own: back up in Settings on the old address, then restore it on the new one.",
+    points: [
+
+    ]
+  },
+  {
     id: "u67",
     date: "2026-10-25",
     title: "Clean up desk no longer merges numbered subjects like \"Open Elective 1\" and \"Open Elective 2\" into one card. They always stay separate, while real typos like \"Open Electiv 1\" are still merged.",
