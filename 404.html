@@ -416,7 +416,7 @@
 
 <!-- Cloudflare Web Analytics. Only loads on the live site, so local runs and tests aren't counted. -->
 <script>
-  if (location.hostname === 'campusos-83365.web.app' || location.hostname === 'campusos-83365.firebaseapp.com') {
+  if (['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.web.app', 'claritydesk.firebaseapp.com'].includes(location.hostname)) {
     var cfBeacon = document.createElement('script');
     cfBeacon.defer = true;
     cfBeacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';

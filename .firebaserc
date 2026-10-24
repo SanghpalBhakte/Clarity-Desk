@@ -1,5 +1,16 @@
 {
   "projects": {
     "default": "campusos-83365"
-  }
+  },
+  "targets": {
+    "campusos-83365": {
+      "hosting": {
+        "app": [
+          "campusos-83365",
+          "claritydesk"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
