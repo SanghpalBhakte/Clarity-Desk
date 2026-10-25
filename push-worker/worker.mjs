@@ -242,7 +242,10 @@ export async function sendDue(env, now, { fetchImpl = fetch } = {}) {
     const dev = byId.get(row.device_id);
     if (!dev) { done.push(row.rid); return; }
     try {
-      const status = await sendPush(dev, buildPushPayload(row), vapid, { ttl: pushTtlFor(row.tag), authCache, fetchImpl });
+      const { status, reason } = await sendPush(dev, buildPushPayload(row), vapid, { ttl: pushTtlFor(row.tag), authCache, fetchImpl });
+      // Refusals are logged (push service host, status, its reason) so a
+      // reminder that never arrives can be traced. No ids, keys or text.
+      if (status < 200 || status >= 300) console.log(JSON.stringify({ pushRefused: status, host: new URL(dev.endpoint).host, reason }));
       if (status === 404 || status === 410) gone.add(dev.id);
       if (status >= 200 && status < 300) sent++;
       // Push service busy: try again next minute (the stale cleanup ends it).
