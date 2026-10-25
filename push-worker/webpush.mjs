@@ -90,8 +90,10 @@ export async function vapidAuthorization(endpoint, vapid, nowSec = Math.floor(Da
   return `vapid t=${head}.${claims}.${b64urlEncode(sig)}, k=${vapid.publicKey}`;
 }
 
-// Sends one push. Returns the push service's HTTP status (201 = accepted,
-// 404/410 = subscription gone). `authCache` reuses a JWT per push service.
+// Sends one push. Returns { status, reason }: the push service's HTTP status
+// (201 = accepted, 404/410 = subscription gone) and, when it refuses, the
+// short reason it gives (e.g. Apple's {"reason":"BadJwtToken"}).
+// `authCache` reuses a JWT per push service.
 export async function sendPush(subscription, payload, vapid, { ttl = 3600, urgency = 'high', authCache = null, fetchImpl = fetch } = {}) {
   const aud = new URL(subscription.endpoint).origin;
   let authorization = authCache && authCache.get(aud);
@@ -111,5 +113,9 @@ export async function sendPush(subscription, payload, vapid, { ttl = 3600, urgen
     },
     body,
   });
-  return res.status;
+  let reason = '';
+  if ((res.status < 200 || res.status >= 300) && typeof res.text === 'function') {
+    reason = (await res.text().catch(() => '')).slice(0, 200);
+  }
+  return { status: res.status, reason };
 }
