@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u71",
+    date: "2026-10-25",
+    title: "The \"Day Before\" deadline reminder setting now says \"(Morning)\", matching when it actually arrives",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "It comes at your morning summary time (8 AM unless you changed it), the same as \"Same Day (Morning)\".",
+    points: [
+      "The old \"(09:00)\" label was never right."
+    ]
+  },
+  {
     id: "u70",
     date: "2026-10-25",
     title: "WhatsApp import now shows how many chat messages it skipped, and Settings has a \"Tell me what breaks\" button",
