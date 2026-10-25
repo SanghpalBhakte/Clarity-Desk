@@ -25,6 +25,17 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 const swSrc = fs.readFileSync(`${ROOT}/sw.js`, 'utf8');
 
+// RFC 8291 section 5 / appendix A worked example. These are the RFC's own
+// published sample keys, not secrets (ggignore marks them for GitGuardian).
+const RFC8291 = {
+  asPublic: 'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8', // ggignore
+  asPrivate: 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw', // ggignore
+  uaPublic: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', // ggignore
+  auth: 'BTBZMqHH6r4Tts7J_aSIgg', // ggignore
+  salt: 'DGv6ra1nlYgDCS1FRnbzlw', // ggignore
+  result: 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN', // ggignore
+};
+
 let passed = 0, failed = 0;
 const check = (name, ok, detail = '') => {
   if (ok) { passed++; console.log(`  ✓ ${name}`); }
@@ -153,9 +164,9 @@ NOW = ist('2026-10-19T21:00:00');
 // ── push-worker ───────────────────────────────────────────────
 console.log('\n3. Web Push encryption (RFC 8291 worked example)');
 {
-  const keys = await W.importEcdhKeys('BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8', 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw');
-  const out = await W.encryptPayload('When I grow up, I want to be a watermelon', 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', 'BTBZMqHH6r4Tts7J_aSIgg', { salt: W.b64urlDecode('DGv6ra1nlYgDCS1FRnbzlw'), serverKeys: keys });
-  const expected = 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN';
+  const keys = await W.importEcdhKeys(RFC8291.asPublic, RFC8291.asPrivate);
+  const out = await W.encryptPayload('When I grow up, I want to be a watermelon', RFC8291.uaPublic, RFC8291.auth, { salt: W.b64urlDecode(RFC8291.salt), serverKeys: keys });
+  const expected = RFC8291.result;
   check('Ciphertext matches RFC 8291 section 5 byte for byte', W.b64urlEncode(out) === expected);
 
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
@@ -170,7 +181,7 @@ console.log('\n3. Web Push encryption (RFC 8291 worked example)');
 }
 
 console.log('\n4. Worker validation and payload');
-const SUB = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc123', keys: { p256dh: 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4', auth: 'BTBZMqHH6r4Tts7J_aSIgg' } };
+const SUB = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc123', keys: { p256dh: RFC8291.uaPublic, auth: RFC8291.auth } };
 check('Accepts a real push service subscription', !!validateSubscription(SUB));
 check('Refuses any other host (no open relay)', !validateSubscription({ ...SUB, endpoint: 'https://evil.example.com/fcm.googleapis.com' }) && !validateSubscription({ ...SUB, endpoint: 'http://fcm.googleapis.com/x' }));
 check('Accepts Apple and Mozilla push', !!validateSubscription({ ...SUB, endpoint: 'https://web.push.apple.com/abc' }) && !!validateSubscription({ ...SUB, endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/x' }));
