@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u70",
+    date: "2026-10-25",
+    title: "WhatsApp import now shows how many chat messages it skipped, and Settings has a \"Tell me what breaks\" button",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The deadline review now says how many messages had no deadline in them (the \"ok\"s, \"thanks\" and photos), and Settings has a Report a problem button that opens a short form with only the app version and device type filled in.",
+    points: [
+      "Class reminders from the older Google sign-in push now show 12-hour times too."
+    ]
+  },
+  {
     id: "u69",
     date: "2026-10-25",
     title: "Class and deadline reminders now arrive even when the app is closed",
