@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u72",
+    date: "2026-10-25",
+    title: "Adding a dated task from Today's quick-add box now offers closed-app reminders, and turning them on never gets stuck",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Found while testing on an iPhone simulator: the quick \"+ Add a task\" box on Today saved deadlines but never offered to turn reminders on, and if a phone's push service doesn't answer, \"Turn on\" now stops after 20 seconds with a clear message instead of waiting forever.",
+    points: [
+      "The push key is also fetched as soon as the sheet opens, so on iPhone the sign-up follows the \"Allow\" tap straight away."
+    ]
+  },
+  {
     id: "u71",
     date: "2026-10-25",
     title: "The \"Day Before\" deadline reminder setting now says \"(Morning)\", matching when it actually arrives",
