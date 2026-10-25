@@ -19,7 +19,7 @@ VAPID_SUBJECT = "https://campusos-83365.web.app"
 binding = "DB"
 database_name = "clarity-desk-push"
 # Paste the id that `npx wrangler@latest d1 create clarity-desk-push` prints.
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "b16afbb4-a829-4de4-a71a-834a90aafa25"
 
 # New devices: 10 sign-ups per minute per network (IP).
 [[ratelimits]]
