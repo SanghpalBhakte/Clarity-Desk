@@ -5835,22 +5835,48 @@ async function pushApi(path, method, body) {
   return { status: res.status, ok: res.ok, data };
 }
 
+// The server's public push key, fetched once and kept for the session.
+// Fetched early (when the sheet opens) so that on iPhone the subscribe step
+// can follow the "Allow" tap without a network wait in between.
+let _vapidKeyPromise = null;
+function fetchVapidKey() {
+  if (!_vapidKeyPromise) {
+    _vapidKeyPromise = pushApi('/vapid', 'GET').then(r => {
+      const key = r.data && r.data.publicKey;
+      if (!r.ok || !key) throw new Error('no VAPID key');
+      return key;
+    }).catch(err => { _vapidKeyPromise = null; throw err; });
+  }
+  return _vapidKeyPromise;
+}
+
+// A phone whose push service never answers would otherwise leave "Turn on"
+// silently waiting forever; give up with a clear message instead.
+function withTimeout(promise, ms, what) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms); })
+  ]).finally(() => clearTimeout(timer));
+}
+const PUSH_STEP_TIMEOUT_MS = 20000;
+
 // Asks for permission if needed, subscribes this device and syncs.
 async function enableClosedAppPush({ quiet = false } = {}) {
   if (!closedAppPushSupported()) {
     if (!quiet) showToast('Reminders when the app is closed are not supported in this browser.', 'error');
     return false;
   }
+  const keyPromise = fetchVapidKey();
+  keyPromise.catch(() => {}); // handled below; avoids an unhandled rejection while the prompt is up
   if (Notification.permission !== 'granted') {
     if (quiet) return false;
     const granted = await requestNotificationPermission();
     if (!granted) return false;
   }
   try {
-    const reg = await navigator.serviceWorker.ready;
-    const vapid = await pushApi('/vapid', 'GET');
-    const publicKey = vapid.data && vapid.data.publicKey;
-    if (!vapid.ok || !publicKey) throw new Error('no VAPID key');
+    const publicKey = await withTimeout(keyPromise, PUSH_STEP_TIMEOUT_MS, 'push key');
+    const reg = await withTimeout(navigator.serviceWorker.ready, PUSH_STEP_TIMEOUT_MS, 'service worker');
     const appKey = b64urlToBytes(publicKey);
     let sub = await reg.pushManager.getSubscription();
     // One push subscription per app. One made with another key (the older
@@ -5865,7 +5891,7 @@ async function enableClosedAppPush({ quiet = false } = {}) {
       safeSetStorage(KEY_PUSH_REGISTERED, false);
       sub = null;
     }
-    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+    if (!sub) sub = await withTimeout(reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey }), PUSH_STEP_TIMEOUT_MS, 'push sign-up');
     const json = sub.toJSON();
     const d = loadPushDevice();
     const res = await pushApi('/subscribe', 'POST', { device: d.id || null, secret: d.secret || null, endpoint: json.endpoint, keys: json.keys });
@@ -5985,6 +6011,7 @@ function showReminderSheet(mode = reminderSheetMode(), icsItems = null) {
     }
   };
   const v = views[mode] || views.unsupported;
+  if (mode === 'ask' && getPushApiUrl()) fetchVapidKey().catch(() => {});
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'reminder-sheet-backdrop';
@@ -8038,6 +8065,7 @@ window.handleQuickAdd = function() {
     const liveInput = document.getElementById('quick-add-input'); if (liveInput) liveInput.value = '';
     showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success');
     renderPage(state.currentPage);
+    if (t.dueDate) maybeOfferClosedAppReminders();
   };
 
   if (!dateFound) {
