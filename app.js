@@ -36,6 +36,9 @@ const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
 const KEY_ATT_DATEFIX_CUTOFF  = 'cos_att_datefix_cutoff';
 const KEY_ATT_DATEFIX_BACKUP  = 'cos_att_datefix_backup';
 const KEY_PUSH_REGISTERED     = 'cos_push_registered';
+// Closed-app reminders (push-worker/): this device's anonymous id and
+// secret plus sync status. Device-only, so it is left out of backups.
+const KEY_PUSH_DEVICE         = 'cos_push_device';
 const KEY_SYLLABUS            = 'cos_syllabus';
 // Holiday mode: { on, since, until|null }. Hides classes on screen only.
 const KEY_HOLIDAY             = 'cos_holiday';
@@ -5600,6 +5603,7 @@ function saveCustomLinks(links) {
 }
 
 function syncToCloud() {
+  schedulePushSync();
   if (!currentUser) return;
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
@@ -5775,6 +5779,253 @@ function initForegroundPushListener() {
   });
 }
 
+// ── Closed-app reminders (Web Push via push-worker/) ──────────
+// No sign-in needed. The phone works out its upcoming class and deadline
+// reminders (buildUpcomingReminders) and hands just their text and time to
+// a free Cloudflare Worker, which sends each one at its moment, even when
+// the app is closed. Chats and task descriptions never leave the phone.
+// Without push (unsupported, blocked, offline) the in-app check above
+// keeps working exactly as before.
+// var, not let: syncToCloud() can run during start-up, before this line.
+var pushSyncTimer = null;
+
+function loadPushDevice() {
+  const d = safeGetStorage(KEY_PUSH_DEVICE, null);
+  return d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+}
+
+function savePushDevice(patch) {
+  safeSetStorage(KEY_PUSH_DEVICE, { ...loadPushDevice(), ...patch });
+}
+
+function getPushApiUrl() {
+  const raw = typeof window !== 'undefined' ? window.CAMPUS_OS_PUSH_API : null;
+  if (typeof raw !== 'string' || !/^https?:\/\/\S+$/i.test(raw.trim())) return null;
+  return raw.trim().replace(/\/+$/, '');
+}
+
+function closedAppPushSupported() {
+  return typeof navigator !== 'undefined' && 'serviceWorker' in navigator &&
+    typeof window !== 'undefined' && 'PushManager' in window &&
+    typeof Notification !== 'undefined' && !!getPushApiUrl();
+}
+
+// Synced reminders cover 14 days; past ~13 without a sync they run out,
+// so the in-app check takes over again.
+function isClosedAppPushActive() {
+  const d = loadPushDevice();
+  if (!d.id || !d.lastSyncOk || !d.lastSyncAt) return false;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  return Date.now() - d.lastSyncAt < 13 * 86400000;
+}
+
+function b64urlToBytes(s) {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4);
+  return Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+}
+
+async function pushApi(path, method, body) {
+  const res = await fetch(`${getPushApiUrl()}${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = null;
+  try { data = await res.json(); } catch (_) {}
+  return { status: res.status, ok: res.ok, data };
+}
+
+// Asks for permission if needed, subscribes this device and syncs.
+async function enableClosedAppPush({ quiet = false } = {}) {
+  if (!closedAppPushSupported()) {
+    if (!quiet) showToast('Reminders when the app is closed are not supported in this browser.', 'error');
+    return false;
+  }
+  if (Notification.permission !== 'granted') {
+    if (quiet) return false;
+    const granted = await requestNotificationPermission();
+    if (!granted) return false;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const vapid = await pushApi('/vapid', 'GET');
+    const publicKey = vapid.data && vapid.data.publicKey;
+    if (!vapid.ok || !publicKey) throw new Error('no VAPID key');
+    const appKey = b64urlToBytes(publicKey);
+    let sub = await reg.pushManager.getSubscription();
+    // One push subscription per app. One made with another key (the older
+    // Firebase push) can't carry these reminders, so it is replaced.
+    const sameKey = (k) => {
+      if (!k) return false;
+      const a = new Uint8Array(k);
+      return a.length === appKey.length && a.every((v, i) => v === appKey[i]);
+    };
+    if (sub && !sameKey(sub.options && sub.options.applicationServerKey)) {
+      await sub.unsubscribe().catch(() => {});
+      safeSetStorage(KEY_PUSH_REGISTERED, false);
+      sub = null;
+    }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+    const json = sub.toJSON();
+    const d = loadPushDevice();
+    const res = await pushApi('/subscribe', 'POST', { device: d.id || null, secret: d.secret || null, endpoint: json.endpoint, keys: json.keys });
+    if (!res.ok || !res.data || !res.data.device || !res.data.secret) throw new Error(`subscribe ${res.status}`);
+    savePushDevice({ id: res.data.device, secret: res.data.secret, lastSyncOk: false });
+    const synced = await syncPushReminders({ retried: true });
+    if (!quiet) showToast(synced ? 'Reminders will arrive even when the app is closed ✓' : 'Reminders are on. They will sync when you are back online.', 'success');
+    if (state.currentPage === 'settings') renderSettings();
+    return true;
+  } catch (err) {
+    console.warn('[Push] enable failed:', err);
+    if (!quiet) showToast('Couldn’t turn on closed-app reminders right now. In-app reminders still work.', 'error');
+    return false;
+  }
+}
+
+async function disableClosedAppPush() {
+  const d = loadPushDevice();
+  try {
+    if (d.id && d.secret && getPushApiUrl()) await pushApi('/device', 'DELETE', { device: d.id, secret: d.secret });
+  } catch (_) {}
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+  } catch (_) {}
+  savePushDevice({ id: null, secret: null, lastSyncOk: false, lastSyncAt: 0 });
+  showToast('Closed-app reminders turned off. In-app reminders still work.', 'info');
+  if (state.currentPage === 'settings') renderSettings();
+}
+
+// Debounced: called whenever tasks, the timetable or settings change
+// (from syncToCloud) and when the app opens. A no-op until push is set up.
+function schedulePushSync(delay = 3000) {
+  const d = loadPushDevice();
+  if (!d.id || !getPushApiUrl()) return;
+  clearTimeout(pushSyncTimer);
+  pushSyncTimer = setTimeout(() => { syncPushReminders().catch(err => console.warn('[Push] sync failed:', err)); }, delay);
+}
+
+async function syncPushReminders({ retried = false } = {}) {
+  const d = loadPushDevice();
+  if (!d.id || !d.secret || !getPushApiUrl()) return false;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  const res = await pushApi('/sync', 'PUT', { device: d.id, secret: d.secret, reminders: buildUpcomingReminders() });
+  if ((res.status === 404 || res.status === 401) && !retried) {
+    // The server forgot this device (expired subscription): sign up again.
+    savePushDevice({ id: null, secret: null, lastSyncOk: false });
+    return enableClosedAppPush({ quiet: true });
+  }
+  if (res.status === 429) {
+    schedulePushSync(12000);
+    return false;
+  }
+  savePushDevice({ lastSyncAt: Date.now(), lastSyncOk: res.ok });
+  return res.ok;
+}
+
+// ── Reminder permission sheet ─────────────────────────────────
+// Offered once, at a moment it is useful (after the first WhatsApp import
+// or the first deadline added), never on page load. Picks the step that
+// can actually work in this browser.
+function reminderSheetMode() {
+  if (typeof navigator === 'undefined') return null;
+  const ua = navigator.userAgent || '';
+  if (/Instagram|FBAN|FBAV|FB_IAB|WhatsApp/i.test(ua)) return 'inapp';
+  const ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  if (ios && !standalone) return 'ios-install';
+  if (!closedAppPushSupported()) return null;
+  if (Notification.permission === 'denied') return 'denied';
+  return 'ask';
+}
+
+function maybeOfferClosedAppReminders(icsItems = null) {
+  const d = loadPushDevice();
+  if (d.prompted || isClosedAppPushActive()) return;
+  const mode = reminderSheetMode();
+  if (!mode) return;
+  savePushDevice({ prompted: true });
+  setTimeout(() => showReminderSheet(mode, icsItems), 900);
+}
+
+let _reminderSheetIcs = null;
+
+function showReminderSheet(mode = reminderSheetMode(), icsItems = null) {
+  document.getElementById('reminder-sheet-backdrop')?.remove();
+  _reminderSheetIcs = Array.isArray(icsItems) && icsItems.length ? icsItems : null;
+  const close = `document.getElementById('reminder-sheet-backdrop')?.remove()`;
+  const calendarBtn = _reminderSheetIcs ? `<button class="btn-secondary" onclick="reminderSheetCalendar()">Add to calendar instead</button>` : '';
+  const views = {
+    ask: {
+      title: 'Get reminders when the app is closed',
+      body: `<p>Class and deadline reminders will arrive on this phone even when Clarity Desk is closed.</p><p class="reminder-sheet-note">Only each reminder’s text and time are sent, never your chats.</p>`,
+      actions: `<button class="btn-secondary" onclick="${close}">Not now</button><button class="btn-primary" onclick="${close}; enableClosedAppPush()">Turn on</button>`
+    },
+    inapp: {
+      title: 'Open in Chrome or Safari',
+      body: `<p>This in-app browser can’t show reminders. Tap <strong>⋯</strong> and choose <strong>Open in browser</strong>, or copy the link and paste it there.</p><p class="reminder-sheet-note">Then add Clarity Desk to your home screen and turn reminders on.</p>`,
+      actions: `${calendarBtn}<button class="btn-secondary" onclick="reminderSheetCopyLink()">Copy link</button><button class="btn-primary" onclick="${close}">OK</button>`
+    },
+    'ios-install': {
+      title: 'Add Clarity Desk to your Home Screen',
+      body: `<ol class="reminder-sheet-steps"><li>Tap the <strong>Share</strong> button in Safari.</li><li>Tap <strong>Add to Home Screen</strong>.</li><li>Open Clarity Desk from your Home Screen and turn on reminders in Settings.</li></ol><p class="reminder-sheet-note">iPhone only shows app reminders for home-screen apps.</p>`,
+      actions: `${calendarBtn}<button class="btn-primary" onclick="${close}">OK</button>`
+    },
+    denied: {
+      title: 'Reminders are blocked',
+      body: `<p>That’s okay, everything else still works. To turn them on later:</p><ul class="reminder-sheet-steps"><li><strong>Android:</strong> long-press the Clarity Desk icon › App info › Notifications. In Chrome: ⋮ › Settings › Site settings › Notifications.</li><li><strong>iPhone:</strong> Settings › Notifications › Clarity Desk.</li></ul>`,
+      actions: `${calendarBtn}<button class="btn-primary" onclick="${close}">OK</button>`
+    },
+    unsupported: {
+      title: 'Not available in this browser',
+      body: `<p>This browser can’t receive reminders while the app is closed. In-app reminders still work while Clarity Desk is open.</p>`,
+      actions: `${calendarBtn}<button class="btn-primary" onclick="${close}">OK</button>`
+    }
+  };
+  const v = views[mode] || views.unsupported;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'reminder-sheet-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-sheet-title" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title" id="reminder-sheet-title">${icons.bell()} ${v.title}</span>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body reminder-sheet-body">${v.body}</div>
+      <div class="modal-footer reminder-sheet-actions">${v.actions}</div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+async function reminderSheetCopyLink() {
+  const link = `${window.location.origin}${window.location.pathname}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    showToast('Link copied. Paste it in Chrome or Safari.', 'success');
+  } catch (_) {
+    showToast(link, 'info');
+  }
+}
+
+async function reminderSheetCalendar() {
+  if (!_reminderSheetIcs) return;
+  try {
+    const P = await import('./deadline-import.js');
+    const blob = new Blob([P.buildIcs(_reminderSheetIcs)], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'clarity-desk-deadlines.ics';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    console.warn('[Push] calendar export failed:', err);
+  }
+}
+
 const NOTIF_DEFAULT_ICON = './icon-192.png';
 const NOTIF_DEFAULT_BADGE = './badge-96.png'; // monochrome transparent PNG for Android status bar
 
@@ -5817,6 +6068,108 @@ function dispatchNotification(title, options = {}) {
 }
 window.dispatchNotification = dispatchNotification;
 
+// ── Reminder builders ─────────────────────────────────────────
+// The one place class and deadline reminder text is written. The in-app
+// check below and the closed-app push sync (buildUpcomingReminders) both
+// use these, so a reminder reads the same whichever path delivers it.
+// Tags are the cos_notified_history keys (and what the GitHub push job
+// sends), so one reminder arriving twice replaces itself.
+function taskReminderUrl(t) {
+  return t && t.isCustom && t.id ? `./?task=${encodeURIComponent(t.id)}#assignments` : './#assignments';
+}
+
+function buildTaskReminder(kind, t, dateKey, overdueDays = 1) {
+  const subject = t.subject || 'Task';
+  const url = taskReminderUrl(t);
+  if (kind === 'day_before') {
+    return { tag: `upcoming_daybefore_${t.id}_${dateKey}`, title: `Upcoming Task: ${t.title}`, body: `${subject} · Due tomorrow! Keep going.`, url };
+  }
+  if (kind === 'same_day') {
+    return { tag: `upcoming_sameday_${t.id}_${dateKey}`, title: `Task Due Today: ${t.title}`, body: `${subject} · Due today!`, url };
+  }
+  return { tag: `overdue_${t.id}_${dateKey}`, title: `Task Overdue: ${t.title}`, body: `${subject} is ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue.`, url };
+}
+
+function buildClassReminder(c, dateKey) {
+  return {
+    tag: `class_rem_${c.code || c.subject}_${c.time}_${dateKey}`,
+    title: `Class Starting Soon: ${c.subject}`,
+    body: `Starts at ${formatDisplayTime(c.time)} in ${c.room || 'class'} with ${c.teacher || 'faculty'}`,
+    url: './#timetable'
+  };
+}
+
+function classReminderLead(prefs) {
+  return prefs.classReminders === '1_hour' ? 60 : prefs.classReminders === '30_min' ? 30 : 15;
+}
+
+// Morning time for deadline reminders: the daily summary time, else 8 AM.
+function taskMorningTime(prefs) {
+  const t = prefs && prefs.dailySummaryTime;
+  return typeof t === 'string' && /^\d{2}:\d{2}$/.test(t) ? t : '08:00';
+}
+
+// A weekday's classes as reminders see them: teaching classes only, for
+// General + the student's own group (same filter as the Calendar).
+function reminderClassesFor(dayIdx) {
+  const batch = calendarUserBatch();
+  return ((loadTimetable() || {})[dayIdx] || []).filter(c => isTeachingClass(c) && shouldKeepClassForUserBatch(c, batch));
+}
+
+// Every class and deadline reminder due in the next `days` days, with the
+// moment it should fire (worked out here, in the phone's own time, and
+// sent to the push server as a UTC timestamp). Only what a notification
+// needs: title, body, tag and the screen to open. Never task descriptions.
+const PUSH_SYNC_DAYS = 14;
+const PUSH_MAX_REMINDERS = 200;
+
+function buildUpcomingReminders(now = new Date(), days = PUSH_SYNC_DAYS) {
+  const prefs = loadNotifPrefs();
+  const nowMs = now.getTime();
+  const out = [];
+  const at = (dateKey, minutes) => {
+    const d = new Date(`${dateKey}T00:00:00`);
+    d.setMinutes(minutes);
+    return d.getTime();
+  };
+  const add = (r, fireAt) => { if (fireAt > nowMs) out.push({ id: r.tag, fireAt, title: r.title, body: r.body, url: r.url, tag: r.tag }); };
+  const dayKey = (offset) => { const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offset); return localDateKey(d); };
+  const firstKey = dayKey(0);
+  const lastKey = dayKey(days);
+
+  if (prefs.taskUpcoming !== 'off') {
+    const morning = timeToMinutes(taskMorningTime(prefs));
+    allTasks().filter(t => t && t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= firstKey && t.dueDate <= lastKey).forEach(t => {
+      // An early start (a 7:30 AM quiz) gets its reminder an hour before.
+      const start = t.startTime ? timeToMinutes(t.startTime) : null;
+      const dueMorning = start !== null && start - 60 < morning ? Math.max(start - 60, 0) : morning;
+      add(buildTaskReminder('same_day', t, t.dueDate), at(t.dueDate, dueMorning));
+      if (prefs.taskUpcoming === 'day_before') {
+        const before = new Date(`${t.dueDate}T12:00:00`);
+        before.setDate(before.getDate() - 1);
+        const beforeKey = localDateKey(before);
+        add(buildTaskReminder('day_before', t, beforeKey), at(beforeKey, morning));
+      }
+    });
+  }
+
+  if (prefs.classReminders !== 'off') {
+    const lead = classReminderLead(prefs);
+    for (let i = 0; i < days; i++) {
+      const key = dayKey(i);
+      if (isHolidayActive(key)) continue;
+      const weekday = new Date(`${key}T12:00:00`).getDay();
+      reminderClassesFor(weekday).forEach(c => {
+        add(buildClassReminder(c, key), at(key, timeToMinutes(c.time || '10:00') - lead));
+      });
+    }
+  }
+
+  out.sort((a, b) => a.fireAt - b.fireAt);
+  const seen = new Set();
+  return out.filter(r => !seen.has(r.tag) && seen.add(r.tag)).slice(0, PUSH_MAX_REMINDERS);
+}
+
 function checkScheduledNotifications() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const prefs = loadNotifPrefs();
@@ -5832,29 +6185,29 @@ function checkScheduledNotifications() {
   const tasks = allTasks().filter(t => t.status === 'pending');
   const notifiedMap = safeGetStorage('cos_notified_history', {}) || {};
 
+  // Class and deadline reminders come from the closed-app push path once
+  // it is set up on this device (see syncPushReminders); this in-app
+  // check then only covers what push does not send.
+  const pushCovers = isClosedAppPushActive();
+
   // 1. Upcoming Tasks
-  if (prefs.taskUpcoming === 'day_before') {
+  if (prefs.taskUpcoming === 'day_before' && !pushCovers) {
     tasks.filter(t => !t.noDeadline && t.dueDate === tomorrowStr).forEach(t => {
-      const key = `upcoming_daybefore_${t.id}_${today}`;
-      if (!notifiedMap[key]) {
-        dispatchNotification(`Upcoming Task: ${t.title}`, {
-          body: `${t.subject || 'Task'} · Due tomorrow! Keep going.`,
-          tag: key,
-          data: { url: './#assignments' }
-        });
-        notifiedMap[key] = true;
+      const r = buildTaskReminder('day_before', t, today);
+      if (!notifiedMap[r.tag]) {
+        dispatchNotification(r.title, { body: r.body, tag: r.tag, data: { url: r.url } });
+        notifiedMap[r.tag] = true;
       }
     });
-  } else if (prefs.taskUpcoming === 'same_day') {
+  }
+  // Due-today reminder: any time today for "same_day"; with "day_before"
+  // it also comes on the morning itself (from the daily summary time).
+  if (!pushCovers && (prefs.taskUpcoming === 'same_day' || (prefs.taskUpcoming === 'day_before' && currentHHMM >= taskMorningTime(prefs)))) {
     tasks.filter(t => !t.noDeadline && t.dueDate === today).forEach(t => {
-      const key = `upcoming_sameday_${t.id}_${today}`;
-      if (!notifiedMap[key]) {
-        dispatchNotification(`Task Due Today: ${t.title}`, {
-          body: `${t.subject || 'Task'} · Due today!`,
-          tag: key,
-          data: { url: './#assignments' }
-        });
-        notifiedMap[key] = true;
+      const r = buildTaskReminder('same_day', t, today);
+      if (!notifiedMap[r.tag]) {
+        dispatchNotification(r.title, { body: r.body, tag: r.tag, data: { url: r.url } });
+        notifiedMap[r.tag] = true;
       }
     });
   }
@@ -5862,15 +6215,11 @@ function checkScheduledNotifications() {
   // 2. Overdue Tasks
   if (prefs.taskOverdue !== 'off') {
     tasks.filter(t => isTaskOverdue(t)).forEach(t => {
-      const key = `overdue_${t.id}_${today}`;
-      if (!notifiedMap[key]) {
-        const days = Math.abs(dueDaysLeft(t.dueDate) || 1);
-        dispatchNotification(`Task Overdue: ${t.title}`, {
-          body: `${t.subject || 'Task'} is ${days} day${days > 1 ? 's' : ''} overdue.`,
-          tag: key,
-          data: { url: './#assignments' }
-        });
-        notifiedMap[key] = true;
+      const days = Math.abs(dueDaysLeft(t.dueDate) || 1);
+      const r = buildTaskReminder('overdue', t, today, days);
+      if (!notifiedMap[r.tag]) {
+        dispatchNotification(r.title, { body: r.body, tag: r.tag, data: { url: r.url } });
+        notifiedMap[r.tag] = true;
       }
     });
   }
@@ -5879,23 +6228,17 @@ function checkScheduledNotifications() {
   const onHoliday = isHolidayActive(today);
 
   // 3. Class Reminders
-  if (prefs.classReminders !== 'off' && !onHoliday) {
-    const liveTT = loadTimetable();
-    const dayClasses = (liveTT[now.getDay()] || []).filter(isTeachingClass);
-    const leadWindow = prefs.classReminders === '1_hour' ? 60 : prefs.classReminders === '30_min' ? 30 : 15;
+  if (prefs.classReminders !== 'off' && !onHoliday && !pushCovers) {
+    const leadWindow = classReminderLead(prefs);
 
-    dayClasses.forEach(c => {
+    reminderClassesFor(now.getDay()).forEach(c => {
       const startMin = timeToMinutes(c.time || '10:00');
       const diff = startMin - currentMin;
       if (diff > 0 && diff <= leadWindow) {
-        const classKey = `class_rem_${c.code || c.subject}_${c.time}_${today}`;
-        if (!notifiedMap[classKey]) {
-          dispatchNotification(`Class Starting Soon: ${c.subject}`, {
-            body: `Starts at ${formatDisplayTime(c.time)} in ${c.room || 'class'} with ${c.teacher || 'faculty'}`,
-            tag: classKey,
-            data: { url: './#timetable' }
-          });
-          notifiedMap[classKey] = true;
+        const r = buildClassReminder(c, today);
+        if (!notifiedMap[r.tag]) {
+          dispatchNotification(r.title, { body: r.body, tag: r.tag, data: { url: r.url } });
+          notifiedMap[r.tag] = true;
         }
       }
     });
@@ -15525,6 +15868,7 @@ function submitAddTask(editTaskId = null) {
   showToast(editTaskId ? 'Task updated ✓' : (taskType === 'mission' || isNoDeadline) ? 'Mission added to desk ✓' : 'Task added to desk ✓', 'success');
   renderPage(state.currentPage);
   updateNavBadges();
+  if (!isNoDeadline && finalDueDate) maybeOfferClosedAppReminders();
 }
 
 // ── Import from WhatsApp ──────────────────────────────────────
@@ -15937,6 +16281,7 @@ function waImportSelected() {
   waClose();
   navigate('assignments');
   updateNavBadges();
+  maybeOfferClosedAppReminders(chosen);
   const n = ids.length;
   showUndoToast(`Imported ${n} task${n === 1 ? '' : 's'}`, () => {
     const drop = new Set(ids);
@@ -16833,7 +17178,23 @@ function renderSettings() {
         </div>
       </div>` : ''}
 
-      ${currentUser ? `
+      ${closedAppPushSupported() || reminderSheetMode() === 'ios-install' || reminderSheetMode() === 'inapp' ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">Reminders when the app is closed</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
+            Status: <strong style="color:${isClosedAppPushActive() ? 'var(--green)' : 'var(--text-muted)'}">
+              ${isClosedAppPushActive() ? 'On for this device ✓' : 'Off'}
+            </strong> · No sign-in needed
+          </div>
+        </div>
+        <button class="btn btn-sm ${isClosedAppPushActive() ? 'btn-secondary' : 'btn-primary'}" onclick="${isClosedAppPushActive() ? 'disableClosedAppPush()' : 'showReminderSheet()'}">
+          ${isClosedAppPushActive() ? 'Turn Off' : 'Turn On'}
+        </button>
+      </div>
+      ` : ''}
+
+      ${closedAppPushSupported() ? '' : currentUser ? `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
           <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">Background Push (works when app is closed)</div>
@@ -19505,6 +19866,11 @@ window.updateNavBadges = updateNavBadges;
 
 window.requestNotificationPermission = requestNotificationPermission;
 window.registerBackgroundPush = registerBackgroundPush;
+window.enableClosedAppPush = enableClosedAppPush;
+window.disableClosedAppPush = disableClosedAppPush;
+window.showReminderSheet = showReminderSheet;
+window.reminderSheetCopyLink = reminderSheetCopyLink;
+window.reminderSheetCalendar = reminderSheetCalendar;
 
 // ── Init ──────────────────────────────────────────────────────
 function init() {
@@ -19558,9 +19924,17 @@ function init() {
     waReceiveShare();
   }
 
+  // Opened from a deadline reminder (./?task=<id>#assignments): open that task.
+  const reminderTaskId = new URLSearchParams(window.location.search).get('task');
+  if (reminderTaskId) {
+    history.replaceState(null, '', window.location.pathname + window.location.hash);
+    if (state.customTasks.some(t => t.id === reminderTaskId)) setTimeout(() => showAddTaskModal(reminderTaskId), 300);
+  }
+
   // Check and schedule task & notice notifications
   checkScheduledNotifications();
   checkNoticeNotifications();
+  schedulePushSync(5000);
   setInterval(() => {
     checkScheduledNotifications();
     checkNoticeNotifications();

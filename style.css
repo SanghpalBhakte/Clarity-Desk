@@ -6638,3 +6638,12 @@ html.more-sheet-open .more-sheet {
 .task-more[open] > .task-more-summary::before { content: '▾'; }
 .task-more-summary:hover { color: var(--text-primary); }
 .task-more-summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+/* Reminder permission sheet (showReminderSheet in app.js) */
+.reminder-sheet { max-width: 420px; width: 92vw; }
+.reminder-sheet .modal-title { display: inline-flex; align-items: center; gap: 8px; }
+.reminder-sheet-body { font-size: var(--text-base); color: var(--text-muted); line-height: 1.5; }
+.reminder-sheet-body p { margin: 0 0 8px; }
+.reminder-sheet-note { font-size: var(--text-sm); }
+.reminder-sheet-steps { margin: 4px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.reminder-sheet-actions { margin-top: 16px; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
