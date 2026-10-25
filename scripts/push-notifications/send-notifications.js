@@ -118,6 +118,19 @@ function dueDaysLeft(dateStr, todayStr) {
   return Math.round((b - a) / 86400000);
 }
 
+// Same 12-hour AM/PM text as formatDisplayTime() in app.js, so a class
+// reminder reads the same from this job as from the app.
+function formatDisplayTime(t) {
+  if (!t || typeof t !== "string") return t || "";
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+  if (!m) return t.trim();
+  let h = parseInt(m[1], 10);
+  if (m[3]) return `${h}:${m[2]} ${m[3].toUpperCase()}`;
+  const suffix = h >= 12 ? "PM" : "AM";
+  h = ((h - 1 + 12) % 12) + 1;
+  return `${h}:${m[2]} ${suffix}`;
+}
+
 function timeToMinutes(t) {
   if (!t || typeof t !== "string") return 0;
   const parts = t.split(":").map(Number);
@@ -267,7 +280,7 @@ function evaluateUser(data, notifiedKeys, time) {
         push(
           `class_rem_${c.code || c.subject}_${c.time}_${today}`,
           `Class Starting Soon: ${c.subject}`,
-          `Starts at ${c.time} in ${c.room || "class"} with ${c.teacher || "faculty"}`,
+          `Starts at ${formatDisplayTime(c.time)} in ${c.room || "class"} with ${c.teacher || "faculty"}`,
           "./#timetable"
         );
       }

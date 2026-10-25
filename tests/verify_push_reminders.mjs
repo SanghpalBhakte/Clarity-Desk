@@ -77,7 +77,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive };`)();
+const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', room: '301', teacher: 'Prof. Rao', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -160,6 +160,17 @@ check('Push active: in-app check stays quiet for classes (no double alert)', !sh
 NOW = ist('2026-11-10T08:50:00');
 check('A sync older than 13 days no longer counts (in-app takes over)', !app.isClosedAppPushActive());
 NOW = ist('2026-10-19T21:00:00');
+
+console.log('\n2b. "Tell me what breaks" and the older push job');
+{
+  app.state.customTasks = [QUIZ];
+  const u = new URL(app.bugReportUrl());
+  const body = u.searchParams.get('body') || '';
+  check('Report link opens a prefilled issue on the public repo', u.href.startsWith('https://github.com/SanghpalBhakte/Clarity-Desk/issues/new?') && body.includes('What happened:'));
+  check('Report link carries no task, chat or profile data', !u.href.includes('DBMS') && !u.href.includes('Test Student') && /App v\S+ · \S+/.test(body));
+  const job = fs.readFileSync(`${ROOT}/scripts/push-notifications/send-notifications.js`, 'utf8');
+  check('Older Firebase push job writes class times in 12-hour AM/PM', job.includes('Starts at ${formatDisplayTime(c.time)}') && !job.includes('Starts at ${c.time}'));
+}
 
 // ── push-worker ───────────────────────────────────────────────
 console.log('\n3. Web Push encryption (RFC 8291 worked example)');

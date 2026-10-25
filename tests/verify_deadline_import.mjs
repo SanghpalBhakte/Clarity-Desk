@@ -64,7 +64,8 @@ for (const file of ['android.txt', 'iphone.txt', 'web-copy.txt', '24-hour.txt'])
   check(`${file}: sent date is 19 Oct 2026, 9:00 pm`, !!teacher && teacher.sent.getTime() === new Date(2026, 9, 19, 21, 0).getTime(), teacher && String(teacher.sent));
   const lines = teacher ? teacher.text.trim().split('\n') : [];
   check(`${file}: multi-line message kept together (3 lines)`, lines.length === 3 && lines[2].startsWith('Bring the printed copy'), JSON.stringify(lines));
-  const { items } = P.scanChat(raw, NOW);
+  const { items, stats } = P.scanChat(raw, NOW);
+  check(`${file}: "ok thanks" and media lines counted as ignored`, stats.ignored >= 1 && stats.ignored === stats.messages - 1, JSON.stringify(stats));
   check(`${file}: finds the submission only`, items.length === 1 && describe(items[0]) === 'sub, Fri 23 Oct, 14:00 to 16:00', items.map(describe).join(' | '));
   check(`${file}: who is kept on the candidate`, items[0] && items[0].who === 'Prof. Kulkarni');
 }

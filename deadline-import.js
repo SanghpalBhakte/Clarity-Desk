@@ -238,7 +238,8 @@ export function shortTitle(text) {
 // Returns { items, stats }. items: DeadlineCandidate[] sorted by date:
 //   { id, kind: 'exam'|'sub'|'pres'|'lec'|'oth', date: Date, end: Date|null,
 //     hasTime, title, text, who, sent: Date|null }
-// stats: { messages, recognised, first, last } for the review header.
+// stats: { messages, recognised, ignored, first, last } for the review header.
+// ignored: messages with no deadline in them ("ok", "thanks", media...).
 export function scanChat(raw, now = new Date()) {
   const { msgs, dayFirst, recognised } = splitMessages(raw);
   const out = [];
@@ -274,7 +275,7 @@ export function scanChat(raw, now = new Date()) {
   const sentDates = msgs.map(m => m.sent).filter(Boolean);
   return {
     items,
-    stats: { messages: msgs.length, recognised, first: sentDates[0] || null, last: sentDates[sentDates.length - 1] || null },
+    stats: { messages: msgs.length, recognised, ignored: msgs.length - out.length, first: sentDates[0] || null, last: sentDates[sentDates.length - 1] || null },
   };
 }
 
