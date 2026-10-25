@@ -295,7 +295,9 @@ console.log('\n6. sw.js push handler');
   check('Same tag already showing: replaced quietly (no second buzz)', notes.length === 2 && notes[1].renotify === false);
   await push({ data: { title: 'from FCM' } });
   check('FCM-shaped payloads are still left to the FCM handler', notes.length === 2);
-  check('Cache version bumped (v206)', /clarity-desk-v206/.test(swSrc));
+  const swVer = (swSrc.match(/clarity-desk-v(\d+)/) || [])[1];
+  const htmlVer = (fs.readFileSync(`${ROOT}/index.html`, 'utf8').match(/app\.js\?v=(\d+)/) || [])[1];
+  check('Cache version (sw.js) matches the page asset version, and is past v205', !!swVer && swVer === htmlVer && +swVer > 205, `${swVer} vs ${htmlVer}`);
 }
 
 console.log(`\nPASSED: ${passed}\nFAILED: ${failed}`);
