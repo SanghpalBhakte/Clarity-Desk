@@ -16155,7 +16155,7 @@ function waRenderReview() {
   const later = items.filter(c => c.date >= week);
   const fmt = (d) => `${d.getDate()} ${WA_MON[d.getMonth()]}`;
   const range = stats.first && stats.last ? `, ${fmt(stats.first)} to ${fmt(stats.last)}` : '';
-  const header = `Read ${stats.messages} message${stats.messages === 1 ? '' : 's'}${range}. Found ${next.length + later.length} upcoming.`;
+  const header = `Read ${stats.messages} message${stats.messages === 1 ? '' : 's'}${range}. Found ${next.length + later.length} upcoming${stats.ignored ? `, ignored ${stats.ignored} with no deadline` : ''}.`;
 
   if (!items.length) {
     body.innerHTML = `
@@ -17341,7 +17341,28 @@ function renderSettings() {
         </button>
       </div>
     </div>
+
+    <div class="section-heading">${icons.bell()} Tell me what breaks</div>
+    <div class="card" style="padding:18px">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
+        Made by a student. Something wrong or confusing? Tell me and I’ll fix it.
+        Only the app version and device type are filled in for you, never your data.
+      </div>
+      <a class="btn-primary" href="${bugReportUrl()}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">Report a problem</a>
+    </div>
   `;
+}
+
+// "Tell me what breaks": a prefilled GitHub issue on the public repo. Only
+// the app version and a rough device type go in; no tasks, chats or names.
+function bugReportUrl() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const device = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone/iPad' : /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : 'Other';
+  const installed = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  const src = (typeof document !== 'undefined' && document.querySelector && document.querySelector('script[src*="app.js?v="]')?.getAttribute('src')) || '';
+  const version = (src.match(/v=(\d+)/) || [])[1] || '?';
+  const body = `What happened:\n\n\nWhat you expected:\n\n\nSteps to make it happen again:\n1. \n\n---\nApp v${version} · ${device} · ${installed ? 'installed app' : 'browser'}`;
+  return `https://github.com/SanghpalBhakte/Clarity-Desk/issues/new?title=${encodeURIComponent('Problem: ')}&body=${encodeURIComponent(body)}`;
 }
 
 function saveSettings() {
