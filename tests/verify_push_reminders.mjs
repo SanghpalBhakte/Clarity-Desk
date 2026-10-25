@@ -77,7 +77,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl };`)();
+const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', room: '301', teacher: 'Prof. Rao', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -170,6 +170,23 @@ console.log('\n2b. "Tell me what breaks" and the older push job');
   check('Report link carries no task, chat or profile data', !u.href.includes('DBMS') && !u.href.includes('Test Student') && /App v\S+ · \S+/.test(body));
   const job = fs.readFileSync(`${ROOT}/scripts/push-notifications/send-notifications.js`, 'utf8');
   check('Older Firebase push job writes class times in 12-hour AM/PM', job.includes('Starts at ${formatDisplayTime(c.time)}') && !job.includes('Starts at ${c.time}'));
+}
+
+console.log('\n2c. Turning on: no silent hang, key fetched once, quick-add offers reminders');
+{
+  globalThis.Date = RealDate;
+  const slow = await app.withTimeout(new Promise(() => {}), 30, 'push sign-up').then(() => 'resolved', e => e.message);
+  check('A push step that never answers gives up with a clear error', slow === 'push sign-up timed out', slow);
+  check('A step that answers in time is passed through', (await app.withTimeout(Promise.resolve(7), 1000, 'x')) === 7);
+  let calls = 0;
+  window.CAMPUS_OS_PUSH_API = 'https://push.test';
+  globalThis.fetch = async (url) => { calls++; return { status: 200, ok: true, json: async () => ({ publicKey: 'BKEY' }) }; };
+  const [k1, k2] = await Promise.all([app.fetchVapidKey(), app.fetchVapidKey()]);
+  await app.fetchVapidKey();
+  check('Server push key is fetched once and reused (no network wait after "Allow")', k1 === 'BKEY' && k2 === 'BKEY' && calls === 1, `calls=${calls}`);
+  const qa = appSrc.slice(appSrc.indexOf('showToast(`Added "${t.title}"'), appSrc.indexOf('showToast(`Added "${t.title}"') + 400);
+  check('Today quick-add offers closed-app reminders for a dated task', /if \(t\.dueDate\) maybeOfferClosedAppReminders\(\);/.test(qa));
+  globalThis.Date = FakeDate;
 }
 
 // ── push-worker ───────────────────────────────────────────────
