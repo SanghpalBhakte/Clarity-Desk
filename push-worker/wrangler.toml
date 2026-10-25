@@ -1,0 +1,37 @@
+# Clarity Desk closed-app reminders -- Cloudflare Workers + D1, free plans.
+# Deploy steps: see README.md in this folder.
+name = "clarity-desk-push"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+
+# Every minute: send the reminders that are due.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# Pages allowed to call this Worker, comma-separated. "http://localhost:*"
+# style entries match any port -- add one only while testing locally.
+ALLOWED_ORIGINS = "https://campusos-83365.web.app,https://campusos-83365.firebaseapp.com,https://claritydesk.web.app,https://claritydesk.firebaseapp.com"
+# VAPID "subject": who push services contact about this sender.
+VAPID_SUBJECT = "https://campusos-83365.web.app"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clarity-desk-push"
+# Paste the id that `npx wrangler@latest d1 create clarity-desk-push` prints.
+database_id = "b16afbb4-a829-4de4-a71a-834a90aafa25"
+
+# New devices: 10 sign-ups per minute per network (IP).
+[[ratelimits]]
+name = "SUBSCRIBE_LIMITER"
+namespace_id = "7303"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 60
+
+# VAPID keys are secrets, never written here. Make them with
+#   node generate-vapid.mjs
+# then set them with:
+#   npx wrangler@latest secret put VAPID_PUBLIC_KEY
+#   npx wrangler@latest secret put VAPID_PRIVATE_KEY

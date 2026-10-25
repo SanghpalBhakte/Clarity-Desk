@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clarity-desk-v205';
+const CACHE_NAME = 'clarity-desk-v206';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -181,15 +181,22 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Clarity Desk';
   const body  = data.body  || 'Tap to open the app.';
   const tag   = data.tag   || 'cd-push-default';
+  // Closed-app reminders (push-worker/) send a flat { title, body, tag, url }.
+  const url   = (typeof data.url === 'string' && data.url) || (data.data && data.data.url) || './#dashboard';
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon:      data.icon  || NOTIF_DEFAULT_ICON,
-      badge:     data.badge || NOTIF_DEFAULT_BADGE,
-      tag,
-      renotify:  true,
-      data:      data.data  || { url: './#dashboard' }
-    })
+    // The same reminder can also come from the open app or the older push
+    // job under the same tag. If it is already showing, replace it quietly
+    // instead of buzzing twice. (Always show: a silent push is not allowed.)
+    self.registration.getNotifications({ tag }).catch(() => []).then((shown) =>
+      self.registration.showNotification(title, {
+        body,
+        icon:      data.icon  || NOTIF_DEFAULT_ICON,
+        badge:     data.badge || NOTIF_DEFAULT_BADGE,
+        tag,
+        renotify:  shown.length === 0,
+        data:      { url }
+      })
+    )
   );
 });
 

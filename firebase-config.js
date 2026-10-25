@@ -51,6 +51,11 @@
   const AI_PROXY_URL = 'https://clarity-desk-ai.sanghapal2006.workers.dev';
   window.CAMPUS_OS_AI_PROXY = getEnvVal('AI_PROXY_URL') || AI_PROXY_URL || null;
 
+  // Closed-app reminders (push-worker/ folder, a free Cloudflare Worker with
+  // a D1 database). Paste the URL `npx wrangler deploy` prints. Not a secret.
+  const PUSH_API_URL = 'https://clarity-desk-push.sanghapal2006.workers.dev';
+  window.CAMPUS_OS_PUSH_API = getEnvVal('PUSH_API_URL') || PUSH_API_URL || null;
+
   // If env vars are present, construct config object
   if (envApiKey && envProjectId && !envApiKey.includes('YOUR_')) {
     window.CAMPUS_OS_FIREBASE_CONFIG = {
