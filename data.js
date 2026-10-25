@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u69",
+    date: "2026-10-25",
+    title: "Class and deadline reminders now arrive even when the app is closed",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Turn them on once (no sign-in needed) and class reminders, plus a morning reminder on the day a deadline is due, reach your phone with Clarity Desk closed.",
+    points: [
+      "Only each reminder's text and time leave your phone, never your chats."
+    ]
+  },
+  {
     id: "u68",
     date: "2026-10-25",
     title: "Clarity Desk now also opens at claritydesk.web.app, an easier address to remember. The old address keeps working. Your data doesn't move on its own: back up in Settings on the old address, then restore it on the new one.",
