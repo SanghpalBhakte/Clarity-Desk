@@ -17223,7 +17223,7 @@ function renderSettings() {
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Remind about pending assignments</div>
           </div>
           <select class="form-select" id="np-task-upcoming" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
-            <option value="day_before" ${nPrefs.taskUpcoming === 'day_before' ? 'selected' : ''}>Day Before (09:00)</option>
+            <option value="day_before" ${nPrefs.taskUpcoming === 'day_before' ? 'selected' : ''}>Day Before (Morning)</option>
             <option value="same_day" ${nPrefs.taskUpcoming === 'same_day' ? 'selected' : ''}>Same Day (Morning)</option>
             <option value="off" ${nPrefs.taskUpcoming === 'off' ? 'selected' : ''}>Off</option>
           </select>
