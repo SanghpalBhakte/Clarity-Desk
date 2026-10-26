@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u80",
+    date: "2026-10-27",
+    title: "If you only looked around on an old Clarity Desk address, it now takes you straight to the new one",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings the app saves on its own during a visit (attendance mode, date-fix marker, which reminders were already shown) no longer count as a saved desk, so they no longer keep you on the old address.",
+    points: [
+
+    ]
+  },
+  {
     id: "u79",
     date: "2026-10-27",
     title: "Clarity Desk now lives at one address, claritydesk.web.app, and helps you move your desk there",
