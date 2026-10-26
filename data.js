@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u81",
+    date: "2026-10-27",
+    title: "See how many classes you can miss before you set anything up",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Type the classes you attended and held from your college portal, on the welcome screen or on Today, and Clarity Desk tells you straight away how many you can miss and still stay at your target, or how many you need to attend in a row to get back to it.",
+    points: [
+      "Nothing is saved."
+    ]
+  },
+  {
     id: "u80",
     date: "2026-10-27",
     title: "If you only looked around on an old Clarity Desk address, it now takes you straight to the new one",
