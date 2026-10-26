@@ -61,9 +61,11 @@ globalThis.localStorage = {
 globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
 globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
 globalThis.window = globalThis;
+const winListeners = {};
+globalThis.addEventListener = (type, fn) => { (winListeners[type] ||= []).push(fn); };
 const shown = [];
 globalThis.Notification = class { constructor(title, opts) { shown.push({ title, ...opts }); } static permission = 'granted'; };
-const domStub = () => ({ style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild() {}, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null });
+const domStub = () => ({ addEventListener() {}, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild() {}, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null });
 globalThis.document = {
   getElementById: domStub, querySelector: () => null, querySelectorAll: () => [],
   activeElement: null, hidden: false, addEventListener() {}, removeEventListener() {},
@@ -77,7 +79,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey };`)();
+const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey, reminderSheetMode, reminderSheetInstall };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', room: '301', teacher: 'Prof. Rao', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -323,6 +325,45 @@ console.log('\n6. sw.js push handler');
   const swVer = (swSrc.match(/clarity-desk-v(\d+)/) || [])[1];
   const htmlVer = (fs.readFileSync(`${ROOT}/index.html`, 'utf8').match(/app\.js\?v=(\d+)/) || [])[1];
   check('Cache version (sw.js) matches the page asset version, and is past v205', !!swVer && swVer === htmlVer && +swVer > 205, `${swVer} vs ${htmlVer}`);
+}
+
+console.log('\n9. Install step before turning on reminders (laptops and Android)');
+{
+  const fire = (type, ev = {}) => (winListeners[type] || []).forEach(fn => fn(ev));
+  const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+  Object.defineProperty(navigator, 'serviceWorker', { value: {}, configurable: true });
+  globalThis.PushManager = function () {};
+  globalThis.CAMPUS_OS_PUSH_API = 'https://push.example.test';
+  const savedPerm = Notification.permission;
+  Notification.permission = 'default';
+  setUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130.0 Safari/537.36');
+
+  check('Laptop with no install offer from the browser: straight to "Turn on"', app.reminderSheetMode() === 'ask', app.reminderSheetMode());
+  let prevented = false, prompted = 0;
+  const ev = { preventDefault() { prevented = true; }, prompt() { prompted++; }, userChoice: Promise.resolve({ outcome: 'accepted' }) };
+  fire('beforeinstallprompt', ev);
+  check('Browser can install: the install step comes first', app.reminderSheetMode() === 'install', app.reminderSheetMode());
+  check('Android\'s own install banner is not suppressed', prevented === false);
+  globalThis.matchMedia = (q) => ({ matches: /standalone/.test(q) });
+  check('Already running as the installed app: no install step', app.reminderSheetMode() === 'ask');
+  delete globalThis.matchMedia;
+  Notification.permission = 'denied';
+  check('Notifications blocked: the blocked help still wins', app.reminderSheetMode() === 'denied');
+  Notification.permission = 'default';
+  setUA('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1');
+  check('iPhone in Safari: Home Screen steps unchanged', app.reminderSheetMode() === 'ios-install');
+  setUA('Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36');
+  await app.reminderSheetInstall();
+  check('"Install app" opens the browser\'s install prompt once', prompted === 1);
+  check('...then goes back to "Turn on" (the offer is used up)', app.reminderSheetMode() === 'ask');
+  fire('beforeinstallprompt', ev);
+  fire('appinstalled');
+  check('Installed some other way: install step goes away', app.reminderSheetMode() === 'ask');
+  const sheet = appSrc.slice(appSrc.indexOf('function showReminderSheet'), appSrc.indexOf('async function reminderSheetCopyLink'));
+  check('Turn-on sheet says "this device", not "this phone"', /arrive on this device/.test(sheet) && !/this phone/.test(sheet));
+  check('Install sheet offers "Use browser" so installing is never required', /onclick="showReminderSheet\('ask'\)">Use browser</.test(sheet));
+  check('Install button is reachable from the page (module export)', /window\.reminderSheetInstall = reminderSheetInstall;/.test(appSrc));
+  Notification.permission = savedPerm;
 }
 
 console.log(`\nPASSED: ${passed}\nFAILED: ${failed}`);
