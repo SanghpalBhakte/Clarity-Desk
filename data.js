@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u83",
+    date: "2026-10-27",
+    title: "Opened Clarity Desk from Instagram or Facebook? It now helps you open it in Chrome",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Browsers inside Instagram, Facebook and similar apps can forget your desk when they close, and Google sign-in doesn't work there.",
+    points: [
+      "Clarity Desk now shows a card with a one-tap \"Open in Chrome\" on Android, simple steps on iPhone, and a Copy link button."
+    ]
+  },
+  {
     id: "u82",
     date: "2026-10-27",
     title: "Study Vault files no longer break your sync, and you're told when a file can't be saved",
