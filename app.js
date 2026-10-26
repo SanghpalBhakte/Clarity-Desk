@@ -6628,7 +6628,7 @@ async function copyInAppLink() {
 const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
-  'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used'];
+  'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
 let _scanStartedAt = 0;
@@ -16987,9 +16987,11 @@ function waIsOpen() { return !!document.getElementById('wa-import-backdrop'); }
 
 // Opens the import screen. prefill = { file?, text? } from the Android
 // share target; when given, it skips straight to the review list.
-function showWhatsAppImport(prefill = null) {
+let _waStartTab = 'tasks';
+function showWhatsAppImport(prefill = null, opts = {}) {
   document.getElementById('add-task-backdrop')?.remove();
   waClose();
+  _waStartTab = opts && opts.tab === 'links' ? 'links' : 'tasks';
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'wa-import-backdrop';
@@ -17071,7 +17073,7 @@ function waScanPasted() {
 }
 
 async function waHandleText(raw) {
-  waShowBusy('Finding deadlines…');
+  waShowBusy('Finding deadlines and links…');
   let P, result;
   const now = new Date();
   try {
@@ -17092,7 +17094,17 @@ async function waHandleText(raw) {
     if (waIsDuplicate(P, c, existing)) dup.add(c.id);
     else if (waMidnight(c.date) >= today) sel.add(c.id);
   }
-  _wa = { P, items: result.items, stats: result.stats, sel, dup, open: null, now };
+  const links = Array.isArray(result.links) ? result.links : [];
+  const subjects = waLinkSubjects();
+  const saved = waSavedLinkUrls();
+  const linkSel = new Set(), linkDup = new Set();
+  for (const l of links) {
+    l.subject = waGuessLinkSubject(l.context, subjects);
+    if (saved.has(waNormUrl(l.url))) linkDup.add(l.id);
+    else if (WA_LINK_DEFAULT_ON.includes(l.kind)) linkSel.add(l.id);
+  }
+  _wa = { P, items: result.items, stats: result.stats, sel, dup, open: null, now,
+    links, linkSel, linkDup, subjects, tab: _waStartTab === 'links' || (!result.items.length && links.length) ? 'links' : 'tasks' };
   waRenderReview();
 }
 
@@ -17179,6 +17191,7 @@ function waRow(c) {
 function waRenderReview() {
   const body = document.getElementById('wa-body');
   if (!body || !_wa) return;
+  if (_wa.tab === 'links') { waRenderLinks(); return; }
   const { items, stats, now } = _wa;
   const today = waMidnight(now);
   const week = new Date(today); week.setDate(week.getDate() + 8);
@@ -17191,6 +17204,7 @@ function waRenderReview() {
 
   if (!items.length) {
     body.innerHTML = `
+      ${waTabsHtml()}
       <p class="wa-summary">${waEsc(header)}</p>
       <div class="empty-state-card wa-empty">
         <div class="empty-state-desc">No deadlines found in these messages. If one was missed, the wording might be new.</div>
@@ -17200,6 +17214,7 @@ function waRenderReview() {
   }
   const section = (title, list) => list.length ? `<h3 class="wa-section">${title}</h3>${list.map(waRow).join('')}` : '';
   body.innerHTML = `
+    ${waTabsHtml()}
     <p class="wa-summary" data-testid="wa-summary">${waEsc(header)}</p>
     <div class="wa-list">
       ${section('Next 7 days', next)}
@@ -17322,6 +17337,157 @@ function waImportSelected() {
     renderPage(state.currentPage);
     updateNavBadges();
     showToast('Import undone', 'info');
+  });
+}
+
+// ── Links tab: study links → Subject Hubs ─────────────────────
+// Same scan, second list. Nothing reaches the vault until "Add to
+// Subject Hubs"; links already in the vault are shown, not added twice.
+const WA_LINK_DEFAULT_ON = ['drive', 'doc', 'classroom', 'video', 'pdf'];
+const WA_LINK_KIND_LABEL = { drive: 'Drive', doc: 'Doc', classroom: 'Classroom', video: 'Video', pdf: 'PDF', code: 'Code', other: 'Link' };
+
+function waNormUrl(u) {
+  return String(u || '').trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/+$/, '').toLowerCase();
+}
+
+function waSavedLinkUrls() {
+  const set = new Set();
+  loadCustomLinks().forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => { if (r && r.url) set.add(waNormUrl(r.url)); }));
+  return set;
+}
+
+// Vault subjects first (that's where links go), then timetable subjects.
+function waLinkSubjects() {
+  const out = [], seen = new Set();
+  const add = (name, code) => {
+    const n = String(name || '').trim();
+    if (!n) return;
+    const key = getCanonicalSubjectKey(n);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ name: n, code: String(code || '').trim(), key });
+  };
+  loadCustomLinks().forEach(s => s && add(s.subject, s.code));
+  try { getSubjectList().forEach(s => s && add(s.name, s.code)); } catch (_) {}
+  return out;
+}
+
+// First subject whose name or code appears in the message; else General.
+function waGuessLinkSubject(context, subjects) {
+  const text = ` ${String(context || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
+  for (const s of subjects) {
+    const name = s.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (name.length >= 3 && text.includes(` ${name} `)) return s.name;
+    const code = s.code.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (code.length >= 2 && new RegExp(`\\s${code}\\s`).test(text)) return s.name;
+  }
+  return 'General';
+}
+
+function waTabsHtml() {
+  if (!_wa || (!_wa.links.length && _wa.tab !== 'links')) return '';
+  const tab = (id, label) => `<button type="button" role="tab" class="wa-tab ${_wa.tab === id ? 'active' : ''}" aria-selected="${_wa.tab === id}" onclick="waSetTab('${id}')">${label}</button>`;
+  return `<div class="wa-tabs" role="tablist">${tab('tasks', `Deadlines (${_wa.items.length})`)}${tab('links', `Links (${_wa.links.length})`)}</div>`;
+}
+
+function waSetTab(id) {
+  if (!_wa || !['tasks', 'links'].includes(id)) return;
+  _wa.tab = id;
+  waRenderReview();
+}
+
+function waLinkRow(l) {
+  const dup = _wa.linkDup.has(l.id);
+  const names = [...new Set([..._wa.subjects.map(s => s.name), 'General', l.subject])];
+  const opts = names.map(n => `<option value="${waEsc(n)}" ${n === l.subject ? 'selected' : ''}>${waEsc(n)}</option>`).join('');
+  const when = l.sent ? `${l.sent.getDate()} ${WA_MON[l.sent.getMonth()]}` : '';
+  return `
+    <div class="wa-row wa-link-row ${dup ? 'is-dup' : ''}" data-wl-id="${l.id}">
+      <label class="wa-check"><input type="checkbox" ${_wa.linkSel.has(l.id) ? 'checked' : ''} ${dup ? 'disabled' : ''} aria-label="Add ${waEsc(l.title)}" onchange="waLinkToggle('${l.id}', this.checked)"></label>
+      <div class="wa-link-main">
+        <span class="wa-what">
+          <span class="wa-chip wa-chip-link">${WA_LINK_KIND_LABEL[l.kind] || 'Link'}</span>
+          ${dup ? '<span class="wa-dup">Already saved</span>' : ''}
+          <span class="wa-title">${waEsc(l.title || l.domain)}</span>
+        </span>
+        <span class="wa-link-meta">${waEsc(l.domain)}${l.who ? ` · ${waEsc(l.who)}` : ''}${when ? ` · ${when}` : ''}</span>
+        ${dup ? '' : `<label class="wa-link-subject"><span>Subject</span><select class="form-select" onchange="waLinkSubject('${l.id}', this.value)" aria-label="Subject for ${waEsc(l.title)}">${opts}</select></label>`}
+      </div>
+    </div>`;
+}
+
+function waRenderLinks() {
+  const body = document.getElementById('wa-body');
+  if (!body || !_wa) return;
+  const { links, linkDup } = _wa;
+  const header = links.length
+    ? `Found ${links.length} link${links.length === 1 ? '' : 's'}${linkDup.size ? `, ${linkDup.size} already in your vault` : ''}. Tick the ones to keep and check the subject.`
+    : 'No study links found in these messages.';
+  body.innerHTML = `
+    ${waTabsHtml()}
+    <p class="wa-summary" data-testid="wa-link-summary">${waEsc(header)}</p>
+    ${links.length ? `<div class="wa-list">${links.map(waLinkRow).join('')}</div>
+    <div class="wa-bar">
+      <button type="button" class="btn-primary" id="wa-links-save" data-testid="wa-links-save" onclick="waSaveLinks()"></button>
+    </div>` : `<div class="empty-state-card wa-empty"><button type="button" class="btn-secondary" onclick="waRenderAddChat()">Try another chat</button></div>`}`;
+  waUpdateLinkBar();
+}
+
+function waUpdateLinkBar() {
+  const btn = document.getElementById('wa-links-save');
+  if (!btn || !_wa) return;
+  const n = _wa.linkSel.size;
+  btn.textContent = `Add ${n} link${n === 1 ? '' : 's'} to Subject Hubs`;
+  btn.disabled = !n;
+}
+
+function waLinkToggle(id, on) {
+  if (!_wa || _wa.linkDup.has(id)) return;
+  if (on) _wa.linkSel.add(id); else _wa.linkSel.delete(id);
+  waUpdateLinkBar();
+}
+
+function waLinkSubject(id, value) {
+  const l = _wa && _wa.links.find(x => x.id === id);
+  if (l && String(value || '').trim()) l.subject = String(value).trim().slice(0, 60);
+}
+
+function waSaveLinks() {
+  if (!_wa) return;
+  const chosen = _wa.links.filter(l => _wa.linkSel.has(l.id) && !_wa.linkDup.has(l.id));
+  if (!chosen.length) return;
+  const links = loadCustomLinks();
+  const added = [];        // { key, url } for undo
+  const created = new Set();
+  for (const l of chosen) {
+    const key = getCanonicalSubjectKey(l.subject);
+    let entry = links.find(s => s && getCanonicalSubjectKey(s.subject || '') === key);
+    if (!entry) {
+      entry = { subject: l.subject, code: l.subject.slice(0, 4).toUpperCase(), color: '#394B63', resources: [] };
+      links.push(entry);
+      created.add(key);
+    }
+    if (!Array.isArray(entry.resources)) entry.resources = [];
+    entry.resources.push({ label: String(l.title || l.domain).slice(0, 150), url: l.url, icon: vaultIconForUrl(l.url) || 'link', isUpload: false, fileSize: '' });
+    added.push({ key, url: l.url });
+  }
+  if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
+  const n = added.length;
+  trackUsage('wa_links_saved', n <= 5 ? '1-5' : n <= 20 ? '6-20' : '21plus');
+  waClose();
+  navigate('links');
+  showUndoToast(`Added ${n} link${n === 1 ? '' : 's'} to Subject Hubs`, () => {
+    const cur = loadCustomLinks();
+    for (const a of added) {
+      const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
+      if (!entry || !Array.isArray(entry.resources)) continue;
+      const i = entry.resources.findIndex(r => r && r.url === a.url);
+      if (i >= 0) entry.resources.splice(i, 1);
+    }
+    const kept = cur.filter(s => !(s && created.has(getCanonicalSubjectKey(s.subject || '')) && (!s.resources || !s.resources.length)));
+    saveCustomLinks(kept);
+    renderPage(state.currentPage);
+    showToast('Links removed again', 'info');
   });
 }
 
@@ -17500,7 +17666,10 @@ function renderResources() {
         <div class="page-subtitle">Course notes, syllabus documents, cloud repositories &amp; academic briefing</div>
       </div>
       ${currentTab === 'links' ? `
-        <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base);padding:8px 14px">+ Add Subject Vault</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="showWhatsAppImport(null, { tab: 'links' })" style="font-size:var(--text-base);padding:8px 14px">Import links from WhatsApp</button>
+          <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base);padding:8px 14px">+ Add Subject Vault</button>
+        </div>
       ` : ''}
     </div>
 
@@ -17788,14 +17957,21 @@ window.setResourceInputMode = function(mode) {
   }
 };
 
+// Vault icon for a link; null when nothing specific fits.
+function vaultIconForUrl(url) {
+  const u = String(url || '').toLowerCase();
+  if (u.includes('drive.google.com') || u.includes('dropbox') || u.includes('onedrive')) return 'database';
+  if (u.includes('github.com') || u.includes('gitlab') || u.includes('codepen') || u.includes('replit')) return 'code';
+  if (u.includes('youtube.com') || u.includes('youtu.be') || u.includes('vimeo')) return 'video';
+  if (u.includes('notion.so') || u.includes('docs.google.com') || u.includes('.pdf')) return 'book-open';
+  return null;
+}
+
 window.autoDetectVaultIcon = function(url) {
   const iconEl = document.getElementById('lrm-icon');
   if (!iconEl || !url) return;
-  const u = url.toLowerCase();
-  if (u.includes('drive.google.com') || u.includes('dropbox') || u.includes('onedrive')) iconEl.value = 'database';
-  else if (u.includes('github.com') || u.includes('gitlab') || u.includes('codepen') || u.includes('replit')) iconEl.value = 'code';
-  else if (u.includes('youtube.com') || u.includes('youtu.be') || u.includes('vimeo')) iconEl.value = 'video';
-  else if (u.includes('notion.so') || u.includes('docs.google.com') || u.includes('.pdf')) iconEl.value = 'book-open';
+  const icon = vaultIconForUrl(url);
+  if (icon) iconEl.value = icon;
 };
 
 function showLinkResourceModal(si, ri, existing) {
@@ -20830,6 +21006,10 @@ window.waToggleOpen     = waToggleOpen;
 window.waEdit           = waEdit;
 window.waExportIcs      = waExportIcs;
 window.waImportSelected = waImportSelected;
+window.waSetTab = waSetTab;
+window.waLinkToggle = waLinkToggle;
+window.waLinkSubject = waLinkSubject;
+window.waSaveLinks = waSaveLinks;
 window.saveSettings     = saveSettings;
 window.exportData       = exportData;
 window.importData       = importData;
