@@ -62,7 +62,7 @@ globalThis.document = {
 let calls;
 let signInError = null;
 function makeFirebase() {
-  calls = { send: [], signIn: [], popup: [] };
+  calls = { send: [], signIn: [], popup: [], pw: [], create: [], reset: [] };
   const authObj = {
     getRedirectResult: () => Promise.resolve(null),
     onAuthStateChanged: () => {},
@@ -72,6 +72,9 @@ function makeFirebase() {
       calls.signIn.push({ email, link });
       return signInError ? Promise.reject(signInError) : Promise.resolve({ user: { uid: 'u1', email, providerData: [{ providerId: 'password' }] } });
     },
+    signInWithEmailAndPassword: (email, pw) => { calls.pw.push({ email, pw }); return signInError ? Promise.reject(signInError) : Promise.resolve({ user: { uid: 'u2', email, providerData: [{ providerId: 'password' }] } }); },
+    createUserWithEmailAndPassword: (email, pw) => { calls.create.push({ email, pw }); return Promise.resolve({ user: { uid: 'u3', email, providerData: [{ providerId: 'password' }] } }); },
+    sendPasswordResetEmail: (email) => { calls.reset.push(email); return Promise.resolve(); },
     signInWithPopup: (p) => { calls.popup.push(p); return Promise.resolve({ user: null }); },
     signOut: () => Promise.resolve()
   };
@@ -87,7 +90,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, initFirebase, showEmailSignInModal, sendEmailSignInLink, submitPastedEmailLink, confirmIncomingEmailLink, handleEmailLinkOnStartup, signInMethodLabel, loginWithGoogle };`)();
+const makeApp = () => new Function(`${code}\n return { state, initFirebase, showEmailSignInModal, sendEmailSignInLink, submitPastedEmailLink, confirmIncomingEmailLink, handleEmailLinkOnStartup, signInMethodLabel, loginWithGoogle, passwordSignIn, sendPasswordReset };`)();
 
 function fresh({ search = '', pending = null } = {}) {
   for (const k of Object.keys(store)) delete store[k];
@@ -228,7 +231,48 @@ await check('Settings label names the sign-in method', async () => {
   const g = a.signInMethodLabel({ providerData: [{ providerId: 'google.com' }] });
   const e = a.signInMethodLabel({ providerData: [{ providerId: 'password' }] });
   const n = a.signInMethodLabel(null);
-  return g === 'Google' && e === 'email link' && n === 'your account' ? true : `${g} / ${e} / ${n}`;
+  return g === 'Google' && e === 'email' && n === 'your account' ? true : `${g} / ${e} / ${n}`;
+});
+
+await check('Password: sign in and create account call the right Firebase method', async () => {
+  const a = fresh();
+  a.showEmailSignInModal('password');
+  if (!modalHtml().includes('Forgot password?')) return 'password screen not shown';
+  domStub('email-signin-email').value = 'student@college.edu';
+  domStub('email-signin-password').value = 'secret12';
+  a.passwordSignIn(false); a.passwordSignIn(true);
+  await tick();
+  return calls.pw.length === 1 && calls.create.length === 1 && calls.pw[0].email === 'student@college.edu' ? true : JSON.stringify(calls);
+});
+
+await check('Password: too short is refused before Firebase', async () => {
+  const a = fresh();
+  a.showEmailSignInModal('password');
+  domStub('email-signin-email').value = 'student@college.edu';
+  domStub('email-signin-password').value = '123';
+  a.passwordSignIn(false);
+  await tick();
+  return !calls.pw.length && domStub('email-signin-error').textContent.includes('6 characters') ? true : 'short password sent';
+});
+
+await check('Password: wrong password shows a plain message', async () => {
+  const a = fresh();
+  signInError = { code: 'auth/invalid-credential' };
+  a.showEmailSignInModal('password');
+  domStub('email-signin-email').value = 'student@college.edu';
+  domStub('email-signin-password').value = 'wrongpass';
+  a.passwordSignIn(false);
+  await tick(); await tick();
+  return domStub('email-signin-error').textContent.includes('Email or password is wrong') ? true : domStub('email-signin-error').textContent;
+});
+
+await check('Password: Forgot password sends a reset email', async () => {
+  const a = fresh();
+  a.showEmailSignInModal('password');
+  domStub('email-signin-email').value = 'student@college.edu';
+  a.sendPasswordReset();
+  await tick();
+  return calls.reset[0] === 'student@college.edu' ? true : JSON.stringify(calls.reset);
 });
 
 await check('Key stays out of backups and cloud sync', async () => {

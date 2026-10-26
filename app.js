@@ -5136,7 +5136,7 @@ function clearEmailLinkFromUrl() {
 function signInMethodLabel(user) {
   const ids = ((user && user.providerData) || []).map(p => p && p.providerId);
   if (ids.includes('google.com')) return 'Google';
-  if (ids.includes('password')) return 'email link';
+  if (ids.includes('password')) return 'email';
   return 'your account';
 }
 
@@ -5147,6 +5147,12 @@ function handleEmailAuthError(err) {
     msg = 'This sign-in link has expired or was already used. Ask for a new one.';
   } else if (code === 'auth/invalid-email' || code === 'auth/missing-email') {
     msg = 'That email does not match the link. Use the address the link was sent to.';
+  } else if (code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+    msg = 'Email or password is wrong. No account yet? Tap Create account.';
+  } else if (code === 'auth/email-already-in-use') {
+    msg = 'This email already has an account. Sign in instead, or use Forgot password.';
+  } else if (code === 'auth/weak-password') {
+    msg = 'Use a password of at least 6 characters.';
   } else if (code === 'auth/too-many-requests') {
     msg = 'Too many tries. Wait a few minutes and try again.';
   } else if (code === 'auth/operation-not-allowed') {
@@ -5204,11 +5210,24 @@ function showEmailSignInModal(step = 'email') {
     footer = `
       <button class="btn-secondary" onclick="copyIncomingEmailLink()">Copy link for my home-screen app</button>
       <button class="btn-primary" onclick="confirmIncomingEmailLink()">Sign in in this browser</button>`;
+  } else if (step === 'password') {
+    title = 'Sign in with password';
+    body = `
+      ${emailField}
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="email-signin-password">Password</label>
+        <input type="password" class="form-input" id="email-signin-password" placeholder="At least 6 characters" autocomplete="current-password">
+      </div>
+      <div style="${note}"><button type="button" class="dash-more-link" onclick="sendPasswordReset()">Forgot password?</button> · <button type="button" class="dash-more-link" onclick="showEmailSignInModal('email')">Use an email link instead</button></div>`;
+    footer = `
+      <button class="btn-secondary" onclick="passwordSignIn(true)">Create account</button>
+      <button class="btn-primary" onclick="passwordSignIn(false)">Sign in</button>`;
   } else {
     title = 'Sign in with email';
     body = `
       <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">We will email you a link. Tap it to sign in. No password needed, and any email works.</div>
       ${emailField}
+      <div style="${note}">Prefer a password? <button type="button" class="dash-more-link" onclick="showEmailSignInModal('password')">Sign in with a password</button></div>
       ${pasteBox}`;
     footer = `
       <button class="btn-secondary" onclick="${close}">Cancel</button>
@@ -5284,6 +5303,37 @@ function completeEmailSignIn(email, link) {
     handleEmailAuthError(err);
     return null;
   });
+}
+
+function finishPasswordSignIn(result) {
+  document.getElementById('email-signin-modal-backdrop')?.remove();
+  if (result && result.user) {
+    currentUser = result.user;
+    updateSyncUI();
+    if (state.currentPage === 'settings') renderSettings();
+  }
+  showToast('Signed in. Your desk will sync across your devices.', 'success');
+}
+
+function passwordSignIn(create) {
+  const email = readEmailSignInInput();
+  if (!email || !auth) return;
+  const password = document.getElementById('email-signin-password')?.value || '';
+  if (password.length < 6) {
+    const box = document.getElementById('email-signin-error');
+    if (box) { box.textContent = 'Use a password of at least 6 characters.'; box.style.display = 'block'; }
+    return;
+  }
+  const call = create ? auth.createUserWithEmailAndPassword(email, password) : auth.signInWithEmailAndPassword(email, password);
+  call.then(finishPasswordSignIn).catch(handleEmailAuthError);
+}
+
+function sendPasswordReset() {
+  const email = readEmailSignInInput();
+  if (!email || !auth) return;
+  auth.sendPasswordResetEmail(email).then(() => {
+    showToast(`If ${email} has an account, a reset link is on its way. Check spam too.`, 'success');
+  }).catch(handleEmailAuthError);
 }
 
 function submitPastedEmailLink() {
@@ -20240,6 +20290,8 @@ window.sendEmailSignInLink     = sendEmailSignInLink;
 window.submitPastedEmailLink   = submitPastedEmailLink;
 window.confirmIncomingEmailLink = confirmIncomingEmailLink;
 window.copyIncomingEmailLink   = copyIncomingEmailLink;
+window.passwordSignIn          = passwordSignIn;
+window.sendPasswordReset       = sendPasswordReset;
 window.logoutUser       = logoutUser;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.resetTimetableToDefault = resetTimetableToDefault;
