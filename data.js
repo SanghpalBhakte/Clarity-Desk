@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u73",
+    date: "2026-10-26",
+    title: "Reminders on laptops and Android now offer to install Clarity Desk first, so they pop up as Clarity Desk with its logo",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Turning on reminders now shows an \"Install app\" step when the browser can install Clarity Desk.",
+    points: [
+      "\"Use browser\" still turns them on without installing. The turn-on sheet also says \"this device\" instead of \"this phone\"."
+    ]
+  },
+  {
     id: "u72",
     date: "2026-10-25",
     title: "Adding a dated task from Today's quick-add box now offers closed-app reminders, and turning them on never gets stuck",
