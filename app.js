@@ -48,6 +48,9 @@ const KEY_HOLIDAY             = 'cos_holiday';
 // for, so it can finish without asking again. Device-only, so it is left
 // out of backups.
 const KEY_EMAIL_LINK_PENDING  = 'cos_email_link_pending';
+// "Clarity Desk has a new address" card: { dismissedAt }. Device-only,
+// left out of backups and sync.
+const KEY_MOVED_PROMPT        = 'cos_moved_prompt';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
@@ -6315,10 +6318,116 @@ let _installBannerTimer = null;
 
 function installBannerKind(dev = detectDevice()) {
   if (dev.standalone || dev.inApp) return null;
+  // Never offer to install an old address; the move card covers it.
+  if (typeof location !== 'undefined' && isOldAddress(location.hostname)) return null;
   if (_installPromptEvent) return 'prompt';
   if (dev.os === 'ios') return 'ios';
   if (dev.os === 'mac' && dev.browser === 'safari') return 'mac-safari';
   return null;
+}
+
+// ── One address: claritydesk.web.app ─────────────────────────
+// The app used to be live at several addresses. Saved data belongs to the
+// address it was saved on, so a plain redirect would leave a student's
+// desk behind. Only a browser with nothing saved here is sent to the new
+// address; anyone else gets a card with ways to bring their desk along.
+// Unknown hosts (localhost, preview channels) are left alone.
+const CANONICAL_ORIGIN = 'https://claritydesk.web.app';
+const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.firebaseapp.com', 'sanghpalbhakte.github.io'];
+// Preferences that are no loss to leave behind. Any other cos_* key counts
+// as desk data.
+const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT];
+const MOVED_SNOOZE_MS = 3 * 86400000;
+
+function isOldAddress(hostname) {
+  return OLD_HOSTS.includes(String(hostname || '').toLowerCase());
+}
+
+function localStorageKeys() {
+  const keys = [];
+  try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); } catch (_) {}
+  return keys;
+}
+
+function hasDeskDataToMove(keys = localStorageKeys()) {
+  if (hasExistingUserData()) return true;
+  return keys.some(k => typeof k === 'string' && k.startsWith('cos_') && !MOVE_SAFE_KEYS.includes(k));
+}
+
+// 'redirect' | 'card' | null. Read-only. Any query (email sign-in link,
+// WhatsApp share, reminder tap) is finished here first, and automated
+// browsers (the post-ship smoke test) keep testing the address they opened.
+function addressMoveAction({ hostname, search = '', webdriver = false } = {}, keys) {
+  if (!isOldAddress(hostname)) return null;
+  if (webdriver) return null;
+  if (!hasDeskDataToMove(keys) && !search) return 'redirect';
+  const p = safeGetStorage(KEY_MOVED_PROMPT, null) || {};
+  if (p.dismissedAt && Date.now() - p.dismissedAt < MOVED_SNOOZE_MS) return null;
+  return 'card';
+}
+
+function newAddressUrl() {
+  return CANONICAL_ORIGIN + '/' + (window.location.hash || '');
+}
+
+function showMovedBanner(tries = 6) {
+  if (document.getElementById('moved-banner')) return;
+  if (document.querySelector('.modal-backdrop')) {
+    if (tries > 0) setTimeout(() => showMovedBanner(tries - 1), 10000);
+    return;
+  }
+  const el = document.createElement('div');
+  el.id = 'moved-banner';
+  el.className = 'install-banner';
+  el.setAttribute('role', 'region');
+  el.setAttribute('aria-label', 'Clarity Desk has a new address');
+  el.innerHTML = `
+    <img class="install-banner-icon" src="./icon-192.png" alt="" width="40" height="40">
+    <div class="install-banner-text"><strong>Clarity Desk has a new address</strong><span>Use claritydesk.web.app from now on. Your desk is saved on this address, so bring it with you first.</span></div>
+    <div class="install-banner-actions">
+      <button type="button" class="btn-secondary" onclick="dismissMovedBanner()">Not now</button>
+      <button type="button" class="btn-primary" onclick="showMoveDeskModal()">Move my desk</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function dismissMovedBanner() {
+  safeSetStorage(KEY_MOVED_PROMPT, { dismissedAt: Date.now() });
+  document.getElementById('moved-banner')?.remove();
+}
+
+function showMoveDeskModal() {
+  document.getElementById('moved-banner')?.remove();
+  document.getElementById('move-desk-modal-backdrop')?.remove();
+  const close = `document.getElementById('move-desk-modal-backdrop')?.remove()`;
+  const note = 'font-size:var(--text-sm);color:var(--text-muted);line-height:1.45';
+  const url = escHtml_cd(newAddressUrl());
+  const body = currentUser
+    ? `<div style="font-size:var(--text-base);line-height:1.45">You are signed in, so your desk is already saved to your account. Open the new address and sign in with the same ${escHtml_cd(signInMethodLabel(currentUser))} account.</div>`
+    : `<div style="font-size:var(--text-base);line-height:1.45"><strong>Easiest:</strong> sign in here first. Then open the new address and sign in with the same account. Your desk comes with you.</div>
+       <button class="btn-secondary" onclick="${close};navigateTo('settings')">Sign in here</button>
+       <div style="border-top:1px solid var(--border);padding-top:12px;font-size:var(--text-base);line-height:1.45"><strong>No account?</strong> Download a backup, open the new address, then go to Settings → Restore Backup.</div>
+       <button class="btn-secondary" onclick="exportData()">Download backup</button>`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'move-desk-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;width:92vw">
+      <div class="modal-header">
+        <span class="modal-title">Move your desk</span>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        ${body}
+        <div style="${note}">Added Clarity Desk to your home screen? Add the new address too, then remove the old icon.</div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px">
+        <button class="btn-secondary" onclick="dismissMovedBanner();${close}">Later</button>
+        <a class="btn-primary" href="${url}" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">Open new address</a>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
 }
 
 function scheduleInstallBanner(delay = 4000, tries = 6) {
@@ -20435,10 +20544,24 @@ window.reminderSheetCopyLink = reminderSheetCopyLink;
 window.reminderSheetCalendar = reminderSheetCalendar;
 window.dismissInstallBanner = dismissInstallBanner;
 window.installBannerAction = installBannerAction;
+window.dismissMovedBanner = dismissMovedBanner;
+window.showMoveDeskModal = showMoveDeskModal;
 window.sendTestReminder = sendTestReminder;
 
 // ── Init ──────────────────────────────────────────────────────
 function init() {
+  // Old address with nothing saved here: go to the new one before drawing
+  // anything. A desk saved here stays, and the move card offers ways over.
+  const moveAction = addressMoveAction({
+    hostname: location.hostname,
+    search: location.search,
+    webdriver: !!navigator.webdriver
+  });
+  if (moveAction === 'redirect') {
+    location.replace(newAddressUrl());
+    return;
+  }
+
   // Always open at the top of the page (a reload or PWA relaunch used to
   // restore a stale mid-page scroll offset).
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
@@ -20501,6 +20624,7 @@ function init() {
   checkNoticeNotifications();
   schedulePushSync(5000);
   scheduleInstallBanner();
+  if (moveAction === 'card') setTimeout(() => showMovedBanner(), 2500);
   setInterval(() => {
     checkScheduledNotifications();
     checkNoticeNotifications();
