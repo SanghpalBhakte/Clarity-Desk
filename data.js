@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u85",
+    date: "2026-10-27",
+    title: "Save the study links from your WhatsApp class group straight into Subject Hubs",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When you import a class group chat, Clarity Desk now also lists the Drive, Docs, Classroom, YouTube and PDF links shared in it.",
+    points: [
+      "Pick the ones you want, check the subject, and they're added to Subject Hubs. Links you already saved aren't added again, and you can undo. You can also start from the new \"Import links from WhatsApp\" button in the Study Vault."
+    ]
+  },
+  {
     id: "u84",
     date: "2026-10-27",
     title: "Clarity Desk now tells you when your desk couldn't sync to your account",
