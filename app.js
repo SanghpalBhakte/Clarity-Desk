@@ -5964,7 +5964,36 @@ function reminderSheetMode() {
   if (ios && !standalone) return 'ios-install';
   if (!closedAppPushSupported()) return null;
   if (Notification.permission === 'denied') return 'denied';
+  // Laptops and Android label a browser tab's reminders as Chrome/Edge.
+  // Offer the install first when the browser can do it, so they arrive as
+  // Clarity Desk with its logo. Never required: "Use browser" still works.
+  if (!standalone && _installPromptEvent) return 'install';
   return 'ask';
+}
+
+// The browser's own install prompt (Chrome/Edge on laptops and Android).
+// Kept, not prevented, so Android's own install banner still shows.
+let _installPromptEvent = null;
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('beforeinstallprompt', (e) => { _installPromptEvent = e; });
+  window.addEventListener('appinstalled', () => { _installPromptEvent = null; });
+}
+
+// Install, then come back to "Turn on" so the permission prompt gets its
+// own tap. Installed or not, reminders are one tap away.
+async function reminderSheetInstall() {
+  const e = _installPromptEvent;
+  _installPromptEvent = null;
+  document.getElementById('reminder-sheet-backdrop')?.remove();
+  if (e) {
+    try {
+      e.prompt();
+      await e.userChoice;
+    } catch (err) {
+      console.warn('[Push] install prompt failed:', err);
+    }
+  }
+  showReminderSheet('ask');
 }
 
 function maybeOfferClosedAppReminders(icsItems = null) {
@@ -5986,8 +6015,13 @@ function showReminderSheet(mode = reminderSheetMode(), icsItems = null) {
   const views = {
     ask: {
       title: 'Get reminders when the app is closed',
-      body: `<p>Class and deadline reminders will arrive on this phone even when Clarity Desk is closed.</p><p class="reminder-sheet-note">Only each reminder’s text and time are sent, never your chats.</p>`,
+      body: `<p>Class and deadline reminders will arrive on this device even when Clarity Desk is closed.</p><p class="reminder-sheet-note">Only each reminder’s text and time are sent, never your chats.</p>`,
       actions: `<button class="btn-secondary" onclick="${close}">Not now</button><button class="btn-primary" onclick="${close}; enableClosedAppPush()">Turn on</button>`
+    },
+    install: {
+      title: 'Install Clarity Desk for reminders',
+      body: `<p>Installed, class and deadline reminders pop up as <strong>Clarity Desk</strong> with its logo, even when the app is closed. In a browser tab they show up as browser notifications.</p><p class="reminder-sheet-note">One tap, no app store needed.</p>`,
+      actions: `<button class="btn-secondary" onclick="${close}">Not now</button><button class="btn-secondary" onclick="showReminderSheet('ask')">Use browser</button><button class="btn-primary" onclick="reminderSheetInstall()">Install app</button>`
     },
     inapp: {
       title: 'Open in Chrome or Safari',
@@ -19918,6 +19952,7 @@ window.registerBackgroundPush = registerBackgroundPush;
 window.enableClosedAppPush = enableClosedAppPush;
 window.disableClosedAppPush = disableClosedAppPush;
 window.showReminderSheet = showReminderSheet;
+window.reminderSheetInstall = reminderSheetInstall;
 window.reminderSheetCopyLink = reminderSheetCopyLink;
 window.reminderSheetCalendar = reminderSheetCalendar;
 
