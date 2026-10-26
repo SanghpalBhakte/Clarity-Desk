@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u79",
+    date: "2026-10-27",
+    title: "Clarity Desk now lives at one address, claritydesk.web.app, and helps you move your desk there",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Opening an old address with nothing saved now goes straight to claritydesk.web.app.",
+    points: [
+      "If your desk is saved on the old address, you stay there and see a card that helps you move it: sign in, or download a backup and restore it at the new address."
+    ]
+  },
+  {
     id: "u78",
     date: "2026-10-26",
     title: "You can now sign in with an email and password if you prefer",
