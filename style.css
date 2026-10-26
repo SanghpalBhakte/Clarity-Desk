@@ -6716,3 +6716,32 @@ html.more-sheet-open .more-sheet {
 .wa-link-subject { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-muted); }
 .wa-link-subject .form-select { min-height: 40px; max-width: 220px; padding: 6px 10px; font-size: var(--text-sm); }
 .wa-link-row.is-dup { opacity: 0.6; }
+
+/* Study Vault: search, type badges, storage meter, "add several" (renderLinksContent, openVaultBulk). */
+.vault-search { margin: 0 0 12px; }
+.vault-search .form-input { width: 100%; min-height: 44px; }
+.vault-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+.vault-no-results { padding: 24px 16px; text-align: center; color: var(--text-muted); }
+.vault-type { flex-shrink: 0; font-size: var(--text-2xs); font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--text-muted); margin-left: 6px; }
+.vault-card-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 14px; }
+.vault-meter { margin: 0 0 12px; }
+.vault-meter-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.vault-meter-bar span { display: block; height: 100%; background: var(--accent); }
+.vault-meter.is-warn .vault-meter-bar span { background: var(--status-error); }
+.vault-meter-text { margin-top: 4px; font-size: var(--text-sm); color: var(--text-muted); }
+.vault-meter.is-warn .vault-meter-text { color: var(--status-error); }
+.vault-drop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 14px; text-align: center; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.vault-drop.is-drag { border-color: var(--accent); }
+.vault-hint { font-size: var(--text-sm); color: var(--text-muted); }
+.vault-bulk .modal-body { max-height: 70vh; overflow-y: auto; }
+.vault-bulk-note { margin: 0 0 8px; font-size: var(--text-sm); color: var(--status-error); }
+.vault-bulk-row { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: start; padding: 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.vault-bulk-row.is-dup { opacity: 0.6; }
+.vault-bulk-row > input[type="checkbox"] { width: 20px; height: 20px; margin-top: 10px; accent-color: var(--accent); }
+.vault-bulk-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vault-bulk-line { display: flex; align-items: center; gap: 8px; }
+.vault-bulk-line .vault-type { margin-left: 0; }
+/* One resource per row: with the type badge a half-width row left no room for the name. */
+.link-resources { grid-template-columns: 1fr; }
+.link-resources .resource-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-resources .vault-on-device { margin-left: auto; }

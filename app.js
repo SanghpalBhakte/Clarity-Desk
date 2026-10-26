@@ -16069,13 +16069,15 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
       <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
         <span class="r-icon" style="font-size:var(--text-lg);line-height:1">${getResourceIcon(r.icon || 'book-open')}</span>
         <div style="min-width:0;flex:1">
-          <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}</div>
-          ${r.fileSize ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${r.fileSize}</div>` : ''}
+          <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${vaultEsc(r.label)}</div>
+          ${r.fileSize ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${vaultEsc(r.fileSize)}</div>` : ''}
         </div>
       </div>
       ${isVaultPlaceholder(r)
         ? `<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span>`
-        : `<a href="${r.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>`}
+        : !vaultSafeUrl(r.url)
+        ? `<span class="vault-on-device" title="This address can’t be opened from the vault.">Link blocked</span>`
+        : `<a href="${vaultEsc(vaultSafeUrl(r.url))}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>`}
     </div>
   `).join('') : `
     <div class="empty-state-card" style="padding:16px 14px;margin-top:6px;text-align:center">
@@ -17671,6 +17673,7 @@ function renderResources() {
       </div>
       ${currentTab === 'links' ? `
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="openVaultBulk(null)" style="font-size:var(--text-base);padding:8px 14px">Add files or links</button>
           <button class="btn-secondary" onclick="showWhatsAppImport(null, { tab: 'links' })" style="font-size:var(--text-base);padding:8px 14px">Import links from WhatsApp</button>
           <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base);padding:8px 14px">+ Add Subject Vault</button>
         </div>
@@ -17717,6 +17720,146 @@ function renderSummary() {
   renderResources();
 }
 
+// ── Study Vault: safe output, type badges, search, storage meter ─
+// Labels and addresses are shown as text, never as markup, and only web
+// links (or the vault's own saved files) ever become a clickable href.
+// Nothing here writes anything: it only changes what is drawn.
+let _vaultQuery = '';
+const VAULT_STORAGE_GUESS = 5000000;   // characters one site may keep in a phone browser (estimate)
+const VAULT_BULK_MAX_ROWS = 50;        // one "add several" batch, so one sync stays small
+const VAULT_FILE_ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.zip,.py,.java,.cpp,.c,.js';
+
+function vaultEsc(s) {
+  return escHtml_cd(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// http(s) links and saved files only. "javascript:" and page-like data: URLs give ''.
+function vaultSafeUrl(url) {
+  const u = String(url || '').trim();
+  if (/^https?:\/\/\S+$/i.test(u)) return u;
+  if (/^data:(?!text\/html|application\/xhtml|image\/svg)[^,]*,/i.test(u)) return u;
+  return '';
+}
+
+// "drive.google.com/x" typed without https:// still works.
+function vaultNormalizeUrl(raw) {
+  const u = String(raw || '').trim();
+  if (!u || /^data:/i.test(u)) return u;
+  if (/^[a-z][a-z0-9+.\-]*:/i.test(u)) return u;
+  return 'https://' + u.replace(/^\/+/, '');
+}
+
+function vaultTypeLabel(r) {
+  if (!r) return 'LINK';
+  const url = String(r.url || ''), name = String(r.label || '').toLowerCase();
+  if (isVaultPlaceholder(r) || r.isUpload || /^data:/i.test(url)) {
+    const ext = (name.match(/\.([a-z0-9]{1,5})$/) || [])[1] || '';
+    const mime = ((url.match(/^data:([^;,]+)/i) || [])[1] || '').toLowerCase();
+    if (ext === 'pdf' || mime === 'application/pdf') return 'PDF';
+    if (['doc', 'docx'].includes(ext) || /word/.test(mime)) return 'DOC';
+    if (['ppt', 'pptx'].includes(ext) || /presentation|powerpoint/.test(mime)) return 'PPT';
+    if (ext === 'txt' || mime === 'text/plain') return 'TXT';
+    if (['jpg', 'jpeg', 'png'].includes(ext) || /^image\//.test(mime)) return 'IMG';
+    if (ext === 'zip' || /zip/.test(mime)) return 'ZIP';
+    if (['py', 'java', 'cpp', 'c', 'js'].includes(ext)) return 'CODE';
+    return 'FILE';
+  }
+  const u = url.toLowerCase();
+  if (/youtube\.com|youtu\.be|vimeo/.test(u)) return 'VIDEO';
+  if (/drive\.google\.com|dropbox|onedrive/.test(u)) return 'DRIVE';
+  if (/github\.com|gitlab|codepen|replit/.test(u)) return 'CODE';
+  if (/\.pdf(\?|#|$)/.test(u)) return 'PDF';
+  if (/docs\.google\.com|notion\.so/.test(u)) return 'DOC';
+  return 'LINK';
+}
+
+function vaultIconForFile(name) {
+  const ext = (String(name || '').toLowerCase().match(/\.([a-z0-9]{1,5})$/) || [])[1] || '';
+  if (['py', 'js', 'cpp', 'c', 'java', 'html', 'css', 'zip'].includes(ext)) return 'code';
+  if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return 'video';
+  return 'book-open';
+}
+
+// Whole-app storage use (estimate) and what the saved files take of it.
+function vaultStorageStats(links) {
+  let total = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      total += k.length + String(localStorage.getItem(k) || '').length;
+    }
+  } catch (_) {}
+  let fileBytes = 0, fileCount = 0;
+  (Array.isArray(links) ? links : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultDeviceFile(r)) { fileCount++; fileBytes += Math.round(r.url.length * 0.75); }
+  }));
+  return {
+    total, fileBytes, fileCount,
+    free: Math.max(0, VAULT_STORAGE_GUESS - total),
+    pct: Math.min(100, Math.round(total / VAULT_STORAGE_GUESS * 100))
+  };
+}
+
+// Asks the browser not to clear the vault when the phone runs low on space.
+// No prompt on most browsers; a refusal changes nothing.
+function vaultAskPersist() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) {}
+}
+
+function vaultMeterHtml(links) {
+  const st = vaultStorageStats(links);
+  if (!st.fileCount && st.pct < 60) return '';
+  const warn = st.pct >= 80;
+  return `
+    <div class="vault-meter ${warn ? 'is-warn' : ''}" data-testid="vault-meter">
+      <div class="vault-meter-bar" role="progressbar" aria-label="Phone storage used (estimate)" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${st.pct}"><span style="width:${st.pct}%"></span></div>
+      <div class="vault-meter-text">Phone storage about ${st.pct}% full${st.fileCount ? ` · ${st.fileCount} saved file${st.fileCount !== 1 ? 's' : ''} use ${formatBytes(st.fileBytes)}` : ''}.${warn ? ' Running low: keep big notes as Drive links.' : ''}</div>
+    </div>`;
+}
+
+function vaultResourceMatches(s, r, tokens) {
+  if (!tokens.length) return true;
+  const hay = `${s.subject || ''} ${s.code || ''} ${r.label || ''} ${vaultTypeLabel(r)}`.toLowerCase();
+  return tokens.every(t => hay.includes(t));
+}
+
+function vaultResourceRow(si, ri, r) {
+  const label = vaultEsc(r.label);
+  const badge = `<span class="vault-type">${vaultTypeLabel(r)}</span>`;
+  const actions = `
+            <div class="resource-actions">
+              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
+              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
+            </div>`;
+  if (isVaultPlaceholder(r)) return `
+          <div class="resource-item-row">
+            <div class="resource-link is-on-device" title="This file was added on another device. Open it there.">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${label}">${label}</span>${badge}
+              <span class="vault-on-device">On another device</span>
+            </div>${actions}
+          </div>`;
+  const href = vaultSafeUrl(r.url);
+  if (!href) return `
+          <div class="resource-item-row">
+            <div class="resource-link is-on-device" title="This address can’t be opened from the vault. Edit it to use a web link.">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${label}">${label}</span>${badge}
+              <span class="vault-on-device">Link blocked</span>
+            </div>${actions}
+          </div>`;
+  const isUploaded = r.isUpload || /^data:/i.test(href);
+  return `
+          <div class="resource-item-row">
+            <a class="resource-link" href="${vaultEsc(href)}" ${isUploaded ? `download="${label}"` : 'target="_blank" rel="noopener"'} title="${isUploaded ? 'Click to download ' + label : vaultEsc(href)}">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${label}">${label}</span>${badge}
+              ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${vaultEsc(r.fileSize)}</span>` : ''}
+              ${isUploaded ? `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--accent)">📥</span>` : `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--text-muted)">↗</span>`}
+            </a>${actions}
+          </div>`;
+}
+
 function renderLinksContent(container) {
   const links = loadCustomLinks();
 
@@ -17726,18 +17869,49 @@ function renderLinksContent(container) {
         <div style="font-size:var(--text-hero);margin-bottom:12px">📚</div>
         <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);margin-bottom:6px">No Course Materials in Study Vault</div>
         <div style="font-size:var(--text-base);margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">Attach notes, syllabus PDFs, lab cheat sheets, and cloud drive folders per subject for 1-click access.</div>
-        <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base)">+ Create Your First Subject Vault</button>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base)">+ Create Your First Subject Vault</button>
+          <button class="btn-secondary" onclick="openVaultBulk(null)" style="font-size:var(--text-base)">Add files or links</button>
+        </div>
       </div>
     `;
     return;
   }
 
-  const subjectsHtml = links.map((s, si) => `
+  container.innerHTML = `
+    ${vaultMeterHtml(links)}
+    <div class="vault-search">
+      <input type="search" id="vault-search" class="form-input" value="${vaultEsc(_vaultQuery)}" placeholder="Search notes, subjects, PDFs…" aria-label="Search the Study Vault" autocomplete="off" oninput="vaultSearch(this.value)" />
+    </div>
+    <p id="vault-count" class="vault-sr" aria-live="polite"></p>
+    <div id="vault-grid"></div>`;
+  renderVaultGrid();
+}
+
+window.vaultSearch = function(value) {
+  _vaultQuery = String(value || '').slice(0, 80);
+  renderVaultGrid();
+};
+
+function renderVaultGrid() {
+  const grid = document.getElementById('vault-grid');
+  if (!grid) return;
+  const links = loadCustomLinks();
+  const tokens = _vaultQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  let shown = 0, files = 0;
+
+  const html = links.map((s, si) => {
+    const all = (Array.isArray(s.resources) ? s.resources : []).map((r, ri) => ({ r, ri }));
+    const hits = tokens.length ? all.filter(x => vaultResourceMatches(s, x.r, tokens)) : all;
+    const subjectHit = tokens.length && tokens.every(t => `${s.subject || ''} ${s.code || ''}`.toLowerCase().includes(t));
+    if (tokens.length && !hits.length && !subjectHit) return '';
+    shown++; files += hits.length;
+    return `
     <div class="link-subject-card" id="link-card-${si}">
       <div class="link-subject-header">
-        <span class="link-color-dot" style="background:${s.color || '#394B63'}"></span>
-        <span class="link-subject-title" title="${s.subject}">${s.subject}</span>
-        <span class="link-code">${s.code}</span>
+        <span class="link-color-dot" style="background:${vaultEsc(s.color || '#394B63')}"></span>
+        <span class="link-subject-title" title="${vaultEsc(s.subject)}">${vaultEsc(s.subject)}</span>
+        <span class="link-code">${vaultEsc(s.code)}</span>
         <div class="link-subject-actions">
           <button class="icon-btn-sm" onclick="editLinkSubject(${si})" title="Edit subject" aria-label="Edit subject">${icons.edit()}</button>
           <button class="icon-btn-sm icon-btn-danger" onclick="deleteLinkSubject(${si})" title="Delete subject" aria-label="Delete subject">${icons.trash()}</button>
@@ -17745,48 +17919,278 @@ function renderLinksContent(container) {
       </div>
 
       <div class="link-resources">
-        ${s.resources.length === 0 ? `
+        ${hits.length === 0 ? `
           <div style="font-size:var(--text-sm);color:var(--text-muted);font-style:italic;padding:8px 0">No materials attached yet. Click below to add files or links.</div>
-        ` : s.resources.map((r, ri) => {
-          const isUploaded = r.isUpload || (r.url && r.url.startsWith('data:'));
-          if (isVaultPlaceholder(r)) return `
-          <div class="resource-item-row">
-            <div class="resource-link is-on-device" title="This file was added on another device. Open it there.">
-              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
-              <span class="resource-label" title="${r.label}">${r.label}</span>
-              <span class="vault-on-device">On another device</span>
-            </div>
-            <div class="resource-actions">
-              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
-              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
-            </div>
-          </div>`;
-          return `
-          <div class="resource-item-row">
-            <a class="resource-link" href="${r.url}" ${isUploaded ? `download="${r.label}"` : 'target="_blank" rel="noopener"'} title="${isUploaded ? 'Click to download ' + r.label : r.url}">
-              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
-              <span class="resource-label" title="${r.label}">${r.label}</span>
-              ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${r.fileSize}</span>` : ''}
-              ${isUploaded ? `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--accent)">📥</span>` : `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--text-muted)">↗</span>`}
-            </a>
-            <div class="resource-actions">
-              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
-              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
-            </div>
-          </div>`;
-        }).join('')}
+        ` : hits.map(x => vaultResourceRow(si, x.ri, x.r)).join('')}
       </div>
 
-      <div style="padding: 10px 16px 14px;">
+      <div class="vault-card-actions">
         <button class="btn-add-resource" onclick="addLinkResource(${si})">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Vault Material / Upload
         </button>
+        <button class="btn-add-resource" onclick="openVaultBulk(${si})">Add several at once</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
-  container.innerHTML = `<div class="links-grid">${subjectsHtml}</div>`;
+  grid.innerHTML = shown
+    ? `<div class="links-grid">${html}</div>`
+    : `<div class="card vault-no-results">Nothing matches “${vaultEsc(_vaultQuery)}”. Try a subject name, or a type like pdf or video.</div>`;
+  const count = document.getElementById('vault-count');
+  if (count) count.textContent = tokens.length ? `${files} item${files !== 1 ? 's' : ''} found` : '';
 }
+
+// ── Study Vault: add several files and links at once ─────────
+// Everything is shown in a list first. Nothing is saved until "Add".
+// One save, so one sync, however many items are added.
+let _vb = null;
+
+// Links in pasted text (a WhatsApp message, a list): one row per address.
+function vaultExtractLinks(text) {
+  const out = [], seen = new Set();
+  String(text || '').split(/\r?\n/).forEach(line => {
+    const raws = line.match(/(?:https?:\/\/|www\.)[^\s<>"'`]+/gi) || [];
+    if (!raws.length) return;
+    const rest = line.replace(/(?:https?:\/\/|www\.)[^\s<>"'`]+/gi, ' ')
+      .replace(/^\[[^\]]{3,40}\]\s*[^:]{1,40}:\s*/, '')
+      .replace(/^\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]m)?\s*-\s*[^:]{1,40}:\s*/i, '')
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s\-–—•*:>]+|[\s\-–—•*:]+$/g, '');
+    let n = 0;
+    raws.forEach(raw => {
+      let url = raw.replace(/[.,;:!?)\]}>]+$/, '');
+      if (/^www\./i.test(url)) url = 'https://' + url;
+      if (!vaultSafeUrl(url)) return;
+      let host = '';
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return; }
+      const k = waNormUrl(url);
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push({ url, title: (n === 0 && rest.length >= 3 ? rest : `${host} link`).slice(0, 120), context: rest });
+      n++;
+    });
+  });
+  return out;
+}
+
+window.openVaultBulk = function(si) {
+  document.getElementById('vault-bulk-backdrop')?.remove();
+  const links = loadCustomLinks();
+  const fixed = (si !== null && si !== undefined && links[si]) ? String(links[si].subject || '') : '';
+  const files = new Set();
+  links.forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultDeviceFile(r)) files.add(r.fileId || vaultFileId(r.url));
+    else if (isVaultPlaceholder(r) && r.fileId) files.add(r.fileId);
+  }));
+  _vb = { fixed, subjects: waLinkSubjects(), rows: [], skipped: [], over: 0, nextId: 1, knownFiles: files, knownUrls: waSavedLinkUrls() };
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'vault-bulk-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal vault-bulk" style="max-width:560px;width:94vw" role="dialog" aria-modal="true" aria-labelledby="vb-title" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title" id="vb-title">Add several to Study Vault${fixed ? ` · ${vaultEsc(fixed)}` : ''}</span>
+        <button class="modal-close" aria-label="Close" onclick="closeVaultBulk()">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div id="vb-drop" class="vault-drop">
+          <div>Drop files here, or</div>
+          <button type="button" class="btn-secondary" onclick="document.getElementById('vb-file').click()">Choose files</button>
+          <input type="file" id="vb-file" multiple hidden accept="${VAULT_FILE_ACCEPT}" onchange="vbPickFiles(this)" aria-label="Choose files to add" />
+          <div class="vault-hint">PDF, Word, slides, images, code. Up to 1 MB each. For bigger notes, paste a Drive link below.</div>
+        </div>
+        <div>
+          <label class="form-label" for="vb-paste">Or paste links</label>
+          <textarea id="vb-paste" class="form-input" rows="3" placeholder="One link per line, or paste a whole WhatsApp message"></textarea>
+          <button type="button" class="btn-secondary" style="margin-top:8px" onclick="vbReadPaste()">Find links</button>
+        </div>
+        <div id="vb-review" aria-live="polite"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeVaultBulk()">Cancel</button>
+        <button class="btn-primary" id="vb-save" onclick="vbSave()" disabled>Add</button>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+  const zone = document.getElementById('vb-drop');
+  if (zone && zone.addEventListener) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('is-drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('is-drag'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('is-drag');
+      if (e.dataTransfer && e.dataTransfer.files) vbAddFiles(e.dataTransfer.files);
+    });
+  }
+  vbRender();
+};
+
+window.closeVaultBulk = function() {
+  document.getElementById('vault-bulk-backdrop')?.remove();
+  _vb = null;
+};
+
+window.vbPickFiles = function(input) {
+  const files = Array.from((input && input.files) || []);
+  if (input) input.value = '';
+  vbAddFiles(files);
+};
+
+window.vbAddFiles = function(fileList) {
+  const vb = _vb;
+  if (!vb) return;
+  const files = Array.from(fileList || []);
+  if (files.length > 30) vb.over += files.length - 30;
+  const jobs = [];
+  files.slice(0, 30).forEach(f => {
+    if (f.size > VAULT_FILE_MAX_BYTES) { vb.skipped.push(`${f.name} (${(f.size / 1048576).toFixed(1)} MB)`); return; }
+    jobs.push(new Promise(resolve => {
+      const rd = new FileReader();
+      rd.onload = () => resolve({ f, url: String(rd.result || '') });
+      rd.onerror = () => { vb.skipped.push(`${f.name} (couldn’t be read)`); resolve(null); };
+      rd.readAsDataURL(f);
+    }));
+  });
+  vbRender();
+  Promise.all(jobs).then(done => {
+    if (_vb !== vb) return;
+    done.filter(Boolean).forEach(({ f, url }) => vbAddRow({ kind: 'file', label: f.name, url, icon: vaultIconForFile(f.name), size: f.size, context: f.name }));
+    vbRender();
+  });
+};
+
+window.vbReadPaste = function() {
+  const ta = document.getElementById('vb-paste');
+  if (!_vb || !ta) return;
+  const found = vaultExtractLinks(ta.value);
+  if (!found.length) { showToast('No links found in that text.', 'info'); return; }
+  found.forEach(l => vbAddRow({ kind: 'link', label: l.title, url: l.url, icon: vaultIconForUrl(l.url) || 'link', context: l.context }));
+  ta.value = '';
+  vbRender();
+};
+
+function vbAddRow(spec) {
+  const vb = _vb;
+  if (!vb) return;
+  const isFile = spec.kind === 'file';
+  const key = isFile ? vaultFileId(spec.url) : waNormUrl(spec.url);
+  if (vb.rows.some(r => r.kind === spec.kind && r.key === key)) return;
+  if (vb.rows.length >= VAULT_BULK_MAX_ROWS) { vb.over++; return; }
+  const dup = isFile ? vb.knownFiles.has(key) : vb.knownUrls.has(key);
+  vb.rows.push({
+    id: vb.nextId++, kind: spec.kind, key, dup, sel: !dup,
+    label: String(spec.label || '').slice(0, 150), url: spec.url, icon: spec.icon || 'link', size: spec.size || 0,
+    subject: vb.fixed || waGuessLinkSubject(spec.context, vb.subjects)
+  });
+}
+
+window.vbToggle = function(id, on) {
+  const row = _vb && _vb.rows.find(r => r.id === id);
+  if (row && !row.dup) { row.sel = !!on; vbUpdateButton(); }
+};
+window.vbTitle = function(id, value) {
+  const row = _vb && _vb.rows.find(r => r.id === id);
+  if (row) row.label = String(value || '').slice(0, 150);
+};
+window.vbSubject = function(id, value) {
+  const row = _vb && _vb.rows.find(r => r.id === id);
+  if (row && String(value || '').trim()) row.subject = String(value).trim().slice(0, 60);
+};
+
+function vbUpdateButton() {
+  const btn = document.getElementById('vb-save');
+  if (!btn || !_vb) return;
+  const n = _vb.rows.filter(r => r.sel && !r.dup).length;
+  btn.textContent = n ? `Add ${n} item${n !== 1 ? 's' : ''}` : 'Add';
+  btn.disabled = !n;
+}
+
+function vbRender() {
+  const box = document.getElementById('vb-review');
+  if (!box || !_vb) return;
+  const vb = _vb;
+  const names = [...new Set([...vb.subjects.map(s => s.name), 'General'])];
+  const rows = vb.rows.map(r => {
+    const opts = [...new Set([...names, r.subject])].map(n => `<option value="${vaultEsc(n)}" ${n === r.subject ? 'selected' : ''}>${vaultEsc(n)}</option>`).join('');
+    let meta = '';
+    if (r.kind === 'file') meta = formatBytes(r.size);
+    else { try { meta = new URL(r.url).hostname.replace(/^www\./, ''); } catch (_) { meta = ''; } }
+    const type = vaultTypeLabel(r.kind === 'file' ? { label: r.label, url: r.url, isUpload: true } : { url: r.url });
+    return `
+      <div class="vault-bulk-row ${r.dup ? 'is-dup' : ''}">
+        <input type="checkbox" ${r.sel ? 'checked' : ''} ${r.dup ? 'disabled' : ''} aria-label="Add ${vaultEsc(r.label)}" onchange="vbToggle(${r.id}, this.checked)" />
+        <div class="vault-bulk-main">
+          <div class="vault-bulk-line"><span class="vault-type">${type}</span>${r.dup ? '<span class="vault-on-device">Already saved</span>' : ''}<span class="vault-hint">${vaultEsc(meta)}</span></div>
+          <input class="form-input" value="${vaultEsc(r.label)}" aria-label="Name for ${vaultEsc(r.label)}" oninput="vbTitle(${r.id}, this.value)" />
+          ${vb.fixed || r.dup ? '' : `<select class="form-select" aria-label="Subject for ${vaultEsc(r.label)}" onchange="vbSubject(${r.id}, this.value)">${opts}</select>`}
+        </div>
+      </div>`;
+  }).join('');
+  const need = vb.rows.filter(r => r.kind === 'file' && r.sel && !r.dup).reduce((n, r) => n + r.url.length, 0);
+  const free = vaultStorageStats(loadCustomLinks()).free;
+  const notes = [];
+  if (vb.skipped.length) notes.push(`Too big or unreadable, not added: ${vb.skipped.map(vaultEsc).join(', ')}. Add big notes as a Drive link instead.`);
+  if (vb.over) notes.push(`Only the first ${VAULT_BULK_MAX_ROWS} items fit in one go. Add these, then add the rest.`);
+  if (need > free * 0.9) notes.push(`These files may not fit in this phone’s storage (about ${formatBytes(Math.round(free * 0.75))} left). Untick some, or add them as Drive links.`);
+  box.innerHTML = `${notes.map(n => `<p class="vault-bulk-note">${n}</p>`).join('')}${rows ? `<div class="vault-bulk-list">${rows}</div>` : ''}`;
+  vbUpdateButton();
+}
+
+window.vbSave = function() {
+  const vb = _vb;
+  if (!vb) return;
+  const chosen = vb.rows.filter(r => r.sel && !r.dup);
+  if (!chosen.length) return;
+  const links = loadCustomLinks();
+  const added = [];
+  const created = new Set();
+  for (const r of chosen) {
+    const subject = (r.subject || 'General').trim() || 'General';
+    const key = getCanonicalSubjectKey(subject);
+    let entry = links.find(s => s && getCanonicalSubjectKey(s.subject || '') === key);
+    if (!entry) {
+      const known = vb.subjects.find(s => s.key === key);
+      entry = { subject, code: (known && known.code) || subject.slice(0, 4).toUpperCase(), color: '#394B63', resources: [] };
+      links.push(entry);
+      created.add(key);
+    }
+    if (!Array.isArray(entry.resources)) entry.resources = [];
+    let fallback = r.label;
+    if (r.kind === 'link') { try { fallback = new URL(r.url).hostname.replace(/^www\./, '') + ' link'; } catch (_) {} }
+    entry.resources.push({
+      label: (r.label || '').trim() || fallback || 'Untitled',
+      url: r.url,
+      icon: r.icon,
+      isUpload: r.kind === 'file',
+      fileSize: r.kind === 'file' ? formatBytes(r.size) : ''
+    });
+    added.push({ key, url: r.url });
+  }
+  if (!saveCustomLinks(links)) {
+    // Not saved: keep the list open so nothing is lost.
+    showToast(VAULT_FULL_MESSAGE, 'error');
+    return;
+  }
+  if (chosen.some(r => r.kind === 'file')) vaultAskPersist();
+  closeVaultBulk();
+  const n = added.length;
+  renderLinks();
+  showUndoToast(`Added ${n} item${n !== 1 ? 's' : ''} to Study Vault`, () => {
+    const cur = loadCustomLinks();
+    for (const a of added) {
+      const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
+      if (!entry || !Array.isArray(entry.resources)) continue;
+      const i = entry.resources.findIndex(x => x && x.url === a.url);
+      if (i >= 0) entry.resources.splice(i, 1);
+    }
+    const kept = cur.filter(s => !(s && created.has(getCanonicalSubjectKey(s.subject || '')) && (!s.resources || !s.resources.length)));
+    saveCustomLinks(kept);
+    renderLinks();
+    showToast('Removed again', 'info');
+  });
+};
 
 window.addLinkSubject = function() {
   showLinkSubjectModal(null, null);
@@ -17858,11 +18262,11 @@ function showLinkSubjectModal(si, existing) {
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
         <div>
           <label class="form-label">Subject Name <span style="color:var(--red)">*</span></label>
-          <input id="lsm-name" class="form-input" value="${existing?.subject || ''}" placeholder="e.g. Data Structures &amp; Algorithms" />
+          <input id="lsm-name" class="form-input" value="${vaultEsc(existing?.subject)}" placeholder="e.g. Data Structures &amp; Algorithms" />
         </div>
         <div>
           <label class="form-label">Short Code</label>
-          <input id="lsm-code" class="form-input" value="${existing?.code || ''}" placeholder="e.g. DSA" />
+          <input id="lsm-code" class="form-input" value="${vaultEsc(existing?.code)}" placeholder="e.g. DSA" />
         </div>
         <div>
           <label class="form-label">Color Indicator</label>
@@ -17924,7 +18328,7 @@ window.handleVaultFileSelect = function(e) {
 
     if (urlEl) urlEl.value = dataUrl;
     if (labelEl && !labelEl.value) labelEl.value = file.name;
-    if (fileLabel) fileLabel.innerHTML = `✓ <strong>${file.name}</strong> (${formatBytes(file.size)})`;
+    if (fileLabel) fileLabel.innerHTML = `✓ <strong>${vaultEsc(file.name)}</strong> (${formatBytes(file.size)})`;
 
     // Auto-detect icon
     const ext = file.name.split('.').pop().toLowerCase();
@@ -18006,7 +18410,7 @@ function showLinkResourceModal(si, ri, existing) {
           <div class="card" onclick="document.getElementById('lrm-file-input').click()" style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface-2)">
             <div style="font-size:var(--text-2xl);margin-bottom:6px">📥</div>
             <div id="lrm-file-label" style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">
-              ${existing?.label && isUpload ? `✓ <strong>${existing.label}</strong> (${existing.fileSize || 'Attached File'})` : 'Click to select note, PDF, slide, or code file'}
+              ${existing?.label && isUpload ? `✓ <strong>${vaultEsc(existing.label)}</strong> (${vaultEsc(existing.fileSize || 'Attached File')})` : 'Click to select note, PDF, slide, or code file'}
             </div>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Saved persistently to your local Study Vault</div>
           </div>
@@ -18014,12 +18418,12 @@ function showLinkResourceModal(si, ri, existing) {
 
         <div>
           <label class="form-label">Material Name / Title <span style="color:var(--red)">*</span></label>
-          <input id="lrm-label" class="form-input" value="${existing?.label || ''}" placeholder="e.g. Unit 2 Summary Notes or Lab Manual PDF" />
+          <input id="lrm-label" class="form-input" value="${vaultEsc(existing?.label)}" placeholder="e.g. Unit 2 Summary Notes or Lab Manual PDF" />
         </div>
 
         <div id="lrm-url-section" style="display:${!isUpload ? 'block' : 'none'}">
           <label class="form-label">URL / Cloud Folder <span style="color:var(--red)">*</span></label>
-          <input id="lrm-url" class="form-input" type="url" value="${existing?.url || ''}" placeholder="https://drive.google.com/... or GitHub link" oninput="autoDetectVaultIcon(this.value)" />
+          <input id="lrm-url" class="form-input" type="text" inputmode="url" value="${vaultEsc(existing?.url)}" placeholder="https://drive.google.com/... or GitHub link" oninput="autoDetectVaultIcon(this.value)" />
         </div>
 
         <div>
@@ -18046,7 +18450,7 @@ window.saveLinkResource = function(si, ri) {
   const labelEl = document.getElementById('lrm-label');
   const urlEl   = document.getElementById('lrm-url');
   const label = labelEl?.value?.trim();
-  const url   = urlEl?.value?.trim();
+  const url   = vaultNormalizeUrl(urlEl?.value);
   const icon  = document.getElementById('lrm-icon')?.value || 'book-open';
   const meta  = window._uploadedFileMeta || {};
 
@@ -18061,6 +18465,11 @@ window.saveLinkResource = function(si, ri) {
     if (!label && labelEl) { labelEl.classList.add('error', 'shake'); labelEl.focus(); }
     else if (!url && urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
     showToast('Resource name and file/link are required.', 'error');
+    return;
+  }
+  if (url && !vaultSafeUrl(url)) {
+    if (urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
+    showToast('Only web links starting with http:// or https:// can be saved.', 'error');
     return;
   }
   const item = keepPlaceholder ? { ...existing, label, icon } : {
@@ -18081,6 +18490,7 @@ window.saveLinkResource = function(si, ri) {
     showToast(VAULT_FULL_MESSAGE, 'error');
     return;
   }
+  if (item.url && item.url.startsWith('data:')) vaultAskPersist();
   document.getElementById('link-resource-modal-backdrop')?.remove();
   showToast('Study vault material saved ✓', 'success');
   renderLinks();
