@@ -14047,38 +14047,49 @@ function confirmExecuteRestore() {
 // card(s) regardless of what pattern they match, reusing the same safe
 // per-subject deletion permanentlyDeleteSubject() already uses.
 let subjectManageMode = false;
+// The picked cards live here, not only in the checkboxes: cloud sync and
+// other background re-renders rebuild the Subjects page, which used to
+// untick everything the student had selected. renderSubjects() reads this.
+const subjectSelection = new Set();
 
 window.toggleSubjectManageMode = function() {
   subjectManageMode = !subjectManageMode;
+  subjectSelection.clear();
   renderPage(state.currentPage);
 };
+
+function updateSubjectBulkBar() {
+  const count = subjectSelection.size;
+  const bar = document.getElementById('subject-bulk-actionbar');
+  if (!bar) return;
+  const label = bar.querySelector('.subject-bulk-count');
+  if (label) label.textContent = `${count} selected`;
+  const btn = bar.querySelector('.subject-bulk-delete-btn');
+  if (btn) btn.disabled = count === 0;
+}
 
 window.toggleSubjectCheckbox = function(event, cardEl) {
   const checkbox = cardEl.querySelector('.subject-select-checkbox');
   if (!checkbox) return;
   if (event.target !== checkbox) checkbox.checked = !checkbox.checked;
+  const name = checkbox.getAttribute('data-subject');
+  if (checkbox.checked) subjectSelection.add(name); else subjectSelection.delete(name);
   cardEl.style.outline = checkbox.checked ? '2px solid var(--accent)' : 'none';
   cardEl.style.outlineOffset = checkbox.checked ? '-2px' : '0';
-  const count = document.querySelectorAll('.subject-select-checkbox:checked').length;
-  const bar = document.getElementById('subject-bulk-actionbar');
-  if (bar) {
-    const label = bar.querySelector('.subject-bulk-count');
-    if (label) label.textContent = `${count} selected`;
-    const btn = bar.querySelector('.subject-bulk-delete-btn');
-    if (btn) btn.disabled = count === 0;
-  }
+  updateSubjectBulkBar();
 };
 
 window.deleteSelectedSubjects = function() {
-  const checked = Array.from(document.querySelectorAll('.subject-select-checkbox:checked'));
-  if (!checked.length) return;
-  const names = checked.map(c => c.getAttribute('data-subject'));
+  const shown = new Set(Array.from(document.querySelectorAll('.subject-select-checkbox')).map(c => c.getAttribute('data-subject')));
+  const names = [...subjectSelection].filter(n => shown.has(n));
+  if (!names.length) return;
   const proceed = confirm(`Delete ${names.length} subject${names.length !== 1 ? 's' : ''} permanently?\n\n${names.join(', ')}\n\nThis removes each one's timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`);
   if (!proceed) return;
 
   names.forEach(n => permanentlyDeleteSubject(n));
 
   subjectManageMode = false;
+  subjectSelection.clear();
   renderPage(state.currentPage);
   showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
 };
@@ -14944,6 +14955,10 @@ function renderSubjectsOverview(el, subjects) {
 
   const sylList = loadSyllabus();
   const sylLine = (s) => { const e = findSyllabusEntry(sylList, s.name); return e && e.topics.length ? ` · Syllabus ${syllabusStats(e).pct}%` : ''; };
+  // Forget picks for cards that are gone (deleted here or on another device).
+  const shownNames = new Set(subjects.map(s => s.name));
+  subjectSelection.forEach(n => { if (!shownNames.has(n)) subjectSelection.delete(n); });
+  const picked = (s) => subjectManageMode && subjectSelection.has(s.name);
   const cardsHTML = ranked.map(({ s, att, tier }) => {
     const pending = allTasks().filter(t => t.status === 'pending' && ((t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase())).length;
     const label = att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}%` : '—';
@@ -14957,7 +14972,7 @@ function renderSubjectsOverview(el, subjects) {
     const projection = attV2ProjectionText(labIsWorse(att) ? att.labPart : att);
 
     return `
-      <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
+      <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer${picked(s) ? ';outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
         <svg class="sj-ring ${tier}${animateRings ? ' animate' : ''}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${s.name} attendance ${label}, target ${att.targetPct}%">
           <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
           <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
@@ -14971,7 +14986,7 @@ function renderSubjectsOverview(el, subjects) {
         </div>
         <div class="sj-side">
           ${subjectManageMode ? `
-            <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" aria-label="Select ${s.name.replace(/"/g, '&quot;')}" onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))">
+            <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" aria-label="Select ${s.name.replace(/"/g, '&quot;')}"${picked(s) ? ' checked' : ''} onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))">
           ` : `
             <span class="sj-pct">${label}</span>
             <span class="sj-tier">${TIER_WORD[tier]}</span>
@@ -15004,11 +15019,11 @@ function renderSubjectsOverview(el, subjects) {
     ${subjectManageMode ? `
       <div id="subject-bulk-actionbar" class="card" style="padding:10px 16px;margin-bottom:14px;background:var(--surface-2);border-left:3px solid var(--accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div style="font-size:var(--text-sm);color:var(--text-secondary)">
-          Tap any card below to select it &mdash; works for any garbage text, not just what auto-detect catches. <span class="subject-bulk-count" style="font-weight:700;color:var(--text-primary)">0 selected</span>
+          Tap any card below to select it &mdash; works for any garbage text, not just what auto-detect catches. <span class="subject-bulk-count" style="font-weight:700;color:var(--text-primary)">${subjectSelection.size} selected</span>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-sm btn-secondary" onclick="toggleSubjectManageMode()">Cancel</button>
-          <button class="subject-bulk-delete-btn btn btn-sm btn-primary" onclick="deleteSelectedSubjects()" disabled style="background:var(--status-error, #c0392b);border-color:var(--status-error, #c0392b)">${icons.trash()} Delete Selected</button>
+          <button class="subject-bulk-delete-btn btn btn-sm btn-primary" onclick="deleteSelectedSubjects()"${subjectSelection.size ? '' : ' disabled'} style="background:var(--status-error, #c0392b);border-color:var(--status-error, #c0392b)">${icons.trash()} Delete Selected</button>
         </div>
       </div>
     ` : ''}
