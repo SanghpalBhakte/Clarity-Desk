@@ -101,6 +101,27 @@ scenario('Every precached service-worker file is published', () => {
   return files.length && missing.length === 0 ? true : `precached but not published: ${missing.join(', ') || '(no precache list found)'}`;
 });
 
+scenario('Analytics beacon loads for real visitors on the live site only, never for automated browsers', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const m = html.match(/<!-- Cloudflare Web Analytics[\s\S]*?<script>([\s\S]*?)<\/script>/);
+  if (!m) return 'Cloudflare Web Analytics snippet not found in index.html';
+  const loads = (hostname, webdriver) => {
+    const added = [];
+    const el = { setAttribute() {} };
+    new Function('location', 'navigator', 'document', m[1])(
+      { hostname }, { webdriver },
+      { createElement: () => el, body: { appendChild: (x) => added.push(x) } });
+    return added.length > 0;
+  };
+  const bad = [];
+  if (!loads('campusos-83365.web.app', false)) bad.push('real visitor on campusos-83365.web.app not counted');
+  if (!loads('claritydesk.web.app', undefined)) bad.push('real visitor on claritydesk.web.app not counted');
+  if (loads('campusos-83365.web.app', true)) bad.push('automated browser on the live site counted');
+  if (loads('claritydesk.web.app', true)) bad.push('automated browser on claritydesk.web.app counted');
+  if (loads('127.0.0.1', false)) bad.push('local run counted');
+  return bad.length === 0 ? true : bad.join('; ');
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);

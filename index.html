@@ -453,9 +453,10 @@
 <script src="firebase-config.js?v=211"></script>
 <script type="module" src="app.js?v=211"></script>
 
-<!-- Cloudflare Web Analytics. Only loads on the live site, so local runs and tests aren't counted. -->
+<!-- Cloudflare Web Analytics. Only loads on the live site, and not in automated browsers (the post-ship
+     smoke test, Playwright), so local runs and tests aren't counted. -->
 <script>
-  if (['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.web.app', 'claritydesk.firebaseapp.com'].includes(location.hostname)) {
+  if (['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.web.app', 'claritydesk.firebaseapp.com'].includes(location.hostname) && !navigator.webdriver) {
     var cfBeacon = document.createElement('script');
     cfBeacon.defer = true;
     cfBeacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
