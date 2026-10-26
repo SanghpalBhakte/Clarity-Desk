@@ -6,6 +6,7 @@
 // u33/u34) and repeated the summary as the first point (u38). Feeds
 // made-up commit bodies through the real helper and checks the result.
 // ==================================================================
+import fs from 'fs';
 import { stripFooter, toSummaryAndPoints } from '../scripts/devnotes-text.mjs';
 
 let failed = 0;
@@ -89,6 +90,16 @@ Nothing changes for students.`;
   check('points end with punctuation', points.every((p) => /[.!?]$/.test(p)), show(points));
   check('subject used as summary when body is only bullets',
     toSummaryAndPoints('Two changes', body).summary === 'Two changes');
+}
+
+// 6. Tooling-only commits never become Dev Notes, with or without a scope.
+{
+  const src = fs.readFileSync(new URL('../scripts/generate-devnotes.mjs', import.meta.url), 'utf8');
+  const SKIP = eval(src.match(/const SKIP_PATTERNS = (\[[^\n]*\]);/)[1]);
+  const skipped = (subj) => SKIP.some((re) => re.test(subj));
+  check('skips Dependabot "chore(deps-dev): ..."', skipped('chore(deps-dev): bump the dev-dependencies group with 2 updates'));
+  check('skips chore:, test:, build(deps):, ci:', ['chore: bump the cache version', 'test: add checks', 'build(deps): bump x', 'ci: speed up'].every(skipped));
+  check('keeps student-facing subjects', !skipped('Class reminders now arrive when the app is closed') && !skipped('Choreography club notices now show'));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
