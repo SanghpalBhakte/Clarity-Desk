@@ -6334,9 +6334,10 @@ function installBannerKind(dev = detectDevice()) {
 // Unknown hosts (localhost, preview channels) are left alone.
 const CANONICAL_ORIGIN = 'https://claritydesk.web.app';
 const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.firebaseapp.com', 'sanghpalbhakte.github.io'];
-// Preferences that are no loss to leave behind. Any other cos_* key counts
-// as desk data.
-const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT];
+// Preferences, and bookkeeping the app writes on its own during any visit,
+// that are no loss to leave behind. Any other cos_* key counts as desk data.
+const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,
+  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices'];
 const MOVED_SNOOZE_MS = 3 * 86400000;
 
 function isOldAddress(hostname) {
