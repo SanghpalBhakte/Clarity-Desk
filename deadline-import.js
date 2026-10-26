@@ -234,6 +234,65 @@ export function shortTitle(text) {
   return s.length > 80 ? s.slice(0, 77).replace(/\s\S*$/, '') + '…' : s;
 }
 
+// ── Study links ───────────────────────────────────────────────
+// Drive, Docs, Classroom, YouTube, PDFs and other links shared in the
+// chat, for the Subject Hubs review list. Same privacy rule as deadlines:
+// nothing here is stored; only the links the student ticks are saved.
+const URL_RE = /https?:\/\/[^\s<>"'‎‏]+/gi;
+// Not study material: group invites, chat links, status, maps, short pay links.
+const LINK_SKIP = /^(?:chat\.whatsapp\.com|wa\.me|api\.whatsapp\.com|whatsapp\.com|maps\.app\.goo\.gl|goo\.gl\/maps|(?:www\.)?google\.[a-z.]+\/maps|maps\.google\.|paytm\.|phon\.pe|gpay\.)/i;
+
+export function cleanUrl(raw) {
+  let u = String(raw || '').replace(/[)\].,!?;:*_~]+$/, '');
+  try {
+    const x = new URL(u);
+    [...x.searchParams.keys()].forEach(k => { if (/^utm_|^fbclid$|^si$/i.test(k)) x.searchParams.delete(k); });
+    u = x.toString();
+  } catch (_) { return ''; }
+  return u;
+}
+
+export function linkKind(url) {
+  const u = url.toLowerCase();
+  if (/drive\.google\.com\/(?:drive\/)?folders|drive\.google\.com\/file|drive\.google\.com\/open|dropbox\.com|onedrive|1drv\.ms|sharepoint\.com/.test(u)) return 'drive';
+  if (/docs\.google\.com|notion\.so|forms\.gle/.test(u)) return 'doc';
+  if (/classroom\.google\.com/.test(u)) return 'classroom';
+  if (/youtube\.com|youtu\.be|vimeo\.com/.test(u)) return 'video';
+  if (/\.pdf(?:$|[?#])/.test(u)) return 'pdf';
+  if (/github\.com|gitlab\.com|replit\.com|codepen\.io/.test(u)) return 'code';
+  return 'other';
+}
+
+function linkDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return ''; }
+}
+
+function linksFromMessages(msgs) {
+  const byUrl = new Map();
+  for (const msg of msgs) {
+    const text = String(msg.text || '');
+    const found = text.match(URL_RE);
+    if (!found) continue;
+    const context = text.replace(URL_RE, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    for (const raw of found) {
+      const url = cleanUrl(raw);
+      if (!url) continue;
+      const host = url.replace(/^https?:\/\//i, '');
+      if (LINK_SKIP.test(host)) continue;
+      const domain = linkDomain(url);
+      const title = shortTitle(context) || domain;
+      byUrl.set(url, { url, kind: linkKind(url), domain, title, context, who: msg.who, sent: msg.sent });
+    }
+  }
+  const links = [...byUrl.values()].sort((a, b) => (b.sent || 0) - (a.sent || 0));
+  links.forEach((l, i) => { l.id = `wl-${i}`; });
+  return links;
+}
+
+export function extractLinks(raw) {
+  return linksFromMessages(splitMessages(raw).msgs);
+}
+
 // ── Main entry ────────────────────────────────────────────────
 // Returns { items, stats }. items: DeadlineCandidate[] sorted by date:
 //   { id, kind: 'exam'|'sub'|'pres'|'lec'|'oth', date: Date, end: Date|null,
@@ -275,6 +334,7 @@ export function scanChat(raw, now = new Date()) {
   const sentDates = msgs.map(m => m.sent).filter(Boolean);
   return {
     items,
+    links: linksFromMessages(msgs),
     stats: { messages: msgs.length, recognised, ignored: msgs.length - out.length, first: sentDates[0] || null, last: sentDates[sentDates.length - 1] || null },
   };
 }
