@@ -199,6 +199,19 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u77",
+    date: "2026-10-26",
+    title: "You can now sign in with any email address, not just Google",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings has a new \"Sign In with Email\" button.",
+    points: [
+      "Type your email, tap the link we send you, and your desk syncs across devices. No password needed.",
+      "On iPhone, email links open in Safari rather than the home-screen app. So the app has a \"Paste sign-in link\" box, and a link opened in another browser is never used up until you choose where to sign in."
+    ]
+  },
+  {
     id: "u76",
     date: "2026-10-26",
     title: "Clarity Desk now offers to install itself, and shows simple steps for your phone or computer so reminders really arrive",
