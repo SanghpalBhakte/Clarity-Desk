@@ -230,3 +230,41 @@ test.describe('class countdown ticks', () => {
     await expect(page.locator('#topbar-clock-text'), 'topbar clock flips with the countdown').toContainText('10:00 AM');
   });
 });
+
+test.describe('Subject Hubs: Select to remove', () => {
+  test.use({ viewport: { width: 360, height: 640 } });
+
+  test('picked cards stay picked when the page is rebuilt in the background', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('subjects'));
+    await page.waitForTimeout(80);                                     // renderPage skips repeats within 50ms
+    await page.evaluate(() => (window as any).toggleSubjectManageMode());
+    const cards = page.locator('#page-subjects .attendance-subject-card');
+    expect(await cards.count(), 'the sample timetable gives several subject cards').toBeGreaterThan(2);
+    await cards.nth(0).click();
+    await cards.nth(2).locator('.subject-select-checkbox').click();
+    await expect(page.locator('.subject-bulk-count')).toHaveText('2 selected');
+
+    // Cloud sync, a class starting or the day changing rebuild the page like this.
+    await page.evaluate(() => { (document.querySelector('#page-subjects .attendance-subject-card') as any).__probe = true; });
+    await page.waitForTimeout(80);
+    await page.evaluate(() => (window as any).navigate('subjects'));
+    expect(await page.evaluate(() => !!(document.querySelector('#page-subjects .attendance-subject-card') as any).__probe),
+      'the cards were rebuilt').toBe(false);
+
+    await expect(page.locator('.subject-bulk-count')).toHaveText('2 selected');
+    await expect(page.locator('.subject-select-checkbox:checked')).toHaveCount(2);
+    await expect(cards.nth(0).locator('.subject-select-checkbox')).toBeChecked();
+    await expect(cards.nth(2).locator('.subject-select-checkbox')).toBeChecked();
+    await expect(page.locator('.subject-bulk-delete-btn')).toBeEnabled();
+
+    // Unticking still works after the rebuild, and Cancel starts fresh next time.
+    await cards.nth(0).click();
+    await expect(page.locator('.subject-bulk-count')).toHaveText('1 selected');
+    await page.evaluate(() => (window as any).toggleSubjectManageMode());
+    await page.waitForTimeout(80);
+    await page.evaluate(() => (window as any).toggleSubjectManageMode());
+    await expect(page.locator('.subject-bulk-count')).toHaveText('0 selected');
+    await expect(page.locator('.subject-select-checkbox:checked')).toHaveCount(0);
+  });
+});
