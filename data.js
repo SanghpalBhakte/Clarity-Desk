@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u75",
+    date: "2026-10-26",
+    title: "Tap Study Resources at the top of a subject to jump straight to its links",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tap Study Resources at the top of a subject to jump straight to its links",
+    points: [
+
+    ]
+  },
+  {
     id: "u74",
     date: "2026-10-26",
     title: "Picking several subject cards to remove no longer unticks them on its own",
