@@ -6454,7 +6454,7 @@ function showMoveDeskModal() {
 const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
-  'first_class_saved', 'signin_started', 'signin_done', 'day2_return'];
+  'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
 let _scanStartedAt = 0;
@@ -9439,6 +9439,87 @@ function renderWeeklyAttendanceTracker() {
   `;
 }
 
+// ── "How many classes can I miss?" (first screen) ─────────────
+// A quick answer before any setup: classes attended and held, straight
+// from the college portal. Same formula as the Subjects screen
+// (computeNowGuidance). Nothing is saved; the numbers stay in memory so
+// a Today redraw keeps what was typed.
+const BUNK_TARGETS = [65, 70, 75, 80, 85];
+const _bunkCalc = { attended: '', held: '', target: null };
+let _bunkCalcCounted = false;
+
+function bunkCalcAnswer(attendedRaw, heldRaw, target) {
+  const num = (v) => /^\d{1,3}$/.test(String(v ?? '').trim()) ? parseInt(String(v).trim(), 10) : null;
+  const a = num(attendedRaw), h = num(heldRaw);
+  if (a === null || h === null) return { kind: 'empty', text: 'Type both numbers from your college portal.' };
+  if (h === 0) return { kind: 'invalid', text: 'Classes held has to be more than 0.' };
+  if (a > h) return { kind: 'invalid', text: 'Attended can’t be more than held.' };
+  const g = computeNowGuidance(a, h, target);
+  const cls = (n) => `class${n !== 1 ? 'es' : ''}`;
+  if (g.isSafe) {
+    return g.safeSkips > 0
+      ? { kind: 'safe', n: g.safeSkips, text: `You can miss <strong>${g.safeSkips}</strong> more ${cls(g.safeSkips)} and stay at ${target}%.` }
+      : { kind: 'safe', n: 0, text: `You’re right at ${target}%. Attend the next class to get a buffer.` };
+  }
+  if (!g.reachable) return { kind: 'unreachable', text: `You can’t reach ${target}% from here. Attend every class to get as close as you can.` };
+  return { kind: 'recover', n: g.classesToAttend, text: `Attend the next <strong>${g.classesToAttend}</strong> ${cls(g.classesToAttend)} in a row to get back to ${target}%.` };
+}
+
+function bunkCalcTarget() {
+  return _bunkCalc.target || getAttendanceTarget();
+}
+
+// idPrefix keeps the Welcome card and Today copies apart. The scan
+// button sits right below it in both places.
+function bunkCalcHtml(idPrefix) {
+  const target = bunkCalcTarget();
+  const targets = BUNK_TARGETS.includes(target) ? BUNK_TARGETS : [...BUNK_TARGETS, target].sort((x, y) => x - y);
+  const ans = bunkCalcAnswer(_bunkCalc.attended, _bunkCalc.held, target);
+  const field = (key, label) => `
+      <label class="bunk-calc-field">
+        <span>${label}</span>
+        <input id="${idPrefix}-bunk-${key}" class="form-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off"
+          value="${escHtml_cd(_bunkCalc[key === 'a' ? 'attended' : 'held'])}" oninput="updateBunkCalc('${idPrefix}')" aria-label="Classes ${label.toLowerCase()}">
+      </label>`;
+  return `
+    <div class="bunk-calc" id="${idPrefix}-bunk">
+      <div class="bunk-calc-title">How many classes can you miss?</div>
+      <div class="bunk-calc-sub">Use the numbers from your college portal.</div>
+      <div class="bunk-calc-row">
+        ${field('a', 'Attended')}
+        <span class="bunk-calc-of" aria-hidden="true">of</span>
+        ${field('h', 'Held')}
+        <label class="bunk-calc-field bunk-calc-target">
+          <span>Target</span>
+          <select id="${idPrefix}-bunk-t" class="form-input" onchange="updateBunkCalc('${idPrefix}')" aria-label="Attendance target">
+            ${targets.map(t => `<option value="${t}" ${t === target ? 'selected' : ''}>${t}%</option>`).join('')}
+          </select>
+        </label>
+      </div>
+      <div class="bunk-calc-answer is-${ans.kind}" id="${idPrefix}-bunk-ans" aria-live="polite">${ans.text}</div>
+    </div>`;
+}
+
+function updateBunkCalc(idPrefix) {
+  const val = (k) => document.getElementById(`${idPrefix}-bunk-${k}`)?.value ?? '';
+  _bunkCalc.attended = String(val('a')).replace(/\D/g, '').slice(0, 3);
+  _bunkCalc.held = String(val('h')).replace(/\D/g, '').slice(0, 3);
+  const t = parseInt(val('t'), 10);
+  if (t >= 50 && t <= 100) _bunkCalc.target = t;
+  const ans = bunkCalcAnswer(_bunkCalc.attended, _bunkCalc.held, bunkCalcTarget());
+  const box = document.getElementById(`${idPrefix}-bunk-ans`);
+  if (box) {
+    box.innerHTML = ans.text;
+    box.className = `bunk-calc-answer is-${ans.kind}`;
+  }
+  if (!_bunkCalcCounted && ['safe', 'recover', 'unreachable'].includes(ans.kind)) {
+    _bunkCalcCounted = true;
+    trackUsage('bunk_calc_used', ans.kind);
+  }
+  return ans;
+}
+window.updateBunkCalc = updateBunkCalc;
+
 // ── Onboarding Flow ───────────────────────────────────────────
 function checkOnboarding() {
   const p = loadProfile();
@@ -9487,6 +9568,7 @@ window.showOnboardingModal = function() {
         <div style="font-size:var(--text-md);color:var(--text-secondary);line-height:1.6;margin-bottom:24px">
           Take a photo of your class timetable. We'll show today's classes and rooms, and you can mark attendance with one tap.
         </div>
+        ${bunkCalcHtml('ob')}
         <div style="display:flex;flex-direction:column;gap:10px">
           <button class="btn-primary" onclick="onboardingScanTimetable()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">${icons.camera()} Scan your timetable</button>
           <button class="btn-secondary" onclick="onboardingAddClasses()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Add classes myself</button>
@@ -10075,6 +10157,7 @@ function renderDashboard() {
         <span class="setup-guide-title">${iconText(icons.settings(), hasCustomTT ? 'Finish setting up' : 'Get started')}</span>
         <span class="setup-guide-count">${setupSteps.length} step${setupSteps.length !== 1 ? 's' : ''} left</span>
       </div>
+      ${!hasCustomTT && liveProfile?.studyMode !== 'self' ? bunkCalcHtml('today') : ''}
       <div class="setup-guide-steps">
         ${setupSteps.slice(0, 1).map((s) => `
           <button class="setup-guide-step" onclick="${s.action}" aria-label="${s.label}">
