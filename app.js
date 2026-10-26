@@ -6451,7 +6451,7 @@ function showMoveDeskModal() {
 // text: every event is a fixed path built only from the lists below.
 // Off until GOATCOUNTER_CODE is set, live sites only, never in automated
 // browsers, and students can turn it off in Settings.
-const GOATCOUNTER_CODE = '';
+const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
   'first_class_saved', 'signin_started', 'signin_done', 'day2_return'];
