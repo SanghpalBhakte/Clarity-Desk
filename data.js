@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u74",
+    date: "2026-10-26",
+    title: "Picking several subject cards to remove no longer unticks them on its own",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Picking several subject cards to remove no longer unticks them on its own",
+    points: [
+
+    ]
+  },
+  {
     id: "u73",
     date: "2026-10-26",
     title: "Reminders on laptops and Android now offer to install Clarity Desk first, so they pop up as Clarity Desk with its logo",
