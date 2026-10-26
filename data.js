@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u86",
+    date: "2026-10-27",
+    title: "Get a reminder offer right after you add your first class",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Get a reminder offer right after you add your first class",
+    points: [
+
+    ]
+  },
+  {
     id: "u85",
     date: "2026-10-27",
     title: "Save the study links from your WhatsApp class group straight into Subject Hubs",
