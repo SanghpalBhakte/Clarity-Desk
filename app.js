@@ -5072,6 +5072,8 @@ function handleAuthError(err) {
 }
 
 function loginWithGoogle() {
+  // Google refuses sign-in inside Instagram/Facebook browsers.
+  if (detectDevice().inApp) { showInAppBanner(); return; }
   if (!auth) {
     initFirebase();
   }
@@ -6356,7 +6358,7 @@ async function syncPushReminders({ retried = false } = {}) {
 function reminderSheetMode() {
   if (typeof navigator === 'undefined') return null;
   const ua = navigator.userAgent || '';
-  if (/Instagram|FBAN|FBAV|FB_IAB|WhatsApp/i.test(ua)) return 'inapp';
+  if (isInAppBrowserUA(ua)) return 'inapp';
   const ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   if (ios && !standalone) return 'ios-install';
@@ -6394,12 +6396,20 @@ async function reminderSheetInstall(fromTips = false) {
   if (!fromTips) showReminderSheet('ask');
 }
 
+// Browsers built into other apps (Instagram, Facebook, Snapchat, LinkedIn,
+// LINE, WhatsApp, and Android WebViews in general). Their storage can be
+// wiped when the app closes, and Google blocks sign-in inside them.
+const IN_APP_UA_RE = /Instagram|FBAN|FBAV|FB_IAB|WhatsApp|Snapchat|LinkedInApp|\bLine\/|; wv\)/i;
+function isInAppBrowserUA(ua) {
+  return IN_APP_UA_RE.test(String(ua || ''));
+}
+
 // ── Which device is this? ─────────────────────────────────────
 // Only used to pick plain-language steps (install, keep reminders
 // arriving). Nothing is stored or sent.
 function detectDevice(nav = (typeof navigator !== 'undefined' ? navigator : {}), win = (typeof window !== 'undefined' ? window : {})) {
   const ua = nav.userAgent || '';
-  const inApp = /Instagram|FBAN|FBAV|FB_IAB|WhatsApp/i.test(ua);
+  const inApp = isInAppBrowserUA(ua);
   const ios = /iPhone|iPad|iPod/i.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
   const os = ios ? 'ios' : /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows' : /Macintosh|Mac OS X/i.test(ua) ? 'mac' : 'other';
   const browser = /SamsungBrowser/i.test(ua) ? 'samsung' : /Edg\//i.test(ua) ? 'edge' : /Firefox|FxiOS/i.test(ua) ? 'firefox'
@@ -6529,6 +6539,58 @@ function showMoveDeskModal() {
     </div>`;
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
+}
+
+// ── Opened inside Instagram / Facebook etc. ──────────────────
+// Those built-in browsers can forget everything when the app closes, and
+// Google sign-in is blocked there. A card (above any dialog) offers the
+// way out: one tap into Chrome on Android, short steps on iPhone, and a
+// copy-link fallback. Hidden for this visit by "Not now".
+function inAppOpenUrl(loc = location) {
+  return `${loc.protocol}//${loc.host}${loc.pathname}${loc.hash || ''}`;
+}
+
+// Android: an intent link opens the same page in Chrome.
+function chromeIntentUrl(loc = location) {
+  return `intent://${loc.host}${loc.pathname}${loc.hash || ''}#Intent;scheme=https;package=com.android.chrome;end`;
+}
+
+function inAppBannerHtml(dev = detectDevice()) {
+  const where = /Instagram/i.test(navigator.userAgent || '') ? 'Instagram' : /FBAN|FBAV|FB_IAB/i.test(navigator.userAgent || '') ? 'Facebook' : 'another app';
+  const steps = dev.os === 'ios'
+    ? `Tap <strong>•••</strong> or the share icon, then <strong>Open in browser</strong>.`
+    : `Open it in Chrome so your desk is saved and Google sign-in works.`;
+  const openBtn = dev.os === 'android'
+    ? `<a class="btn-primary" href="${escHtml_cd(chromeIntentUrl())}" style="text-decoration:none;display:inline-flex;align-items:center">Open in Chrome</a>` : '';
+  return `
+    <img class="install-banner-icon" src="./icon-192.png" alt="" width="40" height="40">
+    <div class="install-banner-text"><strong>You’re inside ${where}</strong><span>Your desk may not be saved here. ${steps}</span></div>
+    <div class="install-banner-actions">
+      <button type="button" class="btn-secondary" onclick="document.getElementById('inapp-banner')?.remove()">Not now</button>
+      <button type="button" class="btn-secondary" onclick="copyInAppLink()">Copy link</button>
+      ${openBtn}
+    </div>`;
+}
+
+function showInAppBanner() {
+  if (document.getElementById('inapp-banner')) return;
+  const el = document.createElement('div');
+  el.id = 'inapp-banner';
+  el.className = 'install-banner is-inapp';
+  el.setAttribute('role', 'region');
+  el.setAttribute('aria-label', 'Open Clarity Desk in your browser');
+  el.innerHTML = inAppBannerHtml();
+  document.body.appendChild(el);
+}
+
+async function copyInAppLink() {
+  const url = inAppOpenUrl();
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied. Paste it into Chrome or Safari.', 'success');
+  } catch (_) {
+    window.prompt('Copy this link and open it in Chrome or Safari:', url);
+  }
 }
 
 // ── Anonymous usage counts (GoatCounter) ─────────────────────
@@ -17955,7 +18017,9 @@ function renderSettings() {
           ${currentUser ? 
             `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
             `<div style="display:flex;flex-wrap:wrap;gap:8px">
-              <button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>
+              ${detectDevice().inApp
+                ? `<button class="btn btn-primary" onclick="showInAppBanner()" style="display:flex;align-items:center;gap:6px" title="Google blocks sign-in inside Instagram, Facebook and other apps">🌐 Google: open in browser first</button>`
+                : `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>`}
               <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">✉️ Sign In with Email</button>
             </div>`
           }
@@ -20902,6 +20966,8 @@ window.installBannerAction = installBannerAction;
 window.dismissMovedBanner = dismissMovedBanner;
 window.showMoveDeskModal = showMoveDeskModal;
 window.onUsageToggle = onUsageToggle;
+window.showInAppBanner = showInAppBanner;
+window.copyInAppLink = copyInAppLink;
 window.sendTestReminder = sendTestReminder;
 
 // ── Init ──────────────────────────────────────────────────────
@@ -20982,6 +21048,7 @@ function init() {
   schedulePushSync(5000);
   scheduleInstallBanner();
   if (moveAction === 'card') setTimeout(() => showMovedBanner(), 2500);
+  if (detectDevice().inApp) setTimeout(() => showInAppBanner(), 1200);
   setInterval(() => {
     checkScheduledNotifications();
     checkNoticeNotifications();
