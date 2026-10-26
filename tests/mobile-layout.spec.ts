@@ -268,3 +268,23 @@ test.describe('Subject Hubs: Select to remove', () => {
     await expect(page.locator('.subject-select-checkbox:checked')).toHaveCount(0);
   });
 });
+
+test.describe('Subject hub: Study Resources tile', () => {
+  test.use({ viewport: { width: 360, height: 640 } });
+
+  test('tapping it brings the subject\'s links on screen', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('subjects'));
+    await page.waitForTimeout(80);
+    await page.locator('#page-subjects .attendance-subject-card').first().click();
+    const section = page.locator('#hub-study-links');
+    await expect(section).toBeVisible();
+    expect(await section.evaluate(el => el.getBoundingClientRect().top), 'links start below the first screen').toBeGreaterThan(640);
+
+    await page.locator('.hub-links-tile').click();
+    // It is the last section, so the page may stop scrolling before it reaches the top.
+    await expect(section.locator('.section-heading')).toBeInViewport({ ratio: 1 });
+    await expect(section.getByRole('button', { name: '+ Add Link' })).toBeInViewport({ ratio: 1 });
+    expect(await section.evaluate(el => el.getBoundingClientRect().top), 'heading not hidden under the top bar').toBeGreaterThanOrEqual(56);
+  });
+});

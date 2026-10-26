@@ -15198,10 +15198,10 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Completed Tasks</div>
             <div style="font-size:var(--text-lg);font-weight:700;color:var(--green);margin-top:2px">${doneTasks.length} done</div>
           </div>
-          <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">Study Resources</div>
+          <button type="button" class="hub-links-tile" onclick="document.getElementById('hub-study-links')?.scrollIntoView({ behavior: 'smooth', block: 'start' })" aria-label="Go to ${(subj.name || '').replace(/"/g, '&quot;')} study links" style="background:var(--surface-2);padding:10px 12px;border-radius:8px;border:none;font:inherit;color:inherit;text-align:left;cursor:pointer">
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Study Resources <span style="color:var(--accent);font-weight:600">View &rarr;</span></div>
             <div style="font-size:var(--text-lg);font-weight:700;margin-top:2px">${allResources.length} link${allResources.length!==1?'s':''}</div>
-          </div>
+          </button>
         </div>
 
         ${att.pct !== null ? `
@@ -15236,8 +15236,8 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
       ${tasksHTML}
     </div>
 
-    <!-- 3. Resources & Links -->
-    <div style="margin-bottom:20px">
+    <!-- 3. Resources & Links (the Study Resources tile above jumps here) -->
+    <div id="hub-study-links" style="margin-bottom:20px;scroll-margin-top:calc(var(--topbar-h) + 28px)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="section-heading" style="margin-bottom:0">Study Links &amp; Notes</div>
         <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:3px 9px">+ Add Link</button>
