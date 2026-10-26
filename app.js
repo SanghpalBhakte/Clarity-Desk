@@ -5957,8 +5957,9 @@ const VAULT_FILE_MAX_BYTES = 1024 * 1024;
 const VAULT_FULL_MESSAGE = 'Not saved: Clarity Desk’s storage on this phone is full. Remove a file from the vault or add this as a link.';
 
 function vaultFileTooBigMessage(bytes) {
-  if (!(bytes > VAULT_FILE_MAX_BYTES)) return '';
-  return `This file is ${(bytes / 1048576).toFixed(1)} MB. Files up to 1 MB can be saved on this device. For bigger notes, upload to Google Drive and add the link instead.`;
+  const max = vaultFileMaxBytes();
+  if (!(bytes > max)) return '';
+  return `This file is ${(bytes / 1048576).toFixed(1)} MB. Files up to ${max / 1048576} MB can be saved on this device. For bigger notes, upload to Google Drive and add the link instead.`;
 }
 
 function isVaultDeviceFile(r) {
@@ -5976,16 +5977,18 @@ function vaultFileId(url) {
   return `f${h.toString(16)}-${url.length}`;
 }
 
+// Same placeholder for a data: URL file and an IndexedDB file, so the cloud
+// copy doesn't change when a file moves into IndexedDB.
 function vaultPlaceholder(r) {
-  const { url, ...rest } = r;
-  return { ...rest, url: '', onDevice: true, fileId: r.fileId || vaultFileId(url) };
+  const { url, idb, bytes, mime, fileId, onDevice, ...rest } = r;
+  return { ...rest, url: '', onDevice: true, fileId: fileId || vaultFileId(url) };
 }
 
 // What goes to the cloud: links as they are, files as placeholders.
 function linksForCloud(links) {
   if (!Array.isArray(links)) return links;
   return links.map(s => (s && Array.isArray(s.resources))
-    ? { ...s, resources: s.resources.map(r => isVaultDeviceFile(r) ? vaultPlaceholder(r) : r) }
+    ? { ...s, resources: s.resources.map(r => (isVaultDeviceFile(r) || isVaultIdbFile(r)) ? vaultPlaceholder(r) : r) }
     : s);
 }
 
@@ -5996,14 +5999,17 @@ function mergeCloudLinks(cloudLinks, localLinks) {
   if (!Array.isArray(cloudLinks)) return cloudLinks;
   const files = new Map();
   (Array.isArray(localLinks) ? localLinks : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
-    if (isVaultDeviceFile(r)) files.set(r.fileId || vaultFileId(r.url), r.url);
+    if (isVaultDeviceFile(r)) files.set(r.fileId || vaultFileId(r.url), r);
+    else if (isVaultIdbFile(r)) files.set(r.fileId, r);
   }));
   return cloudLinks.map(s => (s && Array.isArray(s.resources))
     ? { ...s, resources: s.resources.map(r => {
         if (!isVaultPlaceholder(r) || !r.fileId || !files.has(r.fileId)) return r;
         // Back to the exact local shape: the id is worked out from the file.
         const { onDevice, fileId, ...rest } = r;
-        return { ...rest, url: files.get(fileId) };
+        const local = files.get(fileId);
+        if (isVaultIdbFile(local)) return { ...rest, url: '', fileId, idb: true, bytes: local.bytes, mime: local.mime };
+        return { ...rest, url: local.url };
       }) }
     : s);
 }
@@ -6026,6 +6032,298 @@ function saveLinksFittingStorage(links) {
   }
   return { ok: false, dropped };
 }
+
+// ── Study Vault files in IndexedDB (v229) ────────────────────
+// File bytes live in IndexedDB (db cos_vault, store files, key fileId); the
+// vault entry in cos_custom_links keeps the details:
+//   { label, url: '', icon, isUpload, fileSize, fileId, idb: true, bytes, mime }
+// It stays on this device: the cloud gets the same placeholder as before.
+// If IndexedDB can't be used, files stay data: URLs with the 1 MB limit.
+const VAULT_IDB_MAX_BYTES = 10 * 1024 * 1024;
+const VAULT_BACKUP_FILE_CAP = 30 * 1024 * 1024;
+const VAULT_NO_ROOM_MESSAGE = 'Not saved: there is no room left on this phone for this file. Remove a file from the vault or add it as a link.';
+const VAULT_MISSING_MESSAGE = 'This file is missing on this device. Add it again or restore it from a backup.';
+let vaultIdbOk = null;       // null = not known yet, then true / false
+let _vaultIdb = null;        // Promise of the open database (or null)
+let _vaultBlobIds = null;    // fileIds stored in IndexedDB, once known
+
+function isVaultIdbFile(r) {
+  return !!r && r.idb === true && /^[a-z0-9-]{1,40}$/i.test(String(r.fileId || '')) && !r.url;
+}
+
+function vaultFileMaxBytes() {
+  return vaultIdbOk === true ? VAULT_IDB_MAX_BYTES : VAULT_FILE_MAX_BYTES;
+}
+
+function vaultIdbMissing(r) {
+  return isVaultIdbFile(r) && !!_vaultBlobIds && !_vaultBlobIds.has(r.fileId);
+}
+
+// Same FNV-1a, over the file's bytes (a data: URL is never built for it).
+function vaultBytesId(bytes) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+  return `b${h.toString(16)}-${bytes.length}`;
+}
+
+function vaultIdbStore(db, mode, fn) {
+  return new Promise((resolve, reject) => {
+    let result;
+    const tx = db.transaction('files', mode);
+    const req = fn(tx.objectStore('files'));
+    req.onsuccess = () => { result = req.result; };
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = tx.onabort = () => reject(tx.error || req.error || new Error('IndexedDB failed'));
+  });
+}
+
+function vaultIdbOpen() {
+  if (_vaultIdb) return _vaultIdb;
+  let idb = null;
+  try { idb = typeof indexedDB !== 'undefined' ? indexedDB : null; } catch (_) {}
+  if (!idb) { vaultIdbOk = false; _vaultIdb = Promise.resolve(null); return _vaultIdb; }
+  _vaultIdb = new Promise(resolve => {
+    try {
+      const req = idb.open('cos_vault', 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains('files')) req.result.createObjectStore('files', { keyPath: 'fileId' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch (_) { resolve(null); }
+  }).then(async db => {
+    if (!db) { vaultIdbOk = false; return null; }
+    try {
+      _vaultBlobIds = new Set(await vaultIdbStore(db, 'readonly', s => s.getAllKeys()));
+      vaultIdbOk = true;
+      return db;
+    } catch (_) { vaultIdbOk = false; return null; }
+  });
+  return _vaultIdb;
+}
+
+// Saves the blob and reads it back. With `expect` (bytes), the read-back
+// copy must match byte for byte. True only when the copy is really there.
+async function vaultPutBlob(fileId, blob, expect) {
+  const db = await vaultIdbOpen();
+  if (!db) return false;
+  try {
+    await vaultIdbStore(db, 'readwrite', s => s.put({ fileId, blob, bytes: blob.size, mime: blob.type || '', createdAt: Date.now() }));
+    const back = await vaultIdbStore(db, 'readonly', s => s.get(fileId));
+    if (!back || !back.blob || back.blob.size !== blob.size) return false;
+    if (expect) {
+      const got = new Uint8Array(await back.blob.arrayBuffer());
+      if (got.length !== expect.length) return false;
+      for (let i = 0; i < got.length; i++) if (got[i] !== expect[i]) return false;
+    }
+    _vaultBlobIds.add(fileId);
+    return true;
+  } catch (_) { return false; }
+}
+
+async function vaultGetBlob(fileId) {
+  const db = await vaultIdbOpen();
+  if (!db) return null;
+  try { const rec = await vaultIdbStore(db, 'readonly', s => s.get(fileId)); return (rec && rec.blob) || null; } catch (_) { return null; }
+}
+
+// Every fileId the vault, or the declutter undo copy, still points at.
+function vaultReferencedIds() {
+  const ids = new Set();
+  const add = (links) => (Array.isArray(links) ? links : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (r && r.fileId) ids.add(r.fileId);
+  }));
+  add(safeGetStorage(KEY_CUSTOM_LINKS, null));
+  const undo = safeGetStorage(KEY_CLEANUP_BACKUP, null);
+  if (undo && typeof undo === 'object') add(undo.links);
+  return ids;
+}
+
+// Removes a blob only when nothing points at it any more (and, for the
+// open-time sweep, only when it is over a day old, so an undo still works).
+async function vaultDeleteUnusedBlob(fileId, minAgeMs = 0) {
+  if (!fileId || vaultReferencedIds().has(fileId)) return;
+  const db = await vaultIdbOpen();
+  if (!db) return;
+  try {
+    if (minAgeMs) {
+      const rec = await vaultIdbStore(db, 'readonly', s => s.get(fileId));
+      if (!rec || !(Date.now() - (rec.createdAt || 0) > minAgeMs)) return;
+    }
+    if (vaultReferencedIds().has(fileId)) return;
+    await vaultIdbStore(db, 'readwrite', s => s.delete(fileId));
+    _vaultBlobIds.delete(fileId);
+  } catch (_) {}
+}
+
+function vaultDataUrlBytes(url) {
+  const m = /^data:([^,]*),/i.exec(url);
+  if (!m) return null;
+  const meta = m[1], body = url.slice(m[0].length);
+  const mime = (meta.split(';')[0] || '').trim();
+  let bytes;
+  if (/;base64$/i.test(meta)) {
+    const bin = atob(body);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } else {
+    bytes = new TextEncoder().encode(decodeURIComponent(body));
+  }
+  return { bytes, mime };
+}
+
+function vaultBlobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const rd = new FileReader();
+    rd.onload = () => resolve(String(rd.result || ''));
+    rd.onerror = () => reject(rd.error);
+    rd.readAsDataURL(blob);
+  });
+}
+
+// Copies one data: URL file into IndexedDB and returns the vault entry for
+// it, or null (the caller then keeps the data: URL as it is).
+async function vaultDataUrlToIdb(r) {
+  try {
+    const dec = vaultDataUrlBytes(r.url);
+    if (!dec) return null;
+    const fileId = r.fileId || vaultFileId(r.url);
+    if (!(await vaultPutBlob(fileId, new Blob([dec.bytes], { type: dec.mime }), dec.bytes))) return null;
+    return { ...r, url: '', fileId, idb: true, bytes: dec.bytes.length, mime: dec.mime };
+  } catch (_) { return null; }
+}
+
+// Stores a picked File; returns { fileId, bytes, mime } or null.
+async function vaultStoreFile(file) {
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const fileId = vaultBytesId(buf);
+    const mime = file.type || '';
+    if (!(_vaultBlobIds && _vaultBlobIds.has(fileId)) && !(await vaultPutBlob(fileId, new Blob([buf], { type: mime })))) return null;
+    return { fileId, bytes: buf.length, mime };
+  } catch (_) { return null; }
+}
+
+function vaultIdbEntry(base, stored) {
+  return { ...base, url: '', isUpload: true, fileSize: formatBytes(stored.bytes), fileId: stored.fileId, idb: true, bytes: stored.bytes, mime: stored.mime };
+}
+
+function vaultReadDataUrl(file) {
+  return new Promise(resolve => {
+    const rd = new FileReader();
+    rd.onload = () => resolve(String(rd.result || ''));
+    rd.onerror = () => resolve('');
+    rd.readAsDataURL(file);
+  });
+}
+
+// Moves old data: URL files into IndexedDB, one at a time. An entry is only
+// rewritten after its copy was read back and matched; anything that fails
+// keeps its data: URL. The cloud copy doesn't change (same placeholder).
+let _vaultMigrating = false;
+async function vaultMigrateFiles() {
+  if (_vaultMigrating || !(await vaultIdbOpen())) return 0;
+  _vaultMigrating = true;
+  let moved = 0;
+  try {
+    const todo = new Map();   // url -> fileId the cloud placeholder already uses
+    (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+      if (isVaultDeviceFile(r) && !todo.has(r.url)) todo.set(r.url, r.fileId || vaultFileId(r.url));
+    }));
+    for (const [url, fileId] of todo) {
+      const done = await vaultDataUrlToIdb({ url, fileId });
+      if (!done) continue;
+      const links = safeGetStorage(KEY_CUSTOM_LINKS, null);
+      if (!Array.isArray(links)) break;
+      let changed = false;
+      const next = links.map(s => (s && Array.isArray(s.resources))
+        ? { ...s, resources: s.resources.map(r => {
+            if (!r || r.url !== url) return r;
+            changed = true;
+            return { ...r, url: '', fileId, idb: true, bytes: done.bytes, mime: done.mime };
+          }) }
+        : s);
+      if (changed && safeSetStorage(KEY_CUSTOM_LINKS, next)) moved++;
+    }
+  } finally { _vaultMigrating = false; }
+  return moved;
+}
+
+// Backup copy of the vault: IndexedDB files go in as data: URLs (the same
+// shape old backups have), smallest first, up to VAULT_BACKUP_FILE_CAP.
+// The rest become placeholders. `plan` comes from vaultBackupPlan().
+async function vaultLinksForBackup(links, plan) {
+  const urls = new Map();
+  for (const id of plan.include) {
+    const blob = await vaultGetBlob(id);
+    if (blob) { try { urls.set(id, await vaultBlobToDataUrl(blob)); } catch (_) {} }
+  }
+  return (Array.isArray(links) ? links : []).map(s => (s && Array.isArray(s.resources))
+    ? { ...s, resources: s.resources.map(r => {
+        if (!isVaultIdbFile(r)) return r;
+        if (!urls.has(r.fileId)) return vaultPlaceholder(r);
+        const { idb, bytes, mime, ...rest } = r;
+        return { ...rest, url: urls.get(r.fileId) };
+      }) }
+    : s);
+}
+
+function vaultBackupPlan(links) {
+  const sizes = new Map();
+  (Array.isArray(links) ? links : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultIdbFile(r) && !vaultIdbMissing(r)) sizes.set(r.fileId, { bytes: Number(r.bytes) || 0, label: r.label || 'file' });
+  }));
+  const include = [], left = [];
+  let used = 0, leftBytes = 0;
+  [...sizes.entries()].sort((a, b) => a[1].bytes - b[1].bytes).forEach(([id, x]) => {
+    if (used + x.bytes <= VAULT_BACKUP_FILE_CAP) { include.push(id); used += x.bytes; }
+    else { left.push(x.label); leftBytes += x.bytes; }
+  });
+  return { include, left, leftBytes, any: sizes.size > 0 };
+}
+
+// Restore: put the backup's data: URL files into IndexedDB when possible.
+// Files that don't go in stay data: URLs for saveLinksFittingStorage().
+async function vaultLinksIntoIdb(links) {
+  if (!Array.isArray(links)) return links;
+  const out = [];
+  for (const s of links) {
+    if (!(s && Array.isArray(s.resources))) { out.push(s); continue; }
+    const resources = [];
+    for (const r of s.resources) resources.push(isVaultDeviceFile(r) ? ((await vaultDataUrlToIdb(r)) || r) : r);
+    out.push({ ...s, resources });
+  }
+  return out;
+}
+
+// On open: find out if IndexedDB works, move old files in, tidy up.
+function vaultIdbStart() {
+  vaultIdbOpen().then(async db => {
+    if (!db) return;
+    const moved = await vaultMigrateFiles();
+    const refs = vaultReferencedIds();
+    const missing = (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).some(s => s && Array.isArray(s.resources) && s.resources.some(vaultIdbMissing));
+    for (const id of [..._vaultBlobIds]) if (!refs.has(id)) await vaultDeleteUnusedBlob(id, 24 * 3600 * 1000);
+    if ((moved || missing) && document.getElementById('vault-grid')) renderVaultGrid();
+  }).catch(() => {});
+}
+
+window.vaultOpenFile = async function(fileId) {
+  let label = 'file';
+  (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultIdbFile(r) && r.fileId === fileId) label = r.label || label;
+  }));
+  const blob = await vaultGetBlob(fileId);
+  if (!blob) { showToast(VAULT_MISSING_MESSAGE, 'error'); return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = label;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
 
 function syncToCloud() {
   schedulePushSync();
@@ -16075,6 +16373,10 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
       </div>
       ${isVaultPlaceholder(r)
         ? `<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span>`
+        : vaultIdbMissing(r)
+        ? `<span class="vault-on-device" title="${vaultEsc(VAULT_MISSING_MESSAGE)}">Missing on this device</span>`
+        : isVaultIdbFile(r)
+        ? `<button type="button" onclick="vaultOpenFile('${vaultEsc(r.fileId)}')" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">Download 📥</button>`
         : !vaultSafeUrl(r.url)
         ? `<span class="vault-on-device" title="This address can’t be opened from the vault.">Link blocked</span>`
         : `<a href="${vaultEsc(vaultSafeUrl(r.url))}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>`}
@@ -17752,9 +18054,9 @@ function vaultNormalizeUrl(raw) {
 function vaultTypeLabel(r) {
   if (!r) return 'LINK';
   const url = String(r.url || ''), name = String(r.label || '').toLowerCase();
-  if (isVaultPlaceholder(r) || r.isUpload || /^data:/i.test(url)) {
+  if (isVaultPlaceholder(r) || isVaultIdbFile(r) || r.isUpload || /^data:/i.test(url)) {
     const ext = (name.match(/\.([a-z0-9]{1,5})$/) || [])[1] || '';
-    const mime = ((url.match(/^data:([^;,]+)/i) || [])[1] || '').toLowerCase();
+    const mime = String(r.mime || (url.match(/^data:([^;,]+)/i) || [])[1] || '').toLowerCase();
     if (ext === 'pdf' || mime === 'application/pdf') return 'PDF';
     if (['doc', 'docx'].includes(ext) || /word/.test(mime)) return 'DOC';
     if (['ppt', 'pptx'].includes(ext) || /presentation|powerpoint/.test(mime)) return 'PPT';
@@ -17792,6 +18094,7 @@ function vaultStorageStats(links) {
   let fileBytes = 0, fileCount = 0;
   (Array.isArray(links) ? links : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
     if (isVaultDeviceFile(r)) { fileCount++; fileBytes += Math.round(r.url.length * 0.75); }
+    else if (isVaultIdbFile(r)) { fileCount++; fileBytes += Number(r.bytes) || 0; }
   }));
   return {
     total, fileBytes, fileCount,
@@ -17838,6 +18141,22 @@ function vaultResourceRow(si, ri, r) {
               <span class="resource-label" title="${label}">${label}</span>${badge}
               <span class="vault-on-device">On another device</span>
             </div>${actions}
+          </div>`;
+  if (isVaultIdbFile(r)) return vaultIdbMissing(r) ? `
+          <div class="resource-item-row">
+            <div class="resource-link is-on-device" title="${vaultEsc(VAULT_MISSING_MESSAGE)}">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${label}">${label}</span>${badge}
+              <span class="vault-on-device">Missing on this device</span>
+            </div>${actions}
+          </div>` : `
+          <div class="resource-item-row">
+            <a class="resource-link" href="#" onclick="vaultOpenFile('${vaultEsc(r.fileId)}');return false" title="Click to download ${label}">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${label}">${label}</span>${badge}
+              ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${vaultEsc(r.fileSize)}</span>` : ''}
+              <span style="font-size:var(--text-sm);margin-left:auto;color:var(--accent)">📥</span>
+            </a>${actions}
           </div>`;
   const href = vaultSafeUrl(r.url);
   if (!href) return `
@@ -17981,7 +18300,7 @@ window.openVaultBulk = function(si) {
   const files = new Set();
   links.forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
     if (isVaultDeviceFile(r)) files.add(r.fileId || vaultFileId(r.url));
-    else if (isVaultPlaceholder(r) && r.fileId) files.add(r.fileId);
+    else if ((isVaultPlaceholder(r) || isVaultIdbFile(r)) && r.fileId) files.add(r.fileId);
   }));
   _vb = { fixed, subjects: waLinkSubjects(), rows: [], skipped: [], over: 0, nextId: 1, knownFiles: files, knownUrls: waSavedLinkUrls() };
 
@@ -17999,7 +18318,7 @@ window.openVaultBulk = function(si) {
           <div>Drop files here, or</div>
           <button type="button" class="btn-secondary" onclick="document.getElementById('vb-file').click()">Choose files</button>
           <input type="file" id="vb-file" multiple hidden accept="${VAULT_FILE_ACCEPT}" onchange="vbPickFiles(this)" aria-label="Choose files to add" />
-          <div class="vault-hint">PDF, Word, slides, images, code. Up to 1 MB each. For bigger notes, paste a Drive link below.</div>
+          <div class="vault-hint">PDF, Word, slides, images, code. Up to ${vaultFileMaxBytes() / 1048576} MB each. For bigger notes, paste a Drive link below.</div>
         </div>
         <div>
           <label class="form-label" for="vb-paste">Or paste links</label>
@@ -18044,8 +18363,27 @@ window.vbAddFiles = function(fileList) {
   const files = Array.from(fileList || []);
   if (files.length > 30) vb.over += files.length - 30;
   const jobs = [];
-  files.slice(0, 30).forEach(f => {
-    if (f.size > VAULT_FILE_MAX_BYTES) { vb.skipped.push(`${f.name} (${(f.size / 1048576).toFixed(1)} MB)`); return; }
+  const max = vaultFileMaxBytes();
+  const ok = files.slice(0, 30).filter(f => {
+    if (f.size > max) { vb.skipped.push(`${f.name} (${(f.size / 1048576).toFixed(1)} MB)`); return false; }
+    return true;
+  });
+  if (vaultIdbOk === true) {
+    // Only a fingerprint now (one file at a time); the bytes are saved on Add.
+    vbRender();
+    (async () => {
+      const done = [];
+      for (const f of ok) {
+        try { done.push({ f, key: vaultBytesId(new Uint8Array(await f.arrayBuffer())) }); }
+        catch (_) { vb.skipped.push(`${f.name} (couldn’t be read)`); }
+      }
+      if (_vb !== vb) return;
+      done.forEach(({ f, key }) => vbAddRow({ kind: 'file', label: f.name, url: '', key, file: f, icon: vaultIconForFile(f.name), size: f.size, context: f.name }));
+      vbRender();
+    })();
+    return;
+  }
+  ok.forEach(f => {
     jobs.push(new Promise(resolve => {
       const rd = new FileReader();
       rd.onload = () => resolve({ f, url: String(rd.result || '') });
@@ -18075,13 +18413,13 @@ function vbAddRow(spec) {
   const vb = _vb;
   if (!vb) return;
   const isFile = spec.kind === 'file';
-  const key = isFile ? vaultFileId(spec.url) : waNormUrl(spec.url);
+  const key = spec.key || (isFile ? vaultFileId(spec.url) : waNormUrl(spec.url));
   if (vb.rows.some(r => r.kind === spec.kind && r.key === key)) return;
   if (vb.rows.length >= VAULT_BULK_MAX_ROWS) { vb.over++; return; }
   const dup = isFile ? vb.knownFiles.has(key) : vb.knownUrls.has(key);
   vb.rows.push({
     id: vb.nextId++, kind: spec.kind, key, dup, sel: !dup,
-    label: String(spec.label || '').slice(0, 150), url: spec.url, icon: spec.icon || 'link', size: spec.size || 0,
+    label: String(spec.label || '').slice(0, 150), url: spec.url, file: spec.file || null, icon: spec.icon || 'link', size: spec.size || 0,
     subject: vb.fixed || waGuessLinkSubject(spec.context, vb.subjects)
   });
 }
@@ -18143,6 +18481,7 @@ window.vbSave = function() {
   if (!vb) return;
   const chosen = vb.rows.filter(r => r.sel && !r.dup);
   if (!chosen.length) return;
+  if (chosen.some(r => r.file && !r.stored)) { vbStoreFiles(vb, chosen); return; }
   const links = loadCustomLinks();
   const added = [];
   const created = new Set();
@@ -18159,14 +18498,15 @@ window.vbSave = function() {
     if (!Array.isArray(entry.resources)) entry.resources = [];
     let fallback = r.label;
     if (r.kind === 'link') { try { fallback = new URL(r.url).hostname.replace(/^www\./, '') + ' link'; } catch (_) {} }
-    entry.resources.push({
+    const item = {
       label: (r.label || '').trim() || fallback || 'Untitled',
       url: r.url,
       icon: r.icon,
       isUpload: r.kind === 'file',
       fileSize: r.kind === 'file' ? formatBytes(r.size) : ''
-    });
-    added.push({ key, url: r.url });
+    };
+    entry.resources.push(r.stored ? vaultIdbEntry(item, r.stored) : item);
+    added.push({ key, url: r.url, fileId: r.stored ? r.stored.fileId : '' });
   }
   if (!saveCustomLinks(links)) {
     // Not saved: keep the list open so nothing is lost.
@@ -18182,7 +18522,7 @@ window.vbSave = function() {
     for (const a of added) {
       const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
       if (!entry || !Array.isArray(entry.resources)) continue;
-      const i = entry.resources.findIndex(x => x && x.url === a.url);
+      const i = entry.resources.findIndex(x => x && (a.fileId ? isVaultIdbFile(x) && x.fileId === a.fileId : x.url === a.url));
       if (i >= 0) entry.resources.splice(i, 1);
     }
     const kept = cur.filter(s => !(s && created.has(getCanonicalSubjectKey(s.subject || '')) && (!s.resources || !s.resources.length)));
@@ -18191,6 +18531,28 @@ window.vbSave = function() {
     showToast('Removed again', 'info');
   });
 };
+
+// Saves the picked files into IndexedDB first, then runs vbSave() again to
+// add them all in one save. A file that can't be stored keeps the list open.
+async function vbStoreFiles(vb, chosen) {
+  if (vb.saving) return;
+  vb.saving = true;
+  const btn = document.getElementById('vb-save');
+  if (btn) btn.disabled = true;
+  const failed = [];
+  for (const r of chosen) {
+    if (!r.file || r.stored) continue;
+    const stored = await vaultStoreFile(r.file);
+    if (stored) { r.stored = stored; continue; }
+    // Small files can still go in the old way.
+    const url = r.file.size <= VAULT_FILE_MAX_BYTES ? await vaultReadDataUrl(r.file) : '';
+    if (url) { r.url = url; r.file = null; } else failed.push(r.label);
+  }
+  vb.saving = false;
+  if (_vb !== vb) return;
+  if (failed.length) { vbUpdateButton(); showToast(`${VAULT_NO_ROOM_MESSAGE} (${failed.join(', ')})`, 'error'); return; }
+  window.vbSave();
+}
 
 window.addLinkSubject = function() {
   showLinkSubjectModal(null, null);
@@ -18241,8 +18603,9 @@ window.editLinkResource = function(si, ri) {
 window.deleteLinkResource = function(si, ri) {
   if (!confirm('Delete this resource?')) return;
   const links = loadCustomLinks();
-  links[si].resources.splice(ri, 1);
+  const [gone] = links[si].resources.splice(ri, 1);
   saveCustomLinks(links);
+  if (isVaultIdbFile(gone)) vaultDeleteUnusedBlob(gone.fileId);
   showToast('Material removed from vault', 'info');
   renderLinks();
 };
@@ -18318,6 +18681,21 @@ window.handleVaultFileSelect = function(e) {
     if (typeof setResourceInputMode === 'function') setResourceInputMode('url');
     return;
   }
+  if (vaultIdbOk === true) {
+    // Kept as the File itself; its bytes go to IndexedDB on Save.
+    window._pendingVaultFile = file;
+    const urlEl = document.getElementById('lrm-url');
+    const labelEl = document.getElementById('lrm-label');
+    const fileLabel = document.getElementById('lrm-file-label');
+    const iconEl = document.getElementById('lrm-icon');
+    if (urlEl) urlEl.value = '';
+    if (labelEl && !labelEl.value) labelEl.value = file.name;
+    if (fileLabel) fileLabel.innerHTML = `✓ <strong>${vaultEsc(file.name)}</strong> (${formatBytes(file.size)})`;
+    if (iconEl) iconEl.value = vaultIconForFile(file.name);
+    window._uploadedFileMeta = { isUpload: true, fileName: file.name, fileSize: formatBytes(file.size) };
+    showToast(`File attached: ${file.name} ✓`, 'success');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = function(evt) {
     const dataUrl = evt.target.result;
@@ -18345,6 +18723,37 @@ window.handleVaultFileSelect = function(e) {
   };
   reader.readAsDataURL(file);
 };
+
+// Single add with IndexedDB: store the file, read it back, then save the
+// vault entry. The modal stays open if anything fails.
+async function vaultSaveFileResource(si, ri, file, label, icon) {
+  if (vaultSaveFileResource.busy) return;
+  vaultSaveFileResource.busy = true;
+  try {
+    const stored = await vaultStoreFile(file);
+    if (!stored) {
+      // Small files can still go in the old way.
+      const url = file.size <= VAULT_FILE_MAX_BYTES ? await vaultReadDataUrl(file) : '';
+      if (!url) { showToast(VAULT_NO_ROOM_MESSAGE, 'error'); return; }
+      window._pendingVaultFile = null;
+      const urlEl = document.getElementById('lrm-url');
+      if (urlEl) urlEl.value = url;
+      window.saveLinkResource(si, ri);
+      return;
+    }
+    const links = loadCustomLinks();
+    if (!links[si]) return;
+    if (!Array.isArray(links[si].resources)) links[si].resources = [];
+    const item = vaultIdbEntry({ label, icon }, stored);
+    if (ri === null) links[si].resources.push(item); else links[si].resources[ri] = item;
+    if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
+    window._pendingVaultFile = null;
+    vaultAskPersist();
+    document.getElementById('link-resource-modal-backdrop')?.remove();
+    showToast('Study vault material saved ✓', 'success');
+    renderLinks();
+  } finally { vaultSaveFileResource.busy = false; }
+}
 
 window.setResourceInputMode = function(mode) {
   const fileSec = document.getElementById('lrm-file-section');
@@ -18385,8 +18794,9 @@ window.autoDetectVaultIcon = function(url) {
 function showLinkResourceModal(si, ri, existing) {
   document.getElementById('link-resource-modal-backdrop')?.remove();
   const isNew = ri === null;
-  const isUpload = existing?.isUpload || (existing?.url && existing.url.startsWith('data:'));
+  const isUpload = existing?.isUpload || isVaultIdbFile(existing) || (existing?.url && existing.url.startsWith('data:'));
   window._uploadedFileMeta = isUpload ? { isUpload: true, fileSize: existing.fileSize } : null;
+  window._pendingVaultFile = null;
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -18459,7 +18869,9 @@ window.saveLinkResource = function(si, ri) {
   const links = loadCustomLinks();
   // A file saved on another device: only its name and icon can change here.
   const existing = ri !== null ? links[si]?.resources?.[ri] : null;
-  const keepPlaceholder = !url && isVaultPlaceholder(existing);
+  const pending = !url && vaultIdbOk === true ? window._pendingVaultFile : null;
+  const keepPlaceholder = !url && !pending && (isVaultPlaceholder(existing) || isVaultIdbFile(existing));
+  if (pending && label) { vaultSaveFileResource(si, ri, pending, label, icon); return; }
 
   if (!label || (!url && !keepPlaceholder)) {
     if (!label && labelEl) { labelEl.classList.add('error', 'shake'); labelEl.focus(); }
@@ -19128,6 +19540,20 @@ function exportData() {
     accent:             localStorage.getItem(KEY_ACCENT) || 'terracotta',
     exportedAt:         new Date().toISOString(),
   };
+  // Files kept in IndexedDB go into the backup as data: URLs, up to a cap.
+  const plan = vaultBackupPlan(data.customLinks);
+  if (plan.any) {
+    if (plan.left.length && !confirm(`${plan.left.length} vault file${plan.left.length !== 1 ? 's' : ''} (${formatBytes(plan.leftBytes)}) won’t fit in the backup (it holds up to ${VAULT_BACKUP_FILE_CAP / 1048576} MB of files) and will be left out: ${plan.left.join(', ')}. They stay in the app. Download the backup anyway?`)) return;
+    vaultLinksForBackup(data.customLinks, plan).then(links => {
+      data.customLinks = links;
+      downloadBackupFile(data);
+    }).catch(() => showToast('Backup failed. Please try again.', 'error'));
+    return;
+  }
+  downloadBackupFile(data);
+}
+
+function downloadBackupFile(data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -19142,7 +19568,7 @@ function importData(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
       if (!data || typeof data !== 'object') throw new Error('Invalid JSON format');
@@ -19189,7 +19615,10 @@ function importData(event) {
       // Study Vault last, so its files only use space left over after the
       // rest of the desk is back. Files that don't fit become placeholders;
       // the backup file still has them.
+      // With IndexedDB, files go there first (each read back); only what
+      // didn't go in is left as data: URLs for saveLinksFittingStorage().
       let vaultDropped = [];
+      if (data.customLinks && vaultIdbOk === true) data.customLinks = await vaultLinksIntoIdb(data.customLinks);
       if (data.customLinks) vaultDropped = saveLinksFittingStorage(data.customLinks).dropped;
 
       updateTopbarProfile();
@@ -21610,6 +22039,7 @@ function init() {
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
   try { checkHolidayExpiry(); } catch (e) { console.warn('[Holiday] expiry check skipped:', e); }
+  try { vaultIdbStart(); } catch (e) { console.warn('[Vault] file store skipped:', e); }
   initTheme();
   initAccent();
   updateTopbarProfile();
