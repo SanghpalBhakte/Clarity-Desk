@@ -79,7 +79,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey, reminderSheetMode, reminderSheetInstall };`)();
+const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey, reminderSheetMode, reminderSheetInstall, detectDevice, installBannerKind, reminderTipsView, dismissInstallBanner };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', room: '301', teacher: 'Prof. Rao', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -189,6 +189,49 @@ console.log('\n2c. Turning on: no silent hang, key fetched once, quick-add offer
   const qa = appSrc.slice(appSrc.indexOf('showToast(`Added "${t.title}"'), appSrc.indexOf('showToast(`Added "${t.title}"') + 400);
   check('Today quick-add offers closed-app reminders for a dated task', /if \(t\.dueDate\) maybeOfferClosedAppReminders\(\);/.test(qa));
   globalThis.Date = FakeDate;
+}
+
+console.log('\n2d. Device detection, install card, "make sure reminders arrive" steps');
+{
+  const UA = {
+    androidChrome: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+    samsung: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36',
+    winChrome: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+    winEdge: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
+    iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    macSafari: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+    macChrome: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+    instagram: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 Instagram 350.0',
+  };
+  const tabWin = { matchMedia: () => ({ matches: false }) };
+  const appWin = { matchMedia: () => ({ matches: true }) };
+  const dev = (ua, win = tabWin, extra = {}) => app.detectDevice({ userAgent: ua, platform: '', maxTouchPoints: 0, ...extra }, win);
+  const d = (ua, w, x) => { const v = dev(ua, w, x); return `${v.os}/${v.browser}/${v.standalone ? 'app' : 'tab'}${v.inApp ? '/inapp' : ''}`; };
+  check('Detects Android Chrome, Samsung Internet, Windows Chrome and Edge',
+    d(UA.androidChrome) === 'android/chrome/tab' && d(UA.samsung) === 'android/samsung/tab' && d(UA.winChrome) === 'windows/chrome/tab' && d(UA.winEdge) === 'windows/edge/tab',
+    [d(UA.androidChrome), d(UA.samsung), d(UA.winChrome), d(UA.winEdge)].join(' '));
+  check('Detects iPhone, iPad (desktop-style Safari), Mac Safari/Chrome, installed app, in-app browser',
+    d(UA.iphone) === 'ios/safari/tab' && d(UA.macSafari, tabWin, { platform: 'MacIntel', maxTouchPoints: 5 }) === 'ios/safari/tab'
+    && d(UA.macSafari) === 'mac/safari/tab' && d(UA.macChrome) === 'mac/chrome/tab' && d(UA.androidChrome, appWin) === 'android/chrome/app' && d(UA.instagram) === 'android/chrome/tab/inapp');
+  check('Install card: steps on iPhone and Mac Safari; nothing when already installed or in an in-app browser',
+    app.installBannerKind(dev(UA.iphone)) === 'ios' && app.installBannerKind(dev(UA.macSafari)) === 'mac-safari'
+    && app.installBannerKind(dev(UA.iphone, appWin)) === null && app.installBannerKind(dev(UA.instagram)) === null);
+  check('Install card on Android/Windows waits for the browser\'s own install offer (no dead button)',
+    app.installBannerKind(dev(UA.androidChrome)) === null && app.installBannerKind(dev(UA.winEdge)) === null);
+  const tips = (ua, w, x) => app.reminderTipsView(dev(ua, w, x)).body;
+  const tA = tips(UA.androidChrome, appWin), tW = tips(UA.winChrome), tE = tips(UA.winEdge), tM = tips(UA.macSafari), tI = tips(UA.iphone, appWin);
+  check('Android steps: notifications, battery Unrestricted, Autostart for Xiaomi/Oppo/Vivo, names the installed app',
+    /Notifications/.test(tA) && /Unrestricted/.test(tA) && /Autostart/.test(tA) && /Xiaomi/.test(tA) && /long-press the Clarity Desk icon/.test(tA));
+  check('Windows steps: keep the browser running in the background, Windows notification settings, Do not disturb',
+    /Continue running background apps when Google Chrome is closed/.test(tW) && /Start › Settings › <em>System<\/em> › <em>Notifications<\/em>/.test(tW) && /Do not disturb/.test(tW)
+    && /Microsoft Edge is closed/.test(tE) && /System and performance/.test(tE));
+  check('Mac steps: Add to Dock from Safari, Persistent alerts, screen sharing; iPhone steps: Settings › Notifications › Clarity Desk',
+    /Add to Dock/.test(tM) && /Persistent/.test(tM) && /mirroring or sharing/.test(tM) && /Settings › <em>Notifications<\/em> › <em>Clarity Desk<\/em>/.test(tI) && /Focus/.test(tI));
+  check('Guide offers "Send a test" and "Done"', /sendTestReminder\(\)/.test(app.reminderTipsView(dev(UA.winChrome)).actions) && />Done</.test(app.reminderTipsView(dev(UA.winChrome)).actions));
+  app.dismissInstallBanner();
+  const snoozed = JSON.parse(store.cos_install_prompt || '{}');
+  const exportSrc = (appSrc.match(/function exportData\(\) \{[\s\S]*?\n\}/) || [''])[0];
+  check('"Not now" snoozes the install card, stored on this device only (not in backups)', typeof snoozed.dismissedAt === 'number' && !exportSrc.includes('KEY_INSTALL_PROMPT'));
 }
 
 // ── push-worker ───────────────────────────────────────────────
