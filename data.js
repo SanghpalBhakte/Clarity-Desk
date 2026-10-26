@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u82",
+    date: "2026-10-27",
+    title: "Study Vault files no longer break your sync, and you're told when a file can't be saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Files up to 1 MB can be added to the Study Vault; bigger ones get a message suggesting a Google Drive link instead.",
+    points: [
+      "If your phone's storage for Clarity Desk is full, the vault now says the file wasn't saved instead of showing \"saved\". Uploaded files stay on the phone that added them, so a big file can no longer stop your tasks and attendance from syncing. Other devices show \"On another device\" for those files."
+    ]
+  },
+  {
     id: "u81",
     date: "2026-10-27",
     title: "See how many classes you can miss before you set anything up",
