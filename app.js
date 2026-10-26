@@ -5607,7 +5607,9 @@ function applyCloudDataToLocalState(data) {
     safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
   }
   if (Array.isArray(data.customLinks)) {
-    safeSetStorage(KEY_CUSTOM_LINKS, data.customLinks);
+    // Merge, never replace: the cloud holds placeholders for files that
+    // live only on this device.
+    safeSetStorage(KEY_CUSTOM_LINKS, mergeCloudLinks(data.customLinks, safeGetStorage(KEY_CUSTOM_LINKS, [])));
   }
   if (Array.isArray(data.syllabus)) {
     safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
@@ -5693,7 +5695,8 @@ function pushLocalDataToCloud(uid) {
     customTasks:        sanitizedTasks,
     customTimetable:    safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
     timetableChoice:    safeGetStorage(KEY_TIMETABLE_CHOICE, null),
-    customLinks:        safeGetStorage(KEY_CUSTOM_LINKS, null),
+    // Uploaded files stay on this device; the cloud gets placeholders.
+    customLinks:        linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS, null)),
     assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
     attendance:         safeGetStorage(KEY_ATTENDANCE, {}),
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
@@ -5906,9 +5909,92 @@ function loadCustomLinks() {
   return [];
 }
 
+// True only when the vault really was saved; sync runs only then.
 function saveCustomLinks(links) {
-  safeSetStorage(KEY_CUSTOM_LINKS, links);
+  if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) return false;
   syncToCloud();
+  return true;
+}
+
+// ── Study Vault files stay on this device ────────────────────
+// An uploaded file is stored as a data: URL inside cos_custom_links. The
+// cloud copy carries a placeholder instead ({ url: '', onDevice, fileId }),
+// because the whole desk syncs as one Firestore record (1 MiB limit) and
+// one big file used to stop sync for everything. fileId is worked out from
+// the file itself, so the device that has the file finds it again even
+// after another device renames the placeholder.
+const VAULT_FILE_MAX_BYTES = 1024 * 1024;
+const VAULT_FULL_MESSAGE = 'Not saved: Clarity Desk’s storage on this phone is full. Remove a file from the vault or add this as a link.';
+
+function vaultFileTooBigMessage(bytes) {
+  if (!(bytes > VAULT_FILE_MAX_BYTES)) return '';
+  return `This file is ${(bytes / 1048576).toFixed(1)} MB. Files up to 1 MB can be saved on this device. For bigger notes, upload to Google Drive and add the link instead.`;
+}
+
+function isVaultDeviceFile(r) {
+  return !!r && typeof r.url === 'string' && r.url.startsWith('data:');
+}
+
+function isVaultPlaceholder(r) {
+  return !!r && r.onDevice === true && !r.url;
+}
+
+// FNV-1a over the data: URL plus its length. Same file, same id, on any device.
+function vaultFileId(url) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < url.length; i++) { h ^= url.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return `f${h.toString(16)}-${url.length}`;
+}
+
+function vaultPlaceholder(r) {
+  const { url, ...rest } = r;
+  return { ...rest, url: '', onDevice: true, fileId: r.fileId || vaultFileId(url) };
+}
+
+// What goes to the cloud: links as they are, files as placeholders.
+function linksForCloud(links) {
+  if (!Array.isArray(links)) return links;
+  return links.map(s => (s && Array.isArray(s.resources))
+    ? { ...s, resources: s.resources.map(r => isVaultDeviceFile(r) ? vaultPlaceholder(r) : r) }
+    : s);
+}
+
+// What to keep from the cloud: its list, but every placeholder this
+// device has the file for gets that file back. Never drops a local file
+// the cloud still lists.
+function mergeCloudLinks(cloudLinks, localLinks) {
+  if (!Array.isArray(cloudLinks)) return cloudLinks;
+  const files = new Map();
+  (Array.isArray(localLinks) ? localLinks : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultDeviceFile(r)) files.set(r.fileId || vaultFileId(r.url), r.url);
+  }));
+  return cloudLinks.map(s => (s && Array.isArray(s.resources))
+    ? { ...s, resources: s.resources.map(r => {
+        if (!isVaultPlaceholder(r) || !r.fileId || !files.has(r.fileId)) return r;
+        // Back to the exact local shape: the id is worked out from the file.
+        const { onDevice, fileId, ...rest } = r;
+        return { ...rest, url: files.get(fileId) };
+      }) }
+    : s);
+}
+
+// Restore: save the backup's vault; if its files don't fit on this phone,
+// turn the biggest into placeholders until it does. The backup file itself
+// is untouched. Returns { ok, dropped: [labels] }.
+function saveLinksFittingStorage(links) {
+  if (safeSetStorage(KEY_CUSTOM_LINKS, links)) return { ok: true, dropped: [] };
+  const copy = (Array.isArray(links) ? links : []).map(s => (s && Array.isArray(s.resources)) ? { ...s, resources: [...s.resources] } : s);
+  const spots = [];
+  copy.forEach((s, si) => (s && Array.isArray(s.resources) ? s.resources : []).forEach((r, ri) => { if (isVaultDeviceFile(r)) spots.push({ si, ri, len: r.url.length }); }));
+  spots.sort((x, y) => y.len - x.len);
+  const dropped = [];
+  for (const { si, ri } of spots) {
+    const r = copy[si].resources[ri];
+    dropped.push(r.label || 'file');
+    copy[si].resources[ri] = vaultPlaceholder(r);
+    if (safeSetStorage(KEY_CUSTOM_LINKS, copy)) return { ok: true, dropped };
+  }
+  return { ok: false, dropped };
 }
 
 function syncToCloud() {
@@ -15897,7 +15983,9 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
           ${r.fileSize ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${r.fileSize}</div>` : ''}
         </div>
       </div>
-      <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>
+      ${isVaultPlaceholder(r)
+        ? `<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span>`
+        : `<a href="${r.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>`}
     </div>
   `).join('') : `
     <div class="empty-state-card" style="padding:16px 14px;margin-top:6px;text-align:center">
@@ -17400,6 +17488,18 @@ function renderLinksContent(container) {
           <div style="font-size:var(--text-sm);color:var(--text-muted);font-style:italic;padding:8px 0">No materials attached yet. Click below to add files or links.</div>
         ` : s.resources.map((r, ri) => {
           const isUploaded = r.isUpload || (r.url && r.url.startsWith('data:'));
+          if (isVaultPlaceholder(r)) return `
+          <div class="resource-item-row">
+            <div class="resource-link is-on-device" title="This file was added on another device. Open it there.">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${r.label}">${r.label}</span>
+              <span class="vault-on-device">On another device</span>
+            </div>
+            <div class="resource-actions">
+              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
+              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
+            </div>
+          </div>`;
           return `
           <div class="resource-item-row">
             <a class="resource-link" href="${r.url}" ${isUploaded ? `download="${r.label}"` : 'target="_blank" rel="noopener"'} title="${isUploaded ? 'Click to download ' + r.label : r.url}">
@@ -17534,7 +17634,7 @@ window.saveLinkSubject = function(si) {
   } else {
     links[si] = { ...links[si], subject: name, code: code || links[si].code, color };
   }
-  saveCustomLinks(links);
+  if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
   document.getElementById('link-subject-modal-backdrop')?.remove();
   showToast('Subject vault saved ✓', 'success');
   renderLinks();
@@ -17543,6 +17643,16 @@ window.saveLinkSubject = function(si) {
 window.handleVaultFileSelect = function(e) {
   const file = e.target.files?.[0];
   if (!file) return;
+  // Files are kept as text inside this phone's ~5 MB app storage (about
+  // 1.37x their size), so only small ones fit. Bigger notes belong in
+  // Drive as a link. Checked before the file is read at all.
+  const tooBig = vaultFileTooBigMessage(file.size);
+  if (tooBig) {
+    e.target.value = '';
+    showToast(tooBig, 'error');
+    if (typeof setResourceInputMode === 'function') setResourceInputMode('url');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = function(evt) {
     const dataUrl = evt.target.result;
@@ -17674,14 +17784,18 @@ window.saveLinkResource = function(si, ri) {
 
   [labelEl, urlEl].forEach(el => el?.classList.remove('error', 'shake'));
 
-  if (!label || !url) {
+  const links = loadCustomLinks();
+  // A file saved on another device: only its name and icon can change here.
+  const existing = ri !== null ? links[si]?.resources?.[ri] : null;
+  const keepPlaceholder = !url && isVaultPlaceholder(existing);
+
+  if (!label || (!url && !keepPlaceholder)) {
     if (!label && labelEl) { labelEl.classList.add('error', 'shake'); labelEl.focus(); }
     else if (!url && urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
     showToast('Resource name and file/link are required.', 'error');
     return;
   }
-  const links = loadCustomLinks();
-  const item = {
+  const item = keepPlaceholder ? { ...existing, label, icon } : {
     label,
     url,
     icon,
@@ -17694,7 +17808,11 @@ window.saveLinkResource = function(si, ri) {
   } else {
     links[si].resources[ri] = item;
   }
-  saveCustomLinks(links);
+  if (!saveCustomLinks(links)) {
+    // Not saved: keep the modal open so nothing typed is lost.
+    showToast(VAULT_FULL_MESSAGE, 'error');
+    return;
+  }
   document.getElementById('link-resource-modal-backdrop')?.remove();
   showToast('Study vault material saved ✓', 'success');
   renderLinks();
@@ -18356,7 +18474,6 @@ function importData(event) {
       }
       if (data.customTimetable) safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
       if (data.timetableChoice) safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
-      if (data.customLinks) safeSetStorage(KEY_CUSTOM_LINKS, data.customLinks);
       if (data.attendance) {
         safeSetStorage(KEY_ATTENDANCE, data.attendance);
         fixShiftedAttendanceDates();
@@ -18389,12 +18506,21 @@ function importData(event) {
         localStorage.setItem(KEY_ACCENT, data.accent);
         initAccent();
       }
+      // Study Vault last, so its files only use space left over after the
+      // rest of the desk is back. Files that don't fit become placeholders;
+      // the backup file still has them.
+      let vaultDropped = [];
+      if (data.customLinks) vaultDropped = saveLinksFittingStorage(data.customLinks).dropped;
 
       updateTopbarProfile();
       setupFABDrag();
       updateNavBadges();
       syncToCloud();
-      showToast('Desk data restored ✓', 'success');
+      if (vaultDropped.length) {
+        showToast(`Restored. ${vaultDropped.length} vault file${vaultDropped.length !== 1 ? 's were' : ' was'} too big for this phone’s storage; ${vaultDropped.length !== 1 ? 'they’re' : 'it’s'} still in your backup file.`, 'info');
+      } else {
+        showToast('Desk data restored ✓', 'success');
+      }
       renderSettings();
     } catch (err) {
       showToast('Could not read backup file. Please select a valid Clarity Desk JSON backup.', 'error');
