@@ -6697,3 +6697,7 @@ html.more-sheet-open .more-sheet {
 .bunk-calc-answer.is-safe { color: var(--status-success); }
 .bunk-calc-answer.is-recover, .bunk-calc-answer.is-unreachable { color: var(--status-error); }
 .bunk-calc-answer.is-invalid { color: var(--status-warning); }
+
+/* Study Vault file kept on the device that added it (isVaultPlaceholder). */
+.vault-on-device { margin-left: auto; font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
+.resource-link.is-on-device { cursor: default; opacity: 0.85; }
