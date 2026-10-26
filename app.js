@@ -4875,6 +4875,7 @@ window.confirmSaveExtractedTimetable = function() {
     }
   }
 
+  const hadClasses = hasAnyTimetable();
   const dayMap = { "Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6 };
   const newTT = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
 
@@ -4924,6 +4925,7 @@ window.confirmSaveExtractedTimetable = function() {
   showToast(`Timetable saved! ${toSave.length} classes loaded${selectedTimetablePreviewBatch !== 'all' ? ` for Batch ${selectedTimetablePreviewBatch}` : ''}.`, "success");
   renderPage(state.currentPage);
   if (subjectSync.stale.length) showStaleSubjectsModal(subjectSync.stale);
+  if (!hadClasses && hasAnyTimetable()) maybeOfferClosedAppReminders();
 };
 
 // The subjects a saved timetable actually teaches, keyed by canonical key.
@@ -16317,6 +16319,7 @@ function saveTimetableEntry(oldDay, idx) {
     if (!teacher) teacher = '—';
   }
 
+  const hadClasses = hasAnyTimetable();
   const tt = JSON.parse(JSON.stringify(loadTimetable()));
   if (!tt[newDay]) tt[newDay] = [];
 
@@ -16342,6 +16345,7 @@ function saveTimetableEntry(oldDay, idx) {
   state.ttDay = newDay;
   showToast('Class schedule saved ✓', 'success');
   renderTimetable();
+  if (!hadClasses && hasAnyTimetable()) maybeOfferClosedAppReminders();
 }
 
 function deleteTimetableEntry(day, idx) {
