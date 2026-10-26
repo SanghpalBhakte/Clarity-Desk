@@ -416,6 +416,31 @@ function showUpdateAvailableBanner() {
   document.body.appendChild(banner);
 }
 
+// Last cloud push failed (not offline: Firestore just queues those). Shown
+// on the badge until a push works again; data is always safe on the phone.
+let cloudPushFailed = null;
+let cloudPushFailToastShown = false;
+
+function onCloudPushOk() {
+  if (!cloudPushFailed) return;
+  cloudPushFailed = null;
+  updateSyncUI();
+}
+
+function onCloudPushError(err) {
+  const code = (err && err.code) || 'unknown';
+  console.warn('Cloud push error:', err);
+  if (code === 'permission-denied') { updateSyncUI('denied'); return; }
+  cloudPushFailed = code;
+  updateSyncUI('failed');
+  if (!cloudPushFailToastShown) {
+    cloudPushFailToastShown = true;
+    showToast(code === 'invalid-argument'
+      ? 'Couldn’t sync: your desk is too big for one save. Everything is still on this phone. Remove large vault files to fix it.'
+      : 'Couldn’t sync to your account. Everything is still saved on this phone, and it will try again on your next change.', 'error');
+  }
+}
+
 function updateSyncUI(status = null) {
   const icon = document.getElementById('sync-icon');
   const text = document.getElementById('sync-text');
@@ -431,6 +456,12 @@ function updateSyncUI(status = null) {
     if (dot) dot.style.background = 'var(--red)';
     if (btn) btn.title = 'Access denied. Check the cloud Firestore permissions in Settings.';
     if (btn) btn.setAttribute('aria-label', 'Cloud sync denied. Opens Settings');
+  } else if (isOnline && currentUser && (status === 'failed' || (cloudPushFailed && !status))) {
+    if (icon) icon.textContent = '⚠️';
+    if (text) text.textContent = 'Sync failed · Saved here';
+    if (dot) dot.style.background = 'var(--yellow)';
+    if (btn) btn.title = 'Your last change could not reach your account. Everything is saved on this device; it tries again on your next change.';
+    if (btn) btn.setAttribute('aria-label', 'Sync failed, saved on this device. Opens Settings');
   } else if (status === 'offline' || !isOnline) {
     if (icon) icon.textContent = '💾';
     if (text) text.textContent = 'Offline · Saved';
@@ -5720,12 +5751,7 @@ function pushLocalDataToCloud(uid) {
   lastCloudPayloadHash = calculatePayloadHash(payload);
   const ref = db.collection('users').doc(uid);
   const deletes = computeSyncDeletePaths(safeGetStorage(KEY_SYNC_LAST_PUSHED, null), payload);
-  ref.set(payload, { merge: true }).catch(err => {
-    if (err.code === 'permission-denied') {
-      updateSyncUI('denied');
-    }
-    console.warn("Cloud push error:", err);
-  });
+  ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);
   // set(merge:true) never removes a map key, so a cleared mark used to come
   // back from the cloud on the next sync. Delete exactly the paths that were
   // in the last synced copy and are gone now (queued offline like any write).
