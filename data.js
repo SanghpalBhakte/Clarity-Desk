@@ -199,6 +199,23 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u77",
+    date: "2026-10-21",
+    title: "chore(deps-dev): bump the dev-dependencies group with 2 updates",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Bumps the dev-dependencies group with 2 updates: [@playwright/test](https://github.com/microsoft/playwright) and [jszip](https://github.com/Stuk/jszip).",
+    points: [
+      "[Release notes](https://github.com/microsoft/playwright/releases)",
+      "[Commits](https://github.com/microsoft/playwright/compare/v1.64.0...v1.64.1)",
+      "[Changelog](https://github.com/Stuk/jszip/blob/main/CHANGES.md)",
+      "[Commits](https://github.com/Stuk/jszip/compare/v3.10.1...v3.10.2)",
+      "dependency-name: \"@playwright/test\" dependency-version: 1.64.1 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: dev-dependencies",
+      "dependency-name: jszip dependency-version: 3.10.2 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: dev-dependencies ..."
+    ]
+  },
+  {
     id: "u76",
     date: "2026-10-26",
     title: "Clarity Desk now offers to install itself, and shows simple steps for your phone or computer so reminders really arrive",
