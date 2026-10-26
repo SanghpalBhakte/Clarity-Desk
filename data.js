@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u76",
+    date: "2026-10-26",
+    title: "Clarity Desk now offers to install itself, and shows simple steps for your phone or computer so reminders really arrive",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When you open the site in a browser, a small card offers to install Clarity Desk: one tap on Android, Windows and Mac Chrome/Edge, short steps on iPhone (Add to Home Screen) and Mac Safari (Add to Dock).",
+    points: [
+      "\"Not now\" hides it for two weeks. After you turn reminders on, a short guide for your exact device shows the settings that most often hide reminders (battery saver and Autostart on Android, keeping the browser running on Windows, Persistent alerts on Mac, Focus on iPhone), with a \"Send a test\" button. Settings has a \"Make sure they arrive\" button to open it again."
+    ]
+  },
+  {
     id: "u75",
     date: "2026-10-26",
     title: "Tap Study Resources at the top of a subject to jump straight to its links",
