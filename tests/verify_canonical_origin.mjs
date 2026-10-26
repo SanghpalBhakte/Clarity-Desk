@@ -85,6 +85,22 @@ check('Preferences alone (theme, accent, dismissed welcome, clean timetable choi
   return action('campusos-83365.web.app') === 'redirect' ? true : `got ${action('campusos-83365.web.app')}`;
 });
 
+check('Bookkeeping the app writes on any visit (attendance mode, date-fix cutoff, notified lists) still redirects', () => {
+  seed({
+    cos_onboarding_dismissed: 'true', cos_timetable_choice: '"clean"', cos_theme: 'paper-slate',
+    cos_att_v2_state: JSON.stringify({ mode: 'v2', decidedAt: '2026-10-25T17:54:58.744Z' }),
+    cos_att_datefix_cutoff: '"2026-10-25"',
+    cos_notified_history: JSON.stringify({ 'notice-1': 1761400000000 }),
+    cos_notified_notices: JSON.stringify({ 'n1': true })
+  });
+  return action('campusos-83365.web.app') === 'redirect' ? true : `got ${action('campusos-83365.web.app')}`;
+});
+
+check('Bookkeeping next to real data (tasks) still keeps the desk and shows the card', () => {
+  seed({ cos_att_v2_state: JSON.stringify({ mode: 'v2' }), cos_custom_tasks: JSON.stringify([{ id: 't1', title: 'Lab journal', dueDate: '2026-10-20' }]) });
+  return action('campusos-83365.web.app') === 'card' ? true : `got ${action('campusos-83365.web.app')}`;
+});
+
 const CLASS = { subject: 'Data Structures', time: '10:00', end: '11:00', room: 'SF-31', type: 'lecture' };
 const DESKS = {
   'a name': { cos_profile: JSON.stringify({ name: 'Asha Patil' }) },
