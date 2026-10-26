@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u87",
+    date: "2026-10-27",
+    title: "Add many files and links to the Study Vault at once, with search and a storage meter",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Pick or drop several files, or paste links from a WhatsApp message, check the list, and add them in one go.",
+    points: [
+      "Search your vault by subject, name or type. Each item shows a PDF, VIDEO or DRIVE tag, and a meter shows how full your phone's storage is. Unsafe links can no longer be opened from the vault."
+    ]
+  },
+  {
     id: "u86",
     date: "2026-10-27",
     title: "Get a reminder offer right after you add your first class",
