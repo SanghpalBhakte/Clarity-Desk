@@ -39,6 +39,8 @@ const KEY_PUSH_REGISTERED     = 'cos_push_registered';
 // Closed-app reminders (push-worker/): this device's anonymous id and
 // secret plus sync status. Device-only, so it is left out of backups.
 const KEY_PUSH_DEVICE         = 'cos_push_device';
+// "Install Clarity Desk" card: when it was last dismissed. Device-only.
+const KEY_INSTALL_PROMPT      = 'cos_install_prompt';
 const KEY_SYLLABUS            = 'cos_syllabus';
 // Holiday mode: { on, since, until|null }. Hides classes on screen only.
 const KEY_HOLIDAY             = 'cos_holiday';
@@ -5898,7 +5900,10 @@ async function enableClosedAppPush({ quiet = false } = {}) {
     if (!res.ok || !res.data || !res.data.device || !res.data.secret) throw new Error(`subscribe ${res.status}`);
     savePushDevice({ id: res.data.device, secret: res.data.secret, lastSyncOk: false });
     const synced = await syncPushReminders({ retried: true });
-    if (!quiet) showToast(synced ? 'Reminders will arrive even when the app is closed ✓' : 'Reminders are on. They will sync when you are back online.', 'success');
+    if (!quiet) {
+      showToast(synced ? 'Reminders will arrive even when the app is closed ✓' : 'Reminders are on. They will sync when you are back online.', 'success');
+      setTimeout(() => showReminderSheet('tips'), 600);
+    }
     if (state.currentPage === 'settings') renderSettings();
     return true;
   } catch (err) {
@@ -5975,13 +5980,13 @@ function reminderSheetMode() {
 // Kept, not prevented, so Android's own install banner still shows.
 let _installPromptEvent = null;
 if (typeof window !== 'undefined' && window.addEventListener) {
-  window.addEventListener('beforeinstallprompt', (e) => { _installPromptEvent = e; });
-  window.addEventListener('appinstalled', () => { _installPromptEvent = null; });
+  window.addEventListener('beforeinstallprompt', (e) => { _installPromptEvent = e; scheduleInstallBanner(1500); });
+  window.addEventListener('appinstalled', () => { _installPromptEvent = null; document.getElementById('install-banner')?.remove(); });
 }
 
 // Install, then come back to "Turn on" so the permission prompt gets its
 // own tap. Installed or not, reminders are one tap away.
-async function reminderSheetInstall() {
+async function reminderSheetInstall(fromTips = false) {
   const e = _installPromptEvent;
   _installPromptEvent = null;
   document.getElementById('reminder-sheet-backdrop')?.remove();
@@ -5993,7 +5998,156 @@ async function reminderSheetInstall() {
       console.warn('[Push] install prompt failed:', err);
     }
   }
-  showReminderSheet('ask');
+  if (!fromTips) showReminderSheet('ask');
+}
+
+// ── Which device is this? ─────────────────────────────────────
+// Only used to pick plain-language steps (install, keep reminders
+// arriving). Nothing is stored or sent.
+function detectDevice(nav = (typeof navigator !== 'undefined' ? navigator : {}), win = (typeof window !== 'undefined' ? window : {})) {
+  const ua = nav.userAgent || '';
+  const inApp = /Instagram|FBAN|FBAV|FB_IAB|WhatsApp/i.test(ua);
+  const ios = /iPhone|iPad|iPod/i.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+  const os = ios ? 'ios' : /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows' : /Macintosh|Mac OS X/i.test(ua) ? 'mac' : 'other';
+  const browser = /SamsungBrowser/i.test(ua) ? 'samsung' : /Edg\//i.test(ua) ? 'edge' : /Firefox|FxiOS/i.test(ua) ? 'firefox'
+    : /Chrome|CriOS|Chromium/i.test(ua) ? 'chrome' : /Safari/i.test(ua) ? 'safari' : 'other';
+  const standalone = !!((win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) || nav.standalone === true);
+  return { os, browser, standalone, inApp };
+}
+
+// ── "Install Clarity Desk" card (on open) ─────────────────────
+// A small card, never a blocking pop-up. Shows only where installing
+// actually works: a one-tap install where the browser offers it
+// (Android, Windows, Mac Chrome/Edge), short steps on iPhone/iPad and
+// Mac Safari. "Not now" hides it for 14 days.
+const INSTALL_SNOOZE_MS = 14 * 86400000;
+let _installBannerTimer = null;
+
+function installBannerKind(dev = detectDevice()) {
+  if (dev.standalone || dev.inApp) return null;
+  if (_installPromptEvent) return 'prompt';
+  if (dev.os === 'ios') return 'ios';
+  if (dev.os === 'mac' && dev.browser === 'safari') return 'mac-safari';
+  return null;
+}
+
+function scheduleInstallBanner(delay = 4000, tries = 6) {
+  clearTimeout(_installBannerTimer);
+  _installBannerTimer = setTimeout(() => {
+    const p = safeGetStorage(KEY_INSTALL_PROMPT, null) || {};
+    if (p.dismissedAt && Date.now() - p.dismissedAt < INSTALL_SNOOZE_MS) return;
+    if (document.getElementById('install-banner')) return;
+    const kind = installBannerKind();
+    if (!kind) return;
+    // Wait until the welcome screen or any other dialog is closed.
+    if (document.querySelector('.modal-backdrop')) {
+      if (tries > 0) scheduleInstallBanner(10000, tries - 1);
+      return;
+    }
+    showInstallBanner(kind);
+  }, delay);
+}
+
+function showInstallBanner(kind) {
+  document.getElementById('install-banner')?.remove();
+  const text = {
+    prompt: 'Open it like an app, offline too. Reminders show up as Clarity Desk, even when it’s closed.',
+    ios: 'Add it to your Home Screen to get class and deadline reminders on your iPhone.',
+    'mac-safari': 'Add it to your Dock to open it like an app and get reminders on this Mac.'
+  }[kind];
+  const action = kind === 'prompt' ? 'Install' : 'Show me how';
+  const el = document.createElement('div');
+  el.id = 'install-banner';
+  el.className = 'install-banner';
+  el.setAttribute('role', 'region');
+  el.setAttribute('aria-label', 'Install Clarity Desk');
+  el.innerHTML = `
+    <img class="install-banner-icon" src="./icon-192.png" alt="" width="40" height="40">
+    <div class="install-banner-text"><strong>Install Clarity Desk</strong><span>${text}</span></div>
+    <div class="install-banner-actions">
+      <button type="button" class="btn-secondary" onclick="dismissInstallBanner()">Not now</button>
+      <button type="button" class="btn-primary" onclick="installBannerAction('${kind}')">${action}</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function dismissInstallBanner() {
+  safeSetStorage(KEY_INSTALL_PROMPT, { dismissedAt: Date.now() });
+  document.getElementById('install-banner')?.remove();
+}
+
+async function installBannerAction(kind) {
+  document.getElementById('install-banner')?.remove();
+  if (kind === 'prompt' && _installPromptEvent) {
+    const e = _installPromptEvent;
+    _installPromptEvent = null;
+    try {
+      e.prompt();
+      const choice = await e.userChoice;
+      if (choice && choice.outcome !== 'accepted') safeSetStorage(KEY_INSTALL_PROMPT, { dismissedAt: Date.now() });
+    } catch (err) {
+      console.warn('[Install] prompt failed:', err);
+    }
+    return;
+  }
+  showReminderSheet(kind === 'ios' ? 'ios-install' : 'mac-install');
+}
+
+// ── "Make sure reminders arrive" (after turning them on) ──────
+// Plain steps for the device in hand: the settings that most often
+// stop a reminder from showing (battery savers, the browser not running,
+// notification settings, Focus / Do Not Disturb).
+function reminderTipsView(dev = detectDevice()) {
+  const tab = !dev.standalone;
+  const browserName = dev.browser === 'edge' ? 'Edge' : dev.browser === 'samsung' ? 'Samsung Internet' : dev.browser === 'firefox' ? 'Firefox' : dev.browser === 'safari' ? 'Safari' : 'Chrome';
+  const appOrBrowser = tab ? browserName : 'Clarity Desk';
+  const installStep = tab && _installPromptEvent
+    ? `<li><strong>Install Clarity Desk</strong> (button below) so reminders show up as Clarity Desk with its logo, not as ${browserName}.</li>` : '';
+  const steps = {
+    android: [
+      installStep,
+      `<li><strong>Allow notifications:</strong> long-press the ${appOrBrowser} icon › <em>App info</em> › <em>Notifications</em> › on.</li>`,
+      `<li><strong>Stop the battery saver from blocking it:</strong> <em>App info</em> › <em>Battery</em> › <em>Unrestricted</em> (or “Don’t optimise”).</li>`,
+      `<li><strong>On Xiaomi, Redmi, POCO, Oppo, Vivo, Realme or OnePlus:</strong> also turn on <em>Autostart</em> for ${appOrBrowser} in the phone’s Settings.</li>`,
+      `<li><strong>Do Not Disturb</strong> hides reminders while it’s on.</li>`
+    ],
+    windows: [
+      installStep,
+      `<li><strong>Keep ${browserName} running in the background:</strong> ${dev.browser === 'edge' ? 'Edge › Settings › <em>System and performance</em>' : 'Chrome › Settings › <em>System</em>'} › turn on <em>Continue running background apps when ${browserName === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'} is closed</em>.</li>`,
+      `<li><strong>Allow notifications in Windows:</strong> Start › Settings › <em>System</em> › <em>Notifications</em> › make sure ${appOrBrowser} is on.</li>`,
+      `<li><strong>Do not disturb</strong> (or Focus) hides the pop-ups. Turn it off when you want reminders.</li>`
+    ],
+    mac: [
+      tab && dev.browser === 'safari' ? `<li><strong>Add it to your Dock:</strong> in Safari, <em>File</em> › <em>Add to Dock…</em>, then turn reminders on from that app.</li>` : installStep,
+      `<li><strong>Allow notifications:</strong> System Settings › <em>Notifications</em> › ${appOrBrowser} › on.</li>`,
+      `<li><strong>So you don’t miss one:</strong> set <em>Alert Style</em> to <em>Persistent</em> and turn on <em>Notification Centre</em>.</li>`,
+      `<li><strong>Presenting or recording your screen?</strong> Notifications › <em>when mirroring or sharing the display</em> › <em>Notifications On</em>.</li>`
+    ],
+    ios: [
+      `<li><strong>Allow notifications:</strong> Settings › <em>Notifications</em> › <em>Clarity Desk</em> › <em>Allow Notifications</em> on, with Lock Screen and Banners.</li>`,
+      `<li><strong>Keep banners on screen:</strong> set <em>Banner Style</em> to <em>Persistent</em>.</li>`,
+      `<li><strong>Focus</strong> (Sleep, Do Not Disturb) hides reminders while it’s on.</li>`
+    ]
+  }[dev.os] || [
+    `<li><strong>Allow notifications</strong> for this site in your browser’s settings.</li>`,
+    `<li>Keep your browser running in the background so reminders can arrive.</li>`
+  ];
+  const installBtn = tab && _installPromptEvent && dev.os !== 'ios' ? `<button class="btn-secondary" onclick="reminderSheetInstall(true)">Install app</button>` : '';
+  return {
+    title: 'Make sure reminders arrive',
+    body: `<p>Reminders are on for this device. A few phone or computer settings can still hide them, so check these once:</p><ol class="reminder-sheet-steps">${steps.filter(Boolean).join('')}</ol>`,
+    actions: `${installBtn}<button class="btn-secondary" onclick="sendTestReminder()">Send a test</button><button class="btn-primary" onclick="document.getElementById('reminder-sheet-backdrop')?.remove()">Done</button>`
+  };
+}
+
+// A local notification in the same look as a real reminder, so the
+// student can see where reminders show up on this device.
+function sendTestReminder() {
+  dispatchNotification('Class Starting Soon: Test reminder', {
+    body: 'This is how Clarity Desk reminders look on this device.',
+    tag: 'cd-test-reminder',
+    data: { url: './#timetable' }
+  });
 }
 
 function maybeOfferClosedAppReminders(icsItems = null) {
@@ -6043,6 +6197,12 @@ function showReminderSheet(mode = reminderSheetMode(), icsItems = null) {
       body: `<p>This browser can’t receive reminders while the app is closed. In-app reminders still work while Clarity Desk is open.</p>`,
       actions: `${calendarBtn}<button class="btn-primary" onclick="${close}">OK</button>`
     }
+  };
+  views.tips = reminderTipsView();
+  views['mac-install'] = {
+    title: 'Add Clarity Desk to your Dock',
+    body: `<ol class="reminder-sheet-steps"><li>In Safari’s menu bar, click <strong>File</strong> › <strong>Add to Dock…</strong></li><li>Click <strong>Add</strong>.</li><li>Open Clarity Desk from your Dock and turn on reminders in Settings.</li></ol>`,
+    actions: `<button class="btn-primary" onclick="${close}">OK</button>`
   };
   const v = views[mode] || views.unsupported;
   if (mode === 'ask' && getPushApiUrl()) fetchVapidKey().catch(() => {});
@@ -17265,9 +17425,12 @@ function renderSettings() {
             </strong> · No sign-in needed
           </div>
         </div>
-        <button class="btn btn-sm ${isClosedAppPushActive() ? 'btn-secondary' : 'btn-primary'}" onclick="${isClosedAppPushActive() ? 'disableClosedAppPush()' : 'showReminderSheet()'}">
-          ${isClosedAppPushActive() ? 'Turn Off' : 'Turn On'}
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${isClosedAppPushActive() ? `<button class="btn btn-sm btn-secondary" onclick="showReminderSheet('tips')">Make sure they arrive</button>` : ''}
+          <button class="btn btn-sm ${isClosedAppPushActive() ? 'btn-secondary' : 'btn-primary'}" onclick="${isClosedAppPushActive() ? 'disableClosedAppPush()' : 'showReminderSheet()'}">
+            ${isClosedAppPushActive() ? 'Turn Off' : 'Turn On'}
+          </button>
+        </div>
       </div>
       ` : ''}
 
@@ -19970,6 +20133,9 @@ window.showReminderSheet = showReminderSheet;
 window.reminderSheetInstall = reminderSheetInstall;
 window.reminderSheetCopyLink = reminderSheetCopyLink;
 window.reminderSheetCalendar = reminderSheetCalendar;
+window.dismissInstallBanner = dismissInstallBanner;
+window.installBannerAction = installBannerAction;
+window.sendTestReminder = sendTestReminder;
 
 // ── Init ──────────────────────────────────────────────────────
 function init() {
@@ -20034,6 +20200,7 @@ function init() {
   checkScheduledNotifications();
   checkNoticeNotifications();
   schedulePushSync(5000);
+  scheduleInstallBanner();
   setInterval(() => {
     checkScheduledNotifications();
     checkNoticeNotifications();

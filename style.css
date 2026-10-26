@@ -6647,3 +6647,29 @@ html.more-sheet-open .more-sheet {
 .reminder-sheet-note { font-size: var(--text-sm); }
 .reminder-sheet-steps { margin: 4px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .reminder-sheet-actions { margin-top: 16px; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+
+/* "Install Clarity Desk" card (showInstallBanner in app.js). Sits above the
+   bottom nav on phones and in the corner on larger screens; never blocks. */
+.install-banner {
+  position: fixed;
+  z-index: 150;
+  left: 12px; right: 12px;
+  bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  padding: 14px;
+  background: var(--color-surface, var(--bg-surface));
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  animation: install-banner-in 220ms ease-out;
+}
+.install-banner-icon { width: 40px; height: 40px; border-radius: 10px; flex: none; }
+.install-banner-text { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.4; }
+.install-banner-text strong { font-size: var(--text-base); color: var(--text-primary); }
+.install-banner-actions { display: flex; gap: 8px; margin-left: auto; }
+@media (min-width: 769px) {
+  .install-banner { left: auto; right: 20px; bottom: 20px; width: 380px; }
+}
+@keyframes install-banner-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .install-banner { animation: none; } }
