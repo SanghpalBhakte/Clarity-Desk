@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u84",
+    date: "2026-10-27",
+    title: "Clarity Desk now tells you when your desk couldn't sync to your account",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "If a change can't reach your account (not just being offline), the status shows \"Sync failed · Saved here\" and you get one message saying everything is still on your phone and it will try again.",
+    points: [
+      "When a later sync works, it goes back to \"Cloud synced\"."
+    ]
+  },
+  {
     id: "u83",
     date: "2026-10-27",
     title: "Opened Clarity Desk from Instagram or Facebook? It now helps you open it in Chrome",
