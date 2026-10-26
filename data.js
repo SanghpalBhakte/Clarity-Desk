@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u78",
+    date: "2026-10-26",
+    title: "You can now sign in with an email and password if you prefer",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "In Settings → Sign In with Email, tap \"Sign in with a password\" to sign in or create an account with a password.",
+    points: [
+      "\"Forgot password?\" emails you a reset link."
+    ]
+  },
+  {
     id: "u77",
     date: "2026-10-26",
     title: "You can now sign in with any email address, not just Google",
