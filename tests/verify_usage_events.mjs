@@ -2,8 +2,8 @@
 // Clarity Desk: ANONYMOUS USAGE COUNTS (GoatCounter)
 // ==================================================================
 // Locked down here:
-//  - the shipped build sends nothing until GOATCOUNTER_CODE is set, and
-//    writes nothing to storage while it is off;
+//  - the shipped build counts to the Clarity Desk site (sanghpal), and
+//    with no code it sends nothing and writes nothing to storage;
 //  - only fixed event names and lowercase parts go out (no names, emails
 //    or typed text can become an event);
 //  - only on the live sites, never in automated browsers or locally;
@@ -63,9 +63,11 @@ const stubImports = (src) => src.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
 const EXPORTS = 'return { trackUsage, trackUsageOnce, trackAppOpen, flushUsageQueue, onUsageToggle, loadUsage, addressMoveAction, GOATCOUNTER_CODE };';
+const CODE_RE = /const GOATCOUNTER_CODE = '[^']*';/;
+if (!CODE_RE.test(appSrc)) throw new Error('GOATCOUNTER_CODE line not found in app.js');
 const shipped = new Function(`${stubImports(appSrc)}\n${EXPORTS}`)();
-const ON_SRC = appSrc.replace("const GOATCOUNTER_CODE = '';", "const GOATCOUNTER_CODE = 'testsite';");
-const app = new Function(`${stubImports(ON_SRC)}\n${EXPORTS}`)();
+const off = new Function(`${stubImports(appSrc.replace(CODE_RE, "const GOATCOUNTER_CODE = '';"))}\n${EXPORTS}`)();
+const app = new Function(`${stubImports(appSrc.replace(CODE_RE, "const GOATCOUNTER_CODE = 'testsite';"))}\n${EXPORTS}`)();
 
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];
@@ -91,10 +93,17 @@ console.log('=================================================================='
 console.log('📊 ANONYMOUS USAGE COUNTS');
 console.log('==================================================================');
 
-check('Shipped build is switched off: no code, nothing sent, nothing stored', () => {
+check('Shipped build counts to the Clarity Desk GoatCounter site (sanghpal)', () => {
   seed();
-  if (shipped.GOATCOUNTER_CODE !== '') return `code is "${shipped.GOATCOUNTER_CODE}"`;
-  shipped.trackAppOpen(); shipped.trackUsage('welcome_choice', 'scan'); shipped.trackUsageOnce('firstClass', 'first_class_saved');
+  shipped.trackUsage('welcome_shown');
+  const u = sent[0] && new URL(sent[0]);
+  return shipped.GOATCOUNTER_CODE === 'sanghpal' && u && u.origin === 'https://sanghpal.goatcounter.com' && u.pathname === '/count'
+    ? true : `code="${shipped.GOATCOUNTER_CODE}" sent=${sent.join(', ')}`;
+});
+
+check('With no code: nothing sent, nothing stored', () => {
+  seed();
+  off.trackAppOpen(); off.trackUsage('welcome_choice', 'scan'); off.trackUsageOnce('firstClass', 'first_class_saved');
   return sent.length === 0 && Object.keys(store).length === 0 ? true : `sent=${sent.length} keys=${Object.keys(store)}`;
 });
 
