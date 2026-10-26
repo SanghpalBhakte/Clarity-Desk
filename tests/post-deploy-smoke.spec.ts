@@ -5,6 +5,8 @@ test.describe('Clarity Desk Post-Deploy / Target URL Smoke Suite', () => {
     const pageErrors: Error[] = [];
     const consoleErrors: string[] = [];
 
+    const analyticsRequests: string[] = [];
+    page.on('request', (req) => { if (/cloudflareinsights\.com/.test(req.url())) analyticsRequests.push(req.url()); });
     page.on('pageerror', (err) => pageErrors.push(err));
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
@@ -37,6 +39,10 @@ test.describe('Clarity Desk Post-Deploy / Target URL Smoke Suite', () => {
     // Verify zero fatal page errors occurred during boot
     expect(pageErrors, `Unhandled page errors detected: ${pageErrors.map(e => e.message).join('; ')}`).toHaveLength(0);
     expect(consoleErrors, `Blocking console errors detected: ${consoleErrors.join('; ')}`).toHaveLength(0);
+
+    // This test is a robot: it must not show up as a visit in Cloudflare Web Analytics.
+    await page.waitForLoadState('load');
+    expect(analyticsRequests, 'Automated test run loaded the Cloudflare analytics beacon').toHaveLength(0);
   });
 
   test('2. Theme toggle is present, interactive, and toggles data-theme', async ({ page }) => {
