@@ -44,6 +44,10 @@ const KEY_INSTALL_PROMPT      = 'cos_install_prompt';
 const KEY_SYLLABUS            = 'cos_syllabus';
 // Holiday mode: { on, since, until|null }. Hides classes on screen only.
 const KEY_HOLIDAY             = 'cos_holiday';
+// Email-link sign-in: { email, sentAt } for the link this browser asked
+// for, so it can finish without asking again. Device-only, so it is left
+// out of backups.
+const KEY_EMAIL_LINK_PENDING  = 'cos_email_link_pending';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
@@ -261,6 +265,9 @@ function initFirebase() {
         console.warn("Firebase redirect auth result error:", err);
         handleAuthError(err);
       });
+
+      // Opened from an email sign-in link: finish it, or ask first.
+      handleEmailLinkOnStartup();
 
       auth.onAuthStateChanged(user => {
         currentUser = user;
@@ -5095,6 +5102,239 @@ function logoutUser() {
       renderPage(state.currentPage);
     });
   }
+}
+
+// ── Email-link sign-in (no password) ─────────────────────────
+// Firebase emails a one-time link. On iPhone that link always opens in
+// Safari, which cannot see the home-screen app's storage, so a link is
+// never used up without asking: the browser that asked for it finishes
+// on its own, any other browser asks first, and the app has a paste box.
+const EMAIL_LINK_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+let incomingEmailLink = null;
+let emailLinkStartupChecked = false;
+
+function loadEmailLinkPending() {
+  const p = safeGetStorage(KEY_EMAIL_LINK_PENDING, null);
+  return (p && typeof p === 'object' && typeof p.email === 'string' && EMAIL_LINK_RE.test(p.email)) ? p : null;
+}
+
+function isEmailSignInLink(link) {
+  try {
+    return !!(auth && typeof link === 'string' && link && auth.isSignInWithEmailLink(link));
+  } catch (_) {
+    return false;
+  }
+}
+
+// Drop the one-time code from the address bar, keeping the screen (#hash).
+function clearEmailLinkFromUrl() {
+  if (window.location.search && isEmailSignInLink(window.location.href)) {
+    history.replaceState(null, '', window.location.pathname + window.location.hash);
+  }
+}
+
+function signInMethodLabel(user) {
+  const ids = ((user && user.providerData) || []).map(p => p && p.providerId);
+  if (ids.includes('google.com')) return 'Google';
+  if (ids.includes('password')) return 'email link';
+  return 'your account';
+}
+
+function handleEmailAuthError(err) {
+  const code = (err && err.code) || '';
+  let msg;
+  if (code === 'auth/invalid-action-code' || code === 'auth/expired-action-code') {
+    msg = 'This sign-in link has expired or was already used. Ask for a new one.';
+  } else if (code === 'auth/invalid-email' || code === 'auth/missing-email') {
+    msg = 'That email does not match the link. Use the address the link was sent to.';
+  } else if (code === 'auth/too-many-requests') {
+    msg = 'Too many tries. Wait a few minutes and try again.';
+  } else if (code === 'auth/operation-not-allowed') {
+    msg = 'Email sign-in is not turned on yet. In Firebase Console, go to Authentication → Sign-in method → Email/Password and turn on Email link.';
+  } else if (code === 'auth/unauthorized-continue-uri' || code === 'auth/unauthorized-domain') {
+    msg = `'${window.location.hostname}' is not an authorized domain for sign-in in Firebase Console.`;
+  } else if (code === 'auth/network-request-failed') {
+    msg = 'No internet connection. Connect and try again.';
+  } else {
+    msg = `Email sign-in failed (${code || 'unknown'}). Try again.`;
+  }
+  const box = document.getElementById('email-signin-error');
+  if (box) { box.textContent = msg; box.style.display = 'block'; }
+  showToast(msg, 'error');
+}
+
+function showEmailSignInModal(step = 'email') {
+  if (!auth) initFirebase();
+  if (!auth) {
+    alert(`Email Sign-In Unavailable:\n\n${firebaseInitError || 'Firebase Auth service is not loaded.'}`);
+    return;
+  }
+  document.getElementById('email-signin-modal-backdrop')?.remove();
+  const pending = loadEmailLinkPending();
+  const emailVal = escHtml_cd(pending ? pending.email : '');
+  const close = `document.getElementById('email-signin-modal-backdrop')?.remove()`;
+  const note = 'font-size:var(--text-sm);color:var(--text-muted);line-height:1.45';
+  const emailField = `
+    <div class="form-group" style="margin-bottom:0">
+      <label class="form-label" for="email-signin-email">Email</label>
+      <input type="email" class="form-input" id="email-signin-email" value="${emailVal}" placeholder="you@college.edu" autocomplete="email" inputmode="email">
+    </div>`;
+  const pasteBox = `
+    <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px">
+      <label class="form-label" for="email-signin-paste" style="margin:0">Paste sign-in link</label>
+      <div style="${note}">On iPhone, the link in your email opens in Safari. To sign in here instead, press and hold the link, tap Copy, then paste it below.</div>
+      <input type="url" class="form-input" id="email-signin-paste" placeholder="https://…" autocomplete="off">
+      <button class="btn-secondary" onclick="submitPastedEmailLink()">Sign in with pasted link</button>
+    </div>`;
+
+  let title, body, footer;
+  if (step === 'sent' && pending) {
+    title = 'Check your inbox';
+    body = `
+      <div style="font-size:var(--text-base);line-height:1.45">We sent a sign-in link to <strong>${emailVal}</strong>. Open it on this device to finish.</div>
+      <div style="${note}">Not there? Check your spam folder, or <button type="button" class="dash-more-link" onclick="showEmailSignInModal('email')">send it again</button>.</div>
+      ${pasteBox}`;
+    footer = `<button class="btn-primary" onclick="${close}">Done</button>`;
+  } else if (step === 'incoming' && incomingEmailLink) {
+    title = 'Finish signing in';
+    body = `
+      <div style="font-size:var(--text-base);line-height:1.45">You opened a sign-in link in a browser that did not ask for it. Type the email it was sent to, to sign in here.</div>
+      ${emailField}
+      <div style="${note}">Using Clarity Desk from your iPhone home screen? It cannot see sign-ins made in Safari. Copy the link instead, open Clarity Desk from your home screen, and paste it in Settings → Sign in with email.</div>`;
+    footer = `
+      <button class="btn-secondary" onclick="copyIncomingEmailLink()">Copy link for my home-screen app</button>
+      <button class="btn-primary" onclick="confirmIncomingEmailLink()">Sign in in this browser</button>`;
+  } else {
+    title = 'Sign in with email';
+    body = `
+      <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">We will email you a link. Tap it to sign in. No password needed, and any email works.</div>
+      ${emailField}
+      ${pasteBox}`;
+    footer = `
+      <button class="btn-secondary" onclick="${close}">Cancel</button>
+      <button class="btn-primary" id="email-signin-send" onclick="sendEmailSignInLink()">Send link</button>`;
+  }
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'email-signin-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;width:92vw">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:var(--text-xl)">✉️</span>
+          <span class="modal-title">${title}</span>
+        </div>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        ${body}
+        <div id="email-signin-error" role="alert" style="display:none;font-size:var(--text-sm);color:var(--status-error)"></div>
+      </div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px">
+        ${footer}
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+function readEmailSignInInput() {
+  const email = (document.getElementById('email-signin-email')?.value || '').trim();
+  if (!EMAIL_LINK_RE.test(email)) {
+    const box = document.getElementById('email-signin-error');
+    if (box) { box.textContent = 'Type a full email address, like you@college.edu.'; box.style.display = 'block'; }
+    return null;
+  }
+  return email;
+}
+
+function sendEmailSignInLink() {
+  const email = readEmailSignInInput();
+  if (!email || !auth) return;
+  const btn = document.getElementById('email-signin-send');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  auth.sendSignInLinkToEmail(email, {
+    url: window.location.origin + window.location.pathname,
+    handleCodeInApp: true
+  }).then(() => {
+    safeSetStorage(KEY_EMAIL_LINK_PENDING, { email, sentAt: new Date().toISOString() });
+    showEmailSignInModal('sent');
+  }).catch(err => {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send link'; }
+    handleEmailAuthError(err);
+  });
+}
+
+function completeEmailSignIn(email, link) {
+  if (!auth) return Promise.resolve(null);
+  return auth.signInWithEmailLink(email, link).then(result => {
+    localStorage.removeItem(KEY_EMAIL_LINK_PENDING);
+    incomingEmailLink = null;
+    clearEmailLinkFromUrl();
+    document.getElementById('email-signin-modal-backdrop')?.remove();
+    if (result && result.user) {
+      currentUser = result.user;
+      updateSyncUI();
+      if (state.currentPage === 'settings') renderSettings();
+    }
+    showToast('Signed in. Your desk will sync across your devices.', 'success');
+    return result;
+  }).catch(err => {
+    handleEmailAuthError(err);
+    return null;
+  });
+}
+
+function submitPastedEmailLink() {
+  const link = (document.getElementById('email-signin-paste')?.value || '').trim();
+  if (!isEmailSignInLink(link)) {
+    const box = document.getElementById('email-signin-error');
+    if (box) { box.textContent = 'That is not a Clarity Desk sign-in link. Copy the whole link from the email.'; box.style.display = 'block'; }
+    return;
+  }
+  const pending = loadEmailLinkPending();
+  const email = pending ? pending.email : readEmailSignInInput();
+  if (!email) return;
+  completeEmailSignIn(email, link);
+}
+
+function confirmIncomingEmailLink() {
+  const email = readEmailSignInInput();
+  if (!email || !incomingEmailLink) return;
+  completeEmailSignIn(email, incomingEmailLink);
+}
+
+function copyIncomingEmailLink() {
+  const link = incomingEmailLink;
+  if (!link) return;
+  const done = () => showToast('Link copied. Open Clarity Desk from your home screen and paste it in Settings → Sign in with email.', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(done).catch(() => {
+      window.prompt('Copy this sign-in link:', link);
+    });
+  } else {
+    window.prompt('Copy this sign-in link:', link);
+  }
+}
+
+function handleEmailLinkOnStartup() {
+  if (emailLinkStartupChecked) return;
+  emailLinkStartupChecked = true;
+  const link = window.location.href;
+  if (!isEmailSignInLink(link)) return;
+  const pending = loadEmailLinkPending();
+  if (pending) {
+    // This browser asked for the link: finish without asking. A failed
+    // (expired or used) code is dropped from the address bar too.
+    completeEmailSignIn(pending.email, link).then(clearEmailLinkFromUrl);
+    return;
+  }
+  // Another browser asked for it. Keep the link in memory and ask, so it
+  // is not used up here when the student wanted it in the home-screen app.
+  incomingEmailLink = link;
+  clearEmailLinkFromUrl();
+  showEmailSignInModal('incoming');
 }
 
 const VALID_TASK_TYPES = ['assignment', 'mission', 'general', 'quiz', 'lab', 'project', 'exam', 'study'];
@@ -17210,14 +17450,17 @@ function renderSettings() {
         <div>
           <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-            ${currentUser ? `Cross-device sync active · Signed in via Google` : 'Your data stays in this browser. Sign in with Google to sync it across your devices.'}
+            ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
           </div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
         </div>
         <div>
           ${currentUser ? 
             `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
-            `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>`
+            `<div style="display:flex;flex-wrap:wrap;gap:8px">
+              <button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>
+              <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">✉️ Sign In with Email</button>
+            </div>`
           }
         </div>
       </div>
@@ -19992,6 +20235,11 @@ window.toggleTheme      = toggleTheme;
 window.setAccent        = setAccent;
 window.loginWithGoogle  = loginWithGoogle;
 window.loginWithGoogleRedirect = loginWithGoogleRedirect;
+window.showEmailSignInModal    = showEmailSignInModal;
+window.sendEmailSignInLink     = sendEmailSignInLink;
+window.submitPastedEmailLink   = submitPastedEmailLink;
+window.confirmIncomingEmailLink = confirmIncomingEmailLink;
+window.copyIncomingEmailLink   = copyIncomingEmailLink;
 window.logoutUser       = logoutUser;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.resetTimetableToDefault = resetTimetableToDefault;
