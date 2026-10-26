@@ -51,6 +51,9 @@ const KEY_EMAIL_LINK_PENDING  = 'cos_email_link_pending';
 // "Clarity Desk has a new address" card: { dismissedAt }. Device-only,
 // left out of backups and sync.
 const KEY_MOVED_PROMPT        = 'cos_moved_prompt';
+// Anonymous usage counts: { optOut, firstOpen, day2, once: {}, queue: [] }.
+// Device-only, left out of backups and sync.
+const KEY_USAGE               = 'cos_usage';
 
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
@@ -260,6 +263,7 @@ function initFirebase() {
       // Process redirect authentication result if Returning from redirect sign-in
       auth.getRedirectResult().then(result => {
         if (result && result.user) {
+          trackUsage('signin_done', 'google');
           currentUser = result.user;
           updateSyncUI();
           if (state.currentPage === 'settings') renderPage('settings');
@@ -4398,6 +4402,8 @@ function handleTimetableImageUpload(event) {
     return;
   }
 
+  _scanStartedAt = Date.now();
+  trackUsage('scan_started');
   showTimetableLoadingModal('Scanning timetable photo…');
 
   const reader = new FileReader();
@@ -4451,6 +4457,7 @@ function handleTimetableImageUpload(event) {
 
 // Non-blocking error dialog with Retry, Upload Again, and Enter Manually options.
 function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
+  if (_scanStartedAt) trackUsage('scan_failed', usageScanBucket());
   document.getElementById('tt-upload-error-backdrop')?.remove();
   const canRetry = !!(base64Data && mimeType);
   const backdrop = document.createElement('div');
@@ -4516,6 +4523,7 @@ let selectedTimetablePreviewBatch = 'all';
 let pendingExtractionNeedsReview = false;
 
 function showTimetablePreviewModal(schedule) {
+  if (_scanStartedAt) { trackUsage('scan_review_shown', usageScanBucket()); _scanStartedAt = 0; }
   const currentProfileBatch = (liveProfile?.batch || '').trim().toUpperCase();
 
   // Real existing-subject list (not []) so re-normalization here can
@@ -5074,9 +5082,11 @@ function loginWithGoogle() {
   }
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+  trackUsage('signin_started', 'google', detectDevice().inApp ? 'inapp' : 'browser');
 
   auth.signInWithPopup(provider).then(result => {
     if (result && result.user) {
+      trackUsage('signin_done', 'google');
       currentUser = result.user;
       updateSyncUI();
       if (state.currentPage === 'settings') renderSettings();
@@ -5276,6 +5286,7 @@ function sendEmailSignInLink() {
   if (!email || !auth) return;
   const btn = document.getElementById('email-signin-send');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  trackUsage('signin_started', 'email_link', detectDevice().inApp ? 'inapp' : 'browser');
   auth.sendSignInLinkToEmail(email, {
     url: window.location.origin + window.location.pathname,
     handleCodeInApp: true
@@ -5291,6 +5302,7 @@ function sendEmailSignInLink() {
 function completeEmailSignIn(email, link) {
   if (!auth) return Promise.resolve(null);
   return auth.signInWithEmailLink(email, link).then(result => {
+    trackUsage('signin_done', 'email_link');
     localStorage.removeItem(KEY_EMAIL_LINK_PENDING);
     incomingEmailLink = null;
     clearEmailLinkFromUrl();
@@ -5309,6 +5321,7 @@ function completeEmailSignIn(email, link) {
 }
 
 function finishPasswordSignIn(result) {
+  trackUsage('signin_done', 'password');
   document.getElementById('email-signin-modal-backdrop')?.remove();
   if (result && result.user) {
     currentUser = result.user;
@@ -5327,6 +5340,7 @@ function passwordSignIn(create) {
     if (box) { box.textContent = 'Use a password of at least 6 characters.'; box.style.display = 'block'; }
     return;
   }
+  trackUsage('signin_started', create ? 'password_new' : 'password', detectDevice().inApp ? 'inapp' : 'browser');
   const call = create ? auth.createUserWithEmailAndPassword(email, password) : auth.signInWithEmailAndPassword(email, password);
   call.then(finishPasswordSignIn).catch(handleEmailAuthError);
 }
@@ -6337,7 +6351,7 @@ const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', '
 // Preferences, and bookkeeping the app writes on its own during any visit,
 // that are no loss to leave behind. Any other cos_* key counts as desk data.
 const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,
-  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices'];
+  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE];
 const MOVED_SNOOZE_MS = 3 * 86400000;
 
 function isOldAddress(hostname) {
@@ -6429,6 +6443,117 @@ function showMoveDeskModal() {
     </div>`;
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
+}
+
+// ── Anonymous usage counts (GoatCounter) ─────────────────────
+// A few fixed events, to see where new students stop: welcome → scan →
+// first class → back the next day. No ID, no cookie, no names or typed
+// text: every event is a fixed path built only from the lists below.
+// Off until GOATCOUNTER_CODE is set, live sites only, never in automated
+// browsers, and students can turn it off in Settings.
+const GOATCOUNTER_CODE = '';
+const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
+const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
+  'first_class_saved', 'signin_started', 'signin_done', 'day2_return'];
+const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
+const USAGE_QUEUE_MAX = 30;
+let _scanStartedAt = 0;
+
+function loadUsage() {
+  const u = safeGetStorage(KEY_USAGE, null);
+  const o = (u && typeof u === 'object') ? u : {};
+  return {
+    optOut: !!o.optOut,
+    firstOpen: typeof o.firstOpen === 'string' ? o.firstOpen : '',
+    day2: !!o.day2,
+    once: (o.once && typeof o.once === 'object') ? o.once : {},
+    queue: Array.isArray(o.queue) ? o.queue.filter(p => typeof p === 'string').slice(-USAGE_QUEUE_MAX) : []
+  };
+}
+
+function usageActive() {
+  if (!GOATCOUNTER_CODE) return false;
+  if (typeof location === 'undefined' || !USAGE_HOSTS.includes(location.hostname)) return false;
+  if (typeof navigator !== 'undefined' && navigator.webdriver) return false;
+  return !loadUsage().optOut;
+}
+
+// 'welcome_choice', 'scan' -> 'welcome_choice/scan'; anything off-list -> null.
+function usageEventPath(name, parts = []) {
+  if (!USAGE_EVENTS.includes(name)) return null;
+  const clean = parts.filter(p => p !== undefined && p !== null && p !== '').map(String);
+  if (!clean.every(p => USAGE_PART_RE.test(p))) return null;
+  return [name, ...clean].join('/');
+}
+
+function sendUsagePath(path) {
+  if (typeof navigator === 'undefined' || navigator.onLine === false || typeof navigator.sendBeacon !== 'function') return false;
+  const url = `https://${GOATCOUNTER_CODE}.goatcounter.com/count?e=true&p=${encodeURIComponent(path)}&rnd=${Math.random().toString(36).slice(2, 10)}`;
+  try { return navigator.sendBeacon(url) === true; } catch (_) { return false; }
+}
+
+function trackUsage(name, ...parts) {
+  if (!usageActive()) return false;
+  const path = usageEventPath(name, parts);
+  if (!path) return false;
+  if (sendUsagePath(path)) return true;
+  // Offline: keep it for later, at most the latest 30.
+  const u = loadUsage();
+  u.queue = [...u.queue, path].slice(-USAGE_QUEUE_MAX);
+  safeSetStorage(KEY_USAGE, u);
+  return false;
+}
+
+function flushUsageQueue() {
+  if (!usageActive()) return;
+  const u = loadUsage();
+  if (!u.queue.length) return;
+  u.queue = u.queue.filter(path => !sendUsagePath(path));
+  safeSetStorage(KEY_USAGE, u);
+}
+
+// One-time events (first class saved): sent once per device.
+function trackUsageOnce(flag, name, ...parts) {
+  if (!usageActive()) return;
+  const u = loadUsage();
+  if (u.once[flag]) return;
+  u.once[flag] = true;
+  safeSetStorage(KEY_USAGE, u);
+  trackUsage(name, ...parts);
+}
+
+function usageScanBucket() {
+  const ms = _scanStartedAt ? Date.now() - _scanStartedAt : 0;
+  return ms < 10000 ? 'under10s' : ms < 30000 ? 'under30s' : ms < 60000 ? 'under60s' : 'over60s';
+}
+
+// On open: the device kind, then "came back on a later day" once. A
+// student who already had a desk when counting began is not counted as
+// new (no first-class or next-day events for them).
+function trackAppOpen() {
+  if (!usageActive()) return;
+  const dev = detectDevice();
+  trackUsage('app_open', dev.os, dev.standalone ? 'app' : dev.inApp ? 'inapp' : 'browser');
+  const u = loadUsage();
+  const today = todayStr();
+  if (!u.firstOpen) {
+    u.firstOpen = today;
+    if (hasExistingUserData()) { u.day2 = true; u.once.firstClass = true; }
+    safeSetStorage(KEY_USAGE, u);
+  } else if (!u.day2 && today > u.firstOpen) {
+    u.day2 = true;
+    safeSetStorage(KEY_USAGE, u);
+    trackUsage('day2_return');
+  }
+  flushUsageQueue();
+}
+
+function onUsageToggle(box) {
+  const u = loadUsage();
+  u.optOut = !box.checked;
+  if (u.optOut) u.queue = [];
+  safeSetStorage(KEY_USAGE, u);
+  showToast(u.optOut ? 'Usage counts turned off.' : 'Thanks. Anonymous usage counts are on.', 'success');
 }
 
 function scheduleInstallBanner(delay = 4000, tries = 6) {
@@ -9366,8 +9491,9 @@ window.showOnboardingModal = function() {
           <button class="btn-primary" onclick="onboardingScanTimetable()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">${icons.camera()} Scan your timetable</button>
           <button class="btn-secondary" onclick="onboardingAddClasses()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Add classes myself</button>
           <button class="btn-secondary" onclick="onboardingSelfStudy()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">I study on my own (no timetable)</button>
-          <button class="btn-secondary" onclick="dismissOnboarding()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center;background:none;border-color:transparent">Just look around</button>
+          <button class="btn-secondary" onclick="onboardingLookAround()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center;background:none;border-color:transparent">Just look around</button>
         </div>
+        ${usageActive() ? `<div style="margin-top:14px;font-size:var(--text-xs);color:var(--text-muted);line-height:1.45;text-align:center">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}
       </div>
 
       <div id="onboarding-step-2" style="display:none">
@@ -9458,6 +9584,7 @@ window.showOnboardingModal = function() {
   `;
 
   document.body.appendChild(backdrop);
+  trackUsage('welcome_shown');
 };
 
 window.showOnboardingStep2 = function() {
@@ -9481,6 +9608,7 @@ window.dismissOnboarding = function() {
 // open the existing timetable flows. The file picker opens inside the same
 // tap so mobile browsers allow it.
 window.onboardingScanTimetable = function() {
+  trackUsage('welcome_choice', 'scan');
   window.dismissOnboarding();
   triggerTimetableImport();
 };
@@ -9507,12 +9635,19 @@ window.openCountdownSettings = function() {
 };
 
 window.onboardingSelfStudy = function() {
+  trackUsage('welcome_choice', 'self');
   window.dismissOnboarding();
   window.setSelfStudyMode();
   window.openCountdownSettings();
 };
 
+window.onboardingLookAround = function() {
+  trackUsage('welcome_choice', 'look');
+  window.dismissOnboarding();
+};
+
 window.onboardingAddClasses = function() {
+  trackUsage('welcome_choice', 'manual');
   window.dismissOnboarding();
   navigateTo('timetable');
   showTimetableEntryModal(new Date().getDay(), null);
@@ -9612,6 +9747,7 @@ function renderDashboard() {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
   liveProfile    = loadProfile();
+  if (usageActive() && hasAnyTimetable()) trackUsageOnce('firstClass', 'first_class_saved');
   maybeShowCountdownCelebration();
   const now      = new Date();
   const dateStr  = todayStr();
@@ -17964,6 +18100,15 @@ function renderSettings() {
       </span>
     </div>
 
+    ${GOATCOUNTER_CODE ? `
+    <div class="section-heading">${icons.chartLine()} Usage counts</div>
+    <div class="card" style="padding:20px;margin-bottom:20px">
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
+        <input type="checkbox" id="s-usage" ${loadUsage().optOut ? '' : 'checked'} onchange="onUsageToggle(this)" style="margin-top:3px;accent-color:var(--accent)">
+        <span>Share anonymous usage counts<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Counts steps like "scanned a timetable" or "came back the next day" so we can fix where students get stuck. No names, no email, no timetable or attendance, no cookies.</span></span>
+      </label>
+    </div>` : ''}
+
     <div class="section-heading">${icons.trash()} Data &amp; Backup</div>
     <div class="card" style="padding:18px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
@@ -20547,6 +20692,7 @@ window.dismissInstallBanner = dismissInstallBanner;
 window.installBannerAction = installBannerAction;
 window.dismissMovedBanner = dismissMovedBanner;
 window.showMoveDeskModal = showMoveDeskModal;
+window.onUsageToggle = onUsageToggle;
 window.sendTestReminder = sendTestReminder;
 
 // ── Init ──────────────────────────────────────────────────────
@@ -20562,6 +20708,7 @@ function init() {
     location.replace(newAddressUrl());
     return;
   }
+  try { trackAppOpen(); } catch (e) { console.warn('[Usage] skipped:', e); }
 
   // Always open at the top of the page (a reload or PWA relaunch used to
   // restore a stale mid-page scroll offset).
@@ -20682,6 +20829,7 @@ function init() {
   window.addEventListener('online', () => {
     showToast('Back online. Cloud sync is on ✓', 'success');
     updateSyncUI();
+    flushUsageQueue();
   });
   window.addEventListener('offline', () => {
     showToast('You’re offline. Changes are saved on this device.', 'info');
