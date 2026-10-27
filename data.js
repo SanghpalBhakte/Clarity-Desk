@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u88",
+    date: "2026-10-27",
+    title: "Keep bigger Study Vault files on your phone: up to 10 MB each, without filling the app's storage",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Uploaded notes now live in the browser's own file storage on this device instead of the small shared app storage.",
+    points: [
+      "Files you already saved move over by themselves, each one checked before the old copy is replaced. Backups still include your files (up to 30 MB, smallest first). Nothing new goes to the cloud."
+    ]
+  },
+  {
     id: "u87",
     date: "2026-10-27",
     title: "Add many files and links to the Study Vault at once, with search and a storage meter",
