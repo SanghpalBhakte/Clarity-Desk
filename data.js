@@ -199,6 +199,20 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u90",
+    date: "2026-10-27",
+    title: "On a slow connection the app now starts in about 3 seconds instead of 9",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The 3-second wait from the last update happened three times in a row (page, then app.js, then data.js).",
+    points: [
+      "Now, once one file has had to come from the saved copy, the next ones use their saved copies straight away for 30 seconds. A fast answer from Clarity Desk itself ends that early; fast answers from Google's Firebase files or a 404 don't.",
+      "Also keeps the service worker alive until a late download is saved, so the next open really gets the newer copy.",
+      "Tests: verify_sw_network_timeout.mjs (+4 checks), pwa-smoke test 5 (stalled network: app starts in < 5 s; 9.2 s before, 3.2 s now)."
+    ]
+  },
+  {
     id: "u89",
     date: "2026-10-27",
     title: "The installed app now opens in about 3 seconds on a slow connection",
