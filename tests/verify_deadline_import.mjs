@@ -191,9 +191,12 @@ console.log('\n9. Share target and offline');
   check('sw.js handles POST /share-target before the GET-only guard', sw.indexOf("endsWith('/share-target')") > -1 && sw.indexOf("endsWith('/share-target')") < sw.indexOf("if (e.request.method !== 'GET') return;"));
   const shareBlock = sw.slice(sw.indexOf('let pendingShare'), sw.indexOf("self.addEventListener('fetch'"));
   check('shared chat is never written to the Cache API or storage', !/caches\.|cache\.put|indexedDB|localStorage/.test(shareBlock));
-  for (const f of ['./deadline-import.js', './deadline-import-worker.js', './vendor/jszip.min.js']) {
-    check(`sw.js precaches ${f} for offline use`, sw.includes(`'${f}'`));
+  // v231: these load lazily and are cached on first use (not at install) so the first visit downloads less.
+  const precacheList = sw.slice(sw.indexOf('PRECACHE_ASSETS = ['), sw.indexOf('];', sw.indexOf('PRECACHE_ASSETS = [')));
+  for (const f of ['deadline-import.js', 'deadline-import-worker.js', 'vendor/jszip.min.js']) {
+    check(`sw.js leaves ${f} to be cached on first use`, !precacheList.includes(f));
   }
+  check('sw.js network-first branch caches .js files on first use', /\.js/.test(sw.slice(sw.indexOf("addEventListener('fetch'"))) && sw.includes('cache.put(e.request, clone)'));
   check('vendored JSZip is present', fs.existsSync(path.join(ROOT, 'vendor', 'jszip.min.js')));
   const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   const waBlock = appSrc.slice(appSrc.indexOf('// ── Import from WhatsApp'), appSrc.indexOf('// Android share target: sw.js'));
