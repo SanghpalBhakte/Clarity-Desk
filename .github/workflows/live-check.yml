@@ -1,6 +1,9 @@
 name: Live site check
 
-# Once a day, runs the post-deploy smoke suite against the live site.
+# Once a day, runs the post-deploy smoke suite against both live sites.
+# npm run ship also starts it right after a deploy (workflow_dispatch) and
+# waits for it: from some Indian networks Firebase Hosting's CDN is too slow
+# for the smoke test run on the shipping computer, so GitHub's result decides.
 # If it fails, opens (or comments on) one issue titled ISSUE_TITLE, which
 # GitHub emails to the repo owner. When it passes again, that issue closes.
 # Not triggered on push: npm run ship already smoke-tests right after its
@@ -17,7 +20,6 @@ permissions:
 
 env:
   ISSUE_TITLE: "Live site check failing"
-  SMOKE_BASE_URL: https://campusos-83365.web.app
 
 jobs:
   live-check:
@@ -38,11 +40,19 @@ jobs:
       - id: smoke
         run: npm run test:smoke
         continue-on-error: true
+        env:
+          SMOKE_BASE_URL: https://campusos-83365.web.app
+
+      - id: smoke2
+        run: npm run test:smoke
+        continue-on-error: true
+        env:
+          SMOKE_BASE_URL: https://claritydesk.web.app
 
       - name: Open, update or close the tracking issue
         uses: actions/github-script@v9
         env:
-          OUTCOME: ${{ steps.smoke.outcome }}
+          OUTCOME: ${{ steps.smoke.outcome == 'success' && steps.smoke2.outcome == 'success' && 'success' || 'failure' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
@@ -52,7 +62,7 @@ jobs:
               .find(i => !i.pull_request && i.title === title);
             const failed = process.env.OUTCOME !== 'success';
             if (failed) {
-              const body = `The daily smoke test against ${process.env.SMOKE_BASE_URL} failed.\n\nRun log: ${process.env.RUN_URL}`;
+              const body = `The smoke test against https://campusos-83365.web.app and https://claritydesk.web.app failed.\n\nRun log: ${process.env.RUN_URL}`;
               if (open) await github.rest.issues.createComment({ owner, repo, issue_number: open.number, body });
               else await github.rest.issues.create({ owner, repo, title, body });
               core.setFailed('Live smoke test failed');
@@ -62,7 +72,7 @@ jobs:
             }
 
       - name: Upload Playwright report on failure
-        if: steps.smoke.outcome != 'success'
+        if: steps.smoke.outcome != 'success' || steps.smoke2.outcome != 'success'
         uses: actions/upload-artifact@v7
         with:
           name: live-check-report
