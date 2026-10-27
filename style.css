@@ -2542,6 +2542,26 @@ a.card:hover,
 .ob-dot[aria-current="true"] { width: 22px; background: var(--accent); }
 @media (prefers-reduced-motion: no-preference) { .ob-tour-track { scroll-behavior: smooth; } }
 
+/* Motion: transform and opacity only (no layout work), played once on open,
+   plus one small arrow nudge. All off for prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ob-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes ob-pop { 0% { opacity: 0; transform: scale(0.6) rotate(-12deg); } 70% { transform: scale(1.08) rotate(3deg); } 100% { opacity: 1; transform: none; } }
+  @keyframes ob-nudge { 0%, 60%, 100% { transform: translateX(0); } 30% { transform: translateX(5px); } }
+  #onboarding-step-1 .ob-mark { animation: ob-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s backwards; }
+  #onboarding-step-1 .ob-title { animation: ob-rise 0.45s ease-out 0.3s backwards; }
+  #onboarding-step-1 .ob-line { animation: ob-rise 0.45s ease-out 0.42s backwards; }
+  #onboarding-step-1 .ob-actions > * { animation: ob-rise 0.45s ease-out 0.56s backwards; }
+  #onboarding-step-1 .ob-actions > :nth-child(2) { animation-delay: 0.66s; }
+  .ob-arrow { display: inline-block; margin-left: 8px; animation: ob-nudge 1.8s ease-in-out 1.4s infinite; }
+  .ob-actions .btn-primary:hover .ob-arrow, .ob-actions .btn-primary:focus-visible .ob-arrow { animation: none; transform: translateX(4px); transition: transform 0.2s ease; }
+  .ob-slide .ob-preview > * { opacity: 0; transform: translateY(12px); }
+  .ob-slide.is-on .ob-preview > * { opacity: 1; transform: none; transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+  .ob-slide.is-on .ob-preview > :nth-child(2) { transition-delay: 0.12s; }
+  .ob-slide.is-on h3, .ob-slide.is-on p { animation: ob-rise 0.4s ease-out 0.1s backwards; }
+}
+@media (prefers-reduced-motion: reduce) { .ob-arrow { display: inline-block; margin-left: 8px; } }
+
 @supports (height: 100dvh) {
   #onboarding-backdrop { height: 100dvh; }
 }
