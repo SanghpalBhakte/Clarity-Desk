@@ -9,16 +9,17 @@ const NETWORK_WAIT_MS = 3000;
 // path to this site's CDN is not.
 const SLOW_NETWORK_MS = 30000;
 let slowUntil = 0;
-// URLs are spelled exactly as index.html requests them (with ?v=N), so the
-// install step and the page share one download. scripts/ship.mjs bumps ?v=N.
+// URLs are spelled exactly as index.html requests them (with ?v=N, or the
+// jsDelivr copy pinned to the deployed commit), so the install step and the
+// page share one download. scripts/ship.mjs bumps ?v=N and sets the commit.
 // deadline-import*.js and vendor/jszip.min.js are cached on first use instead.
 const PRECACHE_ASSETS = [
   './',
   './index.html',
-  'app.js?v=230',
-  'style.css?v=230',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@ef8791ca42e57c0733283658d4c5b96a33371612/app.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@ef8791ca42e57c0733283658d4c5b96a33371612/style.css',
   'firebase-config.js?v=230',
-  './data.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@ef8791ca42e57c0733283658d4c5b96a33371612/data.js',
   './manifest.json',
   'favicon.ico?v=230',
   'favicon.svg?v=230',
