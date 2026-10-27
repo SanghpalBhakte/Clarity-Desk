@@ -10,6 +10,9 @@
 // (changed = uncommitted, or different from what the live site serves, e.g.
 // merged through a pull request; if the site can't be reached, committed
 // after the commit that set the current version) -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
+// -> (after the smoke test) the same check from GitHub's servers via
+// .github/workflows/live-check.yml, whose result decides when this
+// computer's network can't reach the site quickly
 // -> point index.html/404.html/sw.js at the jsDelivr copy of HEAD's app files
 // (own "chore:" commit, only if they changed) -> push -> check jsDelivr serves
 // exactly those files -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
@@ -89,6 +92,30 @@ async function checkCdn(sha) {
     if (why) fail(`jsDelivr does not serve ${f} for commit ${sha.slice(0, 7)} (${why}).\n` +
       '  The commit is pushed but NOT deployed; the live site is unchanged. Run npm run ship again in a few minutes.');
   }
+}
+
+// Runs .github/workflows/live-check.yml (smoke test of both sites) on GitHub's
+// servers and waits for it. true = passed, false = failed, null = couldn't
+// run it here (no gh CLI / not logged in / no run found): fall back to the
+// local smoke result.
+async function remoteLiveCheck() {
+  const gh = (...a) => spawnSync('gh', a, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const runs = () => {
+    const r = gh('run', 'list', '--workflow', 'live-check.yml', '--event', 'workflow_dispatch', '--limit', '5', '--json', 'databaseId');
+    try { return r.status === 0 ? JSON.parse(r.stdout).map((x) => x.databaseId) : null; } catch { return null; }
+  };
+  const before = runs();
+  if (!before) { console.warn("\x1b[33m! Couldn't use the gh CLI to start the check on GitHub. Using this computer's result.\x1b[0m"); return null; }
+  const start = gh('workflow', 'run', 'live-check.yml', '--ref', branch);
+  if (start.status !== 0) { console.warn(`\x1b[33m! Couldn't start live-check.yml on GitHub (${start.stderr.trim()}). Using this computer's result.\x1b[0m`); return null; }
+  let id = null;
+  for (let i = 0; i < 20 && !id; i++) {
+    await new Promise((res) => setTimeout(res, 3000));
+    id = (runs() || []).find((x) => !before.includes(x)) || null;
+  }
+  if (!id) { console.warn("\x1b[33m! The check started on GitHub but its run didn't appear. Using this computer's result.\x1b[0m"); return null; }
+  console.log(`Waiting for https://github.com/SanghpalBhakte/Clarity-Desk/actions/runs/${id} (about 4 minutes)`);
+  return spawnSync('gh', ['run', 'watch', String(id), '--exit-status', '--interval', '20'], { stdio: ['ignore', 'ignore', 'inherit'] }).status === 0;
 }
 
 // data.js must still load, with a non-empty DEV_UPDATES list.
@@ -201,7 +228,7 @@ console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (${bumpWhy})` : `v
 if (bumpOnly) console.log(`The bump gets its own commit: "chore: bump the cache version to v${ver}".`);
 if (workerChanged) console.log('ai-proxy/ changed: the AI proxy will be deployed too.');
 console.log(`jsDelivr copy: commit ${cdnFrom.slice(0, 7)}${!changes.length && sameAppFiles(cdnFrom) ? ' (same app files as HEAD, stays)' : ' (moves to the commit being deployed if app files changed)'}.`);
-console.log(`After deploy: live smoke test against ${SITES.join(' and ')} (npm run test:smoke).`);
+console.log(`After deploy: live smoke test against ${SITES.join(' and ')} (npm run test:smoke), from here and from GitHub's servers (live-check.yml).`);
 if (DRY) {
   console.log('\nDev Notes (commits so far; this commit is added too unless it starts with chore:/test:):');
   sh('node scripts/generate-devnotes.mjs --dry-run');
@@ -290,11 +317,22 @@ for (const site of SITES) {
   process.env.SMOKE_BASE_URL = site;          // read by playwright.config.ts; works the same on Windows
   if (sh('npm run test:smoke').status !== 0) smokeFailed.push(site);
 }
-if (smokeFailed.length) {
+step("Live smoke test from GitHub's servers (live-check.yml)");
+const remoteOk = await remoteLiveCheck();
+if (remoteOk === false) {
+  console.error(`\n\x1b[31m✗ v${ver} is LIVE, but the live smoke test FAILED on GitHub's servers.\n` +
+    '  Nothing was rolled back. Open the site and check it now; the run log is linked above and in the "Live site check failing" issue.\x1b[0m');
+  process.exit(1);
+}
+if (smokeFailed.length && remoteOk !== true) {
   console.error(`\n\x1b[31m✗ v${ver} is LIVE, but the live smoke test FAILED on ${smokeFailed.join(' and ')}.\n` +
     '  Nothing was rolled back. Open the site and check it now, then read the failures above.\n' +
     '  If Playwright could not start a browser, run: npx playwright install chromium\x1b[0m');
   process.exit(1);
+}
+if (smokeFailed.length) {
+  console.warn(`\n\x1b[33m! The smoke test from this computer failed on ${smokeFailed.join(' and ')}, but it passed on GitHub's servers for both sites.\n` +
+    "  The site works; this computer's network reaches Firebase Hosting slowly. Read the failures above if they aren't timeouts.\x1b[0m");
 }
 
 console.log(`\n✓ Shipped v${ver}: ${SITES.join(' and ')}`);
