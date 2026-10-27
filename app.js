@@ -20280,6 +20280,13 @@ function showNotice(id) {
 
 let _devNotesFilter = 'week';
 
+// Older notes end in the internal cache number, e.g. "(v194)". The card
+// already shows the date, so the label is left out when shown (data.js
+// itself is not rewritten).
+function devNoteText(s) {
+  return String(s || '').replace(/\s*\(v\d+\)\s*$/, '');
+}
+
 function getFilteredDevUpdates(filter) {
   const now = new Date();
   const y = now.getFullYear();
@@ -20331,13 +20338,13 @@ function renderDevNotesEntriesHtml(filter) {
   return entries.map(item => `
     <div class="dev-update-card" style="border-left-color: ${item.tagColor};">
       <div class="dev-update-header">
-        <div class="dev-update-title">${escHtml_cd(item.title)}</div>
+        <div class="dev-update-title">${escHtml_cd(devNoteText(item.title))}</div>
         <div class="dev-update-meta">
           <span class="dev-update-tag" style="background: color-mix(in srgb, ${item.tagColor} 14%, transparent); color: ${item.tagColor}; border: 1px solid color-mix(in srgb, ${item.tagColor} 30%, transparent);">${item.tag}</span>
           <span class="dev-update-date">${formatDate(item.date)}</span>
         </div>
       </div>
-      <div class="dev-update-summary">${escHtml_cd(item.summary)}</div>
+      <div class="dev-update-summary">${escHtml_cd(devNoteText(item.summary))}</div>
       <ul class="dev-update-list">
         ${item.points.map(pt => `<li>${escHtml_cd(pt)}</li>`).join('')}
       </ul>

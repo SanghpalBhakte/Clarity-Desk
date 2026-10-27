@@ -243,7 +243,8 @@ if (changes.length && !message) {
   rl.close();
   if (!message) { console.log('Cancelled. Nothing was changed.'); process.exit(0); }
 }
-if (changes.length && appChanged && !message.includes(`v${ver}`)) message += ` (v${ver})`;
+// No "(vN)" on the message: each Dev Note already shows its date, and the
+// cache number stays internal (sw.js, ?v=, feedback reports).
 
 // ── Ship ──────────────────────────────────────────────────────────────
 if (needsBump) {
