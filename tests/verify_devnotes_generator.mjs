@@ -102,5 +102,18 @@ Nothing changes for students.`;
   check('keeps student-facing subjects', !skipped('Class reminders now arrive when the app is closed') && !skipped('Choreography club notices now show'));
 }
 
+// 7. No "(vN)" label on Dev Notes: ship no longer adds it, and older notes
+// show without it (the card already shows the date).
+{
+  const ship = fs.readFileSync(new URL('../scripts/ship.mjs', import.meta.url), 'utf8');
+  check('ship does not add "(vN)" to the commit message', !/message \+= ` \(v\$\{ver\}\)`/.test(ship));
+  const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const devNoteText = eval(`(${app.match(/function devNoteText\(s\) \{[\s\S]*?\n\}/)[0]})`);
+  check('old "(v194)" label is hidden', devNoteText('The countdown now works for any exam. (v194)') === 'The countdown now works for any exam.');
+  check('text without a label is unchanged', devNoteText('Holiday mode now has start and end dates') === 'Holiday mode now has start and end dates');
+  check('"(v2)" in the middle is kept', devNoteText('Attendance (v2) math is faster.') === 'Attendance (v2) math is faster.');
+  check('cards use it for title and summary', (app.match(/escHtml_cd\(devNoteText\(item\.(title|summary)\)\)/g) || []).length === 2);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

@@ -59,12 +59,13 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - Claude may merge its own `claude/*` PR into `main` without asking, only when CI (`Tests`) is green on the latest commit, there is no merge conflict, and no review thread is unresolved. Never merge Dependabot or anyone else's PR.
 - Before pull/merge/rebase, report `git status`, branch, and remotes first.
 
-## Shipping (Claude runs it after every change)
-- After every change, once CI (`Tests`) is green, there's no conflict and no review thread is unresolved: merge the `claude/*` PR, pull `main` (`git pull --ff-only`), run `npm run ship`, and confirm the folder matches `origin/main` (same `HEAD`, clean `git status`).
+## Shipping (batched: only when the user says "ship")
+- After every change, once CI (`Tests`) is green, there's no conflict and no review thread is unresolved: merge the `claude/*` PR, pull `main` (`git pull --ff-only`), and confirm the folder matches `origin/main` (same `HEAD`, clean `git status`). Do not run `npm run ship` then: merged PRs wait on `main` (nothing goes live until ship).
+- Run `npm run ship` only when the user says to ship, so several PRs go out as one version. Exception: an urgent fix for something broken for students ships right away. To see what is waiting, run `npm run ship:check`.
 - Before running ship, remove stray untracked files: the script runs `git add -A`.
 - Changes that arrive through a merged PR leave ship nothing to commit, so the PR's commit subject becomes the Dev Note. Write that subject in plain words for students.
 - `npm run ship` (`scripts/ship.mjs`): bumps the cache version if app files changed, runs `npm test`, commits, adds Dev Notes, pushes, runs `firebase deploy --only hosting` (plus the AI proxy if `ai-proxy/` changed), then runs the live smoke test (`npm run test:smoke` against the live site). A smoke failure prints a red warning and exits 1; the deploy stays live, nothing is rolled back. `npm run ship:check` previews it.
-- After shipping, report the shipped version, the smoke result, and anything the script does not do (e.g. `npm run test:visual:update` on Windows when screenshots changed). Commit messages: plain words for students, because they become Dev Notes. Start with `chore:` for tooling/test-only changes. Leave out `(vN)`: the script adds it.
+- After shipping, report the shipped version, the smoke result, and anything the script does not do (e.g. `npm run test:visual:update` on Windows when screenshots changed). Commit messages: plain words for students, because they become Dev Notes. Start with `chore:` for tooling/test-only changes. Never add a version label like `(vN)`: Dev Notes show the date, and the cache number stays internal.
 - Git commands run from the Cowork VM on this folder (e.g. `git status`) can leave a `.git/index.lock` the VM cannot delete, which blocks the user's commit. If one appears, move it aside (`mv .git/index.lock .git/index.lock.stale`).
 
 ## Reporting format
