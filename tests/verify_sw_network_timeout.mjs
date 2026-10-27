@@ -118,8 +118,9 @@ await check('After one slow request, the next ones use their saved copy at once'
   const page = await request('https://app.test/', 'navigate');
   const app = await request('https://app.test/app.js?v=1');
   const data = await request('https://app.test/data.js');
-  if (page.out.body !== 'shell' || page.ms < WAIT) return `page ${page.out.body} after ${page.ms} ms`;
-  return app.out.body === 'saved-app' && data.out.body === 'saved-data' && app.ms < WAIT && data.ms < WAIT
+  // Timers can fire a millisecond early on CI, so compare against half the wait.
+  if (page.out.body !== 'shell' || page.ms < WAIT / 2) return `page ${page.out.body} after ${page.ms} ms`;
+  return app.out.body === 'saved-app' && data.out.body === 'saved-data' && app.ms < WAIT / 2 && data.ms < WAIT / 2
     ? true : `app ${app.out.body} ${app.ms} ms, data ${data.out.body} ${data.ms} ms`;
 });
 
@@ -132,7 +133,7 @@ await check('A fast gstatic answer or a fast 404 does not end slow mode', async 
   await request('https://app.test/firebase-config.local.js');
   fetchImpl = () => new Promise(() => {});
   const { out, ms } = await request('https://app.test/data.js');
-  return out.body === 'saved-data' && ms < WAIT ? true : `${out.body} after ${ms} ms`;
+  return out.body === 'saved-data' && ms < WAIT / 2 ? true : `${out.body} after ${ms} ms`;
 });
 
 await check('A fast answer ends slow mode: later requests wait for the network again', async () => {

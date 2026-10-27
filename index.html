@@ -83,6 +83,12 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="style.css?v=229" />
+
+  <!-- Start downloading the app and its data now, in parallel, instead of
+       after the scripts at the end of <body> (data.js is only found once
+       app.js has arrived). Same URLs as the module script below. -->
+  <link rel="modulepreload" href="app.js?v=229" />
+  <link rel="modulepreload" href="data.js" />
 </head>
 <body>
 
