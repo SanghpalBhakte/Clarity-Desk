@@ -199,6 +199,19 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u95",
+    date: "2026-10-28",
+    title: "New: open the app as ?timing to see what made it slow to load",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Opening claritydesk.web.app/?timing shows a small panel with what the visit waited on: when the page arrived, when the screen was first drawn, when the app was ready, and which server and file took longest.",
+    points: [
+      "It uses the browser's own timing data; nothing is saved or sent. It is for tracking down slow first visits on phones.",
+      "Test: verify_timing_view.mjs (only with ?timing, no storage or network calls, text escaped, init marks when the app is ready)."
+    ]
+  },
+  {
     id: "u94",
     date: "2026-10-28",
     title: "The app's screen appears a little sooner on first open",
