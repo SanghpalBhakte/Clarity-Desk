@@ -199,6 +199,22 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u91",
+    date: "2026-10-27",
+    title: "Make the app's first load lighter: it downloads each file only once",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Trade-off: WhatsApp/zip import needs one online use before it works offline.",
+    points: [
+      "sw.js: the install step now precaches the exact URLs the page requests (app.js?v=229, style.css?v=229, firebase-config.js?v=229, the five head icons with ?v=229), each once, so the second fetch is served from the browser's HTTP cache instead of the network.",
+      "sw.js: deadline-import.js, deadline-import-worker.js and vendor/jszip.min.js are no longer precached; they are cached on first use.",
+      "scripts/ship.mjs: the version bump and the ?v= consistency check now cover sw.js too, and the runtime file set strips ?v=N.",
+      "tests: published-file check strips ?v=N; new checks for duplicate precache URLs and ?v= matching CACHE_NAME; the import test now expects first-use caching.",
+      "PROJECT_MEMORY.md updated."
+    ]
+  },
+  {
     id: "u90",
     date: "2026-10-27",
     title: "On a slow connection the app now starts in about 3 seconds instead of 9",
