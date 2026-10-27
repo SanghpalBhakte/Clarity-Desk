@@ -19,9 +19,10 @@ const WAIT = 40;
 if (!/const NETWORK_WAIT_MS = 3000;/.test(src)) { console.error('✗ NETWORK_WAIT_MS = 3000 not found in sw.js'); process.exit(1); }
 
 const cacheStore = new Map();
+let putDelay = 0;   // ms a cache write takes (a real one is not instant)
 const keyOf = (req, ignoreSearch) => { const u = new URL(typeof req === 'string' ? req : req.url, 'https://app.test/'); return ignoreSearch ? u.origin + u.pathname : u.href; };
 const caches = {
-  open: async () => ({ put: async (req, res) => { cacheStore.set(keyOf(req), res); }, addAll: async () => {}, add: async () => {} }),
+  open: async () => ({ put: async (req, res) => { if (putDelay) await new Promise(r => setTimeout(r, putDelay)); cacheStore.set(keyOf(req), res); }, addAll: async () => {}, add: async () => {} }),
   match: async (req, opts = {}) => {
     if (!opts.ignoreSearch) return cacheStore.get(keyOf(req));
     for (const [k, v] of cacheStore) if (keyOf(k, true) === keyOf(req, true)) return v;
@@ -37,7 +38,7 @@ const self = {
   clients: { claim() {}, matchAll: async () => [] },
   skipWaiting() {}, location: { origin: 'https://app.test' }
 };
-const res = (body, status = 200) => ({ body, status, type: 'basic', clone() { return res(body, status); } });
+const res = (body, status = 200) => ({ body, status, ok: status >= 200 && status < 300, type: 'basic', clone() { return res(body, status); } });
 const Response = { error: () => ({ body: 'ERROR', status: 0, type: 'error' }), redirect: () => res('redirect', 303) };
 vm.runInNewContext(src.replace('const NETWORK_WAIT_MS = 3000;', `const NETWORK_WAIT_MS = ${WAIT};`), {
   self, caches, Response, URL, console, setTimeout, clearTimeout, Promise,
@@ -104,6 +105,54 @@ await check('Network error: saved copy (ignoring ?v=), else Response.error()', a
   cacheStore.clear();
   const b = (await request('https://app.test/data.js')).out;
   return a.body === 'precached' && b.type === 'error' ? true : `${a.body} ${b.type}`;
+});
+
+await check('After one slow request, the next ones use their saved copy at once', async () => {
+  cacheStore.clear();
+  cacheStore.set('https://app.test/index.html', res('shell'));
+  cacheStore.set('https://app.test/app.js?v=1', res('saved-app'));
+  cacheStore.set('https://app.test/data.js', res('saved-data'));
+  fetchImpl = async () => res('fresh');            // fast answer clears slow mode
+  await request('https://app.test/style.css');
+  fetchImpl = () => new Promise(() => {});          // now the network stalls
+  const page = await request('https://app.test/', 'navigate');
+  const app = await request('https://app.test/app.js?v=1');
+  const data = await request('https://app.test/data.js');
+  if (page.out.body !== 'shell' || page.ms < WAIT) return `page ${page.out.body} after ${page.ms} ms`;
+  return app.out.body === 'saved-app' && data.out.body === 'saved-data' && app.ms < WAIT && data.ms < WAIT
+    ? true : `app ${app.out.body} ${app.ms} ms, data ${data.out.body} ${data.ms} ms`;
+});
+
+await check('A fast gstatic answer or a fast 404 does not end slow mode', async () => {
+  // Slow mode is still on from the check above.
+  cacheStore.clear(); cacheStore.set('https://app.test/data.js', res('saved-data'));
+  fetchImpl = async () => res('sdk');
+  await request('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+  fetchImpl = async () => res('missing', 404);
+  await request('https://app.test/firebase-config.local.js');
+  fetchImpl = () => new Promise(() => {});
+  const { out, ms } = await request('https://app.test/data.js');
+  return out.body === 'saved-data' && ms < WAIT ? true : `${out.body} after ${ms} ms`;
+});
+
+await check('A fast answer ends slow mode: later requests wait for the network again', async () => {
+  // Slow mode is still on from the check above.
+  cacheStore.clear(); cacheStore.set('https://app.test/app.js?v=1', res('saved'));
+  fetchImpl = async () => res('fresh');
+  const first = (await request('https://app.test/app.js?v=1')).out;
+  fetchImpl = () => new Promise(r => setTimeout(() => r(res('fresh2')), WAIT / 2));
+  const second = (await request('https://app.test/app.js?v=1')).out;
+  return first.body === 'fresh' && second.body === 'fresh2' ? true : `${first.body} then ${second.body}`;
+});
+
+await check('The worker stays alive until a late network answer is saved', async () => {
+  cacheStore.clear(); cacheStore.set('https://app.test/x.js', res('saved'));
+  let release; fetchImpl = () => new Promise(r => { release = () => r(res('fresh')); });
+  const { waits } = await request('https://app.test/x.js');
+  putDelay = 20;
+  release(); await Promise.all(waits);               // no extra sleep: waitUntil must cover cache.put
+  putDelay = 0;
+  return cacheStore.get('https://app.test/x.js').body === 'fresh' ? true : 'cache.put not covered by waitUntil';
 });
 
 console.log(`\nSW NETWORK WAIT: ${passed}/${total} passed`);
