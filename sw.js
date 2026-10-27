@@ -16,10 +16,10 @@ let slowUntil = 0;
 const PRECACHE_ASSETS = [
   './',
   './index.html',
-  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@00a57762fd872583d9fe2c5217ce52d7e7b6833e/app.js',
-  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@00a57762fd872583d9fe2c5217ce52d7e7b6833e/style.css',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@3876799a6ce1a8f05cb10563053ed8f30e49c981/app.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@3876799a6ce1a8f05cb10563053ed8f30e49c981/style.css',
   'firebase-config.js?v=237',
-  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@00a57762fd872583d9fe2c5217ce52d7e7b6833e/data.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@3876799a6ce1a8f05cb10563053ed8f30e49c981/data.js',
   './manifest.json',
   'favicon.ico?v=237',
   'favicon.svg?v=237',
