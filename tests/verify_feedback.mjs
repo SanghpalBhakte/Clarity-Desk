@@ -26,7 +26,7 @@ const CHAT = '987654321';
 
 // ── Mock network (Telegram + the client's FEEDBACK_URL) ───────────────
 let tg = [];            // calls to api.telegram.org
-let tgMode = 'ok';      // ok | down | photo-fails
+let tgMode = 'ok';      // ok | down | photo-fails | flaky (first call fails)
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init = {}) => {
   url = String(url);
@@ -36,6 +36,7 @@ globalThis.fetch = async (url, init = {}) => {
     const body = isForm ? Object.fromEntries(init.body.entries()) : JSON.parse(init.body);
     tg.push({ url, method, body });
     if (tgMode === 'down') throw new TypeError('network down');
+    if (tgMode === 'flaky' && tg.length === 1) return new Response(JSON.stringify({ ok: false }), { status: 502 });
     if (tgMode === 'photo-fails' && method === 'sendPhoto') return new Response(JSON.stringify({ ok: false }), { status: 400 });
     return new Response(JSON.stringify({ ok: true, result: { message_id: 55 } }), { status: 200 });
   }
@@ -125,6 +126,12 @@ await check('Worker: a photo Telegram rejects still delivers the text and says s
   return res.status === 200 && data.ok && data.photo === false ? true : JSON.stringify(data);
 });
 
+await check('Worker: one Telegram hiccup is retried and the report still arrives', async () => {
+  tgMode = 'flaky';
+  const res = await worker.fetch(await formReq(good), makeEnv());
+  return res.status === 200 && tg.length === 2 && tg.every(c => c.method === 'sendMessage') ? true : `${res.status} calls=${tg.length}`;
+});
+
 await check('Worker: a file that is not an image is not forwarded', async () => {
   const res = await worker.fetch(await formReq(good, { file: new File(['<script>'], 'x.html', { type: 'text/html' }) }), makeEnv());
   return res.status === 200 && tg.length === 1 && tg[0].method === 'sendMessage' ? true : JSON.stringify(tg.map(c => c.method));
@@ -159,6 +166,35 @@ await check('Worker: wrong content type is refused; missing secrets answer 501',
   const a = await worker.fetch(bad, makeEnv());
   const b = await worker.fetch(await formReq(good), makeEnv({ TELEGRAM_BOT_TOKEN: '' }));
   return a.status === 415 && b.status === 501 && tg.length === 0 ? true : `${a.status}/${b.status}`;
+});
+
+const hook = (body, secret = 'hook-secret', method = 'POST') => new Request('https://x.example/telegram', { method, headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret }, body: method === 'POST' ? JSON.stringify(body) : undefined });
+const person = { message: { chat: { id: 4242, type: 'private' }, from: { id: 4242, is_bot: false }, text: 'how do I report a bug?' } };
+
+await check('Webhook: someone messaging the bot gets a reply that points to the in-app form', async () => {
+  const res = await worker.fetch(hook(person), makeEnv({ TELEGRAM_WEBHOOK_SECRET: 'hook-secret' }));
+  const c = tg[0];
+  return res.status === 200 && tg.length === 1 && c.method === 'sendMessage' && c.body.chat_id === 4242
+    && /Clarity Desk/.test(c.body.text) && /Settings/.test(c.body.text) && /Tell me what breaks/.test(c.body.text) ? true : `${res.status} ${JSON.stringify(tg)}`;
+});
+
+await check('Webhook: a wrong or missing secret is refused and nothing is sent', async () => {
+  const env = makeEnv({ TELEGRAM_WEBHOOK_SECRET: 'hook-secret' });
+  const a = await worker.fetch(hook(person, 'guess'), env);
+  const b = await worker.fetch(hook(person, ''), env);
+  const c = await worker.fetch(hook(person), makeEnv());   // no secret configured
+  return a.status === 403 && b.status === 403 && c.status === 501 && tg.length === 0 ? true : `${a.status}/${b.status}/${c.status} tg=${tg.length}`;
+});
+
+await check('Webhook: bots, groups and non-message updates get no reply, and Telegram still gets 200', async () => {
+  const env = makeEnv({ TELEGRAM_WEBHOOK_SECRET: 'hook-secret' });
+  const r = [
+    await worker.fetch(hook({ message: { ...person.message, from: { id: 1, is_bot: true } } }), env),
+    await worker.fetch(hook({ message: { ...person.message, chat: { id: -5, type: 'group' } } }), env),
+    await worker.fetch(hook({ edited_message: person.message }), env),
+    await worker.fetch(new Request('https://x.example/telegram', { method: 'POST', headers: { 'X-Telegram-Bot-Api-Secret-Token': 'hook-secret' }, body: 'not json' }), env),
+  ];
+  return r.every(x => x.status === 200) && tg.length === 0 ? true : `${r.map(x => x.status)} tg=${tg.length}`;
 });
 
 await check('Worker: Telegram being down answers 502 without leaking the token', async () => {
@@ -196,7 +232,7 @@ const stubImports = (src) => src.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*
 `);
 const URL_RE = /const FEEDBACK_URL = '[^']*';/;
 if (!URL_RE.test(appSrc)) throw new Error('FEEDBACK_URL line not found in app.js');
-const EXPORTS = 'return { feedbackInfo, feedbackFormData, postFeedback, queueFeedback, flushFeedbackQueue, bugReportUrl, FEEDBACK_URL };';
+const EXPORTS = 'return { feedbackInfo, feedbackFormData, postFeedback, queueFeedback, flushFeedbackQueue, dataUrlToBlob, bugReportUrl, FEEDBACK_URL };';
 const withUrl = (u) => new Function(`${stubImports(appSrc.replace(URL_RE, `const FEEDBACK_URL = '${u}';`))}\n${EXPORTS}`)();
 const app = withUrl('https://feedback.test/');
 const shipped = withUrl(appSrc.match(URL_RE)[0].match(/'([^']*)'/)[1]);
@@ -229,6 +265,14 @@ await check('Client: feedbackInfo reports version, device, mode and page without
   return i.device === 'Android' && i.mode === 'browser' && Object.keys(i).sort().join() === 'device,mode,route,version' ? true : JSON.stringify(i);
 });
 
+await check('Client: the version comes from firebase-config.js?v=N (app.js loads from jsDelivr, so it has none)', () => {
+  const prev = document.querySelector;
+  document.querySelector = (sel) => sel.includes('firebase-config.js?v=') ? { getAttribute: () => 'firebase-config.js?v=239' } : null;
+  const v = app.feedbackInfo().version;
+  document.querySelector = prev;
+  return v === '239' && /firebase-config\.js\?v=/.test(appSrc) === true && fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').includes('<script src="firebase-config.js?v=') ? true : v;
+});
+
 await check('Client: a request that never reaches the Worker reports network, a refusal reports its error', async () => {
   posts = []; postMode = 'network';
   const a = await app.postFeedback(entry(1), null);
@@ -239,28 +283,67 @@ await check('Client: a request that never reaches the Worker reports network, a 
   return a.network === true && b.ok === false && b.error === 'Too many reports.' && c.ok === true ? true : JSON.stringify([a, b, c]);
 });
 
-await check('Client: the queue keeps the latest 3 reports, text only', () => {
+const entryWithShot = (n) => ({ ...entry(n), at: Date.now(), id: `id${n}`, shot: 'data:image/jpeg;base64,' + Buffer.from('jpegbytes').toString('base64') });
+
+await check('Client: the queue keeps the latest 5 reports and their screenshots', () => {
   for (const k of Object.keys(store)) delete store[k];
-  [1, 2, 3, 4].forEach(n => app.queueFeedback(entry(n)));
+  [1, 2, 3, 4, 5, 6].forEach(n => app.queueFeedback(entryWithShot(n)));
   const q = JSON.parse(store.cos_feedback_queue);
-  return q.length === 3 && q[0].message === 'report 2' && q.every(e => !('screenshot' in e) && !('shot' in e)) ? true : store.cos_feedback_queue;
+  return q.length === 5 && q[0].message === 'report 2' && q.every(e => e.shot) ? true : store.cos_feedback_queue;
 });
 
-await check('Client: coming back online sends each queued report once and empties the queue', async () => {
+await check('Client: if storage is full the report is still saved, without its screenshot', () => {
+  for (const k of Object.keys(store)) delete store[k];
+  const real = localStorage.setItem;
+  localStorage.setItem = (k, v) => { if (v.includes('data:image')) throw new Error('QuotaExceededError'); real(k, v); };
+  const ok = app.queueFeedback(entryWithShot(1));
+  localStorage.setItem = real;
+  const q = JSON.parse(store.cos_feedback_queue);
+  return ok === true && q.length === 1 && q[0].message === 'report 1' && !q[0].shot ? true : `${ok} ${store.cos_feedback_queue}`;
+});
+
+await check('Client: the queued screenshot is converted back to the same bytes', async () => {
+  const blob = app.dataUrlToBlob(entryWithShot(1).shot);
+  return blob && blob.type === 'image/jpeg' && Buffer.from(await blob.arrayBuffer()).toString() === 'jpegbytes' && app.dataUrlToBlob('nonsense') === null ? true : 'mismatch';
+});
+
+await check('Client: coming back online sends each queued report once, with its screenshot', async () => {
+  for (const k of Object.keys(store)) delete store[k];
+  [1, 2, 3].forEach(n => app.queueFeedback(entryWithShot(n)));
   posts = []; postMode = 'ok';
-  const flushing = Promise.all([app.flushFeedbackQueue(), app.flushFeedbackQueue()]);   // a double "online" event
-  await flushing;
-  return posts.length === 3 && JSON.parse(store.cos_feedback_queue).length === 0 && posts.every(p => !('screenshot' in p)) ? true : `posts=${posts.length} queue=${store.cos_feedback_queue}`;
+  await Promise.all([app.flushFeedbackQueue(), app.flushFeedbackQueue()]);   // a double "online" event
+  return posts.length === 3 && JSON.parse(store.cos_feedback_queue).length === 0 && posts.every(p => p.screenshot && p.screenshot.size === 9) ? true : `posts=${posts.length} queue=${store.cos_feedback_queue}`;
 });
 
-await check('Client: a queued report that fails its one retry is dropped, not retried again', async () => {
-  app.queueFeedback(entry(9));
+await check('Client: still offline keeps every report and does not count as a try', async () => {
+  for (const k of Object.keys(store)) delete store[k];
+  [1, 2].forEach(n => app.queueFeedback(entryWithShot(n)));
   posts = []; postMode = 'network';
   await app.flushFeedbackQueue();
-  const after = JSON.parse(store.cos_feedback_queue).length;
-  await app.flushFeedbackQueue();
+  const q = JSON.parse(store.cos_feedback_queue);
   postMode = 'ok';
-  return posts.length === 1 && after === 0 ? true : `posts=${posts.length} left=${after}`;
+  return posts.length === 1 && q.length === 2 && q.every(e => !e.tries) ? true : `posts=${posts.length} q=${store.cos_feedback_queue}`;
+});
+
+await check('Client: a report the server refuses is kept for 4 tries and dropped on the 5th', async () => {
+  for (const k of Object.keys(store)) delete store[k];
+  app.queueFeedback(entryWithShot(1));
+  postMode = 'refuse';
+  const left = [];
+  for (let i = 0; i < 5; i++) { await app.flushFeedbackQueue(); left.push(JSON.parse(store.cos_feedback_queue).length); }
+  postMode = 'ok';
+  return left.join() === '1,1,1,1,0' ? true : left.join();
+});
+
+await check('Client: a report queued while sending is not lost', async () => {
+  for (const k of Object.keys(store)) delete store[k];
+  app.queueFeedback(entryWithShot(1));
+  posts = []; postMode = 'ok';
+  const prev = globalThis.fetch;
+  globalThis.fetch = async (u, i) => { app.queueFeedback(entryWithShot(2)); globalThis.fetch = prev; return prev(u, i); };
+  await app.flushFeedbackQueue();
+  const q = JSON.parse(store.cos_feedback_queue);
+  return q.length === 1 && q[0].id === 'id2' ? true : store.cos_feedback_queue;
 });
 
 await check('Client: with no FEEDBACK_URL nothing is sent and the GitHub link is the fallback', async () => {

@@ -19667,14 +19667,19 @@ function renderSettings() {
 const FEEDBACK_URL = 'https://clarity-desk-feedback.sanghapal2006.workers.dev/';
 const FEEDBACK_MAX_CHARS = 2000;
 const FEEDBACK_SHOT_MAX_BYTES = 700 * 1024;
-const FEEDBACK_QUEUE_MAX = 3;
+const FEEDBACK_QUEUE_SHOT_MAX_BYTES = 350 * 1024;   // a queued screenshot lives in localStorage as a data URL
+const FEEDBACK_QUEUE_MAX = 5;
+const FEEDBACK_MAX_TRIES = 5;
+const FEEDBACK_MAX_AGE_MS = 14 * 24 * 3600 * 1000;
 const FEEDBACK_TYPES = { bug: 'Bug', feedback: 'Feedback', idea: 'Idea' };
 
 function feedbackInfo() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
   const device = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone/iPad' : /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : 'Other';
   const installed = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-  const src = (typeof document !== 'undefined' && document.querySelector && document.querySelector('script[src*="app.js?v="]')?.getAttribute('src')) || '';
+  // app.js loads from jsDelivr, so its URL carries no ?v=N; firebase-config.js?v=N is rewritten by every ship.
+  const q = (sel) => (typeof document !== 'undefined' && document.querySelector && document.querySelector(sel)?.getAttribute('src')) || '';
+  const src = q('script[src*="firebase-config.js?v="]') || q('script[src*="app.js?v="]');
   const version = (src.match(/v=(\d+)/) || [])[1] || '?';
   return { version, device, mode: installed ? 'installed app' : 'browser', route: (typeof state !== 'undefined' && state.currentPage) || '?' };
 }
@@ -19708,8 +19713,8 @@ async function postFeedback(entry, screenshot) {
   return { ok: false, error: data.error || 'Could not send your report. Try again in a moment.' };
 }
 
-// Shrinks a screenshot to a JPEG under FEEDBACK_SHOT_MAX_BYTES, or returns null.
-async function shrinkScreenshot(file) {
+// Shrinks a screenshot to a JPEG under maxBytes, or returns null.
+async function shrinkScreenshot(file, maxBytes = FEEDBACK_SHOT_MAX_BYTES) {
   if (!file || !/^image\//.test(file.type)) return null;
   try {
     const bmp = await createImageBitmap(file);
@@ -19720,7 +19725,7 @@ async function shrinkScreenshot(file) {
     canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
     for (const q of [0.8, 0.6, 0.45, 0.3]) {
       const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
-      if (blob && blob.size <= FEEDBACK_SHOT_MAX_BYTES) return blob;
+      if (blob && blob.size <= maxBytes) return blob;
     }
   } catch (_) { /* unreadable image: send the text alone */ }
   return null;
@@ -19776,18 +19781,29 @@ window.submitFeedback = async function() {
     showToast('Write a message first.', 'error');
     return;
   }
-  const entry = { type, message, info: feedbackInfo(), at: Date.now() };
+  const file = document.getElementById('fb-shot')?.files?.[0];
+  const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, type, message, info: feedbackInfo(), at: Date.now() };
   const close = () => document.getElementById('feedback-backdrop')?.remove();
-  const queueOffline = () => {
-    queueFeedback(entry);
+  const setBusy = (busy) => { if (sendBtn) { sendBtn.disabled = busy; sendBtn.textContent = busy ? 'Sending…' : 'Send'; } };
+  const queueOffline = async () => {
+    setBusy(true);
+    // A smaller copy of the screenshot is kept with the queued text.
+    const small = file ? await shrinkScreenshot(file, FEEDBACK_QUEUE_SHOT_MAX_BYTES) : null;
+    if (small) entry.shot = await blobToDataUrl(small);
+    const saved = queueFeedback(entry);
+    if (!saved) {
+      setBusy(false);
+      showToast('Could not save your report on this device. Your message is still in the box; copy it and try again later.', 'error');
+      return;
+    }
     close();
-    showToast('You’re offline. Your report is saved and will be sent when you’re back online (without the screenshot).', 'info');
+    showToast(`You’re offline. Your report is saved and will be sent when you’re back online${file && !entry.shot ? ' (without the screenshot)' : ''}.`, 'info');
   };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return queueOffline();
 
-  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
+  setBusy(true);
   if (errBox) errBox.style.display = 'none';
-  const shot = await shrinkScreenshot(document.getElementById('fb-shot')?.files?.[0]);
+  const shot = await shrinkScreenshot(file);
   const result = await postFeedback(entry, shot);
   if (result.ok) {
     close();
@@ -19800,32 +19816,63 @@ window.submitFeedback = async function() {
     errBox.innerHTML = `${escHtml_cd(result.error)} <a href="${bugReportUrl()}" target="_blank" rel="noopener">Report it on GitHub instead</a>`;
     errBox.style.display = 'block';
   }
-  if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+  setBusy(false);
 };
 
-function queueFeedback(entry) {
-  const queue = safeGetStorage(KEY_FEEDBACK_QUEUE, []) || [];
-  queue.push(entry);
-  safeSetStorage(KEY_FEEDBACK_QUEUE, queue.slice(-FEEDBACK_QUEUE_MAX));
+function blobToDataUrl(blob) {
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(blob);
+  });
 }
 
-// One retry per queued report: the queue is cleared before sending, so a
-// report that fails again is not kept and cannot be sent twice.
+function dataUrlToBlob(url) {
+  const m = /^data:([^;,]+);base64,(.*)$/.exec(url || '');
+  if (!m) return null;
+  try {
+    const bin = atob(m[2]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: m[1] });
+  } catch (_) { return null; }
+}
+
+// Returns false when the report could not be saved at all. If the browser's
+// storage is full, it tries again without the screenshots.
+function queueFeedback(entry) {
+  const queue = (safeGetStorage(KEY_FEEDBACK_QUEUE, []) || []).concat(entry).slice(-FEEDBACK_QUEUE_MAX);
+  if (safeSetStorage(KEY_FEEDBACK_QUEUE, queue)) return true;
+  return safeSetStorage(KEY_FEEDBACK_QUEUE, queue.map(({ shot, ...rest }) => rest));
+}
+
+// A queued report stays until it is sent. It is dropped only after
+// FEEDBACK_MAX_TRIES refusals from the server or FEEDBACK_MAX_AGE_MS. Being
+// offline again never counts as a try. Reports queued while this runs are kept.
 let feedbackFlushing = false;
 async function flushFeedbackQueue() {
   if (!FEEDBACK_URL || feedbackFlushing) return;
   const queue = safeGetStorage(KEY_FEEDBACK_QUEUE, []) || [];
   if (!queue.length) return;
   feedbackFlushing = true;
-  safeSetStorage(KEY_FEEDBACK_QUEUE, []);
-  let sent = 0;
+  const keep = [];
+  let sent = 0, dropped = 0, offline = false;
   for (const entry of queue) {
-    const result = await postFeedback(entry, null);
-    if (result.ok) sent++;
+    if (offline) { keep.push(entry); continue; }
+    const result = await postFeedback(entry, dataUrlToBlob(entry.shot));
+    if (result.ok) { sent++; continue; }
+    if (result.network) { offline = true; keep.push(entry); continue; }
+    entry.tries = (entry.tries || 0) + 1;
+    if (entry.tries >= FEEDBACK_MAX_TRIES || Date.now() - entry.at > FEEDBACK_MAX_AGE_MS) dropped++;
+    else keep.push(entry);
   }
+  const handled = new Set(queue.map(e => e.id));
+  const added = (safeGetStorage(KEY_FEEDBACK_QUEUE, []) || []).filter(e => !handled.has(e.id));
+  safeSetStorage(KEY_FEEDBACK_QUEUE, keep.concat(added));
   feedbackFlushing = false;
   if (sent) showToast(`${sent} saved report${sent !== 1 ? 's' : ''} sent. Thank you!`, 'success');
-  if (sent < queue.length) showToast('A saved report could not be sent.', 'error');
+  if (dropped) showToast(`${dropped} saved report${dropped !== 1 ? 's' : ''} could not be sent and ${dropped !== 1 ? 'were' : 'was'} dropped.`, 'error');
 }
 
 function saveSettings() {

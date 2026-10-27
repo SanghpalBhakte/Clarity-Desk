@@ -21,3 +21,4 @@ namespace_id = "7303"
 # The Telegram bot token and chat id are secrets, never written here:
 #   npx wrangler@latest secret put TELEGRAM_BOT_TOKEN
 #   npx wrangler@latest secret put TELEGRAM_CHAT_ID
+#   npx wrangler@latest secret put TELEGRAM_WEBHOOK_SECRET   (set by brand-bot.sh)

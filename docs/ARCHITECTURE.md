@@ -9,7 +9,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - `style.css` (6.7k lines): themes via CSS variables, responsive rules.
 - `sw.js`, `manifest.json`: PWA. `404.html` carries its own copy of the head bootstrap (keep in sync).
 - `ai-proxy/` (Cloudflare Worker): Gemini/Groq/Workers-AI proxy; origin allow-list, per-user/per-IP rate limits, optional Firebase ID token.
-- `workers/feedback/` (Cloudflare Worker, deployed by hand, not by `ship`): relays the Settings "Tell me what breaks" form to a private Telegram chat. Secrets `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`; origin allow-list, 1.2 MB body cap, 5/min per-IP limit. Client side is `FEEDBACK_URL` + `openFeedbackForm` / `submitFeedback` in `app.js`; while `FEEDBACK_URL` is empty (or sending fails) the old prefilled GitHub issue link (`bugReportUrl`) is used.
+- `workers/feedback/` (Cloudflare Worker, deployed by hand, not by `ship`): relays the Settings "Tell me what breaks" form to a private Telegram chat. Secrets `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`; origin allow-list, 1.2 MB body cap, 5/min per-IP limit, one retry on a Telegram hiccup. `POST /telegram` is Telegram's webhook (secret header, `TELEGRAM_WEBHOOK_SECRET`): it replies to anyone who messages the bot. `brand-bot.sh` sets the bot's name, logo, description and webhook. Client side is `FEEDBACK_URL` + `openFeedbackForm` / `submitFeedback` in `app.js`; while `FEEDBACK_URL` is empty (or sending fails) the old prefilled GitHub issue link (`bugReportUrl`) is used.
 - `push-worker/` (Cloudflare Worker + D1): closed-app reminders via Web Push. Tables `devices`, `reminders`; anonymous device id, no account data.
 - `scripts/ship.mjs`: bump cache version, `npm test`, commit, Dev Notes, push, `firebase deploy`, live smoke test.
 - `tests/`: ~55 Node `verify_*.mjs` (run by `npm test`; they read `app.js` source and eval parts of it under a mocked browser, no real browser), Playwright specs (visual, PWA smoke, mobile, post-deploy smoke), `release-check.mjs`.
@@ -24,7 +24,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - Profile/tasks: `cos_profile`, `cos_custom_tasks`, `cos_assignments` (task status map), `cos_custom_timetable`, `cos_timetable_choice`, `cos_user_batch`, `cos_hidden_subjects`.
 - Attendance: `cos_attendance` (daily marks), `cos_attendance_baseline`, `cos_attendance_live`, `cos_attendance_v2` + `cos_att_v2_state`, `cos_att_target`, `cos_att_reassign_log`, `cos_att_datefix_*`.
 - Content: `cos_custom_links` (Study Vault records), `cos_syllabus`, `cos_holiday`, `cos_notice_channels`.
-- Feedback: `cos_feedback_queue` (local only, not synced or backed up): up to 3 offline reports, text only; flushed once on `online` and ~4 s after start, then dropped even if the retry fails.
+- Feedback: `cos_feedback_queue` (local only, not synced or backed up): up to 5 offline reports with a small screenshot copy each. Kept until sent (on `online` and ~4 s after start); dropped only after 5 server refusals or 14 days. Offline never counts as a try.
 - Settings: `cos_theme`, `cos_accent`, `cos_notif_prefs`, `cos_usage`, install/push/moved prompt flags.
 - Backups: `cos_cleanup_backup`, `cos_att_datefix_backup` (snapshot + undo for cleanup/migrations).
 - Vault files: IndexedDB `cos_vault` (db version 1), links keep a `fileId`; small files may be data URLs in the record.

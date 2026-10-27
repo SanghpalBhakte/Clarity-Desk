@@ -6,7 +6,7 @@
 // Worker secrets (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID); they never reach
 // the browser.
 //
-//   POST /  multipart/form-data
+//   POST /          the in-app form, multipart/form-data:
 //           type        bug | feedback | idea
 //           message     text, up to 2000 characters
 //           version     app version number (auto-filled)
@@ -14,6 +14,8 @@
 //           device      Android | iPhone/iPad | Windows | Mac | Other
 //           mode        installed app | browser
 //           screenshot  optional image file
+//   POST /telegram  Telegram webhook (secret header): replies to anyone who
+//                   messages the bot, telling them to use the form in the app.
 //
 // Protection: only pages from ALLOWED_ORIGINS, a hard body cap, and a
 // per-IP rate limit. The Origin header is only a browser-side guard (other
@@ -29,6 +31,9 @@ const MODES = ['installed app', 'browser'];
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === '/telegram') return handleTelegramUpdate(request, env);
+
     const origin = request.headers.get('Origin') || '';
     const cors = isAllowedOrigin(origin, env.ALLOWED_ORIGINS) ? corsHeaders(origin) : null;
 
@@ -93,19 +98,53 @@ export default {
   },
 };
 
+// One retry after a network error, a 429 or a 5xx, so a Telegram hiccup does
+// not lose a report.
 async function telegram(env, method, payload) {
   const isForm = payload instanceof FormData;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
-      method: 'POST',
-      headers: isForm ? undefined : { 'Content-Type': 'application/json' },
-      body: isForm ? payload : JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok && data.ok === true, result: data.result };
-  } catch (_) {
-    return { ok: false };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+        method: 'POST',
+        headers: isForm ? undefined : { 'Content-Type': 'application/json' },
+        body: isForm ? payload : JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok === true) return { ok: true, result: data.result };
+      if (res.status !== 429 && res.status < 500) return { ok: false };
+    } catch (_) { /* network error: fall through to the retry */ }
+    if (attempt === 0) await new Promise(r => setTimeout(r, 700));
   }
+  return { ok: false };
+}
+
+// Replies to anyone who writes to the bot (Telegram calls this as a webhook).
+// Reports flow one way, app -> this chat, so the bot says where to report.
+const BOT_REPLY = 'Hi, this is the Clarity Desk feedback bot.\n\n'
+  + 'Bug reports, feedback and ideas reach the developer from inside the app: open Clarity Desk, go to Settings, and use "Tell me what breaks". You can attach a screenshot.\n\n'
+  + 'Messages typed here do not reach the developer, so please use the form in the app.';
+
+async function handleTelegramUpdate(request, env) {
+  if (request.method !== 'POST') return new Response('Use POST.', { status: 405 });
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return new Response('Not set up.', { status: 501 });
+  const given = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
+  if (!sameString(given, env.TELEGRAM_WEBHOOK_SECRET)) return new Response('Forbidden', { status: 403 });
+  if (Number(request.headers.get('Content-Length') || 0) > 64 * 1024) return new Response('ok');
+  let update;
+  try { update = await request.json(); } catch (_) { return new Response('ok'); }
+  const msg = update && update.message;
+  // Only private chats, and never our own reports: ignore anything not typed by a person.
+  if (msg && msg.chat && msg.chat.type === 'private' && msg.from && !msg.from.is_bot) {
+    await telegram(env, 'sendMessage', { chat_id: msg.chat.id, text: BOT_REPLY });
+  }
+  return new Response('ok');
+}
+
+function sameString(a, b) {
+  a = String(a); b = String(b);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
 }
 
 // Strips control characters (keeps newlines/tabs), trims, caps the length.
