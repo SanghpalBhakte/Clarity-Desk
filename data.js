@@ -199,6 +199,22 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u93",
+    date: "2026-10-27",
+    title: "The app now loads much faster on networks that reach our host slowly",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Some Indian networks reach Firebase Hosting's CDN at a few KB per second or not at all, while Cloudflare is fast.",
+    points: [
+      "index.html / 404.html: style.css and app.js from jsDelivr, pinned to the exact deployed git commit, with onerror fallbacks to this site.",
+      "sw.js: precaches the jsDelivr copies (offline unchanged).",
+      "scripts/ship.mjs: points the pages at HEAD's commit when app files changed (own chore: commit), and after pushing checks jsDelivr serves exactly those files before deploying.",
+      "tests/serve.mjs: local tests keep running the working tree.",
+      "tests/verify_hosting_files.mjs: one commit everywhere, fallbacks, precache, jsDelivr copies also published here."
+    ]
+  },
+  {
     id: "u92",
     date: "2026-10-27",
     title: "The app starts downloading its data at the same time as the app itself",
