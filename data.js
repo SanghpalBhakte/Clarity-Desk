@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u89",
+    date: "2026-10-27",
+    title: "The installed app now opens in about 3 seconds on a slow connection",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "If the network is very slow, Clarity Desk opens from the copy already saved on your phone instead of waiting, and still picks up the newest version in the background for next time.",
+    points: [
+
+    ]
+  },
+  {
     id: "u88",
     date: "2026-10-27",
     title: "Keep bigger Study Vault files on your phone: up to 10 MB each, without filling the app's storage",
