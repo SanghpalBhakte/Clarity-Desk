@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u102",
+    date: "2026-10-28",
+    title: "Fix: reports now show the right app version, and a report saved offline is kept (with a small screenshot) until it is sent",
+    category: "Fix",
+    tag: "Fix",
+    tagColor: "var(--red)",
+    summary: "Fix: reports now show the right app version, and a report saved offline is kept (with a small screenshot) until it is sent",
+    points: [
+
+    ]
+  },
+  {
     id: "u101",
     date: "2026-10-28",
     title: "New: Report a problem now sends your message straight to the developer",
