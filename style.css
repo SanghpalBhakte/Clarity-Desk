@@ -2486,6 +2486,10 @@ a.card:hover,
 }
 
 /* ── Startup / Onboarding Welcome Dialog ────────────────────── */
+/* Firefox: the card inherited .modal's 88vh cap but was overflow:hidden, so on a
+   short phone screen its top and bottom were cut off and could not be
+   reached. The backdrop now scrolls, vh has a dvh upgrade, and width uses %
+   (vw counts the scrollbar). */
 #onboarding-backdrop {
   position: fixed;
   inset: 0;
@@ -2493,9 +2497,10 @@ a.card:hover,
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   z-index: 250;
-  display: grid;
-  place-items: center;
+  display: flex;
   padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: fadeIn 0.25s ease;
 }
 
@@ -2505,12 +2510,40 @@ a.card:hover,
   border: 1px solid var(--border);
   border-radius: var(--radius, 14px);
   max-width: 440px;
-  width: 92vw;
+  max-height: none; /* .modal caps at 88vh; with overflow:hidden that cut the card off */
+  width: 100%;
+  margin: auto;
   padding: 30px 26px;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.08);
   animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text-primary);
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ob-mark { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-dim); color: var(--accent); display: grid; place-items: center; margin-bottom: 16px; }
+.ob-title { margin: 0 0 8px; font-size: var(--text-xl); font-weight: 700; letter-spacing: -0.025em; color: var(--text-primary); }
+.ob-line { margin: 0 0 24px; font-size: var(--text-md); color: var(--text-secondary); line-height: 1.6; }
+.ob-actions { display: flex; flex-direction: column; gap: 10px; }
+.ob-actions .btn-primary, .ob-actions .btn-secondary { width: 100%; justify-content: center; min-height: 44px; }
+.ob-note { margin-top: 14px; font-size: var(--text-xs); color: var(--text-muted); line-height: 1.45; text-align: center; }
+
+/* Tour (welcome-tour.js, loaded on Explore): CSS scroll-snap, no library. */
+.ob-tour-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -26px; }
+.ob-tour-track::-webkit-scrollbar { display: none; }
+.ob-slide { flex: 0 0 100%; box-sizing: border-box; scroll-snap-align: start; scroll-snap-stop: always; padding: 0 26px; min-width: 0; }
+.ob-slide h3 { margin: 14px 0 4px; font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); }
+.ob-slide p { margin: 0 0 14px; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.5; }
+.ob-preview { display: flex; flex-direction: column; gap: 8px; min-height: 132px; pointer-events: none; }
+.ob-preview .chrono-beacon-badge { width: fit-content; }
+.ob-preview .chrono-beacon, .ob-preview .card, .ob-preview .resource-link { margin: 0; }
+.ob-dots { display: flex; justify-content: center; gap: 8px; margin: 16px 0; }
+.ob-dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; background: var(--border); cursor: pointer; transition: background-color 0.2s ease, width 0.2s ease; }
+.ob-dot[aria-current="true"] { width: 22px; background: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { .ob-tour-track { scroll-behavior: smooth; } }
+
+@supports (height: 100dvh) {
+  #onboarding-backdrop { height: 100dvh; }
 }
 
 /* ── Dashboard Setup Guide (inline stepper, no card box) ─────── */

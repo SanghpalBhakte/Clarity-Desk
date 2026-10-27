@@ -174,11 +174,11 @@ check('College path unchanged and offers "I study on my own"', () => {
   return html.includes('I study on my own') ? true : 'self-study choice missing';
 });
 
-check('Welcome offers the self-study choice', () => {
-  // The welcome is built straight into the DOM, so check its template.
+check('Welcome is Explore / Log in only; self-study is a Today setup choice', () => {
   const start = appSrc.indexOf('window.showOnboardingModal');
-  const tpl = appSrc.slice(start, appSrc.indexOf('window.showOnboardingStep2'));
-  return tpl.includes('onclick="onboardingSelfStudy()"') ? true : 'button missing';
+  const tpl = appSrc.slice(start, appSrc.indexOf('id="onboarding-step-2"'));
+  if (tpl.includes('onboardingSelfStudy') || !tpl.includes('onboardingExplore()') || !tpl.includes('onboardingLogin()')) return 'welcome buttons wrong';
+  return appSrc.includes('onclick="setupSelfStudy()"') && appSrc.includes("trackUsage('welcome_choice', 'self')") ? true : 'Today button missing';
 });
 
 check('New profile fields survive a reload; old profiles get blanks', () => {
