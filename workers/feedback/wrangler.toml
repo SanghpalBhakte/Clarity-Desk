@@ -1,0 +1,23 @@
+# Clarity Desk feedback relay -- Cloudflare Workers free plan (100,000 requests/day).
+# Deploy steps: see README.md in this folder.
+name = "clarity-desk-feedback"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Pages allowed to send feedback, comma-separated. "http://localhost:*"
+# style entries match any port -- add one only while testing locally.
+ALLOWED_ORIGINS = "https://campusos-83365.web.app,https://campusos-83365.firebaseapp.com,https://claritydesk.web.app,https://claritydesk.firebaseapp.com"
+
+# 5 reports per minute per network (IP).
+[[ratelimits]]
+name = "FEEDBACK_LIMITER"
+namespace_id = "7303"
+
+  [ratelimits.simple]
+  limit = 5
+  period = 60
+
+# The Telegram bot token and chat id are secrets, never written here:
+#   npx wrangler@latest secret put TELEGRAM_BOT_TOKEN
+#   npx wrangler@latest secret put TELEGRAM_CHAT_ID
