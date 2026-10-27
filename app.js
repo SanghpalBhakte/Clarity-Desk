@@ -32,6 +32,8 @@ const KEY_ACCENT              = 'cos_accent';
 const KEY_ATT_TARGET          = 'cos_att_target';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
+// Local-only (never synced or backed up): reports written offline, text only.
+const KEY_FEEDBACK_QUEUE      = 'cos_feedback_queue';
 // Local-only (never synced): the date-key repair below -- see fixShiftedAttendanceDates().
 const KEY_ATT_DATEFIX_CUTOFF  = 'cos_att_datefix_cutoff';
 const KEY_ATT_DATEFIX_BACKUP  = 'cos_att_datefix_backup';
@@ -7038,6 +7040,8 @@ function trackAppOpen() {
     trackUsage('day2_return');
   }
   flushUsageQueue();
+  // Delayed: FEEDBACK_URL is defined further down this file.
+  setTimeout(() => { if (navigator.onLine !== false) flushFeedbackQueue(); }, 4000);
 }
 
 function onUsageToggle(box) {
@@ -19647,21 +19651,181 @@ function renderSettings() {
         Made by a student. Something wrong or confusing? Tell me and I’ll fix it.
         Only the app version and device type are filled in for you, never your data.
       </div>
-      <a class="btn-primary" href="${bugReportUrl()}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">Report a problem</a>
+      ${FEEDBACK_URL
+        ? `<button class="btn-primary" onclick="openFeedbackForm()" style="display:inline-flex;align-items:center;gap:6px">Report a problem</button>`
+        : `<a class="btn-primary" href="${bugReportUrl()}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">Report a problem</a>`}
     </div>
   `;
 }
 
-// "Tell me what breaks": a prefilled GitHub issue on the public repo. Only
-// the app version and a rough device type go in; no tasks, chats or names.
-function bugReportUrl() {
+// "Tell me what breaks": the report goes to a small Cloudflare Worker
+// (workers/feedback/) that forwards it to a private Telegram chat. Only what
+// the student types, an optional screenshot, and the app version, page name,
+// rough device type and installed-or-browser mode are sent; no tasks, chats
+// or names. While FEEDBACK_URL is empty the old prefilled GitHub issue link
+// is used instead, and it stays as the fallback if sending fails.
+const FEEDBACK_URL = '';
+const FEEDBACK_MAX_CHARS = 2000;
+const FEEDBACK_SHOT_MAX_BYTES = 700 * 1024;
+const FEEDBACK_QUEUE_MAX = 3;
+const FEEDBACK_TYPES = { bug: 'Bug', feedback: 'Feedback', idea: 'Idea' };
+
+function feedbackInfo() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
   const device = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone/iPad' : /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : 'Other';
   const installed = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
   const src = (typeof document !== 'undefined' && document.querySelector && document.querySelector('script[src*="app.js?v="]')?.getAttribute('src')) || '';
   const version = (src.match(/v=(\d+)/) || [])[1] || '?';
-  const body = `What happened:\n\n\nWhat you expected:\n\n\nSteps to make it happen again:\n1. \n\n---\nApp v${version} · ${device} · ${installed ? 'installed app' : 'browser'}`;
+  return { version, device, mode: installed ? 'installed app' : 'browser', route: (typeof state !== 'undefined' && state.currentPage) || '?' };
+}
+
+function bugReportUrl() {
+  const { version, device, mode } = feedbackInfo();
+  const body = `What happened:\n\n\nWhat you expected:\n\n\nSteps to make it happen again:\n1. \n\n---\nApp v${version} · ${device} · ${mode}`;
   return `https://github.com/SanghpalBhakte/Clarity-Desk/issues/new?title=${encodeURIComponent('Problem: ')}&body=${encodeURIComponent(body)}`;
+}
+
+function feedbackFormData(entry, screenshot) {
+  const fd = new FormData();
+  fd.set('type', entry.type);
+  fd.set('message', entry.message);
+  Object.entries(entry.info).forEach(([k, v]) => fd.set(k, v));
+  if (screenshot) fd.set('screenshot', screenshot, 'screenshot.jpg');
+  return fd;
+}
+
+// Resolves { ok: true } when sent, { network: true } when the request never
+// reached the Worker (offline), or { ok: false, error } when it answered no.
+async function postFeedback(entry, screenshot) {
+  let res;
+  try {
+    res = await fetch(FEEDBACK_URL, { method: 'POST', body: feedbackFormData(entry, screenshot) });
+  } catch (_) {
+    return { network: true };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.ok) return { ok: true, photo: data.photo };
+  return { ok: false, error: data.error || 'Could not send your report. Try again in a moment.' };
+}
+
+// Shrinks a screenshot to a JPEG under FEEDBACK_SHOT_MAX_BYTES, or returns null.
+async function shrinkScreenshot(file) {
+  if (!file || !/^image\//.test(file.type)) return null;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bmp.width * scale));
+    canvas.height = Math.max(1, Math.round(bmp.height * scale));
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    for (const q of [0.8, 0.6, 0.45, 0.3]) {
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+      if (blob && blob.size <= FEEDBACK_SHOT_MAX_BYTES) return blob;
+    }
+  } catch (_) { /* unreadable image: send the text alone */ }
+  return null;
+}
+
+window.openFeedbackForm = function() {
+  document.getElementById('feedback-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'feedback-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:460px;width:95%">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">Tell me what breaks</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
+            Sent privately to the developer. Only what you type plus the app version, page and device type.
+          </div>
+        </div>
+        <button class="modal-close" onclick="document.getElementById('feedback-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fb-type">What is it?</label>
+        <select class="form-select" id="fb-type">
+          ${Object.entries(FEEDBACK_TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fb-message">Message</label>
+        <textarea class="form-input form-textarea" id="fb-message" rows="5" maxlength="${FEEDBACK_MAX_CHARS}" placeholder="What happened? What did you expect?"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fb-shot">Screenshot (optional)</label>
+        <input type="file" class="form-input" id="fb-shot" accept="image/*">
+      </div>
+      <div id="fb-error" style="display:none;font-size:var(--text-sm);color:var(--status-error);margin-bottom:10px"></div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:16px">
+        <button class="btn-secondary" onclick="document.getElementById('feedback-backdrop')?.remove()">Cancel</button>
+        <button class="btn-primary" id="fb-send" onclick="submitFeedback()">Send</button>
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+  document.getElementById('fb-message')?.focus();
+};
+
+window.submitFeedback = async function() {
+  const type = document.getElementById('fb-type')?.value;
+  const message = (document.getElementById('fb-message')?.value || '').trim().slice(0, FEEDBACK_MAX_CHARS);
+  const errBox = document.getElementById('fb-error');
+  const sendBtn = document.getElementById('fb-send');
+  if (!FEEDBACK_TYPES[type] || !message) {
+    showToast('Write a message first.', 'error');
+    return;
+  }
+  const entry = { type, message, info: feedbackInfo(), at: Date.now() };
+  const close = () => document.getElementById('feedback-backdrop')?.remove();
+  const queueOffline = () => {
+    queueFeedback(entry);
+    close();
+    showToast('You’re offline. Your report is saved and will be sent when you’re back online (without the screenshot).', 'info');
+  };
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return queueOffline();
+
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
+  if (errBox) errBox.style.display = 'none';
+  const shot = await shrinkScreenshot(document.getElementById('fb-shot')?.files?.[0]);
+  const result = await postFeedback(entry, shot);
+  if (result.ok) {
+    close();
+    showToast(result.photo === false ? 'Report sent, but the screenshot could not be attached. Thank you!' : 'Report sent. Thank you!', 'success');
+    return;
+  }
+  if (result.network) return queueOffline();
+  showToast('Could not send your report.', 'error');
+  if (errBox) {
+    errBox.innerHTML = `${escHtml_cd(result.error)} <a href="${bugReportUrl()}" target="_blank" rel="noopener">Report it on GitHub instead</a>`;
+    errBox.style.display = 'block';
+  }
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+};
+
+function queueFeedback(entry) {
+  const queue = safeGetStorage(KEY_FEEDBACK_QUEUE, []) || [];
+  queue.push(entry);
+  safeSetStorage(KEY_FEEDBACK_QUEUE, queue.slice(-FEEDBACK_QUEUE_MAX));
+}
+
+// One retry per queued report: the queue is cleared before sending, so a
+// report that fails again is not kept and cannot be sent twice.
+let feedbackFlushing = false;
+async function flushFeedbackQueue() {
+  if (!FEEDBACK_URL || feedbackFlushing) return;
+  const queue = safeGetStorage(KEY_FEEDBACK_QUEUE, []) || [];
+  if (!queue.length) return;
+  feedbackFlushing = true;
+  safeSetStorage(KEY_FEEDBACK_QUEUE, []);
+  let sent = 0;
+  for (const entry of queue) {
+    const result = await postFeedback(entry, null);
+    if (result.ok) sent++;
+  }
+  feedbackFlushing = false;
+  if (sent) showToast(`${sent} saved report${sent !== 1 ? 's' : ''} sent. Thank you!`, 'success');
+  if (sent < queue.length) showToast('A saved report could not be sent.', 'error');
 }
 
 function saveSettings() {
@@ -22373,6 +22537,7 @@ function init() {
   window.addEventListener('online', () => {
     showToast('Back online. Cloud sync is on ✓', 'success');
     updateSyncUI();
+    flushFeedbackQueue();
     flushUsageQueue();
   });
   window.addEventListener('offline', () => {
