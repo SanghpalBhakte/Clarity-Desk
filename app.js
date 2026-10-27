@@ -5476,6 +5476,7 @@ function sanitizeTask(t) {
   const isHHMM = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
   const extra = {};
   if (t.source === 'whatsapp') extra.source = 'whatsapp';
+  if (t.keepInHoliday === true) extra.keepInHoliday = true;
   if (!isNoDeadline && isHHMM(t.startTime)) {
     extra.startTime = t.startTime;
     if (isHHMM(t.endTime) && t.endTime > t.startTime) extra.endTime = t.endTime;
@@ -7546,10 +7547,13 @@ function checkScheduledNotifications() {
   if (prefs.dailySummaryTime && prefs.dailySummaryTime !== 'off') {
     const summaryKey = `daily_summary_${today}`;
     if (currentHHMM >= prefs.dailySummaryTime && !notifiedMap[summaryKey]) {
-      const pendingCountVal = tasks.length;
+      // Holiday: resting ongoing tasks are left out of the count.
+      const pendingCountVal = tasks.filter(t => !(onHoliday && isTaskPausedForHoliday(t, today))).length;
       const dueTodayCount = tasks.filter(t => t.dueDate === today).length;
-      dispatchNotification(`Clarity Desk: Daily Summary`, {
-        body: `You have ${pendingCountVal} pending task${pendingCountVal !== 1 ? 's' : ''} (${dueTodayCount} due today).`,
+      dispatchNotification(onHoliday ? 'Clarity Desk: Holiday check-in' : `Clarity Desk: Daily Summary`, {
+        body: onHoliday
+          ? (pendingCountVal > 0 ? `Enjoy the break. ${pendingCountVal} task${pendingCountVal !== 1 ? 's' : ''} to keep an eye on (${dueTodayCount} due today).` : 'Nothing due. Enjoy the break.')
+          : `You have ${pendingCountVal} pending task${pendingCountVal !== 1 ? 's' : ''} (${dueTodayCount} due today).`,
         tag: summaryKey,
         data: { url: './#dashboard' }
       });
@@ -8211,6 +8215,7 @@ function renderPage(page) {
   if (page === __lastRenderPage && (now - __lastRenderTime) < 50) {
     return;
   }
+  applyHolidayVibe();
   __lastRenderPage = page;
   __lastRenderTime = now;
 
@@ -8515,7 +8520,9 @@ function getDynamicGreeting(firstName, opts = {}) {
   const has = !!firstName;
 
   let pool;
-  if (h < 5) {
+  if (opts.holiday) {
+    pool = [['Happy holidays, {n}.', 'Happy holidays.'], ['Enjoy the break, {n}.', 'Enjoy the break.'], ['Easy day, {n}.', 'Easy day.']];
+  } else if (h < 5) {
     // Late night: acknowledge unfinished work if there's any, otherwise
     // just the "still up" vibe -- both read as company, not a nag.
     pool = overdue > 0
@@ -8599,8 +8606,8 @@ function buildDashboardContextLine(opts = {}) {
   if (opts.holiday) {
     if (overdue > 0) return `${overdue} overdue task${overdue !== 1 ? 's' : ''} need${overdue === 1 ? 's' : ''} attention.`;
     return pending > 0
-      ? `Enjoy the break. ${pending} task${pending !== 1 ? 's' : ''} on your desk when you're ready.`
-      : 'Enjoy the break. Your timetable is safe for when classes start again.';
+      ? `No classes, no rush. ${pending} task${pending !== 1 ? 's' : ''} on your desk when you're ready.`
+      : 'No classes, no rush. Your timetable is safe for when classes start again.';
   }
 
   // Attendance at risk — highest urgency, surfaces immediately
@@ -8979,10 +8986,14 @@ function todayClasses() {
 
 // ── Holiday mode ──────────────────────────────────────────────
 // A display switch only: while it is on, nothing built from the timetable
-// shows on Today, the Calendar, reminders or Ask Desk. The timetable,
-// attendance, group and subjects are never read for writing or changed
-// here, so turning it off brings everything back exactly as it was.
-// `until` is the first day classes come back (local date, exclusive).
+// shows on Today, the Calendar, reminders or Ask Desk, and ongoing
+// (no-deadline) tasks rest unless marked "keep during holiday". The
+// timetable, attendance, group, subjects and tasks are never changed here,
+// so turning it off brings everything back exactly as it was. Dated tasks
+// always show: a real deadline is never hidden.
+// `since` is the first holiday day (may be in the future: the break then
+// starts by itself). `until` is the first day classes come back (local
+// date, exclusive); the dialog shows the last holiday day, `until` - 1.
 const HOLIDAY_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function loadHoliday() {
   const h = safeGetStorage(KEY_HOLIDAY, null);
@@ -8999,24 +9010,66 @@ function isHolidayActive(dateKey = todayStr(), h = loadHoliday()) {
   return !h.until || dateKey < h.until;
 }
 
+// A break that is planned but has not started yet.
+function isHolidayScheduled(h = loadHoliday()) {
+  return !!h && todayStr() < h.since && (!h.until || h.since < h.until);
+}
+
 // The timetable as screens should show it today. Editors, sync, backup and
 // attendance keep calling loadTimetable() so nothing is ever saved empty.
 function timetableForDisplay() {
   return isHolidayActive() ? getEmptyTimetable() : loadTimetable();
 }
 
+function isOngoingTask(t) {
+  return !!t && (!!t.noDeadline || (t.taskType === 'mission' && !t.dueDate));
+}
+
+// Ongoing tasks rest during a holiday unless marked "keep during holiday".
+// Display only: the task itself is never changed.
+function isTaskPausedForHoliday(t, dateKey = todayStr(), h = loadHoliday()) {
+  return isOngoingTask(t) && t.keepInHoliday !== true && isHolidayActive(dateKey, h);
+}
+
+function holidayDayLabel(key, withDay = false) {
+  const d = new Date(key + 'T00:00:00');
+  return `${withDay ? DAY_NAMES[d.getDay()].slice(0, 3) + ', ' : ''}${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+
 function holidayLabel(h = loadHoliday()) {
   if (!h) return '';
   if (!h.until) return 'On break';
-  const d = new Date(h.until + 'T00:00:00');
-  return `Until ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+  return `Back on ${holidayDayLabel(h.until)}`;
 }
 
-function setHoliday(on, until = null) {
+// Whole days of break left, today included (null when open-ended).
+function holidayDaysLeft(h = loadHoliday()) {
+  if (!h || !h.until) return null;
+  const from = todayStr() > h.since ? todayStr() : h.since;
+  return Math.max(0, Math.round((new Date(h.until + 'T00:00:00') - new Date(from + 'T00:00:00')) / 86400000));
+}
+
+// One calm line for the banner, picked by date so it stays put all day.
+const HOLIDAY_MOOD_LINES = [
+  "Rest up. You've earned this break.",
+  'Slow mornings, no bells.',
+  'Recharge mode: on.',
+  'No lectures today. Just breathe.',
+  'Books down, feet up.',
+  'Sleep in. The desk will wait.',
+  'Go outside. The sun misses you.',
+];
+function holidayMoodLine() {
+  const d = new Date();
+  return HOLIDAY_MOOD_LINES[(d.getDate() + d.getMonth()) % HOLIDAY_MOOD_LINES.length];
+}
+
+function setHoliday(on, until = null, since = null) {
   if (on) {
     const today = todayStr();
-    const u = (typeof until === 'string' && HOLIDAY_DATE_RE.test(until) && until > today) ? until : null;
-    safeSetStorage(KEY_HOLIDAY, { on: true, since: today, until: u });
+    const s = (typeof since === 'string' && HOLIDAY_DATE_RE.test(since) && since > today) ? since : today;
+    const u = (typeof until === 'string' && HOLIDAY_DATE_RE.test(until) && until > today && until > s) ? until : null;
+    safeSetStorage(KEY_HOLIDAY, { on: true, since: s, until: u });
   } else {
     safeSetStorage(KEY_HOLIDAY, { on: false, since: null, until: null });
   }
@@ -9033,65 +9086,84 @@ function checkHolidayExpiry() {
   return true;
 }
 
-// The box only shows "on" once the dialog is confirmed (Cancel, Esc or a
-// tap outside leave it off).
-function onHolidayToggle(box) {
-  if (!box.checked) { resumeClasses(); return; }
-  box.checked = false;
-  showHolidayModal();
+// Warm colours and calm copy while the break is on (see .holiday-mode in style.css).
+function applyHolidayVibe() {
+  document.body?.classList?.toggle('holiday-mode', isHolidayActive());
 }
-window.onHolidayToggle = onHolidayToggle;
 
 function showHolidayModal() {
   document.getElementById('holiday-modal-backdrop')?.remove();
-  const t = new Date();
-  t.setDate(t.getDate() + 1);
-  const tomorrow = localDateKey(t);
+  const today = todayStr();
+  const h = loadHoliday();
+  const plusDays = (key, n) => { const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + n); return localDateKey(d); };
+  const start = h && h.since > today ? h.since : today;
+  const end = h && h.until ? plusDays(h.until, -1) : plusDays(start, 6);
+  const openEnded = !!h && !h.until;
   const close = `document.getElementById('holiday-modal-backdrop')?.remove()`;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'holiday-modal-backdrop';
   backdrop.innerHTML = `
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px;width:92vw">
+    <div class="modal holiday-modal" onclick="event.stopPropagation()" style="max-width:420px;width:92vw">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:var(--text-xl)">${icons.sun()}</span>
-          <span class="modal-title">Turn on holiday mode</span>
+          <span class="holiday-modal-art" aria-hidden="true">🌴</span>
+          <span class="modal-title">${h ? 'Change your break' : 'Plan a break'}</span>
         </div>
         <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
-        <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">Classes are hidden from Today, Calendar and reminders. Nothing is deleted, and your attendance % stays as it is.</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
-          <input type="radio" name="holiday-until" value="off" checked style="accent-color:var(--accent)">
-          <span>Until I turn it off</span>
+        <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">Classes, class reminders and ongoing tasks rest while you're away. Real deadlines stay visible. Nothing is deleted, and your attendance % stays as it is.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="holiday-start">First day off</label>
+            <input type="date" class="form-input" id="holiday-start" min="${today}" value="${start}">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="holiday-end">Last day off</label>
+            <input type="date" class="form-input" id="holiday-end" min="${today}" value="${end}" ${openEnded ? 'disabled' : ''}>
+          </div>
+        </div>
+        <label class="checkbox-inline">
+          <input type="checkbox" id="holiday-open" ${openEnded ? 'checked' : ''} onchange="document.getElementById('holiday-end').disabled = this.checked">
+          <span>No end date, I'll end it myself</span>
         </label>
-        <label style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
-          <input type="radio" name="holiday-until" value="date" style="accent-color:var(--accent)">
-          <span>Until</span>
-          <input type="date" class="form-input" id="holiday-until-date" min="${tomorrow}" value="${tomorrow}" onfocus="document.querySelector('input[name=holiday-until][value=date]').checked = true" style="max-width:170px;padding:4px 8px">
-        </label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted)">Classes show again on the date you pick.</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">Classes come back by themselves the day after your last day off.</div>
       </div>
       <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
         <button class="btn-secondary" onclick="${close}">Cancel</button>
-        <button class="btn-primary" onclick="confirmHolidayModal()">Turn on</button>
+        <button class="btn-primary" onclick="confirmHolidayModal()">${h ? 'Save' : 'Start holiday'}</button>
       </div>
     </div>`;
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
 }
+window.showHolidayModal = showHolidayModal;
 
 function confirmHolidayModal() {
-  const useDate = document.querySelector('input[name="holiday-until"][value="date"]')?.checked;
-  const until = useDate ? (document.getElementById('holiday-until-date')?.value || '') : null;
-  if (useDate && !(HOLIDAY_DATE_RE.test(until) && until > todayStr())) {
-    showToast('Pick a date after today.', 'error');
+  const today = todayStr();
+  const start = document.getElementById('holiday-start')?.value || today;
+  const openEnded = !!document.getElementById('holiday-open')?.checked;
+  const end = document.getElementById('holiday-end')?.value || '';
+  if (!HOLIDAY_DATE_RE.test(start) || start < today) {
+    showToast('Pick a first day off from today on.', 'error');
     return;
   }
-  setHoliday(true, until);
+  let until = null;
+  if (!openEnded) {
+    if (!HOLIDAY_DATE_RE.test(end) || end < start) {
+      showToast('The last day off must be on or after the first.', 'error');
+      return;
+    }
+    const d = new Date(end + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    until = localDateKey(d);
+  }
+  setHoliday(true, until, start);
   document.getElementById('holiday-modal-backdrop')?.remove();
-  showToast('Holiday mode is on. Classes are hidden, nothing is deleted.', 'success');
+  showToast(start > today
+    ? `Holiday planned. It starts on ${holidayDayLabel(start, true)}.`
+    : 'Holiday mode is on. Enjoy the break 🌴', 'success');
   renderPage(state.currentPage);
 }
 window.confirmHolidayModal = confirmHolidayModal;
@@ -9102,6 +9174,19 @@ function resumeClasses() {
   renderPage(state.currentPage);
 }
 window.resumeClasses = resumeClasses;
+
+function endHolidayEarly() {
+  if (!confirm('End your holiday now?\n\nClasses, class reminders and ongoing tasks come back today.')) return;
+  resumeClasses();
+}
+window.endHolidayEarly = endHolidayEarly;
+
+function cancelPlannedHoliday() {
+  setHoliday(false);
+  showToast('Planned holiday cancelled', 'success');
+  renderPage(state.currentPage);
+}
+window.cancelPlannedHoliday = cancelPlannedHoliday;
 
 // ── SVG Icons ─────────────────────────────────────────────────
 function svg(path, size = 16) {
@@ -10361,9 +10446,11 @@ function renderDashboard() {
   const currentMin = currentTimeMinutes();
   const dayIdx   = now.getDay();
 
-  const pending  = pendingCount();
-  const overdue  = overdueCount();
   const onHoliday = isHolidayActive();
+  // Ongoing tasks rest during a holiday (see isTaskPausedForHoliday).
+  const restingCount = onHoliday ? allTasks().filter(a => a.status === 'pending' && isTaskPausedForHoliday(a)).length : 0;
+  const pending  = pendingCount() - restingCount;
+  const overdue  = overdueCount();
   const classesLeftCount = onHoliday ? 0 : todayClasses();
 
 
@@ -10418,7 +10505,7 @@ function renderDashboard() {
 
   const displayName = getDisplayName();
   const firstName = displayName ? displayName.split(' ')[0] : '';
-  const greeting = getDynamicGreeting(firstName, { overdue });
+  const greeting = getDynamicGreeting(firstName, { overdue, holiday: onHoliday });
   const needsSetup = !displayName;
   const hasAttendanceData = totalMarked > 0;
 
@@ -10493,7 +10580,7 @@ function renderDashboard() {
     });
   }
 
-  if (!selfStudy && !hasAttendanceData && !hasBaselinesConfigured) {
+  if (!selfStudy && !onHoliday && !hasAttendanceData && !hasBaselinesConfigured) {
     setupSteps.push({
       id: 'att',
       label: 'Set your attendance so far',
@@ -10508,8 +10595,9 @@ function renderDashboard() {
   // Tasks panel. The schedule waits for a timetable; attendance also waits
   // for one, and self-study never shows it.
   const isEmptyDesk = !hasCustomTT && !selfStudy;
-  const hideSchedulePanel = !hasCustomTT;
-  const hideAttendancePanel = !hasCustomTT || selfStudy;
+  const hideSchedulePanel = !hasCustomTT || onHoliday;
+  // Attendance is paused during a holiday, so its panel rests too.
+  const hideAttendancePanel = !hasCustomTT || selfStudy || onHoliday;
 
   // Masthead ticker items in monospace ledger strip
   const formattedDay = `${DAY_NAMES[dayIdx]}, ${now.getDate()} ${MONTH_NAMES[now.getMonth()]}`;
@@ -10533,6 +10621,11 @@ function renderDashboard() {
   // under the greeting (the context line already covers the final week).
   const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7)
     ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). ${countdownCheer(examDaysLeftNum)}</div>`
+    : '';
+
+  const holidaySoon = isHolidayScheduled() ? loadHoliday() : null;
+  const holidaySoonHTML = holidaySoon
+    ? `<div class="desk-greeting-note">${icons.sun()} Holiday starts on ${holidayDayLabel(holidaySoon.since, true)}. <button type="button" class="holiday-note-action" onclick="showHolidayModal()">Change</button></div>`
     : '';
 
   const sylTodayText = syllabusTodayLine();
@@ -10559,21 +10652,16 @@ function renderDashboard() {
 
   let beaconHTML = '';
   if (onHoliday) {
+    const daysLeft = holidayDaysLeft();
     beaconHTML = `
-      <div class="chrono-beacon is-free is-holiday" role="region" aria-label="Holiday mode">
-        <div style="flex:1;min-width:180px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:var(--surface-2);color:var(--text-secondary)">${icons.sun()} Holiday mode</span>
-            <span style="font-size:var(--text-sm);color:var(--text-muted)">${holidayLabel()}</span>
-          </div>
-          <div class="chrono-beacon-title">Classes are paused</div>
-          <div class="chrono-beacon-meta">
-            <span>Your timetable and attendance are safe. Nothing was deleted.</span>
-          </div>
+      <div class="holiday-banner" role="region" aria-label="Holiday mode">
+        <span class="holiday-banner-art" aria-hidden="true">🌴</span>
+        <div class="holiday-banner-body">
+          <div class="holiday-banner-kicker">${icons.sun()} Holiday mode · ${holidayLabel()}${daysLeft ? ` · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} to go` : ''}</div>
+          <div class="holiday-banner-title">${holidayMoodLine()}</div>
+          <div class="holiday-banner-meta">Classes, class reminders and ongoing tasks are resting. Real deadlines still show here.</div>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="resumeClasses()" style="font-size:var(--text-sm);padding:6px 12px">
-          Resume classes
-        </button>
+        <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="endHolidayEarly()">End early</button>
       </div>`;
   } else if (activeClass) {
     const classKey = attendanceKeyFor(activeClass);
@@ -10716,7 +10804,7 @@ function renderDashboard() {
 
   // Urgent & Active tasks
   const urgentTasks = allTasks()
-    .filter(a => a.status === 'pending')
+    .filter(a => a.status === 'pending' && !(onHoliday && isTaskPausedForHoliday(a)))
     .sort((a,b) => {
       const isOngoingA = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
       const isOngoingB = !!b.noDeadline || (b.taskType === 'mission' && !b.dueDate);
@@ -10794,6 +10882,7 @@ function renderDashboard() {
           <div class="desk-greeting">${greeting}</div>
           ${contextLine ? `<div class="desk-greeting-sub">${contextLine}</div>` : ''}
           ${examNoteHTML}
+          ${holidaySoonHTML}
           ${sylTodayHTML}
         </div>
         ${(dayIdx === 0 || dayIdx === 6) ? `
@@ -10894,8 +10983,9 @@ function renderDashboard() {
                   </div>
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;font-family:var(--font-mono);flex-shrink:0">${rel.label}</span>
                 </div>`;
-            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), 'All caught up. No urgent tasks.')}</div>`}
+            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : 'All caught up. No urgent tasks.')}</div>`}
             ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
+            ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
           </div>
 
           <!-- Inline Task Quick Add -->
@@ -17037,7 +17127,7 @@ function renderAssignments() {
     if (done) {
       when = 'Completed';
     } else if (isOngoing) {
-      when = 'Ongoing · no deadline'; whenCls = 'ongoing';
+      when = isTaskPausedForHoliday(a) ? 'Ongoing · resting for the holiday' : 'Ongoing · no deadline'; whenCls = 'ongoing';
     } else if (days !== null) {
       const dateText = shortDate(a.dueDate);
       if (days < 0)        { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} overdue · ${dateText}`; whenCls = 'overdue'; }
@@ -17195,7 +17285,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
 
   // "More details" starts open when it holds anything other than the defaults.
   const showMoreDetails = initialType !== 'assignment' || !!(editTask && (
-    editTask.marks || (editTask.priority || 'medium') !== 'medium' || (editTask.description && editTask.description !== '—')));
+    editTask.marks || editTask.keepInHoliday || (editTask.priority || 'medium') !== 'medium' || (editTask.description && editTask.description !== '—')));
 
   const subjectsList = getSubjectList();
 
@@ -17313,6 +17403,11 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
         <textarea class="form-input form-textarea" id="task-desc"
           placeholder="Milestones, notes, syllabus topics, or links...">${editTask ? editTask.description : ''}</textarea>
       </div>
+
+      <label class="checkbox-inline">
+        <input type="checkbox" id="task-keep-holiday" ${editTask && editTask.keepInHoliday ? 'checked' : ''}>
+        <span>🌴 Keep during holiday <span style="color:var(--text-muted);font-size:var(--text-sm)">(shows in your holiday briefing)</span></span>
+      </label>
       </details>
 
       <div class="form-actions">
@@ -17344,6 +17439,7 @@ function submitAddTask(editTaskId = null) {
   const priorityEl   = document.querySelector('input[name="task-priority"]:checked');
 
   const isNoDeadline = !!(noDeadlineEl && noDeadlineEl.checked);
+  const keepInHoliday = !!document.getElementById('task-keep-holiday')?.checked;
 
   [subjectEl, titleEl, dueEl].forEach(el => {
     if (el) {
@@ -17390,6 +17486,7 @@ function submitAddTask(editTaskId = null) {
       task.dueDate     = finalDueDate;
       task.priority    = priorityEl?.value || 'medium';
       task.marks       = parseInt(marksEl?.value) || 0;
+      if (keepInHoliday) task.keepInHoliday = true; else delete task.keepInHoliday;
     } else {
       task = {
         id:          editTaskId,
@@ -17404,6 +17501,7 @@ function submitAddTask(editTaskId = null) {
         status:      'pending',
         marks:       parseInt(marksEl?.value) || 0,
         isCustom:    true,
+        ...(keepInHoliday ? { keepInHoliday: true } : {}),
       };
       state.customTasks.push(task);
     }
@@ -17421,6 +17519,7 @@ function submitAddTask(editTaskId = null) {
       status:      'pending',
       marks:       parseInt(marksEl?.value) || 0,
       isCustom:    true,
+      ...(keepInHoliday ? { keepInHoliday: true } : {}),
     };
     state.customTasks.push(task);
   }
@@ -19130,7 +19229,59 @@ window.saveLinkResource = function(si, ri) {
   renderLinks();
 };
 
+// Holiday briefing: no classes, no attendance. Only real deadlines up to
+// the end of the break (overdue ones too) and tasks marked "keep during
+// holiday". Reads only.
+function holidayBriefingHTML() {
+  const h = loadHoliday();
+  const today = todayStr();
+  // Open-ended break: the next two weeks of deadlines.
+  const horizon = h && h.until ? h.until : (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 15); return localDateKey(d); })();
+  const pending = allTasks().filter(a => a && a.status === 'pending');
+  const deadlines = pending
+    .filter(a => !isOngoingTask(a) && a.dueDate && (isTaskOverdue(a) || a.dueDate < horizon))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const kept = pending.filter(a => a.keepInHoliday === true && !deadlines.includes(a));
+  const daysLeft = holidayDaysLeft(h);
+  const row = (a, sub, cls) => `
+    <div class="summary-item${cls ? ' ' + cls : ''}" onclick="navigateTo('assignments')" style="cursor:pointer">
+      <div class="summary-icon holiday-summary-icon">${cls ? icons.alert() : icons.assignments()}</div>
+      <div style="flex:1;min-width:0">
+        <div class="summary-text-main">${escHtml_cd(a.title)}</div>
+        <div class="summary-text-sub">${escHtml_cd(a.subject || 'General')} · ${sub}</div>
+      </div>
+    </div>`;
+  const dueText = (a) => {
+    const d = dueDaysLeft(a.dueDate);
+    if (d < 0) return `${Math.abs(d)}d overdue`;
+    if (d === 0) return 'Due today';
+    if (d === 1) return 'Due tomorrow';
+    return `Due ${holidayDayLabel(a.dueDate, true)}`;
+  };
+  return `
+    <div class="holiday-banner is-compact" role="region" aria-label="Holiday briefing">
+      <span class="holiday-banner-art" aria-hidden="true">🌴</span>
+      <div class="holiday-banner-body">
+        <div class="holiday-banner-kicker">${icons.sun()} Holiday · ${holidayLabel(h)}${daysLeft ? ` · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} to go` : ''}</div>
+        <div class="holiday-banner-title">${holidayMoodLine()}</div>
+      </div>
+      <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="endHolidayEarly()">End early</button>
+    </div>
+
+    <div class="section-heading" style="margin-top:20px">Deadlines during your break</div>
+    ${deadlines.length
+      ? deadlines.map(a => row(a, dueText(a), isTaskOverdue(a) ? 'is-overdue' : '')).join('')
+      : '<div class="card holiday-empty">No deadlines while you\'re away. 🌿</div>'}
+
+    <div class="section-heading" style="margin-top:20px">Kept during holiday</div>
+    ${kept.length
+      ? kept.map(a => row(a, isOngoingTask(a) ? 'Ongoing' : dueText(a), '')).join('')
+      : '<div class="card holiday-empty">Nothing else to do. Tick "Keep during holiday" on a task to see it here.</div>'}
+  `;
+}
+
 function renderSummaryContent(container) {
+  if (isHolidayActive()) { container.innerHTML = holidayBriefingHTML(); return; }
   const today    = new Date();
   const todayDay = today.getDay();
   const classes  = timetableForDisplay()[todayDay] || [];
@@ -19330,11 +19481,18 @@ function renderSettings() {
       if (!h && (!hasAnyTimetable() || p.studyMode === 'self')) return '';
       return `
     <div class="section-heading">${icons.sun()} Holiday mode</div>
-    <div class="card" style="padding:20px;margin-bottom:20px">
-      <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
-        <input type="checkbox" id="s-holiday" ${isHolidayActive() ? 'checked' : ''} onchange="onHolidayToggle(this)" style="margin-top:3px;accent-color:var(--accent)">
-        <span>Holiday mode${isHolidayActive() ? ` · ${holidayLabel()}` : ''}<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Classes are hidden from Today, Calendar and reminders. Nothing is deleted.</span></span>
-      </label>
+    <div class="card" style="padding:20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-size:var(--text-base);color:var(--text-primary);min-width:0;flex:1 1 220px">
+        ${isHolidayActive() ? `On · ${holidayLabel()}` : isHolidayScheduled() ? `Planned · ${holidayDayLabel(h.since, true)}${h.until ? ` to ${holidayDayLabel(h.until)}` : ''}` : 'Off'}
+        <span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Pick your dates. Classes, class reminders and ongoing tasks rest; real deadlines stay. Nothing is deleted.</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${isHolidayActive()
+          ? `<button class="btn btn-sm btn-secondary" onclick="showHolidayModal()">Change dates</button><button class="btn btn-sm btn-secondary" onclick="endHolidayEarly()">End early</button>`
+          : isHolidayScheduled()
+            ? `<button class="btn btn-sm btn-secondary" onclick="showHolidayModal()">Change dates</button><button class="btn btn-sm btn-secondary" onclick="cancelPlannedHoliday()">Cancel</button>`
+            : `<button class="btn btn-sm btn-primary" id="s-holiday" onclick="showHolidayModal()">Plan a holiday</button>`}
+      </div>
     </div>`;
     })()}
 
@@ -21346,7 +21504,7 @@ const ClarityAssistant = (() => {
 
     if (isHolidayActive()) {
       const n = pendingOverdue.length + dueToday.length;
-      return `Holiday mode is on${loadHoliday()?.until ? ` (${holidayLabel().replace('Until', 'until')})` : ''}, so classes are hidden. Your timetable is safe.${n > 0 ? `<br><br>💡 You have <strong>${n}</strong> urgent/due task${n !== 1 ? 's' : ''} on your desk.` : ''}`;
+      return `Holiday mode is on${loadHoliday()?.until ? ` (${holidayLabel().replace('Back', 'back')})` : ''}, so classes are hidden. Your timetable is safe.${n > 0 ? `<br><br>💡 You have <strong>${n}</strong> urgent/due task${n !== 1 ? 's' : ''} on your desk.` : ''}`;
     }
 
     if (isSunday) {

@@ -24,6 +24,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - Profile/tasks: `cos_profile`, `cos_custom_tasks`, `cos_assignments` (task status map), `cos_custom_timetable`, `cos_timetable_choice`, `cos_user_batch`, `cos_hidden_subjects`.
 - Attendance: `cos_attendance` (daily marks), `cos_attendance_baseline`, `cos_attendance_live`, `cos_attendance_v2` + `cos_att_v2_state`, `cos_att_target`, `cos_att_reassign_log`, `cos_att_datefix_*`.
 - Content: `cos_custom_links` (Study Vault records), `cos_syllabus`, `cos_holiday`, `cos_notice_channels`.
+- Holiday mode (`cos_holiday` `{on, since, until}`, `until` exclusive; `since` may be future = planned): display-only. `isHolidayActive(date)` hides classes, class reminders and attendance; `isTaskPausedForHoliday(task)` hides ongoing tasks without the optional `keepInHoliday` flag; dated tasks always show. Today banner + Daily Briefing holiday view; `body.holiday-mode` styling. Helpers live in the "Holiday mode" block of `app.js`.
 - Feedback: `cos_feedback_queue` (local only, not synced or backed up): up to 5 offline reports with a small screenshot copy each. Kept until sent (on `online` and ~4 s after start); dropped only after 5 server refusals or 14 days. Offline never counts as a try.
 - Settings: `cos_theme`, `cos_accent`, `cos_notif_prefs`, `cos_usage`, install/push/moved prompt flags.
 - Backups: `cos_cleanup_backup`, `cos_att_datefix_backup` (snapshot + undo for cleanup/migrations).
