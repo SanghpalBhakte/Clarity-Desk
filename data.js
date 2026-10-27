@@ -199,6 +199,20 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u94",
+    date: "2026-10-28",
+    title: "The app's screen appears a little sooner on first open",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "style.css no longer imports the fonts itself.",
+    points: [
+      "The page's <head> already loads them (Spline Sans Mono added there), and the import made the browser download style.css before it could even ask for the fonts.",
+      "chore side: the old GitHub \"Background Push Notifications\" job no longer runs every 15 minutes. Reminders come from push-worker (Cloudflare); this job's secret has been invalid since at least 2026-10-10, and it reads every user's whole document per run, which would pass Firestore's free daily reads at about 260 users. It can still be run by hand.",
+      "Tests: verify_hosting_files.mjs (no @import in style.css, all five fonts in the <head> link); verify_push_notifications.mjs now checks the job is manual-only."
+    ]
+  },
+  {
     id: "u93",
     date: "2026-10-27",
     title: "The app now loads much faster on networks that reach our host slowly",
