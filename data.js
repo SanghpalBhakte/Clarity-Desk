@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u101",
+    date: "2026-10-28",
+    title: "New: Report a problem now sends your message straight to the developer",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New: Report a problem now sends your message straight to the developer",
+    points: [
+
+    ]
+  },
+  {
     id: "u100",
     date: "2026-10-28",
     title: "New: Report a problem now opens a small form (bug, feedback or idea, with an optional screenshot) that goes straight to the developer",
