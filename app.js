@@ -5513,7 +5513,20 @@ function calculatePayloadHash(data) {
   try {
     return stableStringify({
       p: data.profile,
-      t: data.customTasks?.length,
+      // The whole task list, not just its count: a rename, due-date change
+      // or tick made on another device keeps the count the same and used to
+      // be ignored. Run through sanitizeTask so a cloud copy (already
+      // sanitized) and this device's list compare in the same shape. Any
+      // failure here falls to the outer catch -> null -> the snapshot is
+      // applied, never skipped.
+      t: Array.isArray(data.customTasks)
+        ? data.customTasks.map(t => (t && t.id ? sanitizeTask(t) : t))
+        : null,
+      tc: data.timetableChoice || null,
+      syl: Array.isArray(data.syllabus) && data.syllabus.length ? data.syllabus : null,
+      np: data.notificationPrefs || null,
+      nc: data.noticeChannels || null,
+      tg: typeof data.attTarget === 'number' ? data.attTarget : null,
       // Full timetable and attendance, not just a day count: a mark or a
       // timetable edit made on another device must reach this one (it used
       // to be ignored until something else changed, even across reloads).
@@ -5549,6 +5562,11 @@ function subscribeUserCloudData(uid) {
     profile: loadProfile(),
     customTasks: state.customTasks,
     customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+    timetableChoice: safeGetStorage(KEY_TIMETABLE_CHOICE, null),
+    syllabus: loadSyllabus(),
+    notificationPrefs: safeGetStorage(KEY_NOTIF_PREFS, null),
+    noticeChannels: safeGetStorage(KEY_NOTICE_CHANNELS, null),
+    attTarget: getAttendanceTarget(),
     assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
     attendance: safeGetStorage(KEY_ATTENDANCE, {}),
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
