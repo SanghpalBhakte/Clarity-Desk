@@ -72,7 +72,12 @@ export function mountTour(host, { onSignIn, onContinue }) {
   const track = host.querySelector('.ob-tour-track');
   const dots = [...host.querySelectorAll('.ob-dot')];
   const current = () => Math.max(0, Math.min(count - 1, Math.round(track.scrollLeft / (track.clientWidth || 1))));
-  const sync = () => { const c = current(); dots.forEach((d, i) => d.setAttribute('aria-current', i === c ? 'true' : 'false')); };
+  const cards = [...host.querySelectorAll('.ob-slide')];
+  const sync = () => {
+    const c = current();
+    dots.forEach((d, i) => d.setAttribute('aria-current', i === c ? 'true' : 'false'));
+    cards.forEach((el, i) => el.classList.toggle('is-on', i === c));
+  };
   const go = (i) => track.scrollTo({ left: i * track.clientWidth });
   sync();
   track.addEventListener('scroll', sync, { passive: true });

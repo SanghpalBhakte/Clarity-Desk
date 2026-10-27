@@ -10059,7 +10059,7 @@ window.showOnboardingModal = function() {
         <h2 class="ob-title">Clarity Desk</h2>
         <p class="ob-line">Your timetable, attendance, tasks and notes in one calm place, even offline.</p>
         <div class="ob-actions" id="onboarding-actions">
-          <button class="btn-primary" onclick="onboardingExplore()">Explore</button>
+          <button class="btn-primary" onclick="onboardingExplore()">Explore<span class="ob-arrow" aria-hidden="true">→</span></button>
           <button class="btn-secondary" onclick="onboardingLogin()">Log in</button>
         </div>
         ${usageActive() ? `<div class="ob-note">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}
