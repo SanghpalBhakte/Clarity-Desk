@@ -22161,9 +22161,81 @@ function init() {
     showToast('You’re offline. Changes are saved on this device.', 'info');
     updateSyncUI('offline');
   });
+
+  try { performance.mark('cd-app-ready'); } catch (e) {}
+  if (new URLSearchParams(location.search).has('timing')) {
+    window.addEventListener('load', () => setTimeout(showTimingReport, 1500));
+    if (document.readyState === 'complete') setTimeout(showTimingReport, 1500);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Opened as ./?timing: shows what this visit waited on, from the browser's own
+// timing data. For finding slow first visits on a phone. Nothing is saved or
+// sent; the panel lives only on this screen.
+let timingShown = false;
+// Read when app.js starts: by the time the report shows, a new service worker
+// has already taken over the page, even on a first visit.
+const TIMING_SAVED_COPY = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+function showTimingReport() {
+  if (timingShown) return;
+  timingShown = true;
+  const ms = (v) => (v == null || !isFinite(v)) ? '–' : v >= 1000 ? (v / 1000).toFixed(1) + ' s' : Math.round(v) + ' ms';
+  const nav = performance.getEntriesByType('navigation')[0] || {};
+  const paint = performance.getEntriesByName('first-contentful-paint')[0];
+  const ready = performance.getEntriesByName('cd-app-ready')[0];
+  const res = performance.getEntriesByType('resource');
+  const hostOf = (u) => { try { return new URL(u).host; } catch (_) { return '?'; } };
+  const sw = TIMING_SAVED_COPY ? 'yes (opened from the saved copy)' : 'no (first visit, or saved copy not ready)';
+
+  const lines = [
+    `Clarity Desk timing · ${new Date().toISOString().slice(0, 16)} · v${((document.querySelector('script[type=module]') || {}).outerHTML || '').match(/v=(\d+)/)?.[1] || '?'}`,
+    `Saved copy in use: ${sw}`,
+    `Network: ${(navigator.connection && navigator.connection.effectiveType) || 'unknown'}`,
+    '',
+    `Page: connect ${ms(nav.connectEnd - nav.startTime)}, first byte ${ms(nav.responseStart)}, all of it ${ms(nav.responseEnd)}`,
+    `First paint ${ms(paint && paint.startTime)} · page parsed ${ms(nav.domContentLoadedEventEnd)} · app ready ${ms(ready && ready.startTime)} · everything loaded ${ms(nav.loadEventEnd)}`,
+    ''
+  ];
+  const byHost = new Map();
+  for (const r of res) {
+    const h = hostOf(r.name);
+    const g = byHost.get(h) || { n: 0, kb: 0, last: 0, slow: 0 };
+    g.n++; g.kb += (r.transferSize || 0) / 1024; g.last = Math.max(g.last, r.responseEnd); g.slow = Math.max(g.slow, r.duration);
+    byHost.set(h, g);
+  }
+  lines.push('By server (files · size · slowest file · done at):');
+  for (const [h, g] of [...byHost].sort((x, y) => y[1].last - x[1].last)) {
+    lines.push(`  ${h}: ${g.n} · ${g.kb ? Math.round(g.kb) + ' KB' : 'size hidden'} · ${ms(g.slow)} · ${ms(g.last)}`);
+  }
+  lines.push('', 'Slowest files (start → done):');
+  for (const r of [...res].sort((x, y) => y.duration - x.duration).slice(0, 8)) {
+    const name = r.name.replace(/^https?:\/\//, '').replace(/\?.*$/, '').replace(/^(.{0,22}).*\/(.{0,30})$/, '$1…/$2');
+    lines.push(`  ${ms(r.duration).padStart(7)}  ${ms(r.startTime)} → ${ms(r.responseEnd)}  ${name}`);
+  }
+  const text = lines.join('\n');
+
+  const panel = document.createElement('div');
+  panel.id = 'cd-timing-report';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', 'Load timing');
+  panel.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;max-height:70vh;overflow:auto;z-index:99999;' +
+    'background:var(--surface,#fff);color:var(--text-primary,#222);border:1px solid var(--border,#ccc);border-radius:12px;' +
+    'padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);font:12px/1.45 ui-monospace,Menlo,monospace';
+  panel.innerHTML = `<pre style="margin:0 0 10px;white-space:pre-wrap;font:inherit">${escHtml_cd(text)}</pre>` +
+    '<div style="display:flex;gap:8px"><button type="button" class="btn-secondary" data-act="copy">Copy</button>' +
+    '<button type="button" class="btn-secondary" data-act="close">Close</button></div>';
+  panel.addEventListener('click', async (e) => {
+    const act = e.target && e.target.dataset && e.target.dataset.act;
+    if (act === 'close') panel.remove();
+    if (act === 'copy') {
+      try { await navigator.clipboard.writeText(text); e.target.textContent = 'Copied'; }
+      catch (_) { e.target.textContent = 'Select the text and copy it'; }
+    }
+  });
+  document.body.appendChild(panel);
+}
 
 function setupFABDrag() {
   const fab = document.querySelector('.fab');
