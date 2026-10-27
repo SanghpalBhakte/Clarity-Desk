@@ -12,7 +12,7 @@ let slowUntil = 0;
 // URLs are spelled exactly as index.html requests them (with ?v=N, or the
 // jsDelivr copy pinned to the deployed commit), so the install step and the
 // page share one download. scripts/ship.mjs bumps ?v=N and sets the commit.
-// deadline-import*.js and vendor/jszip.min.js are cached on first use instead.
+// deadline-import*.js, welcome-tour.js and vendor/jszip.min.js are cached on first use instead.
 const PRECACHE_ASSETS = [
   './',
   './index.html',

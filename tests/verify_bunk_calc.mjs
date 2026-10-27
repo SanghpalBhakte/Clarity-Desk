@@ -133,11 +133,12 @@ check('Only digits from the inputs ever reach the page', () => {
   return r.kind === 'recover' && r.n === 14 && !/[<"]/.test(domCache['ob-bunk-ans'].innerHTML.replace(/<\/?strong>/g, '')) ? true : `got ${r.kind}: ${domCache['ob-bunk-ans'].innerHTML}`;
 });
 
-check('Welcome card shows the calculator above the four buttons', () => {
+check('Welcome has only Explore and Log in (the calculator lives on Today)', () => {
   seed(); makeApp(); MISSING.add('onboarding-backdrop'); globalThis.showOnboardingModal(); MISSING.clear();
   const html = appended.map(x => x.innerHTML || '').join('');
-  const at = html.indexOf('id="ob-bunk"'), btn = html.indexOf('onboardingScanTimetable()" style');
-  return at > 0 && btn > at && html.includes('How many classes can you miss?') ? true : `calc at ${at}, buttons at ${btn}`;
+  const step1 = html.slice(html.indexOf('id="onboarding-step-1"'), html.indexOf('id="onboarding-step-2"'));
+  const buttons = (step1.match(/<button/g) || []).length;
+  return !step1.includes('id="ob-bunk"') && buttons === 2 && step1.includes('onboardingExplore()') && step1.includes('onboardingLogin()') ? true : `buttons=${buttons}`;
 });
 
 check('Empty Today: calculator inside the one setup card', () => {

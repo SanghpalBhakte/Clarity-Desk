@@ -5,7 +5,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 
 ## Files
 - `index.html` (481 lines): shell, nav, modal templates, theme bootstrap in `<head>`. Loads Firebase compat SDK 10.8.0 (app, auth, firestore, messaging) synchronously, then `firebase-config.js?v=N`, then `app.js` as a module.
-- `app.js` (22.5k lines, 1.1 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `deadline-import.js` (lazy), `vendor/jszip.min.js` (lazy).
+- `app.js` (22.5k lines, 1.1 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `deadline-import.js` (lazy), `welcome-tour.js` (lazy, the Explore tour), `vendor/jszip.min.js` (lazy).
 - `style.css` (6.7k lines): themes via CSS variables, responsive rules.
 - `sw.js`, `manifest.json`: PWA. `404.html` carries its own copy of the head bootstrap (keep in sync).
 - `ai-proxy/` (Cloudflare Worker): Gemini/Groq/Workers-AI proxy; origin allow-list, per-user/per-IP rate limits, optional Firebase ID token.
@@ -37,7 +37,8 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - One document per user: `users/{uid}` (merge-set), plus subcollection `users/{uid}/fcmTokens/{token}` (legacy). Rules: default deny; `/users/{uid}/**` owner only.
 - Push: `pushLocalDataToCloud` (~5735) writes profile, tasks, timetable, vault links (`linksForCloud`: uploaded files stay on device, placeholders only), statuses, attendance(+baseline/live), syllabus, theme, accent, prefs, channels, target, attendance summary, holiday, `updatedAt`. Deletes tracked via `computeSyncDeletePaths` against `cos_sync_last_pushed`.
 - Pull: `subscribeToCloud` (~5540): cache read first, then `onSnapshot`; both skip when `calculatePayloadHash` equals the last seen payload, else `applyCloudDataToLocalState` and re-render.
-- Auth: Google (popup, redirect fallback), email link, email+password. Only in Settings. No login wall.
+- Auth: Google (popup, redirect fallback), email link, email+password. In Settings, and from the Welcome screen's Log in. No login wall.
+- Welcome (`showOnboardingModal`): Explore / Log in only. Explore `import()`s `welcome-tour.js` (scroll-snap cards built from existing classes, last card: sign in or continue without account). Scan / add classes / study alone / bunk calculator are on the empty-Today setup card (`setupScanTimetable`, `setupAddClasses`, `setupSelfStudy`), same `welcome_choice` events.
 
 ## AI and OCR
 - On-device first: Tesseract.js from jsDelivr (lazy), deterministic grid reconstruction and normalisation, then AI vision via `AIService` (`app.js:490`) through the proxy. `AIService._cooldowns` skips recently failed providers.

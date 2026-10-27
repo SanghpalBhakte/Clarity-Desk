@@ -10050,25 +10050,19 @@ window.showOnboardingModal = function() {
   backdrop.innerHTML = `
     <div class="modal onboarding-card" id="onboarding-modal-box">
       <div id="onboarding-step-1">
-        <div style="width:44px;height:44px;border-radius:12px;background:var(--accent-dim);color:var(--accent);display:grid;place-items:center;margin-bottom:16px">
+        <div class="ob-mark">
           <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <path d="M 23.36 11.75 A 8.5 8.5 0 1 0 23.36 20.25" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
             <circle cx="16" cy="16" r="3.2" fill="currentColor"/>
           </svg>
         </div>
-        <h2 style="margin:0 0 6px 0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.025em;color:var(--text-primary)">Welcome to Clarity Desk</h2>
-        <div style="font-size:var(--text-base);font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.01em">Know your next class before you get to college</div>
-        <div style="font-size:var(--text-md);color:var(--text-secondary);line-height:1.6;margin-bottom:24px">
-          Take a photo of your class timetable. We'll show today's classes and rooms, and you can mark attendance with one tap.
+        <h2 class="ob-title">Clarity Desk</h2>
+        <p class="ob-line">Your timetable, attendance, tasks and notes in one calm place, even offline.</p>
+        <div class="ob-actions" id="onboarding-actions">
+          <button class="btn-primary" onclick="onboardingExplore()">Explore</button>
+          <button class="btn-secondary" onclick="onboardingLogin()">Log in</button>
         </div>
-        ${bunkCalcHtml('ob')}
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <button class="btn-primary" onclick="onboardingScanTimetable()" style="width:100%;padding:11px;font-weight:600;justify-content:center;font-size:var(--text-md)">${icons.camera()} Scan your timetable</button>
-          <button class="btn-secondary" onclick="onboardingAddClasses()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">Add classes myself</button>
-          <button class="btn-secondary" onclick="onboardingSelfStudy()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center">I study on my own (no timetable)</button>
-          <button class="btn-secondary" onclick="onboardingLookAround()" style="width:100%;padding:9px;font-size:var(--text-base);justify-content:center;background:none;border-color:transparent">Just look around</button>
-        </div>
-        ${usageActive() ? `<div style="margin-top:14px;font-size:var(--text-xs);color:var(--text-muted);line-height:1.45;text-align:center">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}
+        ${usageActive() ? `<div class="ob-note">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}
       </div>
 
       <div id="onboarding-step-2" style="display:none">
@@ -10179,13 +10173,46 @@ window.dismissOnboarding = function() {
   renderPage(state.currentPage);
 };
 
-// Welcome actions: close the welcome the same way "look around" does, then
-// open the existing timetable flows. The file picker opens inside the same
-// tap so mobile browsers allow it.
-window.onboardingScanTimetable = function() {
-  trackUsage('welcome_choice', 'scan');
+// Welcome actions. Explore loads the tour on demand (welcome-tour.js) so it
+// stays out of first paint; Log in and "Continue without account" close the
+// welcome the same way. The old scan / add / self-study choices now live on
+// the Today setup card (setupScanTimetable and friends) with the same
+// welcome_choice events.
+window.onboardingExplore = async function() {
+  trackUsage('welcome_choice', 'explore');
+  const step = document.getElementById('onboarding-step-1');
+  if (!step) return;
+  try {
+    const T = await import('./welcome-tour.js');
+    step.innerHTML = '<div id="onboarding-tour"></div>';
+    T.mountTour(document.getElementById('onboarding-tour'), {
+      onSignIn: window.onboardingLogin,
+      onContinue: window.onboardingLookAround
+    });
+  } catch (err) {
+    // Offline and never cached: the tour is optional, go on without it.
+    window.onboardingLookAround();
+  }
+};
+
+window.onboardingLogin = function() {
+  trackUsage('welcome_choice', 'login');
+  const step = document.getElementById('onboarding-step-1');
+  if (!step) return;
+  step.innerHTML = `
+    <h2 class="ob-title">Log in</h2>
+    <p class="ob-line">Sign in to sync your desk across your devices.</p>
+    <div class="ob-actions">
+      <button class="btn-primary" onclick="onboardingLoginWith('google')">Continue with Google</button>
+      <button class="btn-secondary" onclick="onboardingLoginWith('email')">Use email</button>
+      <button class="btn-secondary" onclick="onboardingLookAround()" style="background:none;border-color:transparent">Continue without account</button>
+    </div>`;
+};
+
+// The welcome sits above the sign-in dialogs, so it closes first.
+window.onboardingLoginWith = function(kind) {
   window.dismissOnboarding();
-  triggerTimetableImport();
+  if (kind === 'google') loginWithGoogle(); else showEmailSignInModal();
 };
 
 // Self-study: no class timetable. Marks the profile so Today skips the
@@ -10209,23 +10236,24 @@ window.openCountdownSettings = function() {
   }, 200);
 };
 
-window.onboardingSelfStudy = function() {
-  trackUsage('welcome_choice', 'self');
-  window.dismissOnboarding();
-  window.setSelfStudyMode();
-  window.openCountdownSettings();
-};
-
 window.onboardingLookAround = function() {
   trackUsage('welcome_choice', 'look');
   window.dismissOnboarding();
 };
 
-window.onboardingAddClasses = function() {
+// Today setup card choices (they used to be on the welcome; same events).
+window.setupScanTimetable = function() {
+  trackUsage('welcome_choice', 'scan');
+  triggerTimetableImport();
+};
+window.setupAddClasses = function() {
   trackUsage('welcome_choice', 'manual');
-  window.dismissOnboarding();
   navigateTo('timetable');
   showTimetableEntryModal(new Date().getDay(), null);
+};
+window.setupSelfStudy = function() {
+  trackUsage('welcome_choice', 'self');
+  window.setSelfStudyMode();
 };
 
 window.finishOnboarding = function() {
@@ -10430,7 +10458,7 @@ function renderDashboard() {
       id: 'tt',
       label: 'Scan your timetable',
       desc: 'Take a photo of your class timetable. You check every class before anything is saved.',
-      action: `triggerTimetableImport()`,
+      action: `setupScanTimetable()`,
       icon: icons.camera()
     });
   }
@@ -10662,7 +10690,7 @@ function renderDashboard() {
             <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
           </button>
           ${s.id === 'tt' ? `
-          <button class="setup-guide-step" onclick="navigateTo('timetable'); showTimetableEntryModal(new Date().getDay(), null)" aria-label="Add classes myself">
+          <button class="setup-guide-step" onclick="setupAddClasses()" aria-label="Add classes myself">
             <span class="setup-step-icon">${icons.plus()}</span>
             <div style="flex:1;min-width:0">
               <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">Add classes myself</div>
@@ -10670,7 +10698,7 @@ function renderDashboard() {
             </div>
             <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Add →</span>
           </button>
-          <button class="setup-guide-step" onclick="setSelfStudyMode()" aria-label="I study on my own">
+          <button class="setup-guide-step" onclick="setupSelfStudy()" aria-label="I study on my own">
             <span class="setup-step-icon">${icons.target()}</span>
             <div style="flex:1;min-width:0">
               <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">I study on my own</div>
