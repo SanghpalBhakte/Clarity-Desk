@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u96",
+    date: "2026-10-28",
+    title: "Fix: changes to your tasks and settings on one device now show up on your other devices",
+    category: "Fix",
+    tag: "Fix",
+    tagColor: "var(--red)",
+    summary: "Fix: changes to your tasks and settings on one device now show up on your other devices",
+    points: [
+
+    ]
+  },
+  {
     id: "u95",
     date: "2026-10-28",
     title: "New: open the app as ?timing to see what made it slow to load",
