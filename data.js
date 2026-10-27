@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u97",
+    date: "2026-10-28",
+    title: "New: press and hold a task to select several and delete them, with Undo; finished tasks now fold into a Completed section",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New: press and hold a task to select several and delete them, with Undo; finished tasks now fold into a Completed section",
+    points: [
+
+    ]
+  },
+  {
     id: "u96",
     date: "2026-10-28",
     title: "Fix: changes to your tasks and settings on one device now show up on your other devices",
