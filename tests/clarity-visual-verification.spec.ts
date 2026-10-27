@@ -448,6 +448,57 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     await expect(view).toHaveScreenshot('clarity-calendar-paper-slate-mobile.png', { animations: 'disabled' });
   });
 
+  // Holiday mode (break 9-15 Feb around FIXED_NOW): the sunset Today and the
+  // short holiday Daily Briefing, so a later style change can't quietly break them.
+  async function seedHoliday(page: Page) {
+    await page.evaluate(() => {
+      const lecture = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', type: 'lecture', batches: [] };
+      localStorage.setItem('cos_custom_timetable', JSON.stringify({ 0: [], 1: [lecture], 2: [lecture], 3: [lecture], 4: [lecture], 5: [lecture], 6: [] }));
+      localStorage.setItem('cos_custom_tasks', JSON.stringify([
+        { id: 'c-1', title: 'DBMS assignment', subject: 'General', taskType: 'assignment', dueDate: '2026-02-12', status: 'pending' },
+        { id: 'c-2', title: 'Read one paper a week', subject: 'General', taskType: 'mission', noDeadline: true, dueDate: '', status: 'pending' },
+        { id: 'c-3', title: 'Gym streak', subject: 'General', taskType: 'general', noDeadline: true, dueDate: '', status: 'pending', keepInHoliday: true }
+      ]));
+      localStorage.setItem('cos_holiday', JSON.stringify({ on: true, since: '2026-02-09', until: '2026-02-16' }));
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+  }
+
+  for (const theme of THEMES) {
+    test(`holiday Today screenshot ${theme} desktop`, async ({ page }) => {
+      await page.setViewportSize(DESKTOP);
+      await seedHoliday(page);
+      await ensureTheme(page, theme);
+      await page.evaluate(() => (window as any).navigateTo('dashboard'));
+      const view = page.locator('#page-dashboard');
+      await expect(view.locator('.holiday-banner')).toBeVisible();
+      await expect(page.locator('body')).toHaveClass(/holiday-mode/);
+      await expect(view).toHaveScreenshot(`clarity-holiday-today-${theme}-desktop.png`, { animations: 'disabled' });
+    });
+  }
+
+  test('holiday Today screenshot paper-slate mobile', async ({ page }) => {
+    await page.setViewportSize(MOBILE);
+    await seedHoliday(page);
+    await ensureTheme(page, 'paper-slate');
+    await page.evaluate(() => (window as any).navigateTo('dashboard'));
+    const view = page.locator('#page-dashboard');
+    await expect(view.locator('.holiday-banner')).toBeVisible();
+    await expect(view).toHaveScreenshot('clarity-holiday-today-paper-slate-mobile.png', { animations: 'disabled' });
+  });
+
+  test('holiday Daily Briefing screenshot paper-slate mobile', async ({ page }) => {
+    await page.setViewportSize(MOBILE);
+    await seedHoliday(page);
+    await ensureTheme(page, 'paper-slate');
+    await page.evaluate(() => (window as any).navigateTo('summary'));
+    const view = page.locator('#page-resources');
+    await expect(view.locator('.holiday-banner')).toBeVisible();
+    await expect(view).toContainText('Deadlines during your break');
+    await expect(view).not.toContainText('Read one paper a week');
+    await expect(view).toHaveScreenshot('clarity-holiday-briefing-paper-slate-mobile.png', { animations: 'disabled' });
+  });
+
   test('timetable still preserves full operational class labels where present', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await ensureTheme(page, 'paper-slate');
