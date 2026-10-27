@@ -4,7 +4,8 @@
    2. Midnight Ink    (Focused Night Study)
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Comfortaa:wght@600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=JetBrains+Mono:wght@400;500;600&family=Spline+Sans+Mono:wght@500;600;700&display=swap');
+/* Fonts load from the <link> in index.html / 404.html <head>. Importing them here
+   made the browser wait for this file before it could even ask for them. */
 
 /* ── 1) Paper Slate — Canonical Daylight Theme ─────────────── */
 :root,

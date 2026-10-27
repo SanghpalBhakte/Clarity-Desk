@@ -127,11 +127,13 @@ check('scripts/push-notifications/: job, package.json and lockfile all exist and
   return true;
 });
 
-check('.github/workflows/push-notifications.yml exists with a schedule and the service-account secret wired in', () => {
+check('.github/workflows/push-notifications.yml is manual-only (push-worker sends reminders) with the service-account secret wired in', () => {
   const wfPath = path.join(ROOT, '.github/workflows/push-notifications.yml');
   if (!fs.existsSync(wfPath)) return 'workflow file missing';
   const wf = fs.readFileSync(wfPath, 'utf8');
-  if (!wf.includes('cron:')) return 'no cron schedule defined';
+  // It reads every user's document per run; on a schedule it would use up
+  // Firestore's free daily reads as users grow. push-worker/ sends reminders.
+  if (/^\s*schedule:/m.test(wf) || /^\s*-\s*cron:/m.test(wf)) return 'the job is scheduled again; it reads every user per run';
   if (!wf.includes('secrets.FIREBASE_SERVICE_ACCOUNT')) return 'workflow does not pass the FIREBASE_SERVICE_ACCOUNT secret through';
   if (!wf.includes('workflow_dispatch')) return 'no manual workflow_dispatch trigger for on-demand testing';
   return true;
