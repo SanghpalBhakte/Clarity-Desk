@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u104",
+    date: "2026-10-28",
+    title: "Dev Notes are tidier: the version number at the end of each note is gone, and each note still shows its date",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Dev Notes are tidier: the version number at the end of each note is gone, and each note still shows its date",
+    points: [
+
+    ]
+  },
+  {
     id: "u103",
     date: "2026-10-28",
     title: "Holiday mode now has start and end dates, a calm holiday look, an End early button, and a holiday Daily Briefing that still shows every real deadline",
