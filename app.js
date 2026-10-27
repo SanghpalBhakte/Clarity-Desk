@@ -9065,6 +9065,12 @@ const HOLIDAY_MOOD_LINES = [
   'Sleep in. The desk will wait.',
   'Go outside. The sun misses you.',
 ];
+// Starts the sway where the clock says it should be, so a redraw of Today
+// continues the swing instead of snapping back to the start.
+function holidaySwayStyle() {
+  return ` style="animation-delay:-${((Date.now() % 7000) / 1000).toFixed(2)}s"`;
+}
+
 function holidayMoodLine() {
   const d = new Date();
   return HOLIDAY_MOOD_LINES[(d.getDate() + d.getMonth()) % HOLIDAY_MOOD_LINES.length];
@@ -10690,7 +10696,7 @@ function renderDashboard() {
     const firstClass = dayClasses.find(c => timeToMinutes(c.end || '23:59') > currentMin);
     welcomeBackHTML = `
       <div class="holiday-welcome" role="status" aria-label="Welcome back">
-        <span class="holiday-banner-art" aria-hidden="true">🌅</span>
+        <span class="holiday-banner-art" aria-hidden="true"${holidaySwayStyle()}>🌅</span>
         <div class="holiday-banner-body">
           <div class="holiday-banner-title">Welcome back${firstName ? `, ${escHtml_cd(firstName)}` : ''}.</div>
           <div class="holiday-banner-meta">${firstClass
@@ -10707,7 +10713,7 @@ function renderDashboard() {
     const daysLeft = holidayDaysLeft();
     beaconHTML = `
       <div class="holiday-banner" role="region" aria-label="Holiday mode">
-        <span class="holiday-banner-art" aria-hidden="true">🌴</span>
+        <span class="holiday-banner-art" aria-hidden="true"${holidaySwayStyle()}>🌴</span>
         <div class="holiday-banner-body">
           <div class="holiday-banner-kicker">${icons.sun()} Holiday mode · ${holidayLabel()}${daysLeft ? ` · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} to go` : ''}</div>
           <div class="holiday-banner-title">${holidayMoodLine()}</div>
@@ -19315,7 +19321,7 @@ function holidayBriefingHTML() {
   };
   return `
     <div class="holiday-banner is-compact" role="region" aria-label="Holiday briefing">
-      <span class="holiday-banner-art" aria-hidden="true">🌴</span>
+      <span class="holiday-banner-art" aria-hidden="true"${holidaySwayStyle()}>🌴</span>
       <div class="holiday-banner-body">
         <div class="holiday-banner-kicker">${icons.sun()} Holiday · ${holidayLabel(h)}${daysLeft ? ` · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} to go` : ''}</div>
         <div class="holiday-banner-title">${holidayMoodLine()}</div>
