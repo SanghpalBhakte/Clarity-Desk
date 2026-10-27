@@ -199,6 +199,19 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u92",
+    date: "2026-10-27",
+    title: "The app starts downloading its data at the same time as the app itself",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "index.html and 404.html now preload app.js and data.js from <head>.",
+    points: [
+      "Before, data.js was only found once app.js had fully arrived, which cost one extra wait on a slow connection.",
+      "Test: verify_hosting_files.mjs checks the preload URLs match the real script URLs (a mismatch would download app.js twice)."
+    ]
+  },
+  {
     id: "u91",
     date: "2026-10-27",
     title: "Make the app's first load lighter: it downloads each file only once",
