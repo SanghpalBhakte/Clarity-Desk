@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u98",
+    date: "2026-10-28",
+    title: "New: simpler welcome screen with Explore and Log in, plus a swipeable tour; welcome no longer gets cut off on short screens",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New: simpler welcome screen with Explore and Log in, plus a swipeable tour; welcome no longer gets cut off on short screens",
+    points: [
+
+    ]
+  },
+  {
     id: "u97",
     date: "2026-10-28",
     title: "New: press and hold a task to select several and delete them, with Undo; finished tasks now fold into a Completed section",
