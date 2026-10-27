@@ -18,6 +18,15 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - Plan first for non-trivial or multi-file tasks; wait for explicit approval before implementing.
 - Make the smallest safe change. No unrelated cleanup, refactors, or redesigns.
 - Don't invent new architecture unless clearly necessary.
+- Be concise. No explanations unless asked.
+- Read only the files you need. Grep/glob before opening directories (`app.js` is huge; read line ranges).
+- Reuse existing components, helpers, styles and patterns. Never create parallel versions of existing things.
+- Edits: show only changed files as diffs. Never rewrite untouched files.
+- No new dependencies unless unavoidable; justify in one line.
+- Free tiers only. Nothing needing a paid plan (including Firebase Blaze).
+- Ask one question before coding if something is ambiguous.
+- If you change structure or data flow, update `docs/ARCHITECTURE.md` in the same task.
+- Read `docs/ARCHITECTURE.md` for structure and data flow instead of exploring from scratch; `docs/AUDIT.md` lists known issues.
 
 ## Protected systems — inspect carefully, explain risk before touching
 - `cos_*` storage schemas
