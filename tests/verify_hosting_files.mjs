@@ -122,6 +122,20 @@ scenario("Every ?v= in the precache list matches CACHE_NAME's version", () => {
   return bad.length === 0 ? true : `wrong version: ${bad.join(', ')}`;
 });
 
+scenario('modulepreload links match the URLs the app really loads (no double download)', () => {
+  const bad = [];
+  for (const f of ['index.html', '404.html']) {
+    const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const pre = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)"/g)].map(m => m[1]);
+    const app = (html.match(/<script type="module" src="([^"]+)"/) || [])[1];
+    if (!app || !pre.includes(app)) bad.push(`${f}: app.js preload ${pre.join(', ') || 'missing'} vs script ${app}`);
+    if (!pre.includes('data.js')) bad.push(`${f}: data.js not preloaded`);
+    if (!/from '\.\/data\.js'/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))) bad.push("app.js no longer imports './data.js'");
+    if (html.indexOf('rel="modulepreload"') > html.indexOf('</head>')) bad.push(`${f}: preload is not in <head>`);
+  }
+  return bad.length === 0 ? true : bad.join('; ');
+});
+
 scenario('Analytics beacon loads for real visitors on the live site only, never for automated browsers', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const m = html.match(/<!-- Cloudflare Web Analytics[\s\S]*?<script>([\s\S]*?)<\/script>/);
