@@ -1,4 +1,7 @@
 const CACHE_NAME = 'clarity-desk-v229';
+// How long a page/script request waits for the network before the saved
+// copy is used (only when a saved copy exists).
+const NETWORK_WAIT_MS = 3000;
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -89,30 +92,39 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Network-First for Navigation and JS files to prevent stale cache lock
+  // Network-First for Navigation and JS files to prevent stale cache lock.
+  // A slow network never fails, so after NETWORK_WAIT_MS the saved copy is
+  // used instead; the network answer still lands in the cache for next time.
   if (e.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
-    e.respondWith(
-      fetch(e.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
-          }
-          return response;
-        })
-        // caches.match() returns a Promise (always truthy), so each fallback
-        // must be awaited in turn. ignoreSearch lets a first-visit precached
-        // "app.js" answer the page's "app.js?v=N" request; the cache is
-        // per-version, so it is the same build.
-        .catch(async () => {
-          const cached = (await caches.match(e.request)) || (await caches.match(e.request, { ignoreSearch: true }));
-          if (cached) return cached;
-          if (e.request.mode === 'navigate') {
-            return (await caches.match('./index.html')) || (await caches.match('index.html')) || (await caches.match('./')) || Response.error();
-          }
-          return Response.error();
-        })
-    );
+    const network = fetch(e.request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+        }
+        return response;
+      });
+    // caches.match() returns a Promise (always truthy), so each fallback
+    // must be awaited in turn. ignoreSearch lets a first-visit precached
+    // "app.js" answer the page's "app.js?v=N" request; the cache is
+    // per-version, so it is the same build.
+    const fromCache = async () => {
+      const cached = (await caches.match(e.request)) || (await caches.match(e.request, { ignoreSearch: true }));
+      if (cached) return cached;
+      if (e.request.mode === 'navigate') {
+        return (await caches.match('./index.html')) || (await caches.match('index.html')) || (await caches.match('./')) || null;
+      }
+      return null;
+    };
+    e.waitUntil(network.catch(() => {}));
+    e.respondWith(new Promise((resolve) => {
+      let done = false;
+      const finish = (res) => { if (!done && res) { done = true; resolve(res); } };
+      const timer = setTimeout(() => fromCache().then(finish), NETWORK_WAIT_MS);
+      network
+        .then((res) => { clearTimeout(timer); finish(res); })
+        .catch(async () => { clearTimeout(timer); finish((await fromCache()) || Response.error()); });
+    }));
     return;
   }
 
