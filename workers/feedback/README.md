@@ -18,3 +18,15 @@ Not deployed by `npm run ship`. Deploy by hand:
 
 Request: `POST` multipart with `type` (bug|feedback|idea), `message`,
 `version`, `route`, `device`, `mode` and an optional `screenshot` image.
+
+## Bot branding and replies
+
+`bash workers/feedback/brand-bot.sh` (asks for the bot token, hidden) sets the
+bot's name, logo (`icon-512-maskable.png`), descriptions and commands, sets the
+`TELEGRAM_WEBHOOK_SECRET` secret, and points Telegram's webhook at
+`/telegram`. After that, anyone who messages the bot gets a reply that says to
+use the form in the app. Reports are one way (app to your chat); replies typed
+in Telegram do not go back to students, who are anonymous.
+
+A report queued offline keeps its text and a small screenshot copy until it is
+sent (see `docs/ARCHITECTURE.md`).
