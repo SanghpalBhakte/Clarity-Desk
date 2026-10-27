@@ -2,6 +2,13 @@ const CACHE_NAME = 'clarity-desk-v229';
 // How long a page/script request waits for the network before the saved
 // copy is used (only when a saved copy exists).
 const NETWORK_WAIT_MS = 3000;
+// After one request to this site had to fall back to its saved copy, the
+// requests that follow it (app.js, then data.js) use their saved copies
+// straight away for this long instead of each waiting NETWORK_WAIT_MS in
+// turn. Only this site's own answers count: gstatic can be fast while the
+// path to this site's CDN is not.
+const SLOW_NETWORK_MS = 30000;
+let slowUntil = 0;
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -96,11 +103,12 @@ self.addEventListener('fetch', (e) => {
   // A slow network never fails, so after NETWORK_WAIT_MS the saved copy is
   // used instead; the network answer still lands in the cache for next time.
   if (e.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    let saved = Promise.resolve();
     const network = fetch(e.request)
       .then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+          saved = caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
         }
         return response;
       });
@@ -116,13 +124,19 @@ self.addEventListener('fetch', (e) => {
       }
       return null;
     };
-    e.waitUntil(network.catch(() => {}));
+    // Keep the worker alive until the late network answer is saved too.
+    e.waitUntil(network.then(() => saved).catch(() => {}));
     e.respondWith(new Promise((resolve) => {
       let done = false;
       const finish = (res) => { if (!done && res) { done = true; resolve(res); } };
-      const timer = setTimeout(() => fromCache().then(finish), NETWORK_WAIT_MS);
+      const ownSite = url.origin === self.location.origin;
+      const wait = ownSite && Date.now() < slowUntil ? 0 : NETWORK_WAIT_MS;
+      const timer = setTimeout(() => fromCache().then((res) => {
+        if (res && !done && ownSite) slowUntil = Date.now() + SLOW_NETWORK_MS;
+        finish(res);
+      }), wait);
       network
-        .then((res) => { clearTimeout(timer); finish(res); })
+        .then((res) => { if (!done && ownSite && res.ok) slowUntil = 0; clearTimeout(timer); finish(res); })
         .catch(async () => { clearTimeout(timer); finish((await fromCache()) || Response.error()); });
     }));
     return;

@@ -147,4 +147,48 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
     // Confirm no multi-version cache collision
     expect(versionedCaches.length, 'Only the latest active cache version should remain after activation').toBe(1);
   });
+
+  test('5. Installed app opens from the saved copy when the network stalls', async ({ context, page }) => {
+    // Install and let the precache settle, then reload so the worker controls the page.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      const w = reg.active;
+      if (w && w.state !== 'activated') {
+        await new Promise((r) => w.addEventListener('statechange', () => w.state === 'activated' && r(undefined)));
+      }
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    expect(await page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+
+    // A slow network that never fails: same-origin requests hang (the
+    // worker's own fetches included), like the stalled path to the CDN.
+    // firebase-config.local.js is a localhost-only dev file, never cached.
+    const origin = new URL(page.url()).origin;
+    await context.route((url) => url.origin === origin && !url.pathname.endsWith('.local.js'), () => { /* never answer */ });
+    try {
+      const t0 = Date.now();
+      await page.reload({ waitUntil: 'commit' });
+      await expect(page.locator('.topbar, [data-testid="topbar"]').first()).toBeVisible({ timeout: 15000 });
+      // The shell HTML lays out before app.js runs; wait for the app itself.
+      await page.waitForFunction(() => typeof (window as any).setTheme === 'function', null, { timeout: 15000 });
+      const ms = Date.now() - t0;
+      console.log(`Stalled network: app started after ${ms} ms`);
+      // One NETWORK_WAIT_MS (3 s) for the page; app.js, style.css and data.js
+      // then use their saved copies at once (slow mode), not 3 s each.
+      expect(ms, 'the app should start about 3 s after the page is opened').toBeLessThan(5000);
+    } finally {
+      await context.unrouteAll({ behavior: 'ignoreErrors' });
+    }
+
+    // Normal network again: the worker fetches fresh files from the network
+    // (and saves them), so the next open uses the new copy.
+    const fresh: string[] = [];
+    context.on('requestfinished', (req) => {
+      if (req.serviceWorker() && new URL(req.url()).pathname === '/app.js') fresh.push(req.url());
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.topbar, [data-testid="topbar"]').first()).toBeVisible();
+    await expect.poll(() => fresh.length, { message: 'the worker should fetch app.js from the network' }).toBeGreaterThan(0);
+  });
 });
