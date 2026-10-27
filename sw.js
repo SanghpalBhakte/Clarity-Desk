@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clarity-desk-v239';
+const CACHE_NAME = 'clarity-desk-v240';
 // How long a page/script request waits for the network before the saved
 // copy is used (only when a saved copy exists).
 const NETWORK_WAIT_MS = 3000;
@@ -18,14 +18,14 @@ const PRECACHE_ASSETS = [
   './index.html',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e640e1e21df5e6418fc1296df0a832902af4ce44/app.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e640e1e21df5e6418fc1296df0a832902af4ce44/style.css',
-  'firebase-config.js?v=239',
+  'firebase-config.js?v=240',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e640e1e21df5e6418fc1296df0a832902af4ce44/data.js',
   './manifest.json',
-  'favicon.ico?v=239',
-  'favicon.svg?v=239',
-  'favicon-32.png?v=239',
-  'favicon-16.png?v=239',
-  'apple-touch-icon.png?v=239',
+  'favicon.ico?v=240',
+  'favicon.svg?v=240',
+  'favicon-32.png?v=240',
+  'favicon-16.png?v=240',
+  'apple-touch-icon.png?v=240',
   './icon-192.png',
   './icon-192-maskable.png',
   './icon-512.png',
