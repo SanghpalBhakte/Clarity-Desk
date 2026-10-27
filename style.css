@@ -6713,7 +6713,15 @@ body.holiday-mode .holiday-banner {
     color-mix(in srgb, var(--holiday-sea, #2bb3a3) 12%, var(--surface)));
   box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--holiday-sun, #f2994a) 30%, transparent);
 }
-.holiday-banner-art { font-size: 2rem; line-height: 1; animation: holiday-sway 6s ease-in-out infinite; transform-origin: 50% 100%; }
+/* Sways back and forth (alternate, so no jump at the loop point). The
+   delay set in holidaySwayStyle() keeps the swing going across redraws.
+   Transform only, so the phone does it without re-laying out the page. */
+.holiday-banner-art {
+  display: inline-block; font-size: 2rem; line-height: 1;
+  transform-origin: 50% 100%;
+  animation: holiday-sway 3.5s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  will-change: transform;
+}
 .holiday-banner-body { flex: 1 1 220px; min-width: 0; }
 .holiday-banner-kicker {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -6729,7 +6737,7 @@ body.holiday-mode .holiday-banner {
 .summary-item.is-overdue .holiday-summary-icon { background: color-mix(in srgb, var(--status-error) 12%, transparent); color: var(--status-error); }
 .holiday-empty { text-align: center; padding: 20px; color: var(--text-muted); }
 .holiday-modal-art { font-size: var(--text-xl); }
-@keyframes holiday-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes holiday-sway { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
 @media (prefers-reduced-motion: reduce) { .holiday-banner-art { animation: none; } }
 @media (max-width: 480px) {
   .holiday-banner { padding: 14px 16px; }
