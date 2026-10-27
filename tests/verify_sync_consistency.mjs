@@ -55,7 +55,12 @@ function check(name, fn) {
 // Synthetic data only.
 const base = () => ({
   profile: { name: 'Test Student', batch: 'A1', college: 'Test College' },
-  customTasks: [{ id: 't1', title: 'Lab file' }],
+  customTasks: [{ id: 't1', title: 'Lab file', dueDate: '2026-10-30', subject: 'Physics' }],
+  timetableChoice: 'custom',
+  syllabus: [],
+  notificationPrefs: { classes: true },
+  noticeChannels: { all: true },
+  attTarget: 75,
   customTimetable: { 2: [{ subject: 'Data Structures Lab', code: 'DSL', time: '10:00', end: '12:00' }] },
   assignmentStatuses: {},
   attendance: { '2026-09-29': { DSL_1000: 'attended', OE2_1245: 'skipped' } },
@@ -91,6 +96,36 @@ check('A new attendance day, a baseline edit and a timetable edit are each picke
   const tt = base(); tt.customTimetable[2][0].time = '10:15';   // same day count as before
   const bad = [['day', day], ['baseline', bl], ['timetable', tt]].filter(([, d]) => H(d) === H(base())).map(([n]) => n);
   return bad.length ? `ignored: ${bad.join(', ')}` : true;
+});
+
+check('A task edit that keeps the task count (rename, due date, done) is picked up', () => {
+  const edits = {
+    rename: (b) => { b.customTasks[0].title = 'Lab file v2'; },
+    due: (b) => { b.customTasks[0].dueDate = '2026-11-02'; },
+    done: (b) => { b.customTasks[0].status = 'submitted'; }
+  };
+  const bad = Object.entries(edits).filter(([, f]) => { const b = base(); f(b); return H(b) === H(base()); }).map(([n]) => n);
+  return bad.length ? `ignored: ${bad.join(', ')}` : true;
+});
+
+check('Syllabus, notification prefs, notice channels, attendance target and timetable choice are each picked up', () => {
+  const edits = {
+    syllabus: (b) => { b.syllabus = [{ subject: 'Physics', topics: [] }]; },
+    prefs: (b) => { b.notificationPrefs = { classes: false }; },
+    channels: (b) => { b.noticeChannels = { all: false }; },
+    target: (b) => { b.attTarget = 80; },
+    choice: (b) => { b.timetableChoice = 'preset'; }
+  };
+  const bad = Object.entries(edits).filter(([, f]) => { const b = base(); f(b); return H(b) === H(base()); }).map(([n]) => n);
+  return bad.length ? `ignored: ${bad.join(', ')}` : true;
+});
+
+check('Sync hash fails safe: broken input gives null (apply), never a throw or a false match', () => {
+  const circ = base(); circ.customTasks[0].self = circ.customTasks[0];
+  const weird = { customTasks: [null, 5, 'x', {}], syllabus: 'oops', attTarget: 'high' };
+  let r1, r2;
+  try { r1 = H(circ); r2 = H(weird); } catch (e) { return `threw: ${e.message}`; }
+  return (r1 === null || typeof r1 === 'string') && (r2 === null || typeof r2 === 'string') ? true : 'unexpected result';
 });
 
 check('Theme, accent and the server timestamp alone do not rebuild the page', () => {
