@@ -7965,6 +7965,7 @@ let subjectViewSeq = 0;
 let subjectRingsAnimatedSeq = -1;
 
 function navigate(page, isBack = false, keepActiveSubject = false) {
+  if (page !== 'assignments' && (taskSelectMode || taskSelection.size)) { taskSelectMode = false; taskSelection.clear(); }
   if (!PAGES.includes(page)) page = 'dashboard';
   subjectViewSeq++;
 
@@ -16720,9 +16721,154 @@ window.handleTaskNoDeadlineToggle = function(checked) {
   if (hint) hint.style.display = checked ? 'block' : 'none';
 };
 
+// ── Tasks: select mode + bulk delete ───────────────────────────
+// Picked tasks live in this Set, not in the DOM: cloud sync and other
+// background re-renders rebuild the page, which would untick DOM-only boxes
+// (the same bug the Subjects page had). Only the student's own tasks are
+// selectable; built-in data.js tasks cannot be deleted.
+let taskSelectMode = false;
+const taskSelection = new Set();
+let taskDoneOpen = false;      // "Completed (N)" section; closed by default
+let taskVisible = [];          // tasks on screen after filters; delete only touches these
+let _taskLongPressFired = false;
+
+function exitTaskSelect() {
+  if (!taskSelectMode && !taskSelection.size) return;
+  taskSelectMode = false;
+  taskSelection.clear();
+  if (state.currentPage === 'assignments') renderAssignments();
+}
+window.exitTaskSelect = exitTaskSelect;
+
+function enterTaskSelect(id) {
+  taskSelectMode = true;
+  taskSelection.clear();
+  if (id) taskSelection.add(id);
+  renderAssignments();
+}
+window.enterTaskSelect = () => enterTaskSelect(null);
+
+window.toggleTaskSelect = (id) => {
+  if (!taskVisible.some(t => t.id === id && t.isCustom)) return;
+  if (taskSelection.has(id)) taskSelection.delete(id); else taskSelection.add(id);
+  renderAssignments();
+};
+
+window.toggleTaskDoneSection = (open) => {
+  if (state.assignFilter === 'submitted' || taskSelectMode) return;
+  taskDoneOpen = !!open;
+};
+
+window.selectAllCompletedTasks = () => {
+  const done = taskVisible.filter(t => t.isCustom && t.status === 'submitted');
+  if (!done.length) { showToast('No completed tasks of yours on screen to select', 'info'); return; }
+  done.forEach(t => taskSelection.add(t.id));
+  taskDoneOpen = true;
+  renderAssignments();
+};
+
+// "Older than 7 days": completed, with a due date more than 7 days ago.
+// (No completion date is stored; tasks without a deadline are never picked.)
+window.selectOldCompletedTasks = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  const cutoff = localDateKey(d);
+  const old = taskVisible.filter(t => t.isCustom && t.status === 'submitted' && !t.noDeadline && t.dueDate && t.dueDate < cutoff);
+  if (!old.length) { showToast('No completed tasks older than 7 days', 'info'); return; }
+  old.forEach(t => taskSelection.add(t.id));
+  taskDoneOpen = true;
+  renderAssignments();
+};
+
+window.deleteSelectedTasks = () => {
+  const visible = new Set(taskVisible.map(t => t.id));
+  const ids = new Set([...taskSelection].filter(id => visible.has(id) && state.customTasks.some(t => t.id === id)));
+  if (!ids.size) return;
+  const n = ids.size;
+  if (!confirm(`Delete ${n} task${n !== 1 ? 's' : ''}?\n\nYou can undo right after.`)) return;
+  const removed = state.customTasks.filter(t => ids.has(t.id));
+  state.customTasks = state.customTasks.filter(t => !ids.has(t.id));
+  saveCustomTasks();
+  taskSelectMode = false;
+  taskSelection.clear();
+  renderPage(state.currentPage);
+  updateNavBadges();
+  showUndoToast(`${n} task${n !== 1 ? 's' : ''} deleted`, () => {
+    // Put back exactly what was removed. Written directly (not through
+    // saveCustomTasks) so its 14-day clean-up cannot delete them again.
+    const have = new Set(state.customTasks.map(t => t.id));
+    state.customTasks = [...state.customTasks, ...removed.filter(t => !have.has(t.id))];
+    safeSetStorage(KEY_CUSTOM_TASKS, state.customTasks);
+    syncToCloud();
+    renderPage(state.currentPage);
+    updateNavBadges();
+    showToast(`${n} task${n !== 1 ? 's' : ''} restored`, 'info');
+  });
+};
+
+window.taskCardClick = (e, id) => {
+  if (!taskSelectMode) return;
+  e.preventDefault();
+  window.toggleTaskSelect(id);
+};
+
+// Press and hold a task (about half a second) to start selecting.
+(function wireTaskLongPress() {
+  if (window.__taskLongPressWired) return;
+  window.__taskLongPressWired = true;
+  const HOLD_MS = 500, MOVE_PX = 10;
+  let timer = null, sx = 0, sy = 0;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  document.addEventListener('pointerdown', (e) => {
+    cancel();
+    if (taskSelectMode || state.currentPage !== 'assignments') return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const card = e.target.closest && e.target.closest('#page-assignments .assignment-card');
+    if (!card || e.target.closest('.assignment-checkbox, .tk-more, .tk-subj, button, a, summary')) return;
+    const id = (card.id || '').replace(/^ac-/, '');
+    const task = taskVisible.find(t => t.id === id);
+    sx = e.clientX; sy = e.clientY;
+    timer = setTimeout(() => {
+      timer = null;
+      _taskLongPressFired = true;
+      if (!task || !task.isCustom) { showToast('Built-in tasks cannot be deleted', 'info'); return; }
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+      enterTaskSelect(id);
+    }, HOLD_MS);
+  }, true);
+  document.addEventListener('pointermove', (e) => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > MOVE_PX) cancel(); }, true);
+  ['pointerup', 'pointercancel', 'scroll'].forEach(ev => document.addEventListener(ev, cancel, true));
+  // The suppression only needs to last until the click that ends this press.
+  // That click may never arrive (the page re-rendered under the finger), so
+  // clear the flag just after the finger lifts instead of leaving it armed.
+  ['pointerup', 'pointercancel'].forEach(ev => document.addEventListener(ev, () => {
+    if (_taskLongPressFired) setTimeout(() => { _taskLongPressFired = false; }, 80);
+  }, true));
+  // The click that ends a long press must not also tick/untick or open anything.
+  document.addEventListener('click', (e) => {
+    if (!_taskLongPressFired) return;
+    _taskLongPressFired = false;
+    e.stopPropagation(); e.preventDefault();
+  }, true);
+  document.addEventListener('contextmenu', (e) => {
+    if ((taskSelectMode || _taskLongPressFired) && e.target.closest && e.target.closest('#page-assignments .assignment-card')) e.preventDefault();
+  });
+  // Keyboard: Enter goes on to delete the picked tasks, Esc goes back.
+  document.addEventListener('keydown', (e) => {
+    if (!taskSelectMode || state.currentPage !== 'assignments') return;
+    if (document.querySelector('.modal-backdrop') || (typeof _assistantOpen !== 'undefined' && _assistantOpen)) return;
+    const t = e.target;
+    if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (e.key === 'Escape') { e.preventDefault(); exitTaskSelect(); }
+    else if (e.key === 'Enter' && taskSelection.size && !(t && t.closest && t.closest('button, a, summary'))) { e.preventDefault(); window.deleteSelectedTasks(); }
+  });
+})();
+
 function renderAssignments() {
   const el  = document.getElementById('page-assignments');
   const all = allTasks();
+  // Drop picks that no longer exist (deleted on another device, etc.).
+  taskSelection.forEach(id => { if (!all.some(a => a.id === id && a.isCustom)) taskSelection.delete(id); });
 
   if (!state.assignTypeFilter) state.assignTypeFilter = 'all';
   const today = todayStr();
@@ -16798,6 +16944,7 @@ function renderAssignments() {
     if (isOngoingA && isOngoingB) return a.title.localeCompare(b.title);
     return (a.dueDate || '').localeCompare(b.dueDate || '');
   });
+  taskVisible = filtered;
 
   // Both filter rows list every possible category regardless of whether
   // the user has any tasks in it -- for a lightly-used account that's up
@@ -16876,17 +17023,23 @@ function renderAssignments() {
     if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">High priority</span>`);
     if (a.marks > 0) bits.push(`<span class="tk-marks">${a.marks} marks</span>`);
 
-    return `
-      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''}" id="ac-${a.id}">
-        <div class="assignment-checkbox" onclick="toggleAssignment('${a.id}')">
+    const picked = taskSelectMode && taskSelection.has(a.id);
+    const leadBox = taskSelectMode
+      ? (isCustom
+          ? `<div class="tk-pick ${picked ? 'on' : ''}" role="checkbox" aria-checked="${picked}" aria-label="Select task">${picked ? icons.check() : ''}</div>`
+          : `<div class="tk-pick off" aria-hidden="true"></div>`)
+      : `<div class="assignment-checkbox" onclick="toggleAssignment('${a.id}')">
           ${done ? icons.check() : ''}
-        </div>
+        </div>`;
+    return `
+      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
+        ${leadBox}
         <div class="assignment-body">
           <div class="assignment-title">${a.title}</div>
           <div class="tk-meta">${bits.join('')}</div>
           ${(a.description || '').trim() && a.description.trim() !== '—' ? `<div class="assignment-desc">${a.description}</div>` : ''}
         </div>
-        ${isCustom ? `
+        ${isCustom && !taskSelectMode ? `
           <details class="tk-more">
             <summary aria-label="More actions" title="More actions">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 20)}</summary>
             <div class="tk-more-menu">
@@ -16920,8 +17073,17 @@ function renderAssignments() {
     const buckets = {};
     filtered.forEach(a => { const k = taskGroupOf(a); (buckets[k] = buckets[k] || []).push(a); });
     const present = TASK_GROUPS.filter(g => buckets[g.key]);
-    if (present.length <= 1) return filtered.map(renderTaskCard).join('');
-    return present.map(g => `<section class="tk-group tk-group-${g.key}" aria-label="${g.label}"><h2 class="tk-group-head">${g.label} · ${buckets[g.key].length}</h2>${buckets[g.key].map(renderTaskCard).join('')}</section>`).join('');
+    // Completed tasks fold away (closed by default) unless the Completed
+    // filter or select mode is on, so finished work stops crowding the list.
+    const foldDone = !!buckets.done && state.assignFilter !== 'submitted';
+    if (present.length <= 1 && !foldDone) return filtered.map(renderTaskCard).join('');
+    return present.map(g => {
+      if (g.key === 'done' && foldDone) {
+        const open = taskDoneOpen || taskSelectMode;
+        return `<details class="tk-group tk-group-done tk-fold" ${open ? 'open' : ''} ontoggle="toggleTaskDoneSection(this.open)"><summary class="tk-group-head">Completed (${buckets.done.length})</summary>${buckets.done.map(renderTaskCard).join('')}</details>`;
+      }
+      return `<section class="tk-group tk-group-${g.key}" aria-label="${g.label}"><h2 class="tk-group-head">${g.label} · ${buckets[g.key].length}</h2>${buckets[g.key].map(renderTaskCard).join('')}</section>`;
+    }).join('');
   };
 
   const cards = filtered.length ? renderGroupedTasks() : (all.length === 0 
@@ -16953,10 +17115,20 @@ function renderAssignments() {
         <div class="page-subtitle">${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed</div>
       </div>
       <div class="tk-header-actions">
+        ${all.some(a => a.isCustom) && !taskSelectMode ? `<button class="btn-secondary" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
         <button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>
         <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
       </div>
     </div>
+    ${taskSelectMode ? `
+      <div class="tk-selectbar" role="toolbar" aria-label="Select tasks" data-testid="task-selectbar">
+        <span class="tk-sel-count">${[...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length} selected</span>
+        <button type="button" class="btn-secondary btn-sm" onclick="selectAllCompletedTasks()">Select all completed</button>
+        <button type="button" class="btn-secondary btn-sm" onclick="selectOldCompletedTasks()">Older than 7 days</button>
+        <button type="button" class="btn-primary btn-sm tk-sel-delete" data-testid="delete-selected-tasks" onclick="deleteSelectedTasks()"${taskSelection.size ? '' : ' disabled'}>${icons.trash()} Delete (${[...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length})</button>
+        <button type="button" class="btn-secondary btn-sm" onclick="exitTaskSelect()">Cancel</button>
+        <span class="tk-sel-hint">Tap tasks to pick or unpick · Enter deletes · Esc cancels</span>
+      </div>` : ''}
     ${all.length ? `
       <div class="tk-seg" role="group" aria-label="Show tasks">${segBar}</div>
       <div class="tk-toolbar">
