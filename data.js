@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u106",
+    date: "2026-10-28",
+    title: "The holiday palm now sways smoothly and no longer jumps back when Today refreshes",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The holiday palm now sways smoothly and no longer jumps back when Today refreshes",
+    points: [
+
+    ]
+  },
+  {
+    id: "u105",
+    date: "2026-10-28",
+    title: "Holiday mode feels more like a holiday: a soft sunset on Today, no countdown or notice nudges during the break, and a welcome-back card on your first day back",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Holiday mode feels more like a holiday: a soft sunset on Today, no countdown or notice nudges during the break, and a welcome-back card on your first day back",
+    points: [
+
+    ]
+  },
+  {
     id: "u104",
     date: "2026-10-28",
     title: "Dev Notes are tidier: the version number at the end of each note is gone, and each note still shows its date",
