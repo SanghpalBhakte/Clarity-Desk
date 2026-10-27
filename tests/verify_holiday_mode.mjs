@@ -63,7 +63,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, loadHoliday, isHolidayActive, timetableForDisplay, setHoliday, checkHolidayExpiry, holidayLabel, getCalendarItems, renderCalendar, renderDashboard, renderTimetable, getOverallAttendance, getSubjectList, getSubjectAttendance, checkScheduledNotifications, importData, applyCloudDataToLocalState, loadTimetable };`)();
+const makeApp = () => new Function(`${code}\n return { state, isHolidayScheduled, isTaskPausedForHoliday, holidayDaysLeft, holidayBriefingHTML, renderSummaryContent, sanitizeTask, getDynamicGreeting, loadHoliday, isHolidayActive, timetableForDisplay, setHoliday, checkHolidayExpiry, holidayLabel, getCalendarItems, renderCalendar, renderDashboard, renderTimetable, getOverallAttendance, getSubjectList, getSubjectAttendance, checkScheduledNotifications, importData, applyCloudDataToLocalState, loadTimetable };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '10:00', end: '11:00', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -151,7 +151,7 @@ check('Guard: setHoliday ignores an end date that is not after today', () => {
   const h1 = a.loadHoliday();
   a.setHoliday(true, '2026-11-03');
   const h2 = a.loadHoliday();
-  return h1.until === null && h1.since === '2026-10-19' && h2.until === '2026-11-03' && a.holidayLabel() === 'Until 3 Nov' ? true : JSON.stringify([h1, h2]);
+  return h1.until === null && h1.since === '2026-10-19' && h2.until === '2026-11-03' && a.holidayLabel() === 'Back on 3 Nov' ? true : JSON.stringify([h1, h2]);
 });
 
 // ── Auto-off ─────────────────────────────────────────────────────
@@ -204,12 +204,12 @@ check('Calendar: after resume, classes and the General + own-group filter are ex
 });
 
 // ── Today ────────────────────────────────────────────────────────
-check('Today: holiday card with Resume, quiet empty state, no class names or countdown', () => {
+check('Today: holiday banner with End early, quiet empty state, no class names or countdown', () => {
   seed(H('2026-10-19', '2026-11-03')); at('2026-10-19T09:50:00');
   const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  const ok = html.includes('Holiday mode') && html.includes('Until 3 Nov') && html.includes('resumeClasses()')
-    && html.includes('No classes during your break')
+  const ok = html.includes('holiday-banner') && html.includes('Holiday mode') && html.includes('Back on 3 Nov') && html.includes('15 days to go') && html.includes('endHolidayEarly()') && html.includes('End early')
+    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title">Today's Schedule/.test(html)
     && !html.includes('Data Structures') && !html.includes('data-beacon=') && !html.includes('classes remaining')
     && !html.includes('today-focus is-unmarked') && !html.includes('today-focus is-risk');
   return ok ? true : 'holiday Today markup wrong';
@@ -234,6 +234,105 @@ check('Timetable page: grid still shows, with a holiday banner', () => {
   const a = makeApp(); a.state.ttDay = 1; a.state.currentPage = 'timetable'; a.renderTimetable();
   const html = domCache['page-timetable'].innerHTML;
   return html.includes('Holiday mode is on') && html.includes('Data Structures') ? true : 'timetable page wrong';
+});
+
+// ── Date range, paused tasks, briefing (CD-04) ───────────────────
+const ONGOING = { id: 'h-2', title: 'Read one paper a week', taskType: 'mission', noDeadline: true, dueDate: '', status: 'pending' };
+const KEPT    = { id: 'h-3', title: 'Gym streak', taskType: 'general', noDeadline: true, dueDate: '', status: 'pending', keepInHoliday: true };
+const INSIDE  = { id: 'h-4', title: 'Lab journal', taskType: 'lab', dueDate: '2026-10-23', status: 'pending' };
+const AFTER   = { id: 'h-5', title: 'Mini project', taskType: 'project', dueDate: '2026-12-01', status: 'pending' };
+const LATE    = { id: 'h-6', title: 'Old quiz', taskType: 'quiz', dueDate: '2026-10-15', status: 'pending' };
+const ALL_TASKS = [...TASKS, ONGOING, KEPT, INSIDE, AFTER, LATE];
+
+check('Range: a future start is planned, not active, and starts by itself on the day', () => {
+  seed(); at('2026-10-19T09:50:00');
+  const a = makeApp();
+  a.setHoliday(true, '2026-10-29', '2026-10-24');
+  const h = a.loadHoliday();
+  const planned = a.isHolidayScheduled() && !a.isHolidayActive() && h.since === '2026-10-24' && h.until === '2026-10-29';
+  at('2026-10-24T07:00:00');
+  const b = makeApp();
+  const started = b.isHolidayActive() && !b.isHolidayScheduled() && b.holidayDaysLeft() === 5;
+  at('2026-10-29T00:01:00');
+  const c = makeApp();
+  const ended = c.checkHolidayExpiry() === true && !c.isHolidayActive();
+  return planned && started && ended ? true : `${planned}/${started}/${ended}`;
+});
+
+check('Range: a start in the past or an end not after the start are refused', () => {
+  seed(); at('2026-10-19T09:50:00');
+  const a = makeApp();
+  a.setHoliday(true, '2026-10-24', '2026-10-01');
+  const h1 = a.loadHoliday();
+  a.setHoliday(true, '2026-10-24', '2026-10-24');
+  const h2 = a.loadHoliday();
+  return h1.since === '2026-10-19' && h1.until === '2026-10-24' && h2.since === '2026-10-24' && h2.until === null ? true : JSON.stringify([h1, h2]);
+});
+
+check('Tasks: ongoing tasks rest during the break unless kept; dated tasks never rest', () => {
+  seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26') }); at('2026-10-19T09:50:00');
+  const a = makeApp();
+  const during = ALL_TASKS.filter(t => a.isTaskPausedForHoliday(t)).map(t => t.id).join(',');
+  const after = ALL_TASKS.filter(t => a.isTaskPausedForHoliday(t, '2026-10-26')).map(t => t.id).join(',');
+  return during === 'h-2' && after === '' ? true : `${during} | ${after}`;
+});
+
+check('Tasks: keepInHoliday survives save, only as true, and old tasks keep their shape', () => {
+  seed(); const a = makeApp();
+  const kept = a.sanitizeTask(KEPT);
+  const plain = a.sanitizeTask(ONGOING);
+  const junk = a.sanitizeTask({ ...ONGOING, keepInHoliday: 'yes' });
+  return kept.keepInHoliday === true && !('keepInHoliday' in plain) && !('keepInHoliday' in junk) ? true : JSON.stringify([kept, plain, junk]);
+});
+
+check('Today: resting tasks leave the list, every real deadline stays, attendance panel rests', () => {
+  seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26') }); at('2026-10-19T09:50:00');
+  const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const html = domCache['page-dashboard'].innerHTML;
+  // Four rows max: the overdue and dated tasks come first, the kept ongoing one is "+1 more".
+  const ok = !html.includes('Read one paper a week') && html.includes('+1 more task')
+    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title">Attendance/.test(html) && html.includes('Lab journal') && html.includes('Old quiz') && html.includes('DBMS assignment')
+    && html.includes('1 ongoing task is resting');
+  return ok ? true : 'Today task list wrong';
+});
+
+check('Today: a planned break shows a quiet "starts on" line, no banner yet', () => {
+  seed({ cos_holiday: { on: true, since: '2026-10-24', until: '2026-10-29' } }); at('2026-10-19T09:50:00');
+  const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const html = domCache['page-dashboard'].innerHTML;
+  return html.includes('Holiday starts on Sat, 24 Oct') && !html.includes('holiday-banner') && html.includes('Data Structures') ? true : 'planned Today wrong';
+});
+
+check('Greeting: holiday words while the break is on', () => {
+  seed(H('2026-10-19')); at('2026-10-19T09:50:00');
+  const g = makeApp().getDynamicGreeting('Asha', { holiday: true });
+  return /Happy holidays|Enjoy the break|Easy day/.test(g) ? true : g;
+});
+
+check('Briefing: holiday view lists deadlines inside the break (and overdue) plus kept tasks only', () => {
+  seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26') }); at('2026-10-19T09:50:00');
+  const a = makeApp();
+  const box = { innerHTML: '' }; a.renderSummaryContent(box);
+  const html = box.innerHTML;
+  const ok = html.includes('Deadlines during your break') && html.includes('Lab journal') && html.includes('DBMS assignment')
+    && html.includes('Old quiz') && html.includes('Gym streak') && html.includes('endHolidayEarly()')
+    && !html.includes('Read one paper a week') && !html.includes('Mini project') && !html.includes("Today's Schedule");
+  return ok ? true : 'holiday briefing wrong';
+});
+
+check('Briefing: normal view unchanged when the break is off', () => {
+  seed({ cos_custom_tasks: ALL_TASKS }); at('2026-10-19T09:50:00');
+  const box = { innerHTML: '' }; makeApp().renderSummaryContent(box);
+  return box.innerHTML.includes("Today's Schedule") && box.innerHTML.includes('Read one paper a week') && !box.innerHTML.includes('holiday-banner') ? true : 'normal briefing changed';
+});
+
+check('Reminders (app): deadline reminders still come during the break', () => {
+  seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26'),
+    cos_notif_prefs: { classReminders: '15_min', attendanceAlerts: 'off', taskUpcoming: 'day_before', taskOverdue: 'instant', dailySummaryTime: '08:00', newNotices: 'off' } });
+  at('2026-10-19T09:50:00');
+  makeApp().checkScheduledNotifications();
+  const ok = sent.some(t => /DBMS assignment/.test(t)) && sent.some(t => /Old quiz/.test(t)) && sent.includes('Clarity Desk: Holiday check-in') && !sent.some(t => /Class Starting Soon/.test(t));
+  return ok ? true : JSON.stringify(sent);
 });
 
 // ── Attendance and data safety ───────────────────────────────────

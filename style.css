@@ -6626,6 +6626,52 @@ html.more-sheet-open .more-sheet {
   color: var(--accent); font: inherit; font-weight: 600; cursor: pointer;
 }
 .holiday-note-action:hover { text-decoration: underline; }
+
+/* Holiday mode feel: only while a break is on (body.holiday-mode from
+   applyHolidayVibe). Warm sun and sea tints mixed into each theme's own
+   colours, so it works in light and dark. */
+body.holiday-mode {
+  --holiday-sun: #f2994a;
+  --holiday-sea: #2bb3a3;
+  --accent: color-mix(in srgb, var(--color-action-primary) 55%, var(--holiday-sun));
+  background-image:
+    radial-gradient(1200px 420px at 100% -10%, color-mix(in srgb, var(--holiday-sun) 13%, transparent), transparent 70%),
+    radial-gradient(900px 360px at -10% 110%, color-mix(in srgb, var(--holiday-sea) 10%, transparent), transparent 70%);
+  background-attachment: fixed;
+}
+body.holiday-mode .desk-greeting-name { color: var(--holiday-sun); }
+.holiday-banner {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 16px 20px; margin-bottom: 22px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--holiday-sun, #f2994a) 30%, var(--border));
+  background: linear-gradient(120deg,
+    color-mix(in srgb, var(--holiday-sun, #f2994a) 16%, var(--surface)),
+    color-mix(in srgb, var(--holiday-sea, #2bb3a3) 12%, var(--surface)));
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--holiday-sun, #f2994a) 30%, transparent);
+}
+.holiday-banner-art { font-size: 2rem; line-height: 1; animation: holiday-sway 6s ease-in-out infinite; transform-origin: 50% 100%; }
+.holiday-banner-body { flex: 1 1 220px; min-width: 0; }
+.holiday-banner-kicker {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary);
+}
+.holiday-banner-title { font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); margin-top: 2px; }
+.holiday-banner-meta { font-size: var(--text-sm); color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.holiday-banner-end { flex-shrink: 0; }
+.holiday-banner.is-compact { margin-bottom: 0; }
+.holiday-rest-note { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--text-sm); color: var(--text-muted); }
+.holiday-summary-icon { background: color-mix(in srgb, var(--holiday-sea, #2bb3a3) 14%, transparent); color: var(--holiday-sea, #2bb3a3); }
+.summary-item.is-overdue { border-left: 3px solid var(--status-error); }
+.summary-item.is-overdue .holiday-summary-icon { background: color-mix(in srgb, var(--status-error) 12%, transparent); color: var(--status-error); }
+.holiday-empty { text-align: center; padding: 20px; color: var(--text-muted); }
+.holiday-modal-art { font-size: var(--text-xl); }
+@keyframes holiday-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .holiday-banner-art { animation: none; } }
+@media (max-width: 480px) {
+  .holiday-banner { padding: 14px 16px; }
+  .holiday-banner-end { width: 100%; }
+}
 .cal-quick-add { margin-top: var(--space-10); font-size: var(--text-sm); padding: 6px 14px; }
 .cal-agenda { margin-top: var(--space-16); }
 .cal-agenda-day { font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); margin: var(--space-12) 0 var(--space-6); }
