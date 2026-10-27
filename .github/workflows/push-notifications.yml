@@ -17,9 +17,12 @@ name: Background Push Notifications
 #      Settings -> Cloud Messaging -> Web Push certificates) and put the
 #      public key in firebase-config.js (already done for the initial key).
 
+# No schedule: closed-app reminders are sent by push-worker/ (Cloudflare).
+# This job reads every user's whole document on each run, so every 15 minutes
+# it would pass Firestore's free 50K reads/day at about 260 users and stop
+# everyone's sync. Its FIREBASE_SERVICE_ACCOUNT secret has also been invalid
+# since at least 2026-10-10, so it has sent nothing. Manual runs only.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 concurrency:
