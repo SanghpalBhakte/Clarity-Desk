@@ -19664,7 +19664,7 @@ function renderSettings() {
 // rough device type and installed-or-browser mode are sent; no tasks, chats
 // or names. While FEEDBACK_URL is empty the old prefilled GitHub issue link
 // is used instead, and it stays as the fallback if sending fails.
-const FEEDBACK_URL = '';
+const FEEDBACK_URL = 'https://clarity-desk-feedback.sanghapal2006.workers.dev/';
 const FEEDBACK_MAX_CHARS = 2000;
 const FEEDBACK_SHOT_MAX_BYTES = 700 * 1024;
 const FEEDBACK_QUEUE_MAX = 3;
