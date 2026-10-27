@@ -79,12 +79,12 @@ const verOf = (src) => Number((src.match(/clarity-desk-v(\d+)/) || [])[1]);
 const cur = verOf(swSrc);
 const head = verOf(git('show', 'HEAD:sw.js'));
 if (!cur) fail("Couldn't find the cache version (clarity-desk-vN) in sw.js.");
-for (const f of ['index.html', '404.html']) {
+for (const f of ['index.html', '404.html', 'sw.js']) {
   const bad = [...fs.readFileSync(f, 'utf8').matchAll(/\?v=(\d+)/g)].filter((m) => Number(m[1]) !== cur);
   if (bad.length) fail(`${f} has ?v=${bad[0][1]} but sw.js is v${cur}. Make them match before shipping.`);
 }
 const runtime = new Set(['404.html', ...[...(swSrc.match(/PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\]/) || [, ''])[1]
-  .matchAll(/'([^']*)'/g)].map((m) => m[1].replace(/^\.\//, '')).filter(Boolean)]);
+  .matchAll(/'([^']*)'/g)].map((m) => m[1].replace(/^\.\//, '').replace(/\?v=\d+$/, '')).filter(Boolean)]);
 const appChanged = changes.some((c) => runtime.has(c.file));
 
 // Changes merged through a pull request are already committed, so the check
@@ -180,7 +180,7 @@ if (changes.length && appChanged && !message.includes(`v${ver}`)) message += ` (
 if (needsBump) {
   step(`Bumping cache version v${cur} -> v${ver}`);
   for (const f of ['index.html', '404.html']) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').split(`?v=${cur}`).join(`?v=${ver}`));
-  fs.writeFileSync('sw.js', swSrc.replace(`clarity-desk-v${cur}`, `clarity-desk-v${ver}`));
+  fs.writeFileSync('sw.js', swSrc.replace(`clarity-desk-v${cur}`, `clarity-desk-v${ver}`).split(`?v=${cur}`).join(`?v=${ver}`));
 }
 
 if (!SKIP_TESTS) {

@@ -2,30 +2,27 @@ const CACHE_NAME = 'clarity-desk-v229';
 // How long a page/script request waits for the network before the saved
 // copy is used (only when a saved copy exists).
 const NETWORK_WAIT_MS = 3000;
+// URLs are spelled exactly as index.html requests them (with ?v=N), so the
+// install step and the page share one download. scripts/ship.mjs bumps ?v=N.
+// deadline-import*.js and vendor/jszip.min.js are cached on first use instead.
 const PRECACHE_ASSETS = [
   './',
   './index.html',
-  'index.html',
-  './style.css',
-  'style.css',
-  './app.js',
-  'app.js',
+  'app.js?v=229',
+  'style.css?v=229',
+  'firebase-config.js?v=229',
   './data.js',
-  './firebase-config.js',
   './manifest.json',
-  './favicon.ico',
-  './favicon.svg',
-  './favicon-32.png',
-  './favicon-16.png',
-  './apple-touch-icon.png',
+  'favicon.ico?v=229',
+  'favicon.svg?v=229',
+  'favicon-32.png?v=229',
+  'favicon-16.png?v=229',
+  'apple-touch-icon.png?v=229',
   './icon-192.png',
   './icon-192-maskable.png',
   './icon-512.png',
   './icon-512-maskable.png',
-  './badge-96.png',
-  './deadline-import.js',
-  './deadline-import-worker.js',
-  './vendor/jszip.min.js'
+  './badge-96.png'
 ];
 
 self.addEventListener('install', (e) => {

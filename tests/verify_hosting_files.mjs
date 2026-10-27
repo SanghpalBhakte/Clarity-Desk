@@ -96,9 +96,30 @@ scenario('.git, internal notes, test kits and tests are never published', () => 
 scenario('Every precached service-worker file is published', () => {
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const list = sw.slice(sw.indexOf('['), sw.indexOf(']') + 1);
-  const files = [...list.matchAll(/'\.?\/?([^']*)'/g)].map(m => m[1]).filter(Boolean);
+  const files = [...list.matchAll(/'\.?\/?([^']*)'/g)].map(m => m[1].replace(/\?v=\d+$/, '')).filter(Boolean);
   const missing = [...new Set(files)].filter(f => !published.includes(f));
   return files.length && missing.length === 0 ? true : `precached but not published: ${missing.join(', ') || '(no precache list found)'}`;
+});
+const precacheUrls = () => {
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const start = sw.indexOf('PRECACHE_ASSETS');
+  const list = sw.slice(sw.indexOf('[', start), sw.indexOf(']', start) + 1);
+  return { sw, urls: [...list.matchAll(/'(?:\.\/)?([^']*)'/g)].map(m => m[1]) };
+};
+scenario('No duplicate precache URLs', () => {
+  const { urls } = precacheUrls();
+  const seen = new Set(), dupes = [];
+  for (const u of urls) { if (seen.has(u)) dupes.push(u); seen.add(u); }
+  return urls.length && dupes.length === 0 ? true : `listed twice: ${dupes.join(', ') || '(no precache list found)'}`;
+});
+scenario("Every ?v= in the precache list matches CACHE_NAME's version", () => {
+  const { sw, urls } = precacheUrls();
+  const cur = (sw.match(/CACHE_NAME\s*=\s*'clarity-desk-v(\d+)'/) || [])[1];
+  const versioned = urls.filter(u => /\?v=/.test(u));
+  const bad = versioned.filter(u => !u.endsWith(`?v=${cur}`));
+  if (!cur) return 'CACHE_NAME version not found';
+  if (!versioned.some(u => u === `app.js?v=${cur}`)) return 'app.js?v=N is not in the precache list';
+  return bad.length === 0 ? true : `wrong version: ${bad.join(', ')}`;
 });
 
 scenario('Analytics beacon loads for real visitors on the live site only, never for automated browsers', () => {
