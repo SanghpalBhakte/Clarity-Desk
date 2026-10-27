@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
 const PORT = parseInt(process.env.PORT || '4173', 10);
+const CDN_RE = /https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@[0-9a-f]{40}\//g;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -34,7 +35,14 @@ const server = http.createServer((req, res) => {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Access-Control-Allow-Origin': '*'
     });
-    fs.createReadStream(filePath).pipe(res);
+    // index.html, 404.html and sw.js load app files from a jsDelivr copy
+    // pinned to the last deployed commit. Tests must run the working tree,
+    // so point those URLs back at this server.
+    if (ext === '.html' || reqPath === '/sw.js') {
+      res.end(fs.readFileSync(filePath, 'utf8').replace(CDN_RE, ''));
+    } else {
+      fs.createReadStream(filePath).pipe(res);
+    }
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');

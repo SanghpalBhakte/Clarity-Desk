@@ -10,7 +10,9 @@
 // (changed = uncommitted, or different from what the live site serves, e.g.
 // merged through a pull request; if the site can't be reached, committed
 // after the commit that set the current version) -> npm test -> commit -> Dev Notes (npm run devnotes, own "chore:" commit)
-// -> push -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
+// -> point index.html/404.html/sw.js at the jsDelivr copy of HEAD's app files
+// (own "chore:" commit, only if they changed) -> push -> check jsDelivr serves
+// exactly those files -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
 // test (npm run test:smoke against each of SITES; a failure warns in red and exits 1,
 // but the deploy stays live -- nothing is rolled back). Stops at the
 // first failure. Never resets, cleans or force-pushes. "Claude outputs/" is
@@ -34,11 +36,19 @@ const SITE = 'https://campusos-83365.web.app';
 // Both Hosting sites (targets "app" and "claritydesk" in .firebaserc) get the same deploy;
 // each one is smoke-tested. SITE stays the one the live version check reads.
 const SITES = [SITE, 'https://claritydesk.web.app'];
+// app.js, style.css and data.js load from jsDelivr (Cloudflare) pinned to a git
+// commit, with this site as the fallback; deadline-import.js comes along
+// through app.js's import(). See index.html.
+const CDN = 'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@';
+const CDN_RE = /https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@([0-9a-f]{40})\//g;
+const CDN_FILES = ['app.js', 'style.css', 'data.js', 'deadline-import.js'];
+const CDN_PAGES = ['index.html', '404.html', 'sw.js'];
 
 const step = (s) => console.log(`\n▶ ${s}`);
 const fail = (s) => { console.error(`\n✗ ${s}`); process.exit(1); };
 function run(cmd, cmdArgs, { shell = false, capture = false, cwd } = {}) {
-  const r = spawnSync(cmd, cmdArgs, { cwd, shell, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
+  // app.js is over spawnSync's 1 MB default output limit (git show in checkCdn).
+  const r = spawnSync(cmd, cmdArgs, { cwd, shell, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
   if (r.error) fail(`Could not start ${cmd}: ${r.error.message}`);
   return r;
 }
@@ -49,6 +59,36 @@ function git(...a) {
   const r = run('git', a, { capture: true });
   if (r.status !== 0) fail(`git ${a.join(' ')} failed:\n${r.stderr}`);
   return r.stdout;
+}
+
+// The one jsDelivr commit index.html, 404.html and sw.js load the app from.
+function cdnCommit() {
+  const shas = new Set(CDN_PAGES.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(CDN_RE)].map((m) => m[1])));
+  if (shas.size !== 1) fail(`index.html, 404.html and sw.js must load the app from one jsDelivr commit (found ${shas.size}).`);
+  return [...shas][0];
+}
+// True when the app files at `sha` are the same as at HEAD.
+const sameAppFiles = (sha) => run('git', ['cat-file', '-e', `${sha}^{commit}`], { capture: true }).status === 0
+  && run('git', ['diff', '--quiet', sha, 'HEAD', '--', ...CDN_FILES], { capture: true }).status === 0;
+
+// jsDelivr must serve exactly the committed files before the pages that use
+// them go live. It reads them from GitHub, so this runs after the push.
+async function checkCdn(sha) {
+  for (const f of CDN_FILES) {
+    const want = git('show', `${sha}:${f}`);
+    let why = '';
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(`${CDN}${sha}/${f}`, { signal: AbortSignal.timeout(30000) });
+        const got = await r.text();
+        if (r.ok && got === want) { why = ''; break; }
+        why = r.ok ? 'content differs' : `HTTP ${r.status}`;
+      } catch (err) { why = err.message; }
+      await new Promise((res) => setTimeout(res, 5000));
+    }
+    if (why) fail(`jsDelivr does not serve ${f} for commit ${sha.slice(0, 7)} (${why}).\n` +
+      '  The commit is pushed but NOT deployed; the live site is unchanged. Run npm run ship again in a few minutes.');
+  }
 }
 
 // data.js must still load, with a non-empty DEV_UPDATES list.
@@ -83,8 +123,9 @@ for (const f of ['index.html', '404.html', 'sw.js']) {
   const bad = [...fs.readFileSync(f, 'utf8').matchAll(/\?v=(\d+)/g)].filter((m) => Number(m[1]) !== cur);
   if (bad.length) fail(`${f} has ?v=${bad[0][1]} but sw.js is v${cur}. Make them match before shipping.`);
 }
+const cdnFrom = cdnCommit();
 const runtime = new Set(['404.html', ...[...(swSrc.match(/PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\]/) || [, ''])[1]
-  .matchAll(/'([^']*)'/g)].map((m) => m[1].replace(/^\.\//, '').replace(/\?v=\d+$/, '')).filter(Boolean)]);
+  .matchAll(/'([^']*)'/g)].map((m) => m[1].replace(/^\.\//, '').replace(new RegExp(CDN_RE.source), '').replace(/\?v=\d+$/, '')).filter(Boolean)]);
 const appChanged = changes.some((c) => runtime.has(c.file));
 
 // Changes merged through a pull request are already committed, so the check
@@ -159,6 +200,7 @@ const bumpWhy = appChanged && cur === head ? 'app files changed'
 console.log(`Cache version: ${needsBump ? `v${cur} -> v${ver} (${bumpWhy})` : `v${ver}${cur !== head ? ' (already bumped)' : ''}`}`);
 if (bumpOnly) console.log(`The bump gets its own commit: "chore: bump the cache version to v${ver}".`);
 if (workerChanged) console.log('ai-proxy/ changed: the AI proxy will be deployed too.');
+console.log(`jsDelivr copy: commit ${cdnFrom.slice(0, 7)}${!changes.length && sameAppFiles(cdnFrom) ? ' (same app files as HEAD, stays)' : ' (moves to the commit being deployed if app files changed)'}.`);
 console.log(`After deploy: live smoke test against ${SITES.join(' and ')} (npm run test:smoke).`);
 if (DRY) {
   console.log('\nDev Notes (commits so far; this commit is added too unless it starts with chore:/test:):');
@@ -212,10 +254,27 @@ if (notesChanged.includes('data.js')) {
   git('checkout', '--', '.devnotes-state.json');
 }
 
+step('Pointing the app at its jsDelivr copy');
+let cdnSha = cdnCommit();
+if (sameAppFiles(cdnSha)) {
+  console.log(`Unchanged: commit ${cdnSha.slice(0, 7)} has the same app files.`);
+} else {
+  const headSha = git('rev-parse', 'HEAD').trim();
+  for (const f of CDN_PAGES) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').split(cdnSha).join(headSha));
+  git('add', '--', ...CDN_PAGES);
+  if (run('git', ['commit', '-m', `chore: load the app files from jsDelivr at ${headSha.slice(0, 7)}`]).status !== 0) {
+    fail('Commit failed. Nothing was pushed or deployed.');
+  }
+  cdnSha = headSha;
+}
+
 step(`Pushing to origin/${branch}`);
 if (run('git', ['push']).status !== 0) {
   fail('Push failed. Nothing was deployed. Your commit is saved locally: fix the push, then run npm run ship again.');
 }
+
+step(`Checking the jsDelivr copy at ${cdnSha.slice(0, 7)}`);
+await checkCdn(cdnSha);
 
 step('Deploying hosting');
 if (sh('firebase deploy --only hosting').status !== 0) fail('Firebase deploy failed. Code is committed and pushed.');

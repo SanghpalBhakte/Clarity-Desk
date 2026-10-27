@@ -93,10 +93,13 @@ scenario('.git, internal notes, test kits and tests are never published', () => 
     .filter(p => !matchers.some(match => match(p)));
   return leaks.length === 0 ? true : `these would be public: ${leaks.join(', ')}`;
 });
+const CDN_PREFIX = /^https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@[0-9a-f]{40}\//;
+const CDN_ALL = /https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@([0-9a-f]{40})\//g;
 scenario('Every precached service-worker file is published', () => {
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const list = sw.slice(sw.indexOf('['), sw.indexOf(']') + 1);
-  const files = [...list.matchAll(/'\.?\/?([^']*)'/g)].map(m => m[1].replace(/\?v=\d+$/, '')).filter(Boolean);
+  // jsDelivr copies must also be published here: they are the fallback.
+  const files = [...list.matchAll(/'\.?\/?([^']*)'/g)].map(m => m[1].replace(CDN_PREFIX, '').replace(/\?v=\d+$/, '')).filter(Boolean);
   const missing = [...new Set(files)].filter(f => !published.includes(f));
   return files.length && missing.length === 0 ? true : `precached but not published: ${missing.join(', ') || '(no precache list found)'}`;
 });
@@ -118,7 +121,7 @@ scenario("Every ?v= in the precache list matches CACHE_NAME's version", () => {
   const versioned = urls.filter(u => /\?v=/.test(u));
   const bad = versioned.filter(u => !u.endsWith(`?v=${cur}`));
   if (!cur) return 'CACHE_NAME version not found';
-  if (!versioned.some(u => u === `app.js?v=${cur}`)) return 'app.js?v=N is not in the precache list';
+  if (!urls.some(u => u === `app.js?v=${cur}` || (CDN_PREFIX.test(u) && u.endsWith('/app.js')))) return 'app.js (?v=N or the jsDelivr copy) is not in the precache list';
   return bad.length === 0 ? true : `wrong version: ${bad.join(', ')}`;
 });
 
@@ -129,10 +132,31 @@ scenario('modulepreload links match the URLs the app really loads (no double dow
     const pre = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)"/g)].map(m => m[1]);
     const app = (html.match(/<script type="module" src="([^"]+)"/) || [])[1];
     if (!app || !pre.includes(app)) bad.push(`${f}: app.js preload ${pre.join(', ') || 'missing'} vs script ${app}`);
-    if (!pre.includes('data.js')) bad.push(`${f}: data.js not preloaded`);
+    const data = app ? app.replace(/app\.js(\?v=\d+)?$/, 'data.js') : 'data.js';
+    if (!pre.includes(data)) bad.push(`${f}: ${data} not preloaded`);
     if (!/from '\.\/data\.js'/.test(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'))) bad.push("app.js no longer imports './data.js'");
     if (html.indexOf('rel="modulepreload"') > html.indexOf('</head>')) bad.push(`${f}: preload is not in <head>`);
   }
+  return bad.length === 0 ? true : bad.join('; ');
+});
+
+scenario('App files load from one jsDelivr commit, with this site as the fallback', () => {
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const sw = read('sw.js');
+  const ver = (sw.match(/CACHE_NAME\s*=\s*'clarity-desk-v(\d+)'/) || [])[1];
+  const shas = new Set(['index.html', '404.html', 'sw.js'].flatMap(f => [...read(f).matchAll(CDN_ALL)].map(m => m[1])));
+  if (shas.size !== 1) return `expected one jsDelivr commit in index.html, 404.html and sw.js, found ${shas.size}`;
+  const cdn = `https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@${[...shas][0]}/`;
+  const bad = [];
+  for (const f of ['index.html', '404.html']) {
+    const html = read(f);
+    if (!html.includes(`<link rel="stylesheet" href="${cdn}style.css" onerror="this.onerror=null;this.href='style.css?v=${ver}'" />`)) bad.push(`${f}: style.css from jsDelivr with fallback to style.css?v=${ver}`);
+    if (!html.includes(`<script type="module" src="${cdn}app.js" onerror="var s=document.createElement('script');s.type='module';s.src='app.js?v=${ver}';document.body.appendChild(s)"></script>`)) bad.push(`${f}: app.js from jsDelivr with fallback to app.js?v=${ver}`);
+  }
+  for (const u of ['app.js', 'style.css', 'data.js']) if (!sw.includes(`'${cdn}${u}'`)) bad.push(`sw.js does not precache the jsDelivr ${u}`);
+  // Local tests must run the working tree, not the last deployed commit.
+  if (!read('tests/serve.mjs').includes('Clarity-Desk@[0-9a-f]{40}')) bad.push('tests/serve.mjs does not rewrite jsDelivr URLs');
+  if (!read('scripts/ship.mjs').includes("const CDN = 'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@';")) bad.push('scripts/ship.mjs uses a different jsDelivr address');
   return bad.length === 0 ? true : bad.join('; ');
 });
 
