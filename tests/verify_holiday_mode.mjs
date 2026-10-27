@@ -61,9 +61,9 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const STUDENT = { name: 'Test Student', batch: 'A1', roll: '101' };
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
-  const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
+  const ASSIGNMENTS = []; const NOTICES = globalThis.__NOTICES || []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, isHolidayScheduled, isTaskPausedForHoliday, holidayDaysLeft, holidayBriefingHTML, renderSummaryContent, sanitizeTask, getDynamicGreeting, loadHoliday, isHolidayActive, timetableForDisplay, setHoliday, checkHolidayExpiry, holidayLabel, getCalendarItems, renderCalendar, renderDashboard, renderTimetable, getOverallAttendance, getSubjectList, getSubjectAttendance, checkScheduledNotifications, importData, applyCloudDataToLocalState, loadTimetable };`)();
+const makeApp = () => new Function(`${code}\n return { state, holidayEndedOn, isHolidayScheduled, isTaskPausedForHoliday, holidayDaysLeft, holidayBriefingHTML, renderSummaryContent, sanitizeTask, getDynamicGreeting, loadHoliday, isHolidayActive, timetableForDisplay, setHoliday, checkHolidayExpiry, holidayLabel, getCalendarItems, renderCalendar, renderDashboard, renderTimetable, getOverallAttendance, getSubjectList, getSubjectAttendance, checkScheduledNotifications, importData, applyCloudDataToLocalState, loadTimetable };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '10:00', end: '11:00', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -335,6 +335,96 @@ check('Reminders (app): deadline reminders still come during the break', () => {
   return ok ? true : JSON.stringify(sent);
 });
 
+const backup = (extra = {}) => JSON.stringify({ customTimetable: TT, attendance: ATT, customTasks: TASKS, ...extra });
+const restore = (a, text) => { fileText = text; a.importData({ target: { files: [{}] } }); };
+
+// ── Quieter Today and welcome back (CD-04 follow-up) ─────────────
+check('Today during a break: no countdown line, syllabus line or weekly review; normal day keeps the countdown', () => {
+  seed({ cos_profile: { name: 'Test', batch: 'A2', examDate: '2026-12-15' }, ...H('2026-10-17') }); at('2026-10-18T09:50:00');   // a Sunday
+  let a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const during = domCache['page-dashboard'].innerHTML;
+  seed({ cos_profile: { name: 'Test', batch: 'A2', examDate: '2026-12-15' } });
+  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const normal = domCache['page-dashboard'].innerHTML;
+  const ok = !during.includes('days to End-Sem') && !during.includes('Weekly Review')
+    && normal.includes('days to End-Sem') && normal.includes('Weekly Review');
+  return ok ? true : `during:${during.includes('days to End-Sem')}/${during.includes('Weekly Review')} normal:${normal.includes('days to End-Sem')}`;
+});
+
+check('Today during a break: an exam in the final week still shows', () => {
+  seed({ cos_profile: { name: 'Test', batch: 'A2', examDate: '2026-10-22' }, ...H('2026-10-19') }); at('2026-10-19T09:50:00');
+  const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  return domCache['page-dashboard'].innerHTML.includes('3 days</strong> to End-Sem') ? true : 'final-week exam hidden';
+});
+
+check('Countdown alerts: 30-day nudge rests during a break, 3-day one still comes', () => {
+  const prefs = { classReminders: 'off', attendanceAlerts: 'off', taskUpcoming: 'off', taskOverdue: 'off', dailySummaryTime: '08:00', newNotices: 'off' };
+  seed({ cos_profile: { name: 'Test', examDate: '2026-11-18' }, cos_notif_prefs: prefs, ...H('2026-10-19') }); at('2026-10-19T09:50:00');
+  makeApp().checkScheduledNotifications();
+  const far = sent.some(t => /30 days/.test(t));
+  seed({ cos_profile: { name: 'Test', examDate: '2026-10-22' }, cos_notif_prefs: prefs, ...H('2026-10-19') }); at('2026-10-19T09:50:00');
+  makeApp().checkScheduledNotifications();
+  const near = sent.some(t => /3 days/.test(t));
+  return !far && near ? true : `far:${far} near:${near}`;
+});
+
+check('Notice card during a break: only an important real notice shows (no setup nudges); normal days show the latest', () => {
+  const n = (id, title, important) => ({ id, title, content: 'Details', date: '2026-10-19', category: 'general', important });
+  globalThis.__NOTICES = [n('n1', 'Library timings changed', false)];
+  seed(H('2026-10-19')); at('2026-10-19T09:50:00');
+  let a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const plainDuring = domCache['page-dashboard'].innerHTML.includes('Library timings changed');
+  globalThis.__NOTICES = [n('n1', 'Library timings changed', false), n('n2', 'Exam form deadline', true)];
+  seed(H('2026-10-19'));
+  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const importantDuring = domCache['page-dashboard'].innerHTML.includes('Exam form deadline');
+  globalThis.__NOTICES = [{ ...n('n3', 'Set your exam date', true), builtIn: true, date: '2026-12-01' }];
+  seed(H('2026-10-19'));
+  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const setupNudge = domCache['page-dashboard'].innerHTML.includes('Set your exam date');
+  globalThis.__NOTICES = [n('n1', 'Library timings changed', false)];
+  seed();
+  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const plainNormal = domCache['page-dashboard'].innerHTML.includes('Library timings changed');
+  delete globalThis.__NOTICES;
+  return !plainDuring && importantDuring && !setupNudge && plainNormal ? true : `${plainDuring}/${importantDuring}/${setupNudge}/${plainNormal}`;
+});
+
+check('Welcome back: ending a started break records endedOn; cancelling a planned one does not', () => {
+  seed(H('2026-10-12', '2026-10-26')); at('2026-10-19T09:50:00');
+  let a = makeApp(); a.setHoliday(false);
+  const ended = JSON.parse(store.cos_holiday).endedOn;
+  seed({ cos_holiday: { on: true, since: '2026-10-24', until: '2026-10-29' } });
+  a = makeApp(); a.setHoliday(false);
+  const planned = JSON.parse(store.cos_holiday);
+  return ended === '2026-10-19' && !('endedOn' in planned) && a.loadHoliday() === null ? true : `${ended} ${JSON.stringify(planned)}`;
+});
+
+check('Welcome back: card on the first day back after auto-end, gone after Got it and the next day', () => {
+  seed(H('2026-10-12', '2026-10-19')); at('2026-10-19T09:50:00');
+  let a = makeApp(); a.checkHolidayExpiry(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const first = domCache['page-dashboard'].innerHTML;
+  globalThis.dismissHolidayWelcome();
+  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const afterGotIt = domCache['page-dashboard'].innerHTML;
+  const kept = store.cos_holiday;
+  seed({ cos_holiday: kept }); at('2026-10-20T09:50:00');
+  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
+  const nextDay = domCache['page-dashboard'].innerHTML;
+  const ok = first.includes('Welcome back, Test') && first.includes('next one at 10:00 AM (Data Structures)')
+    && !afterGotIt.includes('holiday-welcome') && !nextDay.includes('holiday-welcome');
+  return ok ? true : `first:${first.includes('Welcome back')} after:${afterGotIt.includes('holiday-welcome')} next:${nextDay.includes('holiday-welcome')}`;
+});
+
+check('Welcome back: endedOn survives backup restore and sync; junk values show no card', () => {
+  seed(); at('2026-10-19T09:50:00');
+  let a = makeApp(); restore(a, backup({ holiday: { on: false, since: null, until: null, endedOn: '2026-10-19' } }));
+  const restored = a.holidayEndedOn();
+  a.applyCloudDataToLocalState({ holiday: { on: false, since: null, until: null, endedOn: 'soon' } });
+  const junk = a.holidayEndedOn();
+  return restored === '2026-10-19' && junk === '' ? true : `${restored}/${junk}`;
+});
+
 // ── Attendance and data safety ───────────────────────────────────
 check('Attendance: numbers identical before, during and after holiday mode', () => {
   seed({ cos_attendance_baseline: { DS: { subjectName: 'Data Structures', subjectCode: 'DS', present: 20, absent: 4, totalCount: 24 } } });
@@ -418,8 +508,6 @@ check('Reminders (push job): until = today, off, missing or corrupt holiday all 
 });
 
 // ── Restore and sync ─────────────────────────────────────────────
-const backup = (extra = {}) => JSON.stringify({ customTimetable: TT, attendance: ATT, customTasks: TASKS, ...extra });
-const restore = (a, text) => { fileText = text; a.importData({ target: { files: [{}] } }); };
 
 check('Restore: backup from before this feature (no key) restores fine and stays off', () => {
   seed(); at('2026-10-19T09:50:00');

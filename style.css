@@ -6640,6 +6640,69 @@ body.holiday-mode {
   background-attachment: fixed;
 }
 body.holiday-mode .desk-greeting-name { color: var(--holiday-sun); }
+/* Sunset over Today's greeting: peach, rose and lavender mixed into the
+   theme's own surface, plus a faint low sun in the corner. No motion. */
+body.holiday-mode {
+  --holiday-rose: #e56b8a;
+  --holiday-dusk: #8b7fd6;
+}
+body.holiday-mode .desk-masthead {
+  position: relative;
+  overflow: hidden;
+  padding: 28px 24px 24px;
+  border-radius: var(--radius);
+  background: linear-gradient(165deg,
+    color-mix(in srgb, var(--holiday-sun) 22%, var(--surface)) 0%,
+    color-mix(in srgb, var(--holiday-rose) 14%, var(--surface)) 55%,
+    color-mix(in srgb, var(--holiday-dusk) 12%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, var(--holiday-sun) 18%, var(--border));
+}
+body.holiday-mode .desk-masthead::after {
+  content: '';
+  position: absolute;
+  width: 180px; height: 180px; right: -40px; top: -60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--holiday-sun) 45%, transparent) 0%, transparent 70%);
+  pointer-events: none;
+}
+body.holiday-mode .desk-masthead > * { position: relative; z-index: 1; }
+body.holiday-mode .holiday-banner {
+  border-color: color-mix(in srgb, var(--holiday-rose) 26%, var(--border));
+  background: linear-gradient(120deg,
+    color-mix(in srgb, var(--holiday-sun) 14%, var(--surface)),
+    color-mix(in srgb, var(--holiday-rose) 10%, var(--surface)) 60%,
+    color-mix(in srgb, var(--holiday-sea) 10%, var(--surface)));
+}
+/* First day back: a sunrise version of the banner. */
+.holiday-welcome {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 16px 20px; margin-bottom: 22px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, #f2994a 26%, var(--border));
+  background: linear-gradient(120deg, color-mix(in srgb, #f2c94c 14%, var(--surface)), color-mix(in srgb, #f2994a 8%, var(--surface)));
+}
+/* Phones lay the masthead out with display: contents (no box to paint), so
+   the sunset goes on its greeting block instead. */
+@media (max-width: 560px) {
+  body.holiday-mode #page-dashboard .desk-masthead::after { content: none; }
+  body.holiday-mode #page-dashboard .desk-masthead-top {
+    position: relative; overflow: hidden;
+    padding: 20px 16px 18px;
+    border-radius: var(--radius);
+    border: 1px solid color-mix(in srgb, var(--holiday-sun) 18%, var(--border));
+    background:
+      radial-gradient(140px 140px at 100% 0%, color-mix(in srgb, var(--holiday-sun) 40%, transparent), transparent 70%),
+      linear-gradient(165deg,
+        color-mix(in srgb, var(--holiday-sun) 22%, var(--surface)) 0%,
+        color-mix(in srgb, var(--holiday-rose) 14%, var(--surface)) 55%,
+        color-mix(in srgb, var(--holiday-dusk) 12%, var(--surface)) 100%);
+  }
+}
+@media (max-width: 480px) {
+  body.holiday-mode .desk-masthead { padding: 22px 16px 18px; }
+  .holiday-welcome { padding: 14px 16px; }
+  .holiday-welcome .holiday-banner-end { width: 100%; }
+}
 .holiday-banner {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: 16px 20px; margin-bottom: 22px;

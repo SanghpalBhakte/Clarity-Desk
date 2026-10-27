@@ -7529,7 +7529,7 @@ function checkScheduledNotifications() {
   // so there is no new setting, and each fires at most once.
   if (liveProfile.examDate && prefs.dailySummaryTime && prefs.dailySummaryTime !== 'off' && currentHHMM >= prefs.dailySummaryTime) {
     const cdDays = Math.round((new Date(liveProfile.examDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
-    if ([30, 14, 7, 3, 1, 0].includes(cdDays)) {
+    if ([30, 14, 7, 3, 1, 0].includes(cdDays) && !holidayHidesCountdown(cdDays)) {
       const cdKey = `countdown_${cdDays}_${liveProfile.examDate}`;
       if (!notifiedMap[cdKey]) {
         const cdLabel = getCountdownLabel();
@@ -8588,6 +8588,7 @@ function maybeShowCountdownCelebration() {
   const today = todayStr();
   const days = Math.round((new Date(liveProfile.examDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
   if (![30, 14, 7, 3, 1, 0].includes(days)) return;
+  if (holidayHidesCountdown(days)) return;
   const seen = safeGetStorage('cos_notified_history', {}) || {};
   const key = `card_countdown_${days}_${liveProfile.examDate}`;
   if (seen[key]) return;
@@ -8604,6 +8605,11 @@ function buildDashboardContextLine(opts = {}) {
 
   // Holiday mode: talk about the break and tasks, never about classes.
   if (opts.holiday) {
+    if (examDaysLeft !== null && examDaysLeft >= 0 && examDaysLeft <= 7) {
+      const examLabel = escHtml_cd(opts.examLabel || 'End-Sem exams');
+      return examDaysLeft === 0 ? `${examLabel}: <strong>today</strong>. You are ready.`
+        : `<strong>${examDaysLeft} day${examDaysLeft !== 1 ? 's' : ''}</strong> to ${examLabel}. A little each day is enough.`;
+    }
     if (overdue > 0) return `${overdue} overdue task${overdue !== 1 ? 's' : ''} need${overdue === 1 ? 's' : ''} attention.`;
     return pending > 0
       ? `No classes, no rush. ${pending} task${pending !== 1 ? 's' : ''} on your desk when you're ready.`
@@ -9071,18 +9077,45 @@ function setHoliday(on, until = null, since = null) {
     const u = (typeof until === 'string' && HOLIDAY_DATE_RE.test(until) && until > today && until > s) ? until : null;
     safeSetStorage(KEY_HOLIDAY, { on: true, since: s, until: u });
   } else {
-    safeSetStorage(KEY_HOLIDAY, { on: false, since: null, until: null });
+    // `endedOn` (optional, additive) marks the day a break that had started
+    // ended, for the one-day welcome-back card. Cancelling a planned break
+    // that never started leaves it out.
+    const prev = loadHoliday();
+    const today = todayStr();
+    safeSetStorage(KEY_HOLIDAY, prev && prev.since <= today
+      ? { on: false, since: null, until: null, endedOn: today }
+      : { on: false, since: null, until: null });
   }
   syncToCloud();
 }
+
+// The day the last break ended ('' if none), from the stored off value.
+function holidayEndedOn() {
+  const h = safeGetStorage(KEY_HOLIDAY, null);
+  if (!h || typeof h !== 'object' || Array.isArray(h) || h.on === true) return '';
+  return (typeof h.endedOn === 'string' && HOLIDAY_DATE_RE.test(h.endedOn)) ? h.endedOn : '';
+}
+
+// Exam countdown during a break: only inside the final week (a real
+// deadline); further out it rests with everything else.
+function holidayHidesCountdown(days) {
+  return isHolidayActive() && !(days !== null && days >= 0 && days <= 7);
+}
+
+function dismissHolidayWelcome() {
+  const seen = safeGetStorage('cos_notified_history', {}) || {};
+  seen[`card_holiday_back_${todayStr()}`] = true;
+  safeSetStorage('cos_notified_history', seen);
+  renderPage(state.currentPage);
+}
+window.dismissHolidayWelcome = dismissHolidayWelcome;
 
 // Turns holiday mode off once its end date arrives (on open, focus, a new
 // day, a restore or a sync). Returns true when it switched off.
 function checkHolidayExpiry() {
   const h = loadHoliday();
   if (!h || !h.until || todayStr() < h.until) return false;
-  setHoliday(false);
-  showToast('Welcome back, classes are showing again', 'success');
+  setHoliday(false);   // Today shows the welcome-back card
   return true;
 }
 
@@ -9170,7 +9203,8 @@ window.confirmHolidayModal = confirmHolidayModal;
 
 function resumeClasses() {
   setHoliday(false);
-  showToast('Welcome back, classes are showing again', 'success');
+  // On Today the welcome-back card says it; elsewhere a toast does.
+  if (state.currentPage !== 'dashboard') showToast('Welcome back, classes are showing again', 'success');
   renderPage(state.currentPage);
 }
 window.resumeClasses = resumeClasses;
@@ -10619,7 +10653,7 @@ function renderDashboard() {
   // have their own section below, so the tiles only repeated them. The exam
   // countdown is the one figure with no other home, so it gets a quiet line
   // under the greeting (the context line already covers the final week).
-  const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7)
+  const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7 && !onHoliday)
     ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). ${countdownCheer(examDaysLeftNum)}</div>`
     : '';
 
@@ -10629,7 +10663,7 @@ function renderDashboard() {
     : '';
 
   const sylTodayText = syllabusTodayLine();
-  const sylTodayHTML = sylTodayText ? `<div class="desk-greeting-note syl-today-note">${icons.book()} ${sylTodayText}</div>` : '';
+  const sylTodayHTML = sylTodayText && !onHoliday ? `<div class="desk-greeting-note syl-today-note">${icons.book()} ${sylTodayText}</div>` : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
@@ -10649,6 +10683,24 @@ function renderDashboard() {
   const lookAheadHTML = lookAhead
     ? `<div class="chrono-beacon-then">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>`
     : '';
+
+  // First day after a break: one calm card until "Got it".
+  let welcomeBackHTML = '';
+  if (!onHoliday && holidayEndedOn() === dateStr && !(safeGetStorage('cos_notified_history', {}) || {})[`card_holiday_back_${dateStr}`]) {
+    const firstClass = dayClasses.find(c => timeToMinutes(c.end || '23:59') > currentMin);
+    welcomeBackHTML = `
+      <div class="holiday-welcome" role="status" aria-label="Welcome back">
+        <span class="holiday-banner-art" aria-hidden="true">🌅</span>
+        <div class="holiday-banner-body">
+          <div class="holiday-banner-title">Welcome back${firstName ? `, ${escHtml_cd(firstName)}` : ''}.</div>
+          <div class="holiday-banner-meta">${firstClass
+            ? `Classes are back today, next one at ${formatDisplayTime(firstClass.time)} (${escHtml_cd(firstClass.subject)}).`
+            : 'Classes are back on your timetable. Nothing more today.'}
+            ${pending > 0 ? ` ${pending} task${pending !== 1 ? 's are' : ' is'} waiting, ongoing ones included.` : ''} Ease in, one thing at a time.</div>
+        </div>
+        <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="dismissHolidayWelcome()">Got it</button>
+      </div>`;
+  }
 
   let beaconHTML = '';
   if (onHoliday) {
@@ -10869,7 +10921,9 @@ function renderDashboard() {
 
   // Latest notice
   const visibleNotices = getVisibleNotices();
-  const latestNotice = isEmptyDesk ? null : (visibleNotices.find(n => n.important) || visibleNotices[0]);
+  // During a break only an important notice makes it onto Today.
+  // Built-in setup notices ("set your exam date") rest too.
+  const latestNotice = isEmptyDesk ? null : onHoliday ? visibleNotices.find(n => n.important && !n.builtIn) : (visibleNotices.find(n => n.important) || visibleNotices[0]);
   const allQuickLinks = isEmptyDesk ? [] : loadCustomLinks();
   const quickLinksPreview = allQuickLinks.slice(0, 3);
   const moreLinks = allQuickLinks.length - quickLinksPreview.length;
@@ -10885,7 +10939,7 @@ function renderDashboard() {
           ${holidaySoonHTML}
           ${sylTodayHTML}
         </div>
-        ${(dayIdx === 0 || dayIdx === 6) ? `
+        ${(dayIdx === 0 || dayIdx === 6) && !onHoliday ? `
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
           <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
@@ -10895,6 +10949,7 @@ function renderDashboard() {
     </div>
 
     <!-- 2. PRIMARY FOCUS ANCHOR (CHRONO BEACON) -->
+    ${welcomeBackHTML}
     ${beaconHTML}
     ${focusHTML}
     ${setupBanner}
