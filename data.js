@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u103",
+    date: "2026-10-28",
+    title: "Holiday mode now has start and end dates, a calm holiday look, an End early button, and a holiday Daily Briefing that still shows every real deadline",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Holiday mode now has start and end dates, a calm holiday look, an End early button, and a holiday Daily Briefing that still shows every real deadline",
+    points: [
+
+    ]
+  },
+  {
     id: "u102",
     date: "2026-10-28",
     title: "Fix: reports now show the right app version, and a report saved offline is kept (with a small screenshot) until it is sent",
