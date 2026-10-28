@@ -8526,18 +8526,25 @@ function getDynamicGreeting(firstName, opts = {}) {
     // Late night: acknowledge unfinished work if there's any, otherwise
     // just the "still up" vibe -- both read as company, not a nag.
     pool = overdue > 0
-      ? [['Still up, {n}?', 'Still up?'], ['Burning the midnight oil, {n}?', 'Burning the midnight oil?'], ['Late night catch-up, {n}.', 'Late night catch-up.']]
-      : [['Up late, {n}?', 'Up late?'], ['Night owl mode, {n}.', 'Night owl mode.'], ['Still awake, {n}?', 'Still awake?']];
+      ? [['Still up, {n}?', 'Still up?'], ['Burning the midnight oil, {n}?', 'Burning the midnight oil?'], ['Late night catch-up, {n}.', 'Late night catch-up.'],
+         ['Still at it, {n}?', 'Still at it?'], ['Late one tonight, {n}.', 'Late one tonight.']]
+      : [['Up late, {n}?', 'Up late?'], ['Night owl mode, {n}.', 'Night owl mode.'], ['Still awake, {n}?', 'Still awake?'],
+         ["Can't sleep, {n}?", "Can't sleep?"], ['Hello, night owl.', 'Hello, night owl.'], ['Quiet hours, {n}.', 'Quiet hours.']];
   } else if (h < 8) {
-    pool = [['Up early, {n}.', 'Up early.'], ['Rise and shine, {n}.', 'Rise and shine.'], ['Early start, {n}.', 'Early start.']];
+    pool = [['Up early, {n}.', 'Up early.'], ['Rise and shine, {n}.', 'Rise and shine.'], ['Early start, {n}.', 'Early start.'],
+      ['Bright and early, {n}.', 'Bright and early.'], ['Beat the alarm, {n}?', 'Beat the alarm?'], ['Early bird, {n}.', 'Early bird.']];
   } else if (h < 12) {
-    pool = [['Good morning, {n}.', 'Good morning.'], ['Morning, {n}.', 'Morning.'], ["Let's get into it, {n}.", "Let's get into it."]];
+    pool = [['Good morning, {n}.', 'Good morning.'], ['Morning, {n}.', 'Morning.'], ["Let's get into it, {n}.", "Let's get into it."],
+      ['Morning, {n}. Chai first?', 'Morning. Chai first?'], ['Hey {n}, good morning.', 'Hey, good morning.'], ['Hello again, {n}.', 'Hello again.']];
   } else if (h < 17) {
-    pool = [['Good afternoon, {n}.', 'Good afternoon.'], ['Afternoon, {n}.', 'Afternoon.'], ['Midday check-in, {n}.', 'Midday check-in.']];
+    pool = [['Good afternoon, {n}.', 'Good afternoon.'], ['Afternoon, {n}.', 'Afternoon.'], ['Midday check-in, {n}.', 'Midday check-in.'],
+      ["Hey {n}, how's the day going?", "Hey, how's the day going?"], ['Post-lunch slump, {n}?', 'Post-lunch slump?'], ['Halfway there, {n}.', 'Halfway there.']];
   } else if (h < 21) {
-    pool = [['Good evening, {n}.', 'Good evening.'], ['Evening, {n}.', 'Evening.'], ['Winding down, {n}?', 'Winding down?']];
+    pool = [['Good evening, {n}.', 'Good evening.'], ['Evening, {n}.', 'Evening.'], ['Winding down, {n}?', 'Winding down?'],
+      ['Long day, {n}?', 'Long day?'], ['Back at the desk, {n}.', 'Back at the desk.'], ['Hey {n}, made it through the day.', 'Hey, made it through the day.']];
   } else {
-    pool = [['Good night, {n}.', 'Good night.'], ['Working late, {n}?', 'Working late?'], ['Still going, {n}?', 'Still going?']];
+    pool = [['Good night, {n}.', 'Good night.'], ['Working late, {n}?', 'Working late?'], ['Still going, {n}?', 'Still going?'],
+      ['One more thing before bed, {n}?', 'One more thing before bed?'], ['Late study session, {n}?', 'Late study session?'], ['Night shift, {n}?', 'Night shift?']];
   }
 
   const seed = new Date().getDate() + h;
@@ -8629,16 +8636,16 @@ function buildDashboardContextLine(opts = {}) {
   // Exam imminent (≤ 7 days)
   if (examDaysLeft !== null && examDaysLeft >= 0 && examDaysLeft <= 7) {
     const examLabel = escHtml_cd(opts.examLabel || 'End-Sem exams');
-    if (examDaysLeft === 0) return `${examLabel}: <strong>today</strong>. You are ready. Good luck.`;
-    if (examDaysLeft === 1) return `${examLabel}: <strong>tomorrow</strong>. Make today count.`;
-    return `<strong>${examDaysLeft} days</strong> to ${examLabel}. Final stretch, you can do this.`;
+    if (examDaysLeft === 0) return `${examLabel}: <strong>today</strong>.`;
+    if (examDaysLeft === 1) return `${examLabel}: <strong>tomorrow</strong>.`;
+    return `<strong>${examDaysLeft} days</strong> to ${examLabel}.`;
   }
 
   // Brand-new desk: no timetable yet, so "no classes today" would be wrong
   // Self-study with no timetable: talk about the plan, never about classes
   if (opts.selfStudy && opts.hasTimetable === false) {
     return pending > 0
-      ? `${pending} task${pending !== 1 ? 's' : ''} on your plan. One at a time.`
+      ? `${pending} task${pending !== 1 ? 's' : ''} on your plan.`
       : 'Add a study task for today to plan your day.';
   }
 
@@ -8649,7 +8656,7 @@ function buildDashboardContextLine(opts = {}) {
 
   // Weekend or free day with no tasks
   if (isWeekend && pending === 0) {
-    return 'No classes today. Good time to get ahead on tasks.';
+    return 'No classes today and no tasks pending.';
   }
 
   // Normal day with classes remaining
@@ -8663,7 +8670,7 @@ function buildDashboardContextLine(opts = {}) {
   }
 
   // Everything clear
-  return 'All clear. Classes attended, tasks on track.';
+  return 'Classes are over for today and no tasks are pending.';
 }
 
 // ── Today's next step (a gentle nudge) ─────────────────────────────────
@@ -8752,7 +8759,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
     });
     const f = buildTodayFocus({ dayClasses, attendanceData, dateStr, currentMin, task, riskSubject, dismissed: readDismissedFocus() });
     if (!f) return '';
-    const icon = f.kind === 'unmarked' ? icons.clock() : f.kind === 'task' ? icons.filetext() : icons.chartLine();
+    const overdue = f.kind === 'task' && /overdue/i.test(f.sub || '');
     const call = f.kind === 'unmarked' ? `setTTDay(${dayIdx}); navigateTo('timetable')`
       : f.kind === 'task' ? `navigateTo('assignments')`
       : `openSubjectHub(this.dataset.subject)`;
@@ -8766,10 +8773,9 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
     return `
     <div class="today-focus is-${f.kind}"${markKey ? ' data-mark' : ''} role="region" aria-label="Next step">
       <button type="button" class="today-focus-main" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">
-        <span class="today-focus-ico" aria-hidden="true">${icon}</span>
         <span class="today-focus-text">
           <span class="today-focus-title">${escHtml_cd(f.title)}</span>
-          <span class="today-focus-sub">${escHtml_cd(f.sub)}</span>
+          <span class="today-focus-sub${overdue ? ' is-overdue' : ''}">${escHtml_cd(f.sub)}</span>
         </span>
         ${markKey ? '' : `<span class="today-focus-go">${f.go} ${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span>`}
       </button>
@@ -9947,10 +9953,10 @@ function renderWeeklyAttendanceTracker() {
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${attStatusControlsHTML(dateStr, classKey, status)}
-            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as present on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='attended'?'var(--green)':'var(--surface-2)'};color:${status==='attended'?'white':'var(--text-primary)'};border:1px solid ${status==='attended'?'var(--green)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
+            <button class="btn btn-sm att-week-btn is-present" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as present on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}">
               ${status==='attended'?'✓ Present':'Present'}
             </button>
-            <button class="btn btn-sm" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as absent on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}" style="padding:5px 12px;font-size:var(--text-sm);font-weight:700;border-radius:var(--radius-xs,6px);background:${status==='skipped'?'var(--red)':'var(--surface-2)'};color:${status==='skipped'?'white':'var(--text-primary)'};border:1px solid ${status==='skipped'?'var(--red)':'var(--border)'};cursor:pointer;transition:transform 0.1s ease">
+            <button class="btn btn-sm att-week-btn is-absent" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as absent on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}">
               ${status==='skipped'?'✕ Absent':'Absent'}
             </button>
             ${attMoreMenuHTML(dateStr, classKey, status)}
@@ -10660,7 +10666,7 @@ function renderDashboard() {
   // countdown is the one figure with no other home, so it gets a quiet line
   // under the greeting (the context line already covers the final week).
   const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7 && !onHoliday)
-    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). ${countdownCheer(examDaysLeftNum)}</div>`
+    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}).</div>`
     : '';
 
   const holidaySoon = isHolidayScheduled() ? loadHoliday() : null;
@@ -10727,29 +10733,22 @@ function renderDashboard() {
     beaconHTML = `
       <div class="chrono-beacon is-live" role="region" aria-label="Current class in session"${liveHasEnd ? ` data-beacon="live" data-start="${liveStartMin}" data-end="${liveEndMin}"` : ''}>
         <div class="chrono-beacon-main">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 15%, transparent);color:var(--status-success)">
-              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--status-success);box-shadow:0 0 6px var(--status-success)"></span>
-              In Session
-            </span>
-            <span class="chrono-beacon-time">${formatDisplayTimeRange(activeClass.time, activeClass.end)}</span>
-          </div>
+          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">In Session</span></div>
           <div class="chrono-beacon-title" onclick="openSubjectHub('${activeClass.subject}')" style="cursor:pointer" title="Open Subject Hub">
             ${activeClass.subject}
           </div>
           <div class="chrono-beacon-meta">
             ${activeClass.room ? `<span>${activeClass.room}</span>` : ''}
-            ${activeClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(activeClass.teacher))}</span>` : ''}
-            <span class="type-badge type-${activeClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${activeClass.type || 'lecture'}</span>
+            ${activeClass.teacher ? `<span>${formatTeacherName(activeClass.teacher)}</span>` : ''}
           </div>
           ${upNextClass ? `<div class="chrono-beacon-then">Then <strong>${escHtml_cd(upNextClass.subject)}</strong> at ${formatDisplayTime(upNextClass.time)}${upNextClass.room ? ` · ${escHtml_cd(upNextClass.room)}` : ''}</div>` : ''}
         </div>
         ${liveHasEnd ? `<div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(liveEndMin - currentMin)}</span><span class="chrono-beacon-count-label">left in class</span></div>` : ''}
         <div class="chrono-beacon-actions">
-          <button class="btn beacon-att ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="${status==='attended'?'background:var(--status-success);border-color:var(--status-success);color:white;':''}">
+          <button class="btn beacon-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">
             ${icons.check()}<span>Present</span>
           </button>
-          <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="${status==='skipped'?'background:var(--status-error);border-color:var(--status-error);color:white;':''}">
+          <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">
             ${icons.x()}<span>Absent</span>
           </button>
           ${attStatusChipHTML(status)}
@@ -10760,65 +10759,54 @@ function renderDashboard() {
     beaconHTML = `
       <div class="chrono-beacon" role="region" aria-label="Next upcoming class" data-beacon="next" data-start="${nextStartMin}" data-end="${timeToMinutes(nextClass.end || '23:59')}">
         <div class="chrono-beacon-main">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--accent-warm) 15%, transparent);color:var(--color-accent-text, var(--accent-warm))">${icons.clock()} Next Up</span>
-            <span class="chrono-beacon-time">${formatDisplayTimeRange(nextClass.time, nextClass.end)}</span>
-          </div>
+          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Next class</span><span class="chrono-beacon-time">${formatDisplayTime(nextClass.time)}</span></div>
           <div class="chrono-beacon-title" onclick="openSubjectHub('${nextClass.subject}')" style="cursor:pointer" title="Open Subject Hub">
             ${nextClass.subject}
           </div>
           <div class="chrono-beacon-meta">
             ${nextClass.room ? `<span>${nextClass.room}</span>` : ''}
-            ${nextClass.teacher ? `<span>${iconText(icons.user(), formatTeacherName(nextClass.teacher))}</span>` : ''}
-            <span class="type-badge type-${nextClass.type || 'lecture'}" style="font-size:var(--text-2xs)">${nextClass.type || 'lecture'}</span>
+            ${nextClass.teacher ? `<span>${formatTeacherName(nextClass.teacher)}</span>` : ''}
           </div>
         </div>
         <div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(nextStartMin - currentMin)}</span><span class="chrono-beacon-count-label">until it starts</span></div>
-        <div class="chrono-beacon-actions is-compact">
-          <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${nextClass.subject}')" style="font-size:var(--text-sm);padding:6px 12px">
-            Open Subject Hub →
-          </button>
-        </div>
       </div>`;
   } else if (dayClasses.length > 0 && classesLeftCount === 0) {
-    beaconHTML = `
+    // Classes are over: point at the next real deadline. Tasks due today or
+    // overdue are already the focus line, so this only looks 1+ days ahead.
+    const nextDue = allTasks()
+      .filter(t => t.status === 'pending' && t.dueDate && !t.noDeadline && dueDaysLeft(t.dueDate) >= 1)
+      .sort((a, b) => dueDaysLeft(a.dueDate) - dueDaysLeft(b.dueDate))[0];
+    if (nextDue) {
+      const left = dueDaysLeft(nextDue.dueDate);
+      const isCustom = (state.customTasks || []).some(t => String(t.id) === String(nextDue.id));
+      beaconHTML = `
       <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
-        <div style="flex:1;min-width:180px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:color-mix(in srgb, var(--status-success) 12%, transparent);color:var(--status-success)">${icons.check()} Day Complete</span>
-            <span style="font-size:var(--text-sm);color:var(--text-muted)">${dayClasses.length === 1 ? 'Your only class is finished' : `All ${dayClasses.length} classes finished today`}</span>
-          </div>
-          <div class="chrono-beacon-title">Classes Done for Today</div>
+        <div class="chrono-beacon-main">
+          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Classes are over. Next deadline</span></div>
+          <div class="chrono-beacon-title">${escHtml_cd(nextDue.title || 'Task')}</div>
           <div class="chrono-beacon-meta">
-            <span>${pending > 0 ? iconText(icons.filetext(), `${pending} task${pending !== 1 ? 's' : ''} pending on your desk`) : iconText(icons.check(), 'No pending tasks. Enjoy your evening.')}</span>
+            ${nextDue.subject ? `<span>${escHtml_cd(nextDue.subject)}</span>` : ''}
+            <span>${left === 1 ? 'Due tomorrow' : `Due in ${left} days`}, ${formatDate(nextDue.dueDate)}</span>
           </div>
           ${lookAheadHTML}
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="navigateTo('${pending > 0 ? 'assignments' : 'links'}')" style="font-size:var(--text-sm);padding:6px 12px">
-          ${pending > 0 ? 'Review Tasks →' : 'Study Vault →'}
-        </button>
+        <div class="chrono-beacon-actions is-compact">
+          <button class="btn btn-sm btn-secondary" data-id="${escHtml_cd(String(nextDue.id))}" onclick="${isCustom ? 'showAssignmentModal(this.dataset.id)' : "navigateTo('assignments')"}">Open task</button>
+        </div>
       </div>`;
-  } else if (!hasCustomTT) {
-    // No timetable yet: the setup card below is the one prompt on Today.
-    beaconHTML = '';
+    } else if (lookAheadHTML) {
+      beaconHTML = `
+      <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
+        <div class="chrono-beacon-main">
+          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Classes are over</span></div>
+          ${lookAheadHTML}
+        </div>
+      </div>`;
+    }
   } else {
-    beaconHTML = `
-      <div class="chrono-beacon is-free" role="region" aria-label="Free day">
-        <div style="flex:1;min-width:180px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="chrono-beacon-badge" style="background:var(--surface-2);color:var(--text-secondary)">${icons.sun()} Rest Day</span>
-            <span style="font-size:var(--text-sm);color:var(--text-muted)">${DAY_NAMES[dayIdx]}</span>
-          </div>
-          <div class="chrono-beacon-title">No Classes Today</div>
-          <div class="chrono-beacon-meta">
-            <span>${!isCustomTimetableActive() ? 'Add your class schedule to track daily lectures.' : 'A free day on your study desk.'}</span>
-          </div>
-          ${lookAheadHTML}
-        </div>
-        <button class="btn btn-sm btn-secondary" onclick="navigateTo('${!isCustomTimetableActive() ? 'timetable' : 'assignments'}')" style="font-size:var(--text-sm);padding:6px 12px">
-          ${!isCustomTimetableActive() ? 'Set Schedule →' : 'View Tasks →'}
-        </button>
-      </div>`;
+    // No timetable: the setup card is the one prompt. No classes today: the
+    // Schedule panel says so and carries the look-ahead, so no card here.
+    beaconHTML = '';
   }
 
   // Setup guide banner — shown only when there are missing setup steps
@@ -10968,7 +10956,7 @@ function renderDashboard() {
         <!-- SCHEDULE LEDGER -->
         <div class="dashboard-panel"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
-            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
+            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
           </div>
           <!-- Open ledger: no card box -->
@@ -10989,8 +10977,8 @@ function renderDashboard() {
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     ${isPast && !markedAbove ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                      <button class="btn btn-xs ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='attended'?'background:var(--green);border-color:var(--green);color:white;':''}">Present</button>
-                      <button class="btn btn-xs ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')" style="padding:3px 8px;font-size:var(--text-2xs);font-weight:600;${status==='skipped'?'background:var(--red);border-color:var(--red);color:white;':''}">Absent</button>
+                      <button class="btn btn-xs slot-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">Present</button>
+                      <button class="btn btn-xs slot-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">Absent</button>
                       ${attStatusChipHTML(status)}
                     </div>` : isNow ? `<span class="schedule-slot-now">Now</span>` : ''}
                   </div>`;
@@ -11009,7 +10997,7 @@ function renderDashboard() {
                 <div class="empty-state-desc">Your classes for today will show here once your timetable is added.</div>
               ` : `
                 <div class="empty-state-title">No classes today</div>
-                <div class="empty-state-desc">A free day. Good time to get ahead on tasks.</div>
+                ${lookAhead ? `<div class="empty-state-desc">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>` : ''}
               `}
             </div>
           `}
@@ -11042,7 +11030,7 @@ function renderDashboard() {
                       <span>${isOngoing ? 'Standing' : formatDate(a.dueDate)}</span>
                     </div>
                   </div>
-                  <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;font-family:var(--font-mono);flex-shrink:0">${rel.label}</span>
+                  <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
                 </div>`;
             }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : 'All caught up. No urgent tasks.')}</div>`}
             ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}

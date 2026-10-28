@@ -1036,6 +1036,8 @@ img { display: block; max-width: 100%; }
 .section-page { display: none; animation: fadeUp 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 .section-page.active { display: block; }
 
+@media (prefers-reduced-motion: reduce) { .section-page { animation: none; } }
+
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -6058,21 +6060,6 @@ body::before {
 .today-focus-main:focus-visible,
 .today-focus-x:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; border-radius: var(--ds-radius-2); }
 
-.today-focus-ico {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
-  color: var(--color-accent-text, var(--color-warning));
-}
-
-.today-focus.is-task .today-focus-ico { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
-.today-focus.is-risk .today-focus-ico { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
-
 .today-focus-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .today-focus-title {
@@ -6948,3 +6935,46 @@ body.holiday-mode .holiday-banner {
 .tk-fold > summary.tk-group-head::-webkit-details-marker { display: none; }
 .tk-fold > summary.tk-group-head::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.15s; vertical-align: 1px; }
 .tk-fold[open] > summary.tk-group-head::before { transform: rotate(45deg); }
+
+/* ── Today hierarchy pass: quiet "Up next" card, one secondary label style,
+   red only for overdue, class chain dots centred on the line ───────────── */
+.chrono-beacon, .chrono-beacon.is-live, .chrono-beacon.is-finished { background: var(--surface); border: 1px solid var(--border); border-left-width: 1px; box-shadow: var(--shadow-sm); }
+.chrono-beacon:hover { transform: none; box-shadow: var(--shadow-sm); }
+.chrono-beacon-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 2px; }
+.chrono-beacon-badge, .chrono-beacon-count-label, .panel-title, .att-stat-label { font-family: var(--font-sans); font-size: 0.8rem; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-muted); background: none; padding: 0; border-radius: 0; }
+.panel-title > span { font-family: var(--font-sans); letter-spacing: 0; }
+.chrono-beacon-time { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
+.chrono-beacon-title { font-size: 1.2rem; overflow-wrap: anywhere; }
+.chrono-beacon-meta { flex-wrap: wrap; gap: 2px 12px; }
+.chrono-beacon-count-label { margin-top: 4px; font-weight: 500; }
+.chrono-beacon-badge, .chrono-beacon-count-label { white-space: normal; }
+.chrono-beacon-count { min-width: 0; max-width: 100%; }
+.chrono-beacon-actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.chrono-beacon-actions .btn { min-width: 0; }
+.today-focus-mark { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.today-focus-mark .btn { min-width: 0; }
+@media (max-width: 560px) {
+  .chrono-beacon-count { flex: 1 1 100%; flex-wrap: wrap; column-gap: 8px; }
+  .chrono-beacon-count-label { min-width: 0; }
+}
+.chrono-beacon-progress { height: 4px; background: color-mix(in srgb, var(--status-success) 16%, var(--border)); }
+.chrono-beacon-progress span { background: var(--status-success); }
+.att-bar-seg.att-seg-absent { background: var(--color-border-default); }
+.schedule-slot.is-now .schedule-slot-time { color: var(--text-primary); }
+.schedule-slot-now { font-family: var(--font-sans); text-transform: none; letter-spacing: 0; font-weight: 600; }
+.today-focus-sub.is-overdue { color: var(--status-error); font-weight: 600; }
+.schedule-ledger { --rail: 7px; padding-left: 24px; }
+.schedule-ledger::before { left: calc(var(--rail) - 0.5px); width: 1px; top: 22px; bottom: 22px; background: var(--color-border-default); }
+.schedule-slot::before { box-sizing: border-box; width: 9px; height: 9px; left: calc(var(--rail) - 24px - 4.5px); top: 50%; transform: translateY(-50%); background: var(--surface); border: 2px solid var(--color-border-default); animation: none; box-shadow: none; }
+.schedule-slot.is-past::before { background: var(--color-border-default); }
+.schedule-slot.is-now { border-left: 0; padding-left: 8px; background: var(--surface-2); }
+.schedule-slot.is-now::before { width: 11px; height: 11px; left: calc(var(--rail) - 24px - 5.5px); background: var(--status-success); border-color: var(--status-success); animation: none; box-shadow: none; }
+@media (max-width: 560px) { .schedule-slot::before { top: 19px; } }
+/* Present / Absent pressed colours, moved out of inline styles in app.js
+   (same look as before; Today's Absent stays neutral). */
+.btn.slot-att { padding: 3px 8px; font-size: var(--text-2xs); font-weight: 600; }
+.btn.beacon-att.is-present[aria-pressed="true"], .btn.beacon-att.is-present[aria-pressed="true"]:hover { background: var(--status-success); border-color: var(--status-success); color: white; }
+.btn.slot-att.is-present[aria-pressed="true"], .btn.slot-att.is-present[aria-pressed="true"]:hover { background: var(--green); border-color: var(--green); color: white; }
+.btn.att-week-btn { padding: 5px 12px; font-size: var(--text-sm); font-weight: 700; border-radius: var(--radius-xs, 6px); background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border); cursor: pointer; transition: transform 0.1s ease; }
+.btn.att-week-btn.is-present[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: white; }
+.btn.att-week-btn.is-absent[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: white; }
