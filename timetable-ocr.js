@@ -1546,6 +1546,15 @@ function parseTimetableFromTextStream(rawText, existingSubjects = []) {
 // "General Subject", "6102CR 6201LA CT 6103CR" (only room codes), a whole
 // day's cells glued into one 25-word row, and classes at 00:10 all reached
 // review unflagged. Short real codes ("DT", "OS", "MA", "OE-1") pass.
+// The on-device result's confidence gate (see extractTimetableFromImage):
+// at least 6 rows, under 40% flagged uncertain or junk, on 3+ days.
+function deterministicPassesConfidenceGate(schedule) {
+  const rows = schedule || [];
+  if (rows.length < 6) return false;
+  const uncertainRatio = rows.filter(r => r.isUncertain || looksLikeJunkTimetableRow(r)).length / rows.length;
+  return uncertainRatio < 0.4 && new Set(rows.map(r => r.day)).size >= 3;
+}
+
 function looksLikeJunkTimetableRow(row) {
   const subject = String(row?.subject || '').trim();
   if (!subject || /^general subject$/i.test(subject)) return true;
@@ -1611,45 +1620,63 @@ async function extractTimetableFromImage(base64Data, mimeType) {
 
   // The vision call's image and prompt depend only on this first pass
   // (preprocessedDataUrl, ocrResult text, the legends above), none of which
-  // Stages A-D below change. So it starts now and runs while those on-device
-  // retries do, instead of after them: same request, same answer, sooner.
-  // It is only awaited further down when the on-device result fails the
-  // confidence gate; otherwise its answer is ignored, exactly as before.
+  // Stages A-D below change (they only touch ocrResult.data.words). So it
+  // can start here and run while those on-device retries do, instead of
+  // after them: same request, same answer, sooner.
   let visionStepName = null;
   let visionStepVisible = false;
-  const visionPromise = (hasGeminiKey || hasGroqKey || hasOpenRouterKey) ? (async () => {
-    // The vision call asks for the GRID (which header columns each cell
-    // covers), not clock times per row: the app computes times itself from
-    // the printed header (expandGridCellsToScheduleRows). Measured on the
-    // real SY-AIDS test-kit scan with the same model: the flat "time/end per
-    // row" format read every cell correctly but cut most two-period merged
-    // cells (MDM 3-5, the 10-12 lab blocks) to their first hour -- 74%
-    // recall -- because the model had to derive each merged cell's end
-    // time itself. The text-only repair path below keeps the flat format.
-    const visionPrompt = VISION_GRID_INSTRUCTION + legendHint + `
+  const hasVisionProvider = hasGeminiKey || hasGroqKey || hasOpenRouterKey;
+  const startVisionRead = () => {
+    const request = (async () => {
+      // The vision call asks for the GRID (which header columns each cell
+      // covers), not clock times per row: the app computes times itself from
+      // the printed header (expandGridCellsToScheduleRows). Measured on the
+      // real SY-AIDS test-kit scan with the same model: the flat "time/end per
+      // row" format read every cell correctly but cut most two-period merged
+      // cells (MDM 3-5, the 10-12 lab blocks) to their first hour -- 74%
+      // recall -- because the model had to derive each merged cell's end
+      // time itself. The text-only repair path below keeps the flat format.
+      const visionPrompt = VISION_GRID_INSTRUCTION + legendHint + `
 
 The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
 
 Rough OCR text (may be inaccurate):
 ${ocrResult.data.text || ''}`;
-    // Reuse the already-preprocessed image (deskewed, contrast-enhanced,
-    // capped at 2000px -- see preprocessImageForOCR above) instead of the
-    // raw camera upload. Phone photos are routinely 3-8MB before this;
-    // that full-size file was being base64-uploaded, unmodified, to every
-    // vision provider on every scan. Smaller payload = faster network
-    // transfer + faster model-side image processing, with no accuracy
-    // loss since it's the exact same image Tesseract itself already reads.
-    const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
-    const preprocessedBase64 = visionDataUrl.split(',')[1];
-    // Provider names only reach the loading screen once the scan is actually
-    // waiting on the AI, so they don't overwrite the on-device stage messages.
-    return AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt, name => {
-      visionStepName = name;
-      if (visionStepVisible) updateTimetableLoadingModal(`Reading the photo with AI (${name})...`);
-    });
-  })() : null;
-  // An answer that ends up ignored must not surface as an unhandled rejection.
-  if (visionPromise) visionPromise.catch(() => {});
+      // Reuse the already-preprocessed image (deskewed, contrast-enhanced,
+      // capped at 2000px -- see preprocessImageForOCR above) instead of the
+      // raw camera upload. Phone photos are routinely 3-8MB before this;
+      // that full-size file was being base64-uploaded, unmodified, to every
+      // vision provider on every scan. Smaller payload = faster network
+      // transfer + faster model-side image processing, with no accuracy
+      // loss since it's the exact same image Tesseract itself already reads.
+      const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
+      const preprocessedBase64 = visionDataUrl.split(',')[1];
+      // Provider names only reach the loading screen once the scan is actually
+      // waiting on the AI, so they don't overwrite the on-device stage messages.
+      return AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt, name => {
+        visionStepName = name;
+        if (visionStepVisible) updateTimetableLoadingModal(`Reading the photo with AI (${name})...`);
+      });
+    })();
+    // An answer that ends up ignored must not surface as an unhandled rejection.
+    request.catch(() => {});
+    return request;
+  };
+  // Started early only when the first pass on its own already fails the
+  // confidence gate, i.e. the AI will almost certainly be needed. A first
+  // pass that already looks confident usually stays confident, so its scan
+  // sends no AI request unless the final result fails the gate, when the
+  // request starts below exactly as it always did. Parsed on a copy of the
+  // words so this extra parse cannot change what the stages below read.
+  let visionPromise = null;
+  if (hasVisionProvider) {
+    let firstPassConfident = false;
+    try {
+      const firstPassData = { ...ocrResult.data, words: (ocrResult.data?.words || []).map(w => ({ ...w, bbox: { ...w.bbox } })) };
+      firstPassConfident = deterministicPassesConfidenceGate(parseTimetableFromGrid(firstPassData, existingSubjects, facultyLegend, subjectLegend)?.schedule);
+    } catch (_) { /* unparseable first pass: not confident */ }
+    if (!firstPassConfident) visionPromise = startVisionRead();
+  }
 
   // Stage A: if the first pass found day labels but essentially no usable
   // time-range tokens, retry OCR on just the header band (cropped +
@@ -1848,15 +1875,7 @@ ${ocrResult.data.text || ''}`;
   // than a handful of rows; anything less is itself a strong signal the
   // grid reconstruction missed most of the photo, regardless of whether
   // Tesseract felt confident about the few rows it did produce.
-  const uncertainRowCount = (deterministicResult.schedule || []).filter(r => r.isUncertain).length;
-  const uncertainRatio = deterministicResult.schedule?.length
-    ? uncertainRowCount / deterministicResult.schedule.length
-    : 1;
-  const distinctDaysFound = new Set((deterministicResult.schedule || []).map(r => r.day)).size;
-  const deterministicIsConfident = deterministicResult.schedule
-    && deterministicResult.schedule.length >= 6
-    && uncertainRatio < 0.4
-    && distinctDaysFound >= 3;
+  const deterministicIsConfident = deterministicPassesConfidenceGate(deterministicResult.schedule);
 
   if (deterministicIsConfident) {
     return { schedule: deterministicResult.schedule, confidence: Math.max(70, deterministicResult.confidence) };
@@ -1934,9 +1953,11 @@ Notice: full subject name with its short code in parentheses, "Prof. <initials>"
   // text-only repair or raw Tesseract -- it just tries the next one. Falls
   // through to text-only repair below only if no vision provider is
   // configured, or all configured ones failed/were empty.
-  if (visionPromise) {
+  if (hasVisionProvider) {
     try {
-      // Started right after the first OCR pass (see visionPromise above).
+      // Usually already running since the first OCR pass (see
+      // startVisionRead above); otherwise it starts now, as it always did.
+      if (!visionPromise) visionPromise = startVisionRead();
       visionStepVisible = true;
       if (visionStepName) updateTimetableLoadingModal(`Reading the photo with AI (${visionStepName})...`);
       const visionResult = await visionPromise;
