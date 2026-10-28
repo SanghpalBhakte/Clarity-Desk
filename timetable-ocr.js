@@ -1593,6 +1593,64 @@ async function extractTimetableFromImage(base64Data, mimeType) {
   const facultyLegend = parseFacultyLegend(ocrResult.data?.words);
   const subjectLegend = parseSubjectAbbreviationLegend(ocrResult.data?.words);
 
+  // AI structured repair fallback (only if user has configured an API key
+  // for at least one vision/text provider)
+  const hasGroqKey = AIService.hasProvider('groq');
+  const hasGeminiKey = AIService.hasProvider('gemini');
+  const hasOpenRouterKey = AIService.hasProvider('openrouter');
+
+  // Legends were already parsed from this same image by the Tesseract pass
+  // above (facultyLegend/subjectLegend) -- hand them to the AI as a hint
+  // instead of making it re-derive every abbreviation from pixels alone.
+  // Deliberately phrased as "may be incomplete" since this first-pass OCR
+  // read can itself be wrong; the model should verify against the photo,
+  // not trust it blindly.
+  const legendHint = (subjectLegend?.length || facultyLegend?.length)
+    ? `\n\nA prior OCR pass already read a legend from this same image (may be incomplete or contain misreads -- verify against the photo, don't trust it blindly):\nSubject abbreviations: ${JSON.stringify(subjectLegend || [])}\nFaculty codes: ${JSON.stringify(facultyLegend || [])}`
+    : '';
+
+  // The vision call's image and prompt depend only on this first pass
+  // (preprocessedDataUrl, ocrResult text, the legends above), none of which
+  // Stages A-D below change. So it starts now and runs while those on-device
+  // retries do, instead of after them: same request, same answer, sooner.
+  // It is only awaited further down when the on-device result fails the
+  // confidence gate; otherwise its answer is ignored, exactly as before.
+  let visionStepName = null;
+  let visionStepVisible = false;
+  const visionPromise = (hasGeminiKey || hasGroqKey || hasOpenRouterKey) ? (async () => {
+    // The vision call asks for the GRID (which header columns each cell
+    // covers), not clock times per row: the app computes times itself from
+    // the printed header (expandGridCellsToScheduleRows). Measured on the
+    // real SY-AIDS test-kit scan with the same model: the flat "time/end per
+    // row" format read every cell correctly but cut most two-period merged
+    // cells (MDM 3-5, the 10-12 lab blocks) to their first hour -- 74%
+    // recall -- because the model had to derive each merged cell's end
+    // time itself. The text-only repair path below keeps the flat format.
+    const visionPrompt = VISION_GRID_INSTRUCTION + legendHint + `
+
+The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
+
+Rough OCR text (may be inaccurate):
+${ocrResult.data.text || ''}`;
+    // Reuse the already-preprocessed image (deskewed, contrast-enhanced,
+    // capped at 2000px -- see preprocessImageForOCR above) instead of the
+    // raw camera upload. Phone photos are routinely 3-8MB before this;
+    // that full-size file was being base64-uploaded, unmodified, to every
+    // vision provider on every scan. Smaller payload = faster network
+    // transfer + faster model-side image processing, with no accuracy
+    // loss since it's the exact same image Tesseract itself already reads.
+    const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
+    const preprocessedBase64 = visionDataUrl.split(',')[1];
+    // Provider names only reach the loading screen once the scan is actually
+    // waiting on the AI, so they don't overwrite the on-device stage messages.
+    return AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt, name => {
+      visionStepName = name;
+      if (visionStepVisible) updateTimetableLoadingModal(`Reading the photo with AI (${name})...`);
+    });
+  })() : null;
+  // An answer that ends up ignored must not surface as an unhandled rejection.
+  if (visionPromise) visionPromise.catch(() => {});
+
   // Stage A: if the first pass found day labels but essentially no usable
   // time-range tokens, retry OCR on just the header band (cropped +
   // upscaled) before handing off to the deterministic parser. Only
@@ -1804,12 +1862,6 @@ async function extractTimetableFromImage(base64Data, mimeType) {
     return { schedule: deterministicResult.schedule, confidence: Math.max(70, deterministicResult.confidence) };
   }
 
-  // AI structured repair fallback (only if user has configured an API key
-  // for at least one vision/text provider)
-  const hasGroqKey = AIService.hasProvider('groq');
-  const hasGeminiKey = AIService.hasProvider('gemini');
-  const hasOpenRouterKey = AIService.hasProvider('openrouter');
-
   if (!hasGroqKey && !hasGeminiKey && !hasOpenRouterKey) {
     console.log("[ExtractionPipeline] AI Repair skipped (no API key). Using deterministic output.");
     // No AI provider to cross-check against, and this result already failed
@@ -1872,16 +1924,6 @@ This is an EXAMPLE of the clean formatting style to aim for (a DIFFERENT college
 { "day": "Tue", "time": "10:00", "end": "12:00", "subject": "Web Development Lab", "code": "WEB DEV", "room": "FF-40", "teacher": "Prof. MKP", "type": "lab", "isUncertain": false }
 Notice: full subject name with its short code in parentheses, "Prof. <initials>" for teacher when the photo only gives initials, "—" (em dash) for an unlisted room/teacher, and breaks/recess given their own row with type "off" rather than skipped.`;
 
-  // Legends were already parsed from this same image by the Tesseract pass
-  // above (facultyLegend/subjectLegend) -- hand them to the AI as a hint
-  // instead of making it re-derive every abbreviation from pixels alone.
-  // Deliberately phrased as "may be incomplete" since this first-pass OCR
-  // read can itself be wrong; the model should verify against the photo,
-  // not trust it blindly.
-  const legendHint = (subjectLegend?.length || facultyLegend?.length)
-    ? `\n\nA prior OCR pass already read a legend from this same image (may be incomplete or contain misreads -- verify against the photo, don't trust it blindly):\nSubject abbreviations: ${JSON.stringify(subjectLegend || [])}\nFaculty codes: ${JSON.stringify(facultyLegend || [])}`
-    : '';
-
   // Vision-first: send the actual photo to a multimodal model when any
   // vision-capable provider is configured -- this is the only path that can
   // recover information Tesseract lost at the pixel level (heavy skew, poor
@@ -1892,33 +1934,12 @@ Notice: full subject name with its short code in parentheses, "Prof. <initials>"
   // text-only repair or raw Tesseract -- it just tries the next one. Falls
   // through to text-only repair below only if no vision provider is
   // configured, or all configured ones failed/were empty.
-  if (hasGeminiKey || hasGroqKey || hasOpenRouterKey) {
+  if (visionPromise) {
     try {
-      // The vision call asks for the GRID (which header columns each cell
-      // covers), not clock times per row: the app computes times itself from
-      // the printed header (expandGridCellsToScheduleRows). Measured on the
-      // real SY-AIDS test-kit scan with the same model: the flat "time/end per
-      // row" format read every cell correctly but cut most two-period merged
-      // cells (MDM 3-5, the 10-12 lab blocks) to their first hour -- 74%
-      // recall -- because the model had to derive each merged cell's end
-      // time itself. The text-only repair path below keeps the flat format.
-      const visionPrompt = VISION_GRID_INSTRUCTION + legendHint + `
-
-The attached image is a photo of the same college timetable the OCR text below was read from. Use the image as the primary source of truth -- the OCR text is only a rough, possibly-garbled hint of what it contains, since it came from a classical OCR engine that may have misread skewed, poorly-lit, or handwritten text.
-
-Rough OCR text (may be inaccurate):
-${ocrResult.data.text || ''}`;
-      // Reuse the already-preprocessed image (deskewed, contrast-enhanced,
-      // capped at 2000px -- see preprocessImageForOCR above) instead of the
-      // raw camera upload. Phone photos are routinely 3-8MB before this;
-      // that full-size file was being base64-uploaded, unmodified, to every
-      // vision provider on every scan. Smaller payload = faster network
-      // transfer + faster model-side image processing, with no accuracy
-      // loss since it's the exact same image Tesseract itself already reads.
-      const visionDataUrl = await reencodeDataUrl(preprocessedDataUrl, mimeType, 0.92);
-      const preprocessedBase64 = visionDataUrl.split(',')[1];
-      const visionResult = await AIService.extractStructuredFromImage(preprocessedBase64, mimeType, visionPrompt,
-        name => updateTimetableLoadingModal(`Reading the photo with AI (${name})...`));
+      // Started right after the first OCR pass (see visionPromise above).
+      visionStepVisible = true;
+      if (visionStepName) updateTimetableLoadingModal(`Reading the photo with AI (${visionStepName})...`);
+      const visionResult = await visionPromise;
       if (visionResult && Array.isArray(visionResult.schedule) && visionResult.schedule.length > 0) {
         // Grid-cell response (the requested format) -> rows with times from
         // the header; a model that ignored it and returned flat rows is

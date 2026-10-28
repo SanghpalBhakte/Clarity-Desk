@@ -87,7 +87,8 @@ const sandboxCode = `
 
   return {
     reconstructTimetable2DGrid,
-    extractTimetableFromImage
+    extractTimetableFromImage,
+    AIService
   };
 `;
 
@@ -299,6 +300,109 @@ await check('5. Orchestration: a retry that would produce fewer rows is rejected
     return `expected the original 2-row result to be kept (retry rejected as worse), got ${result.schedule?.length}: ${JSON.stringify(result.schedule?.map(r => r.subject))}`;
   }
   return true;
+});
+
+// First pass with one garbled, low-confidence cell (triggers the Stage C
+// cell retry) and a result too small to pass the confidence gate, so the
+// pipeline goes on to the vision AI. Used by 6 and 7.
+function visionFirstPass() {
+  return {
+    data: {
+      words: [
+        w('Mon', 20, 100, 60, 130, 95),
+        w('10:00 - 11:00', 150, 30, 280, 60, 95),
+        w('11:00 - 12:00', 300, 30, 430, 60, 95),
+        w('Pashilii', 300, 100, 350, 120, 20), w('Roce', 355, 100, 390, 120, 15),
+        w('SDJ', 393, 100, 415, 120, 10), w('ss', 418, 100, 435, 120, 25)
+      ],
+      text: 'Mon 10:00 - 11:00 11:00 - 12:00 Pashilii Roce SDJ ss'
+    }
+  };
+}
+
+await check('6. Vision AI starts while the on-device retries still run, with the same prompt, and its answer is used', async () => {
+  const mod = createSandbox();
+  globalThis.CAMPUS_OS_AI_PROXY = 'https://proxy.test';
+  let markVisionStarted;
+  const visionStarted = new Promise(r => { markVisionStarted = r; });
+  let stageCSawVision = null;
+  let promptSeen = '';
+  let recognizeCalls = 0;
+  mod.AIService.extractStructuredFromImage = async (b64, mime, prompt, onStep) => {
+    promptSeen = prompt;
+    markVisionStarted();
+    onStep('Gemini');
+    return {
+      periods: [{ n: 1, start: '10:00 AM', end: '11:00 AM' }, { n: 2, start: '11:00 AM', end: '12:00 PM' }],
+      schedule: [{ day: 'Mon', periods: [2], entries: [{ subject: 'Deep Learning', code: 'DL', teacher: '', room: '', batch: '', type: 'lecture', isUncertain: false }] }]
+    };
+  };
+  mod.AIService.generateContentFromText = async () => { throw new Error('text repair must not run when vision answered'); };
+  globalThis.Tesseract = {
+    createWorker: async () => ({
+      setParameters: async () => {},
+      recognize: async () => {
+        recognizeCalls++;
+        if (recognizeCalls === 1) return visionFirstPass();
+        // Stage C cell retry: waits (up to 2 s) for the vision call. Before
+        // this change the vision call only started after Stage C finished.
+        stageCSawVision = await Promise.race([
+          visionStarted.then(() => true),
+          new Promise(r => setTimeout(() => r(false), 2000))
+        ]);
+        return { data: { words: [], text: '' } };
+      },
+      terminate: async () => {}
+    })
+  };
+  try {
+    const result = await mod.extractTimetableFromImage('ZmFrZQ==', 'image/png');
+    if (recognizeCalls < 2) return `expected the Stage C retry to run, got ${recognizeCalls} recognize() calls`;
+    if (stageCSawVision !== true) return 'expected the vision call to start before the Stage C retry finished';
+    if (!promptSeen.includes('Rough OCR text') || !promptSeen.includes('Pashilii Roce SDJ ss')) return 'expected the first-pass OCR text in the vision prompt, as before';
+    if (result.confidence !== 88) return `expected the vision answer (confidence 88), got ${result.confidence}`;
+    const row = (result.schedule || []).find(r => r.subject === 'Deep Learning');
+    if (!row || row.day !== 'Mon' || row.time !== '11:00' || row.end !== '12:00') return `expected Deep Learning Mon 11:00-12:00, got ${JSON.stringify(result.schedule)}`;
+    return true;
+  } finally {
+    delete globalThis.CAMPUS_OS_AI_PROXY;
+  }
+});
+
+await check('7. A vision failure during the on-device retries is not an unhandled error and still falls back to text repair', async () => {
+  const mod = createSandbox();
+  globalThis.CAMPUS_OS_AI_PROXY = 'https://proxy.test';
+  let unhandled = null;
+  const onUnhandled = (e) => { unhandled = e; };
+  process.on('unhandledRejection', onUnhandled);
+  let textRepairCalled = false;
+  let recognizeCalls = 0;
+  mod.AIService.extractStructuredFromImage = async () => { throw new Error('every vision provider failed'); };
+  mod.AIService.generateContentFromText = async () => { textRepairCalled = true; return { schedule: [] }; };
+  globalThis.Tesseract = {
+    createWorker: async () => ({
+      setParameters: async () => {},
+      recognize: async () => {
+        recognizeCalls++;
+        if (recognizeCalls === 1) return visionFirstPass();
+        // Let the rejected vision promise settle while Stage C is still running.
+        await new Promise(r => setTimeout(r, 50));
+        return { data: { words: [], text: '' } };
+      },
+      terminate: async () => {}
+    })
+  };
+  try {
+    const result = await mod.extractTimetableFromImage('ZmFrZQ==', 'image/png');
+    await new Promise(r => setTimeout(r, 20));
+    if (unhandled) return `unhandled rejection: ${unhandled.message || unhandled}`;
+    if (!textRepairCalled) return 'expected the text-only repair to run after the vision failure, as before';
+    if (!result.needsReview) return `expected the on-device result flagged needsReview, got ${JSON.stringify(result)}`;
+    return true;
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+    delete globalThis.CAMPUS_OS_AI_PROXY;
+  }
 });
 
 console.log('\n========================================');
