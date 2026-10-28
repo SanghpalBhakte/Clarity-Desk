@@ -1014,13 +1014,16 @@ const AIService = {
   // it just means the next configured provider gets tried instead.
   // onStep(providerName), optional, is called before each provider is tried
   // so the scan screen can say what it is waiting on.
-  async extractStructuredFromImage(base64Data, mimeType, promptText, onStep) {
+  // skipProviders: provider names (as passed to onStep) to leave out, so a
+  // caller can ask a different provider for a second answer.
+  async extractStructuredFromImage(base64Data, mimeType, promptText, onStep, skipProviders = []) {
     let attempts = [];
     if (this.hasProvider('gemini')) attempts.push(['Gemini', () => this.generateContentFromImage(base64Data, mimeType, promptText), this.getModelsList().map(m => `gemini:${m}`)]);
     if (this.hasProvider('groq')) attempts.push(['Groq', () => this.callGroqVision(base64Data, mimeType, promptText), [`groq:${this.GROQ_VISION_MODEL}`]]);
     if (this.hasProvider('workersai')) attempts.push(['Workers AI', () => this.callWorkersAIVision(base64Data, mimeType, promptText), this.WORKERS_AI_VISION_MODELS.map(m => `workersai:${m}`)]);
     if (this.hasProvider('openrouter')) attempts.push(['OpenRouter', () => this.callOpenRouterVision(base64Data, mimeType, promptText), this.OPENROUTER_VISION_MODELS.map(m => `openrouter:${m}`)]);
 
+    attempts = attempts.filter(a => !skipProviders.includes(a[0]));
     if (attempts.length === 0) {
       throw new Error('No vision-capable AI provider configured.');
     }
