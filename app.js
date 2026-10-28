@@ -1232,6 +1232,97 @@ function reencodeDataUrl(dataUrl, mimeType, quality) {
   });
 }
 
+// ── Photo check before a scan ─────────────────────────────────
+// Returns a short reason when a photo probably won't scan well, or null.
+// Blur is the variance of the Laplacian on a grayscale copy at most 1000px
+// on its long side. Measured on every test-kit image (2026-10-28): photos
+// and screenshots that scan fine scored 89-9548, the same images blurred by
+// 2px scored 3-23, so the cutoff of 40 leaves a wide margin either side.
+// Brightness alone is not checked: a valid dark-mode screenshot averaged
+// 38/255, and a dim photo that has lost its detail fails the blur test anyway.
+const SCAN_PHOTO_MIN_DETAIL = 40;
+const SCAN_PHOTO_MIN_LONG_SIDE = 600;
+
+function scanPhotoProblem(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+        if (Math.max(W, H) < SCAN_PHOTO_MIN_LONG_SIDE) {
+          resolve('This photo is very small, so its text may be too tiny to read.');
+          return;
+        }
+        const scale = Math.min(1, 1000 / Math.max(W, H));
+        const w = Math.max(3, Math.round(W * scale)), h = Math.max(3, Math.round(H * scale));
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const d = ctx.getImageData(0, 0, w, h).data;
+        c.width = 1;
+        c.height = 1;
+        const g = new Float32Array(w * h);
+        for (let i = 0; i < w * h; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+        let sum = 0, sumSq = 0, n = 0;
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            const lap = g[i - 1] + g[i + 1] + g[i - w] + g[i + w] - 4 * g[i];
+            sum += lap;
+            sumSq += lap * lap;
+            n++;
+          }
+        }
+        const detail = n ? sumSq / n - (sum / n) ** 2 : 0;
+        resolve(detail < SCAN_PHOTO_MIN_DETAIL ? 'This photo looks blurry or washed out, so the scan may miss or misread parts of it.' : null);
+      } catch (_) {
+        resolve(null);   // a check that can't run never blocks the scan
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+// Shows the reason from scanPhotoProblem and lets the student choose.
+// Resolves true to scan this photo, false after "Choose another photo",
+// which calls onRetake straight from the tap (phones block file pickers
+// opened later). Resolves true at once when the photo looks fine.
+async function confirmScanPhotoQuality(dataUrl, onRetake) {
+  const problem = await scanPhotoProblem(dataUrl);
+  if (!problem) return true;
+  return new Promise((resolve) => {
+    document.getElementById('scan-photo-check-backdrop')?.remove();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.id = 'scan-photo-check-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:400px;text-align:center;padding:28px 24px">
+        <div style="font-size:var(--text-hero);margin-bottom:12px">${icons.camera()}</div>
+        <div style="font-weight:700;font-size:var(--text-md);margin-bottom:8px">This photo may not scan well</div>
+        <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:8px;line-height:1.5">${problem}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:20px;line-height:1.5">For the best result, hold the phone steady, fill the frame with the table, and use good light. A screenshot works best.</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn-primary" id="scan-photo-retake-btn">${icons.camera()} Choose another photo</button>
+          <button class="btn-secondary" id="scan-photo-anyway-btn">Scan this photo anyway</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    document.getElementById('scan-photo-retake-btn').onclick = () => {
+      backdrop.remove();
+      if (typeof onRetake === 'function') { try { onRetake(); } catch (_) {} }
+      resolve(false);
+    };
+    document.getElementById('scan-photo-anyway-btn').onclick = () => {
+      backdrop.remove();
+      resolve(true);
+    };
+  });
+}
+
 // ── Robust Time Normalizer ──────────────────────────────────────
 function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
   if (!timeRaw || typeof timeRaw !== 'string') return { time: '', end: '', isValid: false };
@@ -2429,6 +2520,12 @@ function handleTimetableImageUpload(event) {
     } catch {
       document.getElementById('tt-loading-backdrop')?.remove();
       showTimetableUploadErrorModal('Could not read the image file. Please try a different photo.');
+      return;
+    }
+
+    // A blurry or tiny photo gets a chance to be retaken before it is read.
+    if (!(await confirmScanPhotoQuality(e.target.result, selectTimetableFile))) {
+      document.getElementById('tt-loading-backdrop')?.remove();
       return;
     }
 
@@ -10997,12 +11094,14 @@ let _scannersLoad = null;
 // live getters (and a setter for the OCR lock) because app.js owns them.
 function scannerDeps() {
   return {
-    AIService, clearUndatedTapsCoveredBy, findSyllabusEntry,
+    AIService, chooseSyllabusScanFile: () => window.chooseSyllabusScanFile(),
+    clearUndatedTapsCoveredBy, confirmScanPhotoQuality, findSyllabusEntry,
     getAttendanceTarget, getSubjectList, getTesseractWorker,
     groupWordsIntoLines, icons, loadAttendanceBaselines, loadSyllabus,
     normalizeSubjectIdentity, parseSyllabusLine, reencodeDataUrl,
     renderPage, renderSyllabusPreviewStep, saveAttendanceBaselines,
     showBaselineModal, showToast, state, SYL_MAX_TOPICS, sylEsc,
+    triggerAttendancePhotoScan,
     get _isOcrBusy() { return _isOcrBusy; },
     set _isOcrBusy(v) { _isOcrBusy = v; },
     get sylPasteDraft() { return sylPasteDraft; }

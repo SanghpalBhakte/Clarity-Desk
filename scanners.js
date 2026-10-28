@@ -15,12 +15,13 @@
 
 export function createScanners(deps) {
   const {
-    AIService, clearUndatedTapsCoveredBy, findSyllabusEntry,
-    getAttendanceTarget, getSubjectList, getTesseractWorker,
+    AIService, chooseSyllabusScanFile, clearUndatedTapsCoveredBy,
+    confirmScanPhotoQuality, findSyllabusEntry, getAttendanceTarget, getSubjectList, getTesseractWorker,
     groupWordsIntoLines, icons, loadAttendanceBaselines, loadSyllabus,
     normalizeSubjectIdentity, parseSyllabusLine, reencodeDataUrl,
     renderPage, renderSyllabusPreviewStep, saveAttendanceBaselines,
-    showBaselineModal, showToast, state, SYL_MAX_TOPICS, sylEsc
+    showBaselineModal, showToast, state, SYL_MAX_TOPICS, sylEsc,
+    triggerAttendancePhotoScan
   } = deps;
 
   // ── Attendance Photo Scanning Engine ──────────────────────────
@@ -261,6 +262,14 @@ async function handleAttendancePhotoUpload(event) {
     }
 
     try {
+      if (_isAttendanceScanCanceled || currentScanId !== _currentAttendanceScanId) return;
+
+      // A blurry or tiny photo gets a chance to be retaken before it is read.
+      if (!(await confirmScanPhotoQuality(e.target.result, triggerAttendancePhotoScan))) {
+        deps._isOcrBusy = false;
+        hideAttendanceScanLoadingModal();
+        return;
+      }
       if (_isAttendanceScanCanceled || currentScanId !== _currentAttendanceScanId) return;
 
       updateAttendanceScanLoadingMessage('Preprocessing image (contrast normalization, table crop)…');
@@ -1584,7 +1593,14 @@ async function handleSyllabusScanFile(file) {
     return;
   }
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-  if (!isPdf) dataUrl = await shrinkSyllabusImage(dataUrl);
+  if (!isPdf) {
+    // A blurry or tiny photo gets a chance to be retaken before it is read.
+    if (!(await confirmScanPhotoQuality(dataUrl, chooseSyllabusScanFile))) {
+      renderSyllabusScanError('Choose a clearer photo, or paste the topics.');
+      return;
+    }
+    dataUrl = await shrinkSyllabusImage(dataUrl);
+  }
   const mimeType = isPdf ? 'application/pdf' : (String(dataUrl).split(';')[0].split(':')[1] || 'image/jpeg');
   await runSyllabusScan(String(dataUrl).split(',')[1] || '', mimeType);
 }
