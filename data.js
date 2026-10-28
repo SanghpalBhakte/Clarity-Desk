@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u110",
+    date: "2026-10-28",
+    title: "Clarity Desk opens a little faster: Ask Desk now loads the first time you use it instead of on every start-up. It still works offline and gives the same answers.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clarity Desk opens a little faster: Ask Desk now loads the first time you use it instead of on every start-up. It still works offline and gives the same answers.",
+    points: [
+
+    ]
+  },
+  {
     id: "u109",
     date: "2026-10-28",
     title: "Deadline labels now read \"Due today\" and \"Due tomorrow\" in plain sentence case across Today, Tasks and the study plan, and some leftover unused code was tidied away.",
