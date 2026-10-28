@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u107",
+    date: "2026-10-28",
+    title: "Today is calmer and easier to read. The class card now shows just what matters: the class in progress with time left and a progress line, the next class with its start time, or your next deadline once classes are over. Small labels are quieter, red is only used for overdue work, the dots on your class list sit neatly on the line, and greetings have more variety. With reduced motion turned on, pages no longer fade in.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today is calmer and easier to read. The class card now shows just what matters: the class in progress with time left and a progress line, the next class with its start time, or your next deadline once classes are over. Small labels are quieter, red is only used for overdue work, the dots on your class list sit neatly on the line, and greetings have more variety. With reduced motion turned on, pages no longer fade in.",
+    points: [
+
+    ]
+  },
+  {
     id: "u106",
     date: "2026-10-28",
     title: "The holiday palm now sways smoothly and no longer jumps back when Today refreshes",
