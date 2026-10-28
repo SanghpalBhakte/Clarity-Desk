@@ -1116,6 +1116,7 @@ function friendlyGeminiError(httpStatus, rawMsg) {
 
 function updateTimetableLoadingModal(msg) {
   const backdrop = document.getElementById('tt-loading-backdrop');
+  if (!backdrop && _ttScanCanceled) return;   // a cancelled scan's late update
   if (backdrop) {
     const msgEl = backdrop.querySelector('.loading-msg');
     if (msgEl) msgEl.textContent = msg;
@@ -1124,18 +1125,39 @@ function updateTimetableLoadingModal(msg) {
   }
 }
 
+// Each timetable scan gets a number; Cancel bumps it, so a scan that
+// finishes after being cancelled is ignored instead of opening the review.
+let _ttScanId = 0;
+let _ttScanCanceled = false;
+
 function showTimetableLoadingModal(msg = "Analyzing photo...") {
+  _ttScanCanceled = false;
+  const startedAt = Date.now();
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'tt-loading-backdrop';
   backdrop.innerHTML = `
-    <div class="modal" style="max-width:360px;text-align:center;padding:32px 24px">
+    <div class="modal" style="max-width:360px;text-align:center;padding:32px 24px" role="status" aria-live="polite">
       <div style="font-size:var(--text-hero);margin-bottom:12px;animation:spin 1.5s linear infinite">✨</div>
       <div style="font-weight:700;font-size:var(--text-md);margin-bottom:6px" class="loading-msg">${msg}</div>
-      <div style="font-size:var(--text-sm);color:var(--text-muted)">Extracting weekly schedule...</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted)">Usually 20–60 seconds. Nothing is saved until you check the list.</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px;font-variant-numeric:tabular-nums" class="loading-elapsed" aria-hidden="true">0 s</div>
+      <button type="button" class="btn-secondary" onclick="cancelTimetableScan()" style="margin-top:16px;font-size:var(--text-base);padding:6px 16px">Cancel</button>
     </div>
   `;
   document.body.appendChild(backdrop);
+  const timer = setInterval(() => {
+    if (!backdrop.isConnected) { clearInterval(timer); return; }
+    const el = backdrop.querySelector('.loading-elapsed');
+    if (el) el.textContent = `${Math.round((Date.now() - startedAt) / 1000)} s`;
+  }, 1000);
+}
+
+function cancelTimetableScan() {
+  _ttScanId++;
+  _ttScanCanceled = true;
+  document.getElementById('tt-loading-backdrop')?.remove();
+  showToast('Scan canceled', 'info');
 }
 
 // ── Lazy-Loaded OCR Engine & Worker Cache ─────────────────────
@@ -2508,6 +2530,7 @@ function handleTimetableImageUpload(event) {
 
   _scanStartedAt = Date.now();
   trackUsage('scan_started');
+  const scanId = ++_ttScanId;
   showTimetableLoadingModal('Scanning timetable photo…');
 
   const reader = new FileReader();
@@ -2529,8 +2552,10 @@ function handleTimetableImageUpload(event) {
       return;
     }
 
+    if (scanId !== _ttScanId) return;   // cancelled while the photo check was open
     try {
       const result = await extractTimetableFromImage(base64Data, mimeType);
+      if (scanId !== _ttScanId) return;   // cancelled while reading
       document.getElementById('tt-loading-backdrop')?.remove();
 
       const schedule = result?.schedule || [];
@@ -2550,6 +2575,7 @@ function handleTimetableImageUpload(event) {
       showTimetablePreviewModal(schedule);
 
     } catch (err) {
+      if (scanId !== _ttScanId) return;
       document.getElementById('tt-loading-backdrop')?.remove();
       console.warn('[TimetableUpload] Extraction error:', err);
       const reason = err?.message || 'Timetable extraction failed.';
@@ -2592,9 +2618,11 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
   if (canRetry) {
     document.getElementById('tt-error-retry-btn').onclick = async () => {
       backdrop.remove();
+      const scanId = ++_ttScanId;
       showTimetableLoadingModal('Retrying extraction…');
       try {
         const result = await extractTimetableFromImage(base64Data, mimeType);
+        if (scanId !== _ttScanId) return;   // cancelled while reading
         document.getElementById('tt-loading-backdrop')?.remove();
         const schedule = result?.schedule;
         if (!Array.isArray(schedule) || schedule.length === 0) {
@@ -2604,6 +2632,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
           showTimetablePreviewModal(schedule);
         }
       } catch (err2) {
+        if (scanId !== _ttScanId) return;
         document.getElementById('tt-loading-backdrop')?.remove();
         showTimetableUploadErrorModal(err2?.message || 'Retry also failed.', base64Data, mimeType);
       }
@@ -17250,6 +17279,7 @@ window.passwordSignIn          = passwordSignIn;
 window.sendPasswordReset       = sendPasswordReset;
 window.logoutUser       = logoutUser;
 window.triggerTimetableImport  = triggerTimetableImport;
+window.cancelTimetableScan     = cancelTimetableScan;
 window.resetTimetableToDefault = resetTimetableToDefault;
 window.loadOfficialAidsTimetable = loadOfficialAidsTimetable;
 window.confirmLoadOfficialAidsTimetable = confirmLoadOfficialAidsTimetable;
