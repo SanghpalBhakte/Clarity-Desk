@@ -40,11 +40,11 @@ const SITE = 'https://campusos-83365.web.app';
 // each one is smoke-tested. SITE stays the one the live version check reads.
 const SITES = [SITE, 'https://claritydesk.web.app'];
 // app.js, style.css and data.js load from jsDelivr (Cloudflare) pinned to a git
-// commit, with this site as the fallback; desk-assistant.js, scanners.js, deadline-import.js and welcome-tour.js come along
+// commit, with this site as the fallback; desk-assistant.js, scanners.js, timetable-ocr.js, deadline-import.js and welcome-tour.js come along
 // through app.js's import(). See index.html.
 const CDN = 'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@';
 const CDN_RE = /https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@([0-9a-f]{40})\//g;
-const CDN_FILES = ['app.js', 'style.css', 'data.js', 'desk-assistant.js', 'scanners.js', 'deadline-import.js', 'welcome-tour.js'];
+const CDN_FILES = ['app.js', 'style.css', 'data.js', 'desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'deadline-import.js', 'welcome-tour.js'];
 const CDN_PAGES = ['index.html', '404.html', 'sw.js'];
 
 const step = (s) => console.log(`\n▶ ${s}`);

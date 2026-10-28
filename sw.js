@@ -12,7 +12,7 @@ let slowUntil = 0;
 // URLs are spelled exactly as index.html requests them (with ?v=N, or the
 // jsDelivr copy pinned to the deployed commit), so the install step and the
 // page share one download. scripts/ship.mjs bumps ?v=N and sets the commit.
-// desk-assistant.js and scanners.js are precached so Ask Desk and the photo
+// desk-assistant.js, scanners.js and timetable-ocr.js are precached so Ask Desk and the photo
 // scans work offline even though app.js imports them lazily. deadline-import*.js, welcome-tour.js and vendor/jszip.min.js
 // are cached on first use instead.
 const PRECACHE_ASSETS = [
@@ -24,6 +24,7 @@ const PRECACHE_ASSETS = [
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@b94155eca6a319b4e03436c26e86f277e2ca6d60/data.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@b94155eca6a319b4e03436c26e86f277e2ca6d60/desk-assistant.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@b94155eca6a319b4e03436c26e86f277e2ca6d60/scanners.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@b94155eca6a319b4e03436c26e86f277e2ca6d60/timetable-ocr.js',
   './manifest.json',
   'favicon.ico?v=246',
   'favicon.svg?v=246',
