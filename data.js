@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u114",
+    date: "2026-10-28",
+    title: "Red warnings, like overdue tasks and error messages, are easier to read in the light theme with every accent colour.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Red warnings, like overdue tasks and error messages, are easier to read in the light theme with every accent colour.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u113",
+    date: "2026-10-28",
+    title: "Buttons, chat bubbles, toasts and syllabus ticks are easier to read, especially in dark mode, and the light rose and apricot accents are a little deeper so their text stands out.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Buttons, chat bubbles, toasts and syllabus ticks are easier to read, especially in dark mode, and the light rose and apricot accents are a little deeper so their text stands out.",
+    points: [
+
+    ]
+  },
+  {
     id: "u112",
     date: "2026-10-28",
     title: "Clarity Desk opens a little faster again: the timetable photo reader now loads the first time you scan a timetable instead of on every start-up. It still works offline and reads timetables exactly as before.",
