@@ -14,8 +14,6 @@
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
-import vm from 'vm';
-import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -468,43 +466,6 @@ check('Reminders (app): class reminder and attendance alert skipped during holid
   const normal = sent.slice();
   const ok = during.length === 0 && normal.some(t => /Class Starting Soon/.test(t)) && normal.some(t => /Attendance Alert/.test(t));
   return ok ? true : `during ${JSON.stringify(during)} normal ${JSON.stringify(normal)}`;
-});
-
-function loadPushJob() {
-  const jobPath = path.join(ROOT, 'scripts/push-notifications/send-notifications.js');
-  const src = fs.readFileSync(jobPath, 'utf8').replace(/\nmain\(\)[\s\S]*$/, '\nmodule.exports = { evaluateUser };\n');
-  const realRequire = createRequire(jobPath);
-  const sandbox = {
-    module: { exports: {} }, console, process, __dirname: path.dirname(jobPath),
-    require: (m) => (m === 'firebase-admin' ? {} : realRequire(m))
-  };
-  vm.createContext(sandbox);
-  new vm.Script(src, { filename: jobPath }).runInContext(sandbox);
-  return sandbox.module.exports;
-}
-const TIME = { dateStr: '2026-10-19', dayOfWeek: 1, hhmm: '09:50', minutes: 590 };
-const JOB_USER = {
-  notificationPrefs: { taskUpcoming: 'off', taskOverdue: 'off', classReminders: '15_min', dailySummaryTime: 'off', attendanceAlerts: 'instant' },
-  customTimetable: TT,
-  attSummary: { pct: '60.00', isSafe: false, target: 75 }
-};
-const titles = (list) => list.map(n => n.title);
-
-check('Reminders (push job): skips class reminders and the attendance alert during holiday mode', () => {
-  const { evaluateUser } = loadPushJob();
-  const normal = titles(evaluateUser(JOB_USER, {}, TIME));
-  const during = titles(evaluateUser({ ...JOB_USER, holiday: { on: true, since: '2026-10-19', until: null } }, {}, TIME));
-  return normal.length === 2 && during.length === 0 ? true : `normal ${JSON.stringify(normal)} during ${JSON.stringify(during)}`;
-});
-
-check('Reminders (push job): until = today, off, missing or corrupt holiday all send as usual', () => {
-  const { evaluateUser } = loadPushJob();
-  const cases = [{ on: true, since: '2026-10-12', until: '2026-10-19' }, { on: false }, undefined, 'x', { on: true, since: 'bad' }];
-  for (const h of cases) {
-    const n = evaluateUser({ ...JOB_USER, holiday: h }, {}, TIME).length;
-    if (n !== 2) return `${JSON.stringify(h)} -> ${n}`;
-  }
-  return true;
 });
 
 // ── Restore and sync ─────────────────────────────────────────────

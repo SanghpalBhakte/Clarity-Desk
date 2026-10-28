@@ -27,7 +27,7 @@ function check(name, testFn) {
 }
 
 console.log('==================================================================');
-console.log('📲 CLARITY DESK: BACKGROUND PUSH NOTIFICATIONS VERIFICATION');
+console.log('📲 CLARITY DESK: PUSH SET-UP (old Firebase push removed)');
 console.log('==================================================================\n');
 
 const appSrc = read('app.js');
@@ -37,12 +37,10 @@ const html404Src = read('404.html');
 const fbConfigSrc = read('firebase-config.js');
 const rulesSrc = read('firestore.rules');
 
-check('app.js: exposes registerBackgroundPush / getMessaging / isPushRegistered', () => {
-  for (const fn of ['function registerBackgroundPush', 'function getMessaging', 'function isPushRegistered', 'function initForegroundPushListener']) {
-    if (!appSrc.includes(fn)) return `missing "${fn}"`;
+check('app.js: the old Firebase (FCM) push path is gone', () => {
+  for (const bit of ['function registerBackgroundPush', 'function getMessaging', 'function isPushRegistered', 'function initForegroundPushListener', 'initForegroundPushListener();', 'registerBackgroundPush', 'firebase.messaging', "collection('fcmTokens')"]) {
+    if (appSrc.includes(bit)) return `still present: ${bit}`;
   }
-  if (!appSrc.includes("window.registerBackgroundPush = registerBackgroundPush;")) return 'registerBackgroundPush not exposed on window';
-  if (!appSrc.includes('initForegroundPushListener();')) return 'initForegroundPushListener() not called from init()';
   return true;
 });
 
@@ -57,27 +55,21 @@ check('app.js: attendance target is synced to and restored from Firestore', () =
   return true;
 });
 
-check('app.js: Settings page offers a background-push enable control', () => {
-  if (!appSrc.includes('onclick="registerBackgroundPush()"')) return 'no button wired to registerBackgroundPush()';
-  if (!appSrc.includes('Background Push (works when app is closed)')) return 'settings card label missing';
+check('app.js: Settings has no "Enable Background Push" button (closed-app reminders are the one control)', () => {
+  if (appSrc.includes('Background Push (works when app is closed)')) return 'old settings card still there';
+  if (!appSrc.includes('Reminders when the app is closed')) return 'closed-app reminders card missing';
   return true;
 });
 
-check('firebase-config.js: exposes a public VAPID key for FCM getToken()', () => {
-  if (!fbConfigSrc.includes('window.CAMPUS_OS_FCM_VAPID_KEY')) return 'CAMPUS_OS_FCM_VAPID_KEY not set';
-  if (fbConfigSrc.includes("'REPLACE_WITH_VAPID_KEY'") && !fbConfigSrc.match(/'B[A-Za-z0-9_-]{80,}'/)) {
-    return 'no real-looking VAPID key literal found (still a placeholder?)';
-  }
+check('firebase-config.js: no FCM VAPID key left', () => {
+  if (fbConfigSrc.includes('CAMPUS_OS_FCM_VAPID_KEY') || fbConfigSrc.includes('FIREBASE_VAPID_KEY')) return 'FCM VAPID key still set';
   return true;
 });
 
-check('index.html & 404.html: load firebase-messaging-compat.js after firestore-compat.js', () => {
+check('index.html & 404.html: load Firestore but not firebase-messaging-compat.js', () => {
   for (const [label, src] of [['index.html', htmlSrc], ['404.html', html404Src]]) {
-    const fIdx = src.indexOf('firebase-firestore-compat.js');
-    const mIdx = src.indexOf('firebase-messaging-compat.js');
-    if (fIdx === -1) return `${label}: firestore-compat script missing`;
-    if (mIdx === -1) return `${label}: messaging-compat script missing`;
-    if (mIdx < fIdx) return `${label}: messaging-compat loaded before firestore-compat`;
+    if (src.indexOf('firebase-firestore-compat.js') === -1) return `${label}: firestore-compat script missing`;
+    if (src.includes('firebase-messaging-compat.js')) return `${label}: messaging-compat still loaded`;
   }
   return true;
 });
@@ -102,40 +94,22 @@ check('sw.js: cache name bumped to match index.html\'s asset version', () => {
   return true;
 });
 
-check('sw.js: registers Firebase Messaging background handler and guards the legacy push listener', () => {
-  if (!swSrc.includes("importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js')")) return 'firebase-messaging-compat.js not imported';
-  if (!swSrc.includes('messaging.onBackgroundMessage')) return 'onBackgroundMessage handler missing';
-  if (!swSrc.includes("peek.data && typeof peek.data === 'object') return")) return 'legacy push listener is not guarded against double-handling FCM pushes';
+check('sw.js: no Firebase scripts or FCM handler; a stray FCM-shaped push is still skipped', () => {
+  if (swSrc.includes('importScripts(')) return 'sw.js still imports scripts (gstatic)';
+  if (swSrc.includes('onBackgroundMessage') || swSrc.includes('firebase.')) return 'FCM handler still in sw.js';
+  if (!swSrc.includes("peek.data && typeof peek.data === 'object') return")) return 'guard for FCM-shaped pushes missing';
   return true;
 });
 
-check('firestore.rules: already covers per-user subcollections (fcmTokens, notifState) — no rule change needed', () => {
+check('firestore.rules: per-user rule unchanged (old fcmTokens documents stay owner-only)', () => {
   if (!rulesSrc.includes('match /users/{uid}/{document=**}')) return 'the wildcard per-user rule this feature relies on is missing';
   if (!rulesSrc.includes('request.auth.uid == uid')) return 'per-user ownership check missing';
   return true;
 });
 
-check('scripts/push-notifications/: job, package.json and lockfile all exist and the job parses', () => {
-  const jobPath = path.join(ROOT, 'scripts/push-notifications/send-notifications.js');
-  if (!fs.existsSync(jobPath)) return 'send-notifications.js missing';
-  if (!fs.existsSync(path.join(ROOT, 'scripts/push-notifications/package.json'))) return 'package.json missing';
-  if (!fs.existsSync(path.join(ROOT, 'scripts/push-notifications/package-lock.json'))) return 'package-lock.json missing (run npm install there once)';
-  const jobSrc = fs.readFileSync(jobPath, 'utf8');
-  for (const fn of ['function evaluateUser', 'function loadDataJs', 'FIREBASE_SERVICE_ACCOUNT']) {
-    if (!jobSrc.includes(fn)) return `job script missing "${fn}"`;
-  }
-  return true;
-});
-
-check('.github/workflows/push-notifications.yml is manual-only (push-worker sends reminders) with the service-account secret wired in', () => {
-  const wfPath = path.join(ROOT, '.github/workflows/push-notifications.yml');
-  if (!fs.existsSync(wfPath)) return 'workflow file missing';
-  const wf = fs.readFileSync(wfPath, 'utf8');
-  // It reads every user's document per run; on a schedule it would use up
-  // Firestore's free daily reads as users grow. push-worker/ sends reminders.
-  if (/^\s*schedule:/m.test(wf) || /^\s*-\s*cron:/m.test(wf)) return 'the job is scheduled again; it reads every user per run';
-  if (!wf.includes('secrets.FIREBASE_SERVICE_ACCOUNT')) return 'workflow does not pass the FIREBASE_SERVICE_ACCOUNT secret through';
-  if (!wf.includes('workflow_dispatch')) return 'no manual workflow_dispatch trigger for on-demand testing';
+check('The old GitHub push job and its workflow are gone (push-worker sends reminders)', () => {
+  if (fs.existsSync(path.join(ROOT, 'scripts/push-notifications'))) return 'scripts/push-notifications/ still exists';
+  if (fs.existsSync(path.join(ROOT, '.github/workflows/push-notifications.yml'))) return 'push-notifications.yml still exists';
   return true;
 });
 

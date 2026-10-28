@@ -1,8 +1,7 @@
 name: Tests
 
 # Runs the deterministic suite and the PWA smoke suite on every push to main
-# and on every pull request. Separate from push-notifications.yml, which is a
-# scheduled notification job, not a test runner.
+# and on every pull request.
 
 on:
   push:

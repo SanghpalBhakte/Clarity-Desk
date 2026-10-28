@@ -12,7 +12,7 @@ Closest existing material, checked against current code:
 | `Claude outputs/AUDIT.md` #7 | `showOnboardingStep2` never called | Not rechecked | Grep callers; delete or wire up |
 | `Claude outputs/AUDIT.md` #6 | ~18 `alert()` / 15 `confirm()` dialogs | Likely (app.js grew since) | Route through existing toast/modal |
 | memory: slow-load follow-ups | app.js 1.1 MB raw | Yes | Lazy-load OCR and Ask Desk, like `deadline-import.js` |
-| memory: slow-load follow-ups | Unused FCM token write | Yes, `app.js:~6475` | Remove; reminders come from push-worker |
+| memory: slow-load follow-ups | Unused FCM token write | Fixed 2026-10-28 | Removed with the SW handler, messaging script and GitHub job |
 | memory: slow-load follow-ups | GitHub Pages copy and campusos site | Yes, scheduled | Turn off per the existing tasks |
 
 ## 2. Top 10 problems, ranked by impact
@@ -26,7 +26,7 @@ Closest existing material, checked against current code:
 | 5 | **HTML built from strings plus 427 inline `onclick=`.** Safe only while every interpolation is hand-escaped; one missed `esc()` on user text (task title, vault label, imported WhatsApp text, synced cloud data) is stored XSS. [Unverified: no full audit of each template] | `app.js` | Audit templates that take user/cloud/imported text; one shared escaper | No |
 | 6 | **Sync echo handling is fragile.** Dedupe relies on a hash that omits syllabus, notice channels, notification prefs and attendance target, so changes to those on another device may not be applied until something else changes. [Likely] | `app.js:5512-5530` vs payload at 5726-5745 | Include every synced field in the hash | Yes (sync) |
 | 7 | **Two live hosts plus GitHub Pages, one AI/push allow-list.** The Pages copy cannot use AI or push; data lives per origin. | `ai-proxy/wrangler.toml`, memory notes | Execute the scheduled retirements | Offline-first |
-| 8 | **Dead/legacy code paths.** FCM token registration writes to `fcmTokens` that nothing reads; `push-notifications.yml` is manual only; `KEY_GEMINI_KEY` declared but unused in `app.js`. | `app.js:25`, `6470-6476` | Remove after confirming no readers | Push |
+| 8 | **Dead/legacy code paths.** FCM path and `push-notifications.yml` removed 2026-10-28; `KEY_GEMINI_KEY` declared but unused in `app.js`. | `app.js:25` | Remove after confirming no readers | Push |
 | 9 | **App files depend on a third-party CDN.** `index.html` loads `app.js` from jsDelivr pinned to a commit and only falls back to the local copy on error; a slow (not failed) jsDelivr is covered only by the SW's 3 s wait. [Unverified in the field] | `sw.js:86-150`, `index.html:463` | Keep; check with `?timing` if first loads get slow again | SW |
 | 10 | **Test suite is source-text and eval based.** `npm test` is ~55 serial Node scripts that mock the browser; no UI logic is exercised outside Playwright smoke/visual. A refactor of #3 or #4 would be hard to trust without more browser coverage. | `package.json`, `tests/verify_master.mjs` | Add 2-3 Playwright flows (add task, mark attendance, sync reload) before splitting `app.js` | No |
 

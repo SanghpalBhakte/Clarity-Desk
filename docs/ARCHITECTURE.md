@@ -4,7 +4,7 @@ Offline-first PWA for students. Vanilla JS, no build step, no framework. `localS
 Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDIT.md`.
 
 ## Files
-- `index.html` (481 lines): shell, nav, modal templates, theme bootstrap in `<head>`. Loads Firebase compat SDK 10.8.0 (app, auth, firestore, messaging) synchronously, then `firebase-config.js?v=N`, then `app.js` as a module.
+- `index.html` (481 lines): shell, nav, modal templates, theme bootstrap in `<head>`. Loads Firebase compat SDK 10.8.0 (app, auth, firestore) synchronously, then `firebase-config.js?v=N`, then `app.js` as a module.
 - `app.js` (22.5k lines, 1.1 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `deadline-import.js` (lazy), `welcome-tour.js` (lazy, the Explore tour), `vendor/jszip.min.js` (lazy).
 - `style.css` (6.7k lines): themes via CSS variables, responsive rules.
 - `sw.js`, `manifest.json`: PWA. `404.html` carries its own copy of the head bootstrap (keep in sync).
@@ -13,7 +13,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - `push-worker/` (Cloudflare Worker + D1): closed-app reminders via Web Push. Tables `devices`, `reminders`; anonymous device id, no account data.
 - `scripts/ship.mjs`: bump cache version, `npm test`, commit, Dev Notes, push, `firebase deploy`, live smoke test. Run in batches (when the owner says ship; urgent fixes at once): merging a PR to `main` publishes nothing. Dev Notes carry no version label; the cache number stays internal and `devNoteText()` hides the old "(vN)" on display.
 - `tests/`: ~55 Node `verify_*.mjs` (run by `npm test`; they read `app.js` source and eval parts of it under a mocked browser, no real browser), Playwright specs (visual, PWA smoke, mobile, post-deploy smoke), `release-check.mjs`.
-- `.github/workflows`: `test.yml` (npm test + pwa-smoke on push/PR), `live-check.yml`, `push-notifications.yml` (manual only, legacy FCM path).
+- `.github/workflows`: `test.yml` (npm test + pwa-smoke on push/PR), `live-check.yml`.
 
 ## Boot and load
 - Firebase Hosting serves two sites from `.` (targets `app` = claritydesk, plus campusos). `index.html` points at `app.js`/`style.css`/`data.js` on jsDelivr pinned to a commit hash, with local `?v=N` fallback on error.
@@ -37,7 +37,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - Escaping is by hand: `escHtml_cd` (21728) and local `esc` helpers.
 
 ## Cloud sync (optional, Firestore)
-- One document per user: `users/{uid}` (merge-set), plus subcollection `users/{uid}/fcmTokens/{token}` (legacy). Rules: default deny; `/users/{uid}/**` owner only.
+- One document per user: `users/{uid}` (merge-set), plus old `users/{uid}/fcmTokens/{token}` documents from the removed FCM path (nothing reads or writes them now; left in place, no destructive cleanup). Rules: default deny; `/users/{uid}/**` owner only.
 - Push: `pushLocalDataToCloud` (~5735) writes profile, tasks, timetable, vault links (`linksForCloud`: uploaded files stay on device, placeholders only), statuses, attendance(+baseline/live), syllabus, theme, accent, prefs, channels, target, attendance summary, holiday, `updatedAt`. Deletes tracked via `computeSyncDeletePaths` against `cos_sync_last_pushed`.
 - Pull: `subscribeToCloud` (~5540): cache read first, then `onSnapshot`; both skip when `calculatePayloadHash` equals the last seen payload, else `applyCloudDataToLocalState` and re-render.
 - Auth: Google (popup, redirect fallback), email link, email+password. In Settings, and from the Welcome screen's Log in. No login wall.
@@ -50,7 +50,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 
 ## Reminders
 - Foreground: timers in `app.js` (one `setInterval` at ~22102) plus local Notification API.
-- Closed app: device registers with `push-worker`; reminders are sent from D1 by a Cloudflare cron. Old FCM token registration (`app.js:~6470`) is unused.
+- Closed app: device registers with `push-worker`; reminders are sent from D1 by a Cloudflare cron. The old Firebase (FCM) push path (client, `sw.js` handler, GitHub job) was removed on 2026-10-28; `sw.js` loads no third-party scripts.
 
 ## Quality gates
 `npm test` (logic) · `test:pwa-smoke` (SW/manifest/offline) · `test:visual` (UI; screenshots are platform-specific) · `release:check` · `ship` / `ship:check`.

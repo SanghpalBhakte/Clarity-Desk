@@ -10,8 +10,6 @@
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
-import vm from 'vm';
-import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -156,38 +154,6 @@ check('Cloud summary carries the overall % on the new math, nothing on the old',
   const old = app.buildAttendanceCloudSummary();
   return s && s.pct === '69.27' && s.isSafe === false && s.attended === 151 && s.held === 218 && s.target === 75 && old === null
     ? true : `${JSON.stringify(s)} / v1 ${JSON.stringify(old)}`;
-});
-
-// ── The background push job, loaded with firebase-admin stubbed out ───
-function loadPushJob() {
-  const jobPath = path.join(ROOT, 'scripts/push-notifications/send-notifications.js');
-  const src = fs.readFileSync(jobPath, 'utf8').replace(/\nmain\(\)[\s\S]*$/, '\nmodule.exports = { evaluateUser };\n');
-  const realRequire = createRequire(jobPath);
-  const sandbox = {
-    module: { exports: {} }, console, process, __dirname: path.dirname(jobPath),
-    require: (m) => (m === 'firebase-admin' ? {} : realRequire(m))
-  };
-  vm.createContext(sandbox);
-  new vm.Script(src, { filename: jobPath }).runInContext(sandbox);
-  return sandbox.module.exports;
-}
-const TIME = { dateStr: '2026-10-14', dayOfWeek: 3, hhmm: '12:00', minutes: 720 };
-const PREFS = { notificationPrefs: { taskUpcoming: 'off', taskOverdue: 'off', classReminders: 'off', dailySummaryTime: 'off', attendanceAlerts: 'instant' } };
-const attAlerts = (list) => list.filter(n => /Attendance Alert/.test(n.title)).map(n => n.title);
-
-check('Push job uses the synced summary: no false "0%" alarm, a real one at 74.50%', () => {
-  const { evaluateUser } = loadPushJob();
-  const oneAbsent = { '2026-10-12': { DS_1000: 'skipped' } };
-  const safe = attAlerts(evaluateUser({ ...PREFS, attendance: oneAbsent, attSummary: { pct: '93.75', isSafe: true, target: 75 } }, {}, TIME));
-  const below = attAlerts(evaluateUser({ ...PREFS, attendance: {}, attSummary: { pct: '74.50', isSafe: false, target: 75 } }, {}, TIME));
-  return safe.length === 0 && below.length === 1 && below[0] === 'Attendance Alert: 74.50%'
-    ? true : `safe ${JSON.stringify(safe)}, below ${JSON.stringify(below)}`;
-});
-
-check('Push job without a summary keeps the old daily-marks behaviour', () => {
-  const { evaluateUser } = loadPushJob();
-  const out = attAlerts(evaluateUser({ ...PREFS, attendance: { '2026-10-12': { DS_1000: 'skipped' } } }, {}, TIME));
-  return out.length === 1 && out[0] === 'Attendance Alert: 0%' ? true : JSON.stringify(out);
 });
 
 console.log('\n========================================');

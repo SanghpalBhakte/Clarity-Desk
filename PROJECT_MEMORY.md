@@ -31,9 +31,7 @@ D:\Clarity Desk\
 ├── favicon.svg / favicon.ico / favicon-*.png / icon-*.png / apple-touch-icon.png / badge-96.png
 │                        # App icon set — must stay color-matched to style.css's --raw-brand-1 / --raw-ink-inverse (see §7)
 ├── 404.html             # Static fallback page — carries its own copy of the <head> theme/icon bootstrap; keep in sync with index.html
-├── firestore.rules      # Firestore security rules — default-deny, then strict /users/{uid}/** per-owner access (covers fcmTokens/notifState too, see §10)
-├── scripts/push-notifications/  # Background push evaluation job — send-notifications.js, package.json, package-lock.json (see §10)
-├── .github/workflows/push-notifications.yml  # Free GitHub Actions cron that runs the job above — no Cloud Functions/Blaze plan (see §10)
+├── firestore.rules      # Firestore security rules — default-deny, then strict /users/{uid}/** per-owner access
 ├── tests/               # Automated regression + smoke test suites
 │   ├── verify_master.mjs                          # 14-scenario core regression suite (Node ESM, no browser needed)
 │   ├── verify_gap_fixes.mjs                        # 5-unit Gap Fix Board suite
@@ -244,6 +242,8 @@ These are real, currently-accepted limitations, not oversights waiting to be sil
 ---
 
 ## 10. Background Push Notifications (Firebase Cloud Messaging + GitHub Actions, no Cloud Functions)
+
+> **Removed 2026-10-28.** Everything in this section is history. The client registration, the Settings button, the `sw.js` FCM handler, the `firebase-messaging-compat.js` tags, the VAPID key, `scripts/push-notifications/` and `.github/workflows/push-notifications.yml` are gone. Closed-app reminders come only from `push-worker/` (Cloudflare). Old `users/{uid}/fcmTokens` documents were left in Firestore (no destructive cleanup). `cos_push_registered` is still written by the push-worker path. `sw.js` still skips FCM-shaped pushes (top-level `data` object) so a stray one cannot show an empty notification.
 
 ### Why not Firebase Cloud Functions
 Cloud Functions requires the Blaze (pay-as-you-go) billing plan — a card on file, even though actual usage here would stay $0 given the free-tier quotas. To avoid requiring the project owner to enable billing at all, the scheduled server-side evaluation job runs as a **free GitHub Actions cron** in this repo instead of a Cloud Function. FCM itself (sending/receiving pushes) is free on any Firebase plan, including Spark — only the *Cloud-Functions-as-the-scheduler* piece needed Blaze, and Actions replaces that piece for $0.
