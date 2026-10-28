@@ -4,7 +4,8 @@
 // Locked down here:
 //  - a student who never set a label still sees "End-Sem" wording;
 //  - a custom label (GATE, Boards...) shows on Today, escaped;
-//  - the cheer line changes with days left;
+//  - the cheer line changes with days left (reminders and the milestone
+//    card use it; Today shows the countdown as a plain fact, no cheer);
 //  - self-study: Today asks for a countdown, never for a timetable scan
 //    or attendance counts; the college path is unchanged and offers the
 //    "I study on my own" choice;
@@ -90,11 +91,11 @@ check('No label set: Today keeps the End-Sem wording', () => {
   return html.includes('60 days to End-Sem exams') ? true : 'End-Sem countdown missing';
 });
 
-check('Custom label shows on Today with a cheer line', () => {
+check('Custom label shows on Today as a plain fact, with no cheer line', () => {
   seed(profile({ name: 'Asha', examDate: '2026-11-03', examLabel: 'GATE' })); const app = makeApp();
   const html = today(app);
   if (!html.includes('20 days to GATE')) return 'GATE countdown missing';
-  return html.includes('One topic at a time. You can do this.') ? true : 'cheer missing';
+  return !html.includes('One topic at a time. You can do this.') ? true : 'cheer still on Today';
 });
 
 check('Custom label is escaped (no HTML injection)', () => {

@@ -51,6 +51,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - PWA/service worker/manifest/offline changes → `npm run test:pwa-smoke`
 - UI/theme/layout/modal changes → `npm run test:visual`
 - Release readiness → `npm run release:check`
+- Local preview: use `node tests/serve.mjs` (http://127.0.0.1:4173). `index.html` loads `app.js`, `data.js` and `style.css` from jsDelivr at a pinned commit, so a plain static server shows the live code, not local edits; `tests/serve.mjs` rewrites those links to the local files.
 - Report exact failures; distinguish real regression vs setup issue vs pre-existing problem. Never weaken a test to pass.
 
 ## Git safety
