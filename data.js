@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u109",
+    date: "2026-10-28",
+    title: "Deadline labels now read \"Due today\" and \"Due tomorrow\" in plain sentence case across Today, Tasks and the study plan, and some leftover unused code was tidied away.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Deadline labels now read \"Due today\" and \"Due tomorrow\" in plain sentence case across Today, Tasks and the study plan, and some leftover unused code was tidied away.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u108",
+    date: "2026-10-28",
+    title: "Clarity Desk starts up a little lighter: an old, unused notification system was removed, so the app loads one less script and the offline helper no longer downloads anything extra. Your reminders work exactly as before.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clarity Desk starts up a little lighter: an old, unused notification system was removed, so the app loads one less script and the offline helper no longer downloads anything extra. Your reminders work exactly as before.",
+    points: [
+
+    ]
+  },
+  {
     id: "u107",
     date: "2026-10-28",
     title: "Today is calmer and easier to read. The class card now shows just what matters: the class in progress with time left and a progress line, the next class with its start time, or your next deadline once classes are over. Small labels are quieter, red is only used for overdue work, the dots on your class list sit neatly on the line, and greetings have more variety. With reduced motion turned on, pages no longer fade in.",
