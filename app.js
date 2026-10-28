@@ -2574,7 +2574,7 @@ function handleTimetableImageUpload(event) {
 
       // ✅ SUCCESS → ALWAYS show preview/edit modal with extracted entries and batch filter
       console.log('[TimetableUpload] Extraction successful. UI transitioning to showTimetablePreviewModal with', schedule.length, 'classes.');
-      pendingExtractionNeedsReview = !!result?.needsReview;
+      pendingExtractionNeedsReview = result?.needsReview || false;
       showTimetablePreviewModal(schedule);
 
     } catch (err) {
@@ -2631,7 +2631,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
         if (!Array.isArray(schedule) || schedule.length === 0) {
           showTimetableUploadErrorModal('Still no entries found. Try a clearer photo or enter manually.', base64Data, mimeType);
         } else {
-          pendingExtractionNeedsReview = !!result?.needsReview;
+          pendingExtractionNeedsReview = result?.needsReview || false;
           showTimetablePreviewModal(schedule);
         }
       } catch (err2) {
@@ -2656,7 +2656,8 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
 
 let pendingExtractedSchedule = [];
 let selectedTimetablePreviewBatch = 'all';
-// True when the schedule about to be previewed is a raw, un-repaired
+// 'backup-ai' when a backup AI (not Gemini) read the photo; otherwise
+// true when the schedule about to be previewed is a raw, un-repaired
 // deterministic OCR result that no AI provider ever got to check (no key
 // configured, or every configured provider failed/returned nothing usable).
 // Distinct from per-row isUncertain: that flags individual rows Tesseract
@@ -2824,7 +2825,9 @@ function renderTimetablePreviewModalContent(backdrop) {
       <div style="display:flex;align-items:flex-start;gap:10px;background:color-mix(in srgb, var(--yellow) 12%, var(--surface-2));border:1px solid var(--yellow);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px">
         <span style="font-size:var(--text-md);line-height:1">⚠️</span>
         <div style="font-size:var(--text-sm);line-height:1.4">
-          <strong>Unverified scan.</strong> The AI that double-checks photos couldn't be reached, so your phone read this one alone and it may have mistakes. Check every row before saving, or cancel and scan again in a few minutes.
+          ${pendingExtractionNeedsReview === 'backup-ai'
+            ? `<strong>Read by a backup AI.</strong> The main AI was busy, and the backup makes more mistakes on timetables. Check every row before saving, or cancel and scan again in a few minutes.`
+            : `<strong>Unverified scan.</strong> The AI that double-checks photos couldn't be reached, so your phone read this one alone and it may have mistakes. Check every row before saving, or cancel and scan again in a few minutes.`}
         </div>
       </div>
       ` : ''}
