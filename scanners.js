@@ -40,7 +40,8 @@ function showAttendanceScanLoadingModal(message = 'Scanning attendance…') {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:380px;text-align:center;padding:28px 24px">
       <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto 16px auto"></div>
       <div id="ab-scan-loading-msg" style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);margin-bottom:6px">${message}</div>
-      <div id="ab-scan-loading-sub" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:18px">Extracting subject names and attendance counts from screenshot…</div>
+      <div id="ab-scan-loading-sub" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:4px">Extracting subject names and attendance counts from screenshot…</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:18px">Usually 15–45 seconds. Nothing is saved until you check the counts.</div>
       <button type="button" class="btn-secondary" onclick="cancelAttendancePhotoScan()" style="font-size:var(--text-base);padding:6px 16px">
         Cancel Scan
       </button>
