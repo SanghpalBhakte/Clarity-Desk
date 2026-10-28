@@ -1,8 +1,8 @@
 // ==================================================================
 // Clarity Desk: PHOTO CHECK BEFORE A SCAN (real pixels, headless Chromium)
 // ==================================================================
-// Runs app.js's real scanPhotoProblem on every test-kit image (timetable,
-// practice and attendance kits). Each one scans fine today, so none may be
+// Runs app.js's real scanPhotoProblem on every test-kit image (timetable
+// kit, plus the practice and attendance kits when present). Each one scans fine today, so none may be
 // flagged; blurred and shrunk copies of the same images must be flagged.
 // Needs Chromium: `npx playwright install chromium` (CI does this).
 //
@@ -23,7 +23,10 @@ if (start < 0 || end < start) {
 }
 const checkSrc = appSrc.slice(start, end);
 
-const KIT_DIRS = ['timetable-test-kit/images', 'scanner-practice-kit/images', 'scanner-practice-kit/attendance/images'];
+// timetable-test-kit is in git, so CI always has it. The practice kits are
+// kept out of git (.gitignore) and are used too when present locally.
+const KIT_DIRS = ['timetable-test-kit/images', 'scanner-practice-kit/images', 'scanner-practice-kit/attendance/images', 'attendance-practice-kit/images']
+  .filter((dir, i) => i === 0 || fs.existsSync(`${ROOT}/${dir}`));
 const images = KIT_DIRS.flatMap(dir => fs.readdirSync(`${ROOT}/${dir}`)
   .filter(f => /\.(png|jpe?g)$/i.test(f))
   .map(f => ({ name: f, url: `data:${/png$/i.test(f) ? 'image/png' : 'image/jpeg'};base64,${fs.readFileSync(`${ROOT}/${dir}/${f}`).toString('base64')}` })));
