@@ -5,7 +5,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 
 ## Files
 - `index.html` (481 lines): shell, nav, modal templates, theme bootstrap in `<head>`. Loads Firebase compat SDK 10.8.0 (app, auth, firestore) synchronously, then `firebase-config.js?v=N`, then `app.js` as a module.
-- `app.js` (22.5k lines, 1.1 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `deadline-import.js` (lazy), `welcome-tour.js` (lazy, the Explore tour), `vendor/jszip.min.js` (lazy).
+- `app.js` (21.4k lines, 1.0 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `desk-assistant.js` (lazy, Ask Desk answers; precached by `sw.js` so it works offline), `deadline-import.js` (lazy), `welcome-tour.js` (lazy, the Explore tour), `vendor/jszip.min.js` (lazy).
 - `style.css` (6.7k lines): themes via CSS variables, responsive rules.
 - `sw.js`, `manifest.json`: PWA. `404.html` carries its own copy of the head bootstrap (keep in sync).
 - `ai-proxy/` (Cloudflare Worker): Gemini/Groq/Workers-AI proxy; origin allow-list, per-user/per-IP rate limits, optional Firebase ID token.
@@ -46,7 +46,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 ## AI and OCR
 - On-device first: Tesseract.js from jsDelivr (lazy), deterministic grid reconstruction and normalisation, then AI vision via `AIService` (`app.js:490`) through the proxy. `AIService._cooldowns` skips recently failed providers.
 - Parser/OCR/AI output goes to editable review screens before any write.
-- Ask Desk (`ClarityAssistant`): rule-based intents on local data, no model. Guided buttons open existing flows; no direct writes from chat.
+- Ask Desk (`ClarityAssistant`, in `desk-assistant.js`): rule-based intents on local data, no model. `app.js` imports it on first use (`loadClarityAssistant()`) and passes its helpers in via `clarityAssistantDeps()`; tests load it with `tests/lazy-modules.mjs`. Guided buttons open existing flows; no direct writes from chat.
 
 ## Reminders
 - Foreground: timers in `app.js` (one `setInterval` at ~22102) plus local Notification API.

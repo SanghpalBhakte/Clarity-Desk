@@ -12,7 +12,9 @@ let slowUntil = 0;
 // URLs are spelled exactly as index.html requests them (with ?v=N, or the
 // jsDelivr copy pinned to the deployed commit), so the install step and the
 // page share one download. scripts/ship.mjs bumps ?v=N and sets the commit.
-// deadline-import*.js, welcome-tour.js and vendor/jszip.min.js are cached on first use instead.
+// desk-assistant.js is precached so Ask Desk works offline even though app.js
+// imports it lazily. deadline-import*.js, welcome-tour.js and vendor/jszip.min.js
+// are cached on first use instead.
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -20,6 +22,7 @@ const PRECACHE_ASSETS = [
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@3f5c010c8d0cf2f34e1f254b29b720d80561bbeb/style.css',
   'firebase-config.js?v=245',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@3f5c010c8d0cf2f34e1f254b29b720d80561bbeb/data.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@3f5c010c8d0cf2f34e1f254b29b720d80561bbeb/desk-assistant.js',
   './manifest.json',
   'favicon.ico?v=245',
   'favicon.svg?v=245',
