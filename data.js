@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u112",
+    date: "2026-10-28",
+    title: "Clarity Desk opens a little faster again: the timetable photo reader now loads the first time you scan a timetable instead of on every start-up. It still works offline and reads timetables exactly as before.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clarity Desk opens a little faster again: the timetable photo reader now loads the first time you scan a timetable instead of on every start-up. It still works offline and reads timetables exactly as before.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u111",
+    date: "2026-10-28",
+    title: "Clarity Desk opens a little faster: the attendance photo scan and the syllabus scan now load the first time you use them instead of on every start-up. They still work offline and read photos the same way.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clarity Desk opens a little faster: the attendance photo scan and the syllabus scan now load the first time you use them instead of on every start-up. They still work offline and read photos the same way.",
+    points: [
+
+    ]
+  },
+  {
     id: "u110",
     date: "2026-10-28",
     title: "Clarity Desk opens a little faster: Ask Desk now loads the first time you use it instead of on every start-up. It still works offline and gives the same answers.",
