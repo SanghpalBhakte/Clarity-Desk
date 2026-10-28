@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withTimetableOcr } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Mock browser environment (same pattern as verify_ocr_header_robustness.mjs),
@@ -82,7 +83,7 @@ let codeToRun = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, 
 `);
 
 const sandboxCode = `
-  ${codeToRun}
+  ${withTimetableOcr(codeToRun)}
 
   return {
     reconstructTimetable2DGrid,

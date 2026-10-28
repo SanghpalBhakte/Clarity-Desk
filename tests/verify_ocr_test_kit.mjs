@@ -89,6 +89,9 @@ const pipelineJs = [
   'function safeGetStorage(k, d) { return d; }',
   appLines.slice(aiStart, pipelineEnd).join('\n'),
   appLines.slice(ttm, ttm + 6).join('\n'),
+  // The parsers live in timetable-ocr.js; app.js's extractTimetableFromImage uses it once TimetableOcr is set.
+  fs.readFileSync(path.join(ROOT, 'timetable-ocr.js'), 'utf8').replace(/^export function /m, 'function '),
+  'TimetableOcr = createTimetableOcr(timetableOcrDeps());',
   'window.__ocr = { extractTimetableFromImage, AIService };'
 ].join('\n');
 const keyScript = PROXY

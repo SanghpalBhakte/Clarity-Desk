@@ -17,7 +17,7 @@ import { fileURLToPath } from 'url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RUNTIME_FILES = [
   '404.html', 'index.html', 'app.js', 'data.js', 'style.css', 'sw.js', 'manifest.json',
-  'firebase-config.js', 'desk-assistant.js', 'scanners.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
+  'firebase-config.js', 'desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
   'og-image.png'
@@ -95,14 +95,14 @@ scenario('.git, internal notes, test kits and tests are never published', () => 
 });
 const CDN_PREFIX = /^https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@[0-9a-f]{40}\//;
 const CDN_ALL = /https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@([0-9a-f]{40})\//g;
-scenario('Lazy modules app.js imports (Ask Desk, scanners) are precached and checked on jsDelivr', () => {
+scenario('Lazy modules app.js imports (Ask Desk, scanners, timetable reader) are precached and checked on jsDelivr', () => {
   const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const ship = fs.readFileSync(path.join(ROOT, 'scripts/ship.mjs'), 'utf8');
   const list = sw.slice(sw.indexOf('PRECACHE_ASSETS = ['), sw.indexOf('];', sw.indexOf('PRECACHE_ASSETS = [')));
   const cdn = (ship.match(/CDN_FILES = \[([^\]]*)\]/) || [, ''])[1];
   const bad = [];
-  for (const f of ['desk-assistant.js', 'scanners.js']) {
+  for (const f of ['desk-assistant.js', 'scanners.js', 'timetable-ocr.js']) {
     if (!app.includes(`import('./${f}')`)) bad.push(`app.js does not import ${f}`);
     if (!list.includes(`/${f}'`)) bad.push(`sw.js does not precache ${f} (offline)`);
     if (!cdn.includes(`'${f}'`)) bad.push(`ship.mjs CDN_FILES is missing ${f}`);

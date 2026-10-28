@@ -5,7 +5,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 
 ## Files
 - `index.html` (481 lines): shell, nav, modal templates, theme bootstrap in `<head>`. Loads Firebase compat SDK 10.8.0 (app, auth, firestore) synchronously, then `firebase-config.js?v=N`, then `app.js` as a module.
-- `app.js` (19.8k lines, 0.98 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `desk-assistant.js` (lazy, Ask Desk answers; precached by `sw.js` so it works offline), `scanners.js` (lazy, attendance photo scan and syllabus scan; precached the same way), `deadline-import.js` (lazy), `welcome-tour.js` (lazy, the Explore tour), `vendor/jszip.min.js` (lazy).
+- `app.js` (17.8k lines, 0.86 MB raw): everything else. No modules; one global scope. `data.js` (fallback timetables/notices), `desk-assistant.js` (lazy, Ask Desk answers; precached by `sw.js` so it works offline), `scanners.js` (lazy, attendance photo scan and syllabus scan; precached the same way), `timetable-ocr.js` (lazy, the timetable photo parsers; precached the same way), `deadline-import.js` (lazy), `welcome-tour.js` (lazy, the Explore tour), `vendor/jszip.min.js` (lazy).
 - `style.css` (6.7k lines): themes via CSS variables, responsive rules.
 - `sw.js`, `manifest.json`: PWA. `404.html` carries its own copy of the head bootstrap (keep in sync).
 - `ai-proxy/` (Cloudflare Worker): Gemini/Groq/Workers-AI proxy; origin allow-list, per-user/per-IP rate limits, optional Firebase ID token.
@@ -44,9 +44,10 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - Welcome (`showOnboardingModal`): Explore / Log in only. Explore `import()`s `welcome-tour.js` (scroll-snap cards built from existing classes, last card: sign in or continue without account). Scan / add classes / study alone / bunk calculator are on the empty-Today setup card (`setupScanTimetable`, `setupAddClasses`, `setupSelfStudy`), same `welcome_choice` events.
 
 ## AI and OCR
-- On-device first: Tesseract.js from jsDelivr (lazy), deterministic grid reconstruction and normalisation, then AI vision via `AIService` (`app.js:490`) through the proxy. `AIService._cooldowns` skips recently failed providers.
+- On-device first: Tesseract.js from jsDelivr (lazy), deterministic grid reconstruction and normalisation, then AI vision via `AIService` (`app.js:492`) through the proxy. `AIService._cooldowns` skips recently failed providers.
 - Parser/OCR/AI output goes to editable review screens before any write.
-- Attendance photo scan and syllabus scan live in `scanners.js` (`createScanners(deps)`). `app.js` keeps the file pickers (so `input.click()` stays inside the tap), imports the module on first scan or when the scan tab opens (`loadScanners()`), and routes the window handlers through `callScanner()`, which shows a toast if the file can't load. `AIService` and the timetable OCR stay in `app.js`.
+- Attendance photo scan and syllabus scan live in `scanners.js` (`createScanners(deps)`). `app.js` keeps the file pickers (so `input.click()` stays inside the tap), imports the module on first scan or when the scan tab opens (`loadScanners()`), and routes the window handlers through `callScanner()`, which shows a toast if the file can't load. `AIService` stays in `app.js`.
+- Timetable photo reading lives in `timetable-ocr.js` (`createTimetableOcr(deps)`): deskew, preprocessing, the 2D grid / line / text-stream parsers, `extractTimetableFromImage` and the Vision AI grid prompt and row clean-up. `app.js` keeps a same-named async `extractTimetableFromImage` that loads it (`loadTimetableOcr()`, started when the picker opens) and turns a failed load into the error screen, where Retry works. `AIService`, the Tesseract loader, subject normalization, the legend parsers and `groupWordsIntoLines` / `mapRawOcrWordsForDetection` / `correctDigitLetterConfusion` stay in `app.js` because other code uses them.
 - Ask Desk (`ClarityAssistant`, in `desk-assistant.js`): rule-based intents on local data, no model. `app.js` imports it on first use (`loadClarityAssistant()`) and passes its helpers in via `clarityAssistantDeps()`; tests load it with `tests/lazy-modules.mjs`. Guided buttons open existing flows; no direct writes from chat.
 
 ## Reminders
