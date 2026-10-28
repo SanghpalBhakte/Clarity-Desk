@@ -403,8 +403,22 @@ columns out of order -- treat the image as the primary source of truth):
 ${rawOcrText}`;
 
   try {
-    const aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt,
-      name => updateAttendanceScanLoadingMessage(`Reading the screenshot with AI (${name})…`));
+    let provider = '';
+    let aiResult = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt,
+      name => { provider = name; updateAttendanceScanLoadingMessage(`Reading the screenshot with AI (${name})…`); });
+    // Second opinion: when a row's four counts don't add up to the printed
+    // Total Count, the first answer misread something. Ask the next provider
+    // and keep whichever answer has fewer such rows (never one with fewer
+    // courses). Rows still off are flagged for review either way.
+    const firstMisses = aiResult && Array.isArray(aiResult.schedule) ? attendanceTotalsMisses(aiResult.schedule) : 0;
+    if (firstMisses > 0 && provider) {
+      try {
+        const second = await AIService.extractStructuredFromImage(base64Data, mimeType, visionPrompt,
+          name => updateAttendanceScanLoadingMessage(`Some totals don't add up. Double-checking with another AI (${name})…`), [provider]);
+        if (second && Array.isArray(second.schedule) && second.schedule.length >= aiResult.schedule.length
+          && attendanceTotalsMisses(second.schedule) < firstMisses) aiResult = second;
+      } catch (_) { /* keep the first answer */ }
+    }
     if (aiResult && Array.isArray(aiResult.schedule) && aiResult.schedule.length > 0) {
       const rows = aiResult.schedule.map(r => matchScannedRowToSubjects(r, existingSubjects));
       return flagAttendanceScanRows(rows, aiResult.schedule);
@@ -413,6 +427,16 @@ ${rawOcrText}`;
     console.warn('[AttendancePhotoScan] Vision AI extraction failed, falling back to local OCR:', aiErr);
   }
   return null;
+}
+
+// Rows whose present + absent + leave + notEntered isn't the printed Total
+// Count (same check as countsDisagree in matchScannedRowToSubjects).
+function attendanceTotalsMisses(schedule) {
+  const n = v => Math.max(0, parseInt(v) || 0);
+  return schedule.filter(r => {
+    const total = parseInt(r && r.totalCount);
+    return Number.isFinite(total) && total > 0 && n(r.present) + n(r.absent) + n(r.leave) + n(r.notEntered) !== total;
+  }).length;
 }
 
 function extractNumericZoneTokens(words) {

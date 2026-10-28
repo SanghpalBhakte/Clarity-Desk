@@ -59,7 +59,7 @@ codeToRun = withScanners(codeToRun);
 const sandboxCode = `
   ${codeToRun}
 
-  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects, flagAttendanceScanRows };
+  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects, flagAttendanceScanRows, extractAttendanceRowsViaVision, AIService };
 `;
 
 function createSandbox() {
@@ -309,6 +309,58 @@ check('A "...Laboratory" row matches the saved lab subject, not the theory cours
   const saved = [{ name: 'Database Management Systems', code: 'DBMS', type: 'lecture' }, { name: 'Database Management Systems Lab', code: 'DBMS', type: 'lab' }];
   const row = rowMod.matchScannedRowToSubjects({ subject: 'Database Management Systems Laboratory', code: 'CSE23PCL303', present: 9, absent: 1 }, saved);
   return row.subject === 'Database Management Systems Lab' ? true : `matched "${row.subject}"`;
+});
+
+// Second opinion: when the first AI answer has a row whose counts don't add
+// up to the printed Total Count, the next provider is asked too and the
+// answer with fewer such rows is kept.
+async function checkAsync(name, testFn) {
+  total++;
+  try {
+    const res = await testFn();
+    if (res === true || res === undefined) { console.log(`✓ [PASS] ${name}`); passed++; }
+    else { console.error(`✗ [FAIL] ${name}: ${res}`); errors.push({ name, error: res }); }
+  } catch (err) {
+    console.error(`✗ [ERROR] ${name}: ${err.stack || err}`);
+    errors.push({ name, error: err.message });
+  }
+}
+const goodRow = { subject: 'Operating Systems', code: 'CSE23PCC301', present: 24, absent: 4, leave: 1, notEntered: 0, totalCount: 29 };
+const goodRow2 = { subject: 'Computer Networks', code: 'CSE23PCC304', present: 15, absent: 11, leave: 2, notEntered: 0, totalCount: 28 };
+const badRow2 = { ...goodRow2, absent: 9 };
+// Fake providers in rotation order; each answers with its own rows.
+function fakeVision(mod, answers) {
+  const calls = [];
+  mod.AIService.extractStructuredFromImage = async (b64, mime, prompt, onStep, skip = []) => {
+    calls.push(skip);
+    const name = Object.keys(answers).find(n => !skip.includes(n));
+    if (!name) throw new Error('All configured vision providers failed.');
+    onStep(name);
+    const a = answers[name];
+    if (a instanceof Error) throw a;
+    return { schedule: JSON.parse(JSON.stringify(a)) };
+  };
+  return calls;
+}
+const visionMod = createSandbox();
+await checkAsync('Totals that add up: only one AI is asked', async () => {
+  const calls = fakeVision(visionMod, { Gemini: [goodRow, goodRow2], Groq: [goodRow, goodRow2] });
+  const rows = await visionMod.extractAttendanceRowsViaVision('x', 'image/png', '', []);
+  return calls.length === 1 && rows.length === 2 ? true : `calls ${calls.length}, rows ${rows?.length}`;
+});
+await checkAsync('A row that does not add up: the next AI is asked and its better answer is kept', async () => {
+  const calls = fakeVision(visionMod, { Gemini: [goodRow, badRow2], Groq: [goodRow, goodRow2] });
+  const rows = await visionMod.extractAttendanceRowsViaVision('x', 'image/png', '', []);
+  if (calls.length !== 2 || JSON.stringify(calls[1]) !== '["Gemini"]') return `calls ${JSON.stringify(calls)}`;
+  return rows[1].absent === 11 && !rows.some(r => r.isUncertain) ? true : JSON.stringify(rows);
+});
+await checkAsync('A second answer that is no better, misses a course, or fails keeps the first (still flagged)', async () => {
+  for (const second of [[goodRow, badRow2], [goodRow2], new Error('Groq down')]) {
+    fakeVision(visionMod, { Gemini: [goodRow, badRow2], Groq: second });
+    const rows = await visionMod.extractAttendanceRowsViaVision('x', 'image/png', '', []);
+    if (rows?.length !== 2 || rows[1].absent !== 9 || !rows[1].isUncertain) return `second ${second.message || second.length}: ${JSON.stringify(rows)}`;
+  }
+  return true;
 });
 
 console.log('\n========================================');
