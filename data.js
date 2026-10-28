@@ -199,6 +199,66 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u119",
+    date: "2026-10-28",
+    title: "Scans now warn you when a backup AI read your timetable, and attendance scans highlight any subject whose counts went down since your last save.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Scans now warn you when a backup AI read your timetable, and attendance scans highlight any subject whose counts went down since your last save.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u118",
+    date: "2026-10-28",
+    title: "Attendance scans now double-check with a second AI when a subject's counts don't add up to its total, and keep the answer that adds up better.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Attendance scans now double-check with a second AI when a subject's counts don't add up to its total, and keep the answer that adds up better.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u117",
+    date: "2026-10-28",
+    title: "Timetable scans now show how long they usually take, count the seconds, and can be cancelled. Attendance scans also say how long they usually take.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Timetable scans now show how long they usually take, count the seconds, and can be cancelled. Attendance scans also say how long they usually take.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u116",
+    date: "2026-10-28",
+    title: "Blurry or very small photos now get a quick warning before scanning, so you can retake them for a better timetable, attendance or syllabus scan, or scan them anyway.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Blurry or very small photos now get a quick warning before scanning, so you can retake them for a better timetable, attendance or syllabus scan, or scan them anyway.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u115",
+    date: "2026-10-28",
+    title: "Timetable photo scans finish sooner: the AI starts reading the photo while your phone is still checking it, with the same accuracy as before.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Timetable photo scans finish sooner: the AI starts reading the photo while your phone is still checking it, with the same accuracy as before.",
+    points: [
+
+    ]
+  },
+  {
     id: "u114",
     date: "2026-10-28",
     title: "Red warnings, like overdue tasks and error messages, are easier to read in the light theme with every accent colour.",
