@@ -143,6 +143,7 @@
 
   --brand-primary:      var(--color-action-primary);
   --brand-primary-text: var(--color-action-primary-text);
+  --text-on-fill: #ffffff;          /* text on accent/status fills: white is the highest-contrast choice on these deep fills */
   --brand-secondary:    var(--color-info);
   --accent-warm:        var(--color-accent);
 
@@ -220,12 +221,12 @@
    Terracotta is the default brand already set above, so it needs
    no override block here. ── */
 :root[data-theme="paper-slate"][data-accent="rose"] {
-  --raw-brand-1: #a8636a;
-  --raw-brand-2: #8a4a52;
+  --raw-brand-1: #9e4a5c;
+  --raw-brand-2: #843c4c;
   --raw-brand-3: #f3dde0;
-  --color-focus-ring: #8a4a52;
-  --color-hover-fill: rgba(138, 74, 82, 0.06);
-  --color-pressed-fill: rgba(138, 74, 82, 0.10);
+  --color-focus-ring: #843c4c;
+  --color-hover-fill: rgba(132, 60, 76, 0.06);
+  --color-pressed-fill: rgba(132, 60, 76, 0.10);
 }
 :root[data-theme="paper-slate"][data-accent="lavender"] {
   --raw-brand-1: #6b5a7e;
@@ -236,12 +237,12 @@
   --color-pressed-fill: rgba(82, 65, 95, 0.10);
 }
 :root[data-theme="paper-slate"][data-accent="apricot"] {
-  --raw-brand-1: #c17f4a;
-  --raw-brand-2: #9c6236;
+  --raw-brand-1: #965c1a;
+  --raw-brand-2: #7f4d15;
   --raw-brand-3: #f5e2cd;
-  --color-focus-ring: #9c6236;
-  --color-hover-fill: rgba(156, 98, 54, 0.06);
-  --color-pressed-fill: rgba(156, 98, 54, 0.10);
+  --color-focus-ring: #7f4d15;
+  --color-hover-fill: rgba(127, 77, 21, 0.06);
+  --color-pressed-fill: rgba(127, 77, 21, 0.10);
 }
 
 /* ── 2) Midnight Ink — Canonical Night Study Theme ─────────── */
@@ -377,6 +378,7 @@
 
   --brand-primary:      var(--color-action-primary);
   --brand-primary-text: var(--color-action-primary-text);
+  --text-on-fill: #000000;          /* text on accent/status fills: black is the highest-contrast choice on these light-toned fills */
   --brand-secondary:    var(--color-info);
   --accent-warm:        var(--color-accent);
 
@@ -2265,7 +2267,7 @@ a.card:hover,
 
 .task-delete-btn:hover {
   color: var(--red);
-  background: rgba(239,68,68,0.1);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
 }
 
 /* ── Notices ────────────────────────────────────────────────── */
@@ -2371,7 +2373,7 @@ a.card:hover,
 }
 
 .notice-source-icon-devnotes {
-  background: rgba(245, 158, 11, 0.14);
+  background: color-mix(in srgb, var(--yellow) 14%, transparent);
   color: var(--yellow);
 }
 
@@ -2786,7 +2788,7 @@ a.card:hover,
 
 .dev-filter-pill.active {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-fill);
   border-color: var(--accent);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
@@ -3361,9 +3363,9 @@ a.card:hover,
 .priority-pill.priority-medium { color: var(--yellow); }
 .priority-pill.priority-low    { color: var(--green); }
 
-.priority-pill.priority-high:has(input:checked)   { background: rgba(239,68,68,0.12); box-shadow: 0 0 0 1px var(--red); }
-.priority-pill.priority-medium:has(input:checked) { background: rgba(245,158,11,0.12); box-shadow: 0 0 0 1px var(--yellow); }
-.priority-pill.priority-low:has(input:checked)    { background: rgba(16,185,129,0.12); box-shadow: 0 0 0 1px var(--green); }
+.priority-pill.priority-high:has(input:checked)   { background: color-mix(in srgb, var(--red) 12%, transparent); box-shadow: 0 0 0 1px var(--red); }
+.priority-pill.priority-medium:has(input:checked) { background: color-mix(in srgb, var(--yellow) 12%, transparent); box-shadow: 0 0 0 1px var(--yellow); }
+.priority-pill.priority-low:has(input:checked)    { background: color-mix(in srgb, var(--green) 12%, transparent); box-shadow: 0 0 0 1px var(--green); }
 
 /* ── Add Task: Task Type, Due Date ─────────────────────────────
    Phones get Task Type as pills (same look as the priority pills) instead
@@ -3814,13 +3816,13 @@ button:disabled {
 
 .toast.toast-success {
   background: var(--green);
-  color: #ffffff;
+  color: var(--text-on-fill);
   border-color: rgba(255, 255, 255, 0.25);
 }
 
 .toast.toast-error {
   background: var(--red);
-  color: #ffffff;
+  color: var(--text-on-fill);
   border-color: rgba(255, 255, 255, 0.25);
 }
 
@@ -3875,7 +3877,7 @@ button:disabled {
   gap: 6px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(245, 158, 11, 0.15);
+  background: color-mix(in srgb, var(--yellow) 15%, transparent);
   color: var(--yellow);
   font-size: 0.72rem;
   font-weight: 600;
@@ -3891,7 +3893,7 @@ button:disabled {
 .form-select.shake {
   animation: shakeError 0.35s ease-in-out;
   border-color: var(--red) !important;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent) !important;
 }
 
 /* ── Desk Assistant Panel ─────────────────────────────────────── */
@@ -4117,7 +4119,7 @@ button:disabled {
 }
 .cd-msg-user .cd-bubble {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-fill);
   border-radius: 16px 16px 4px 16px;
   font-weight: 500;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -4262,7 +4264,7 @@ button:disabled {
 .cd-send-btn {
   width: 38px; height: 38px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-fill);
   border-radius: var(--radius-sm, 8px);
   flex-shrink: 0;
   display: grid;
@@ -4300,7 +4302,7 @@ button:disabled {
 }
 .btn-assistant-toggle[aria-expanded="true"] {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-fill);
   border-color: var(--accent);
 }
 
@@ -6485,8 +6487,8 @@ html.more-sheet-open .more-sheet {
   display: grid; place-items: center; color: #fff; cursor: pointer; font-size: 0.72rem; font-weight: 800;
 }
 .syl-state svg { width: 14px; height: 14px; }
-.syl-topic.done .syl-state { background: var(--green); border-color: var(--green); }
-.syl-topic.revised .syl-state { background: var(--accent); border-color: var(--accent); }
+.syl-topic.done .syl-state { background: var(--green); border-color: var(--green); color: var(--text-on-fill); }
+.syl-topic.revised .syl-state { background: var(--accent); border-color: var(--accent); color: var(--text-on-fill); }
 .syl-title { flex: 1; min-width: 0; font-size: var(--text-base); color: var(--text-primary); overflow-wrap: anywhere; }
 .syl-topic.done .syl-title, .syl-topic.revised .syl-title { color: var(--text-muted); }
 .syl-tags { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
@@ -6900,7 +6902,7 @@ body.holiday-mode .holiday-banner {
 .tk-pick {
   flex: none; width: 22px; height: 22px; border-radius: 6px;
   border: 2px solid var(--border-btn, var(--border));
-  display: grid; place-items: center; color: var(--accent-contrast, #fff);
+  display: grid; place-items: center; color: var(--text-on-fill);
 }
 .tk-pick.on { background: var(--accent); border-color: var(--accent); }
 .tk-pick.off { opacity: 0.25; border-style: dashed; }
