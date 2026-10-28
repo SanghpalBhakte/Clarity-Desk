@@ -8299,8 +8299,8 @@ function formatRelativeDueDate(dateStr) {
   const days = dueDaysLeft(dateStr);
   if (days === null) return { label: 'No deadline', cls: 'ongoing' };
   if (days < 0) return { label: `${Math.abs(days)}d overdue`, cls: 'overdue' };
-  if (days === 0) return { label: 'Due Today', cls: 'today' };
-  if (days === 1) return { label: 'Due Tomorrow', cls: 'soon' };
+  if (days === 0) return { label: 'Due today', cls: 'today' };
+  if (days === 1) return { label: 'Due tomorrow', cls: 'soon' };
   if (days <= 7) return { label: `Due in ${days}d`, cls: 'soon' };
   return { label: formatDate(dateStr), cls: '' };
 }
@@ -10559,22 +10559,6 @@ function renderDashboard() {
   const hideSchedulePanel = !hasCustomTT || onHoliday;
   // Attendance is paused during a holiday, so its panel rests too.
   const hideAttendancePanel = !hasCustomTT || selfStudy || onHoliday;
-
-  // Masthead ticker items in monospace ledger strip
-  const formattedDay = `${DAY_NAMES[dayIdx]}, ${now.getDate()} ${MONTH_NAMES[now.getMonth()]}`;
-  const tickerItems = [];
-  tickerItems.push(`<span class="desk-ticker-item">${icons.calendar()} ${formattedDay}</span>`);
-  if (dayClasses.length > 0) {
-    tickerItems.push(`<span class="desk-ticker-item">${classesLeftCount}/${dayClasses.length} classes remaining</span>`);
-  }
-  tickerItems.push(`<span class="desk-ticker-item" style="color:${overdue > 0 ? 'var(--red)' : 'inherit'}">${pending} pending task${pending !== 1 ? 's' : ''}${overdue > 0 ? ` (${overdue} overdue)` : ''}</span>`);
-  if (attendancePct !== null) {
-    tickerItems.push(`<span class="desk-ticker-item" style="color:${isAttendanceAtRisk ? 'var(--red)' : 'var(--green)'}">Attendance: ${attendancePctLabel}% (${dashGuidance.isSafe ? 'Safe' : 'Action needed'})</span>`);
-  }
-  if (countdownText) {
-    tickerItems.push(`<span class="desk-ticker-item">${icons.target()} ${countdownText}</span>`);
-  }
-  const tickerHTML = tickerItems.join('<span class="desk-ticker-sep">/</span>');
 
   // No stat-tile strip on Today: classes, tasks and attendance each already
   // have their own section below, so the tiles only repeated them. The exam
@@ -16450,7 +16434,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     const isOngoing = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
     const days  = isOngoing ? null : dueDaysLeft(a.dueDate);
     const done  = a.status === 'submitted';
-    const label = done ? 'Completed ✓' : isOngoing ? '🚀 Ongoing' : days < 0 ? 'Overdue' : days === 0 ? 'Due Today' : `${days}d left`;
+    const label = done ? 'Completed ✓' : isOngoing ? '🚀 Ongoing' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : `${days}d left`;
     const cls   = done ? '' : isOngoing ? 'ongoing' : days < 0 ? 'overdue' : days === 0 ? 'today' : days <= 3 ? 'soon' : '';
     const dateText = isOngoing ? 'Standing Mission' : `Due ${formatDate(a.dueDate)}`;
     return `
@@ -16973,7 +16957,7 @@ function renderAssignments() {
 
   const statusFilters = [
     { key:'all',       label:'All Tasks' },
-    { key:'today',     label: chipLabel(icons.clock(), 'Due Today') },
+    { key:'today',     label: chipLabel(icons.clock(), 'Due today') },
     { key:'upcoming',  label: chipLabel(icons.calendar(), 'Upcoming') },
     { key:'ongoing',   label: chipLabel(icons.target(), 'Ongoing Missions') },
     { key:'overdue',   label: chipLabel(icons.alert(), 'Overdue') },
@@ -21406,7 +21390,7 @@ const ClarityAssistant = (() => {
     // Block 1: Highest Priority / Urgent Work
     if (urgentTasks.length > 0) {
       const topTask = urgentTasks[0];
-      const urgencyLabel = isTaskOverdue(topTask) ? 'Overdue' : topTask.dueDate === today ? 'Due Today' : 'Due Tomorrow';
+      const urgencyLabel = isTaskOverdue(topTask) ? 'Overdue' : topTask.dueDate === today ? 'Due today' : 'Due tomorrow';
       planSteps.push(`<strong>1. High-Priority Focus (45 min):</strong> Tackle <em>${escHtml(topTask.title)}</em> for <strong>${escHtml(topTask.subject || 'Task')}</strong> (${urgencyLabel}). Finish this before moving to optional topics.`);
     } else {
       planSteps.push(`<strong>1. Course Consolidation (35 min):</strong> No urgent deadlines pending. Review key concepts and lab writeups from today's lectures.`);

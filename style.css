@@ -1146,33 +1146,6 @@ a.card:hover,
   margin-top: 4px;
 }
 
-/* Ticker: monospace inline strip — visually subordinate to the heading */
-.desk-ticker-strip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-family: var(--font-mono);
-  font-size: 0.73rem;
-  color: var(--text-muted);
-  padding: 0;
-  border: none;
-  width: auto;
-  letter-spacing: 0.01em;
-}
-
-.desk-ticker-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.desk-ticker-sep {
-  color: var(--border-btn, var(--border));
-  opacity: 0.4;
-  font-size: 0.7rem;
-}
-
 /* ── Streamlined Desk Vitals Bar (Quiet Horizontal Strip) ─── */
 .desk-vitals-bar {
   display: flex;
