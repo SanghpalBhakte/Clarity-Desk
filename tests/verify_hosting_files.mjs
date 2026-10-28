@@ -17,7 +17,7 @@ import { fileURLToPath } from 'url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RUNTIME_FILES = [
   '404.html', 'index.html', 'app.js', 'data.js', 'style.css', 'sw.js', 'manifest.json',
-  'firebase-config.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
+  'firebase-config.js', 'desk-assistant.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
   'og-image.png'

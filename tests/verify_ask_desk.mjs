@@ -16,6 +16,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withDeskAssistant } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -54,7 +55,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { ClarityAssistant, AIService };`)();
+const makeApp = () => new Function(`${withDeskAssistant(code)}\n return { ClarityAssistant, AIService };`)();
 
 const DBMS = { subject: 'Database Management Systems', code: 'DBMS', time: '10:00', end: '11:00', room: 'LT-1', teacher: 'Prof. A', type: 'lecture' };
 const OS   = { subject: 'Operating Systems', code: 'CS202', time: '11:00', end: '12:00', room: 'LT-2', teacher: 'Prof. B', type: 'lecture' };
@@ -257,12 +258,17 @@ check('Answers never write to storage', () => {
   return JSON.stringify(store) === before ? true : 'storage changed';
 });
 
+// The answer arrives once desk-assistant.js has loaded (a promise), so ask
+// first and let it settle before checking.
+seed();
+const sameAnswerApp = new Function(`${withDeskAssistant(code)}\n return { ClarityAssistant };`)();
+domCache['assistant-input'] = { ...domStub('assistant-input'), value: 'can i skip DBMS' };
+// handleAssistantQuestion is a window global defined by app.js
+globalThis.window.handleAssistantQuestion();
+await new Promise((r) => setTimeout(r, 0));
+
 check('Today box and panel give the same answer', () => {
-  seed();
-  const inst = new Function(`${code}\n return { ClarityAssistant };`)();
-  domCache['assistant-input'] = { ...domStub('assistant-input'), value: 'can i skip DBMS' };
-  // handleAssistantQuestion is a window global defined by app.js
-  globalThis.window.handleAssistantQuestion();
+  const inst = sameAnswerApp;
   const box = domCache['assistant-answer-container'].innerHTML;
   return box.includes(inst.ClarityAssistant.respond('can i skip DBMS')) ? true : box.slice(0, 200);
 });
@@ -454,6 +460,17 @@ check('Nothing is ever dropped: every model is still tried when all are cooling'
   const ai = makeApp().AIService;
   ['a', 'b'].forEach(m => ai._coolDown(`gemini:${m}`, 429));
   return ai._healthyFirst(['a', 'b'], m => `gemini:${m}`).join(',') === 'a,b' ? true : 'list changed';
+});
+
+check('Lazy load: app.js imports desk-assistant.js, which sw.js precaches and ship.mjs publishes', () => {
+  const sw = fs.readFileSync(`${ROOT}/sw.js`, 'utf8');
+  const ship = fs.readFileSync(`${ROOT}/scripts/ship.mjs`, 'utf8');
+  const precache = sw.slice(sw.indexOf('PRECACHE_ASSETS = ['), sw.indexOf('];', sw.indexOf('PRECACHE_ASSETS = [')));
+  if (appSrc.includes('const ClarityAssistant = (() => {')) return 'the assistant is still built inside app.js';
+  if (!appSrc.includes("import('./desk-assistant.js')")) return 'app.js does not import desk-assistant.js';
+  if (!/\/desk-assistant\.js'/.test(precache)) return 'sw.js does not precache desk-assistant.js (Ask Desk offline)';
+  if (!/CDN_FILES = \[[^\]]*'desk-assistant\.js'/.test(ship)) return 'ship.mjs does not check desk-assistant.js on jsDelivr';
+  return true;
 });
 
 console.log('');
