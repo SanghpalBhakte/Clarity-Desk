@@ -29,6 +29,8 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
 
+      - run: npm run test:photo-check
+
       - run: npm run test:pwa-smoke
 
       - name: Upload Playwright report on failure
