@@ -412,7 +412,7 @@ function showUpdateAvailableBanner() {
     <span>✨ A new version of Clarity Desk is ready.</span>
     <div style="display:flex;gap:6px;flex-shrink:0">
       <button type="button" onclick="document.getElementById('update-available-banner')?.remove()" style="background:none;border:none;color:var(--text-muted);font-size:0.875rem;padding:4px 8px;cursor:pointer">Later</button>
-      <button type="button" onclick="window.location.reload()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;padding:6px 14px;font-size:0.875rem;cursor:pointer">Refresh</button>
+      <button type="button" onclick="window.location.reload()" style="background:var(--accent);color:var(--text-on-fill);border:none;border-radius:6px;font-weight:600;padding:6px 14px;font-size:0.875rem;cursor:pointer">Refresh</button>
     </div>
   `;
   document.body.appendChild(banner);
@@ -15953,9 +15953,9 @@ function renderSettings() {
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Pick any colour. It works with both modes above.</div>
         <div role="group" aria-label="Accent color selection" style="display:flex;gap:16px;flex-wrap:wrap">
           <button type="button" class="accent-dot ${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta' ? 'active' : ''}" onclick="setAccent('terracotta', event)" aria-pressed="${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta'}" aria-label="Terracotta accent" title="Terracotta" style="--dot-color:#D17A5C"></button>
-          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'rose' ? 'active' : ''}" onclick="setAccent('rose', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'rose'}" aria-label="Rose accent" title="Rose" style="--dot-color:#A8636A"></button>
+          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'rose' ? 'active' : ''}" onclick="setAccent('rose', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'rose'}" aria-label="Rose accent" title="Rose" style="--dot-color:#9E4A5C"></button>
           <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'lavender' ? 'active' : ''}" onclick="setAccent('lavender', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'lavender'}" aria-label="Lavender accent" title="Lavender" style="--dot-color:#6B5A7E"></button>
-          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'apricot' ? 'active' : ''}" onclick="setAccent('apricot', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'apricot'}" aria-label="Apricot accent" title="Apricot" style="--dot-color:#C17F4A"></button>
+          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'apricot' ? 'active' : ''}" onclick="setAccent('apricot', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'apricot'}" aria-label="Apricot accent" title="Apricot" style="--dot-color:#965C1A"></button>
         </div>
       </div>
     </div>
