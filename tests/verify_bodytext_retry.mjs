@@ -405,6 +405,39 @@ await check('7. A vision failure during the on-device retries is not an unhandle
   }
 });
 
+await check('8. A first pass that is already confident sends no AI request', async () => {
+  const mod = createSandbox();
+  globalThis.CAMPUS_OS_AI_PROXY = 'https://proxy.test';
+  let visionCalls = 0;
+  mod.AIService.extractStructuredFromImage = async () => { visionCalls++; return { schedule: [] }; };
+  mod.AIService.generateContentFromText = async () => { visionCalls++; return { schedule: [] }; };
+  // Three clean day rows x two clean time columns = 6 confident rows on 3 days.
+  const words = [w('10:00 - 11:00', 150, 30, 280, 60, 95), w('11:00 - 12:00', 450, 30, 580, 60, 95)];
+  [['Mon', 100, 'Database', 'Systems', 'Operating', 'Systems'],
+   ['Tue', 200, 'Computer', 'Networks', 'Machine', 'Learning'],
+   ['Wed', 300, 'Data', 'Structures', 'Software', 'Engineering']].forEach(([d, y, a1, a2, b1, b2]) => {
+    words.push(w(d, 20, y, 60, y + 30, 95),
+      w(a1, 160, y, 220, y + 20, 92), w(a2, 225, y, 280, y + 20, 92),
+      w(b1, 460, y, 520, y + 20, 92), w(b2, 525, y, 585, y + 20, 92));
+  });
+  globalThis.Tesseract = {
+    createWorker: async () => ({
+      setParameters: async () => {},
+      recognize: async () => ({ data: { words, text: words.map(x => x.text).join(' ') } }),
+      terminate: async () => {}
+    })
+  };
+  try {
+    const result = await mod.extractTimetableFromImage('ZmFrZQ==', 'image/png');
+    if ((result.schedule || []).length < 6) return `fixture should parse to a confident 6-row result, got ${JSON.stringify((result.schedule || []).map(r => r.day + ' ' + r.subject))}`;
+    if (result.needsReview) return 'expected the confident on-device result, got needsReview';
+    if (visionCalls !== 0) return `expected no AI request, got ${visionCalls}`;
+    return true;
+  } finally {
+    delete globalThis.CAMPUS_OS_AI_PROXY;
+  }
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);
