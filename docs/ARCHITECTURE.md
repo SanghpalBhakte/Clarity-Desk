@@ -13,7 +13,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - `push-worker/` (Cloudflare Worker + D1): closed-app reminders via Web Push. Tables `devices`, `reminders`; anonymous device id, no account data.
 - `scripts/ship.mjs`: bump cache version, `npm test`, commit, Dev Notes, push, `firebase deploy`, live smoke test. Run in batches (when the owner says ship; urgent fixes at once): merging a PR to `main` publishes nothing. Dev Notes carry no version label; the cache number stays internal and `devNoteText()` hides the old "(vN)" on display.
 - `tests/`: ~55 Node `verify_*.mjs` (run by `npm test`; they read `app.js` source and eval parts of it under a mocked browser, no real browser), Playwright specs (visual, PWA smoke, mobile, post-deploy smoke), `release-check.mjs`.
-- `.github/workflows`: `test.yml` (npm test + pwa-smoke on push/PR), `live-check.yml`.
+- `.github/workflows`: `test.yml` (npm test + photo check + pwa-smoke on push/PR), `live-check.yml`, `ai-models.yml` (daily: `scripts/check-ai-models.mjs` checks the AIService model IDs are still offered; needs `GEMINI_API_KEY`/`GROQ_API_KEY` repo secrets).
 
 ## Boot and load
 - Firebase Hosting serves two sites from `.` (targets `app` = claritydesk, plus campusos). `index.html` points at `app.js`/`style.css`/`data.js` on jsDelivr pinned to a commit hash, with local `?v=N` fallback on error.
