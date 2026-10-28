@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { withDeskAssistant } from './lazy-modules.mjs';
+import { withLazyModules } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const src = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
@@ -53,7 +53,7 @@ let codeToRun = src.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const QUICK_LINKS = [];
 `);
 
-codeToRun = withDeskAssistant(codeToRun);
+codeToRun = withLazyModules(codeToRun);
 
 const sandboxCode = `
   ${codeToRun}

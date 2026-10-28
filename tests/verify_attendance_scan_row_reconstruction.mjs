@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withScanners } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // Stage 13: the attendance-photo scanner's reconstructAttendanceTableFromGrid
@@ -52,6 +53,8 @@ let codeToRun = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, 
   const NOTICES = [];
   const QUICK_LINKS = [];
 `);
+
+codeToRun = withScanners(codeToRun);
 
 const sandboxCode = `
   ${codeToRun}

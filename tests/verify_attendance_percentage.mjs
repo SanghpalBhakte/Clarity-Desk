@@ -12,6 +12,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withScanners } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -50,7 +51,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, getSubjectAttendance, getOverallAttendance, renderReviewRowsHTML, showAddTaskModal };`)();
+const makeApp = () => new Function(`${withScanners(code)}\n return { state, getSubjectAttendance, getOverallAttendance, renderReviewRowsHTML, showAddTaskModal };`)();
 
 const DS = { name: 'Data Structures', code: 'CS201' };
 const OS = { name: 'Operating Systems', code: 'CS202' };
