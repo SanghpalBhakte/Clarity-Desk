@@ -299,7 +299,7 @@ async function handleAttendancePhotoUpload(event) {
         return;
       }
 
-      showAttendanceScanReviewModal(extractedRows);
+      showAttendanceScanReviewModal(flagAttendanceRowsThatWentBack(extractedRows, loadAttendanceBaselines()));
     } catch (err) {
       deps._isOcrBusy = false;
       console.error('[AttendancePhotoScan] Scan error:', err);
@@ -1245,6 +1245,22 @@ function flagAttendanceScanRows(rows, raw = []) {
   return rows;
 }
 
+// Counts only go up during a term: a subject whose present count or
+// classes held (present + absent + leave + not entered) is lower than what
+// was last saved was almost certainly misread, so it's marked for review.
+// When most subjects went down it's a new term (counts reset), not a
+// misread, and nothing is flagged. Flags only; never changes a number.
+function flagAttendanceRowsThatWentBack(rows, baselines = {}) {
+  const held = r => (+r.present || 0) + (+r.absent || 0) + (+r.leave || 0) + (+r.notEntered || 0);
+  const back = rows.map(r => {
+    const prev = baselines[String(r.code || r.subject || '').trim()];
+    return !!prev && typeof prev === 'object' && ((+r.present || 0) < (+prev.present || 0) || held(r) < held(prev));
+  });
+  const compared = rows.filter(r => baselines[String(r.code || r.subject || '').trim()]).length;
+  if (back.filter(Boolean).length * 2 > compared) return rows;
+  return rows.map((r, i) => back[i] ? { ...r, isUncertain: true, wentBack: true } : r);
+}
+
 function showAttendanceScanReviewModal(rows = []) {
   const existingBackdrop = document.getElementById('ab-review-modal-backdrop');
   if (existingBackdrop) existingBackdrop.remove();
@@ -1696,7 +1712,7 @@ function renderSyllabusScanError(message) {
     updateAttendanceScanLoadingProgress, hideAttendanceScanLoadingModal,
     cancelAttendancePhotoScan, preprocessAttendanceImageForOCR,
     handleAttendancePhotoUpload, extractAttendanceRowsFromOCR,
-    extractAttendanceRowsViaVision, extractNumericZoneTokens,
+    extractAttendanceRowsViaVision, extractNumericZoneTokens, flagAttendanceRowsThatWentBack,
     reconstructAttendanceTableFromGrid, extractColumnIntervalsFromHeader,
     parseColumnNumberToken, solveAttendanceCounts, cleanSubjectString,
     parseRowWithIntervals, parseRowUsingMathematicalSolver,

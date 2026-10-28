@@ -363,6 +363,7 @@ await check('6. Vision AI starts while the on-device retries still run, with the
     if (result.confidence !== 88) return `expected the vision answer (confidence 88), got ${result.confidence}`;
     const row = (result.schedule || []).find(r => r.subject === 'Deep Learning');
     if (!row || row.day !== 'Mon' || row.time !== '11:00' || row.end !== '12:00') return `expected Deep Learning Mon 11:00-12:00, got ${JSON.stringify(result.schedule)}`;
+    if (result.needsReview) return `a Gemini read must not ask to check every row, got needsReview ${result.needsReview}`;
     return true;
   } finally {
     delete globalThis.CAMPUS_OS_AI_PROXY;
@@ -436,6 +437,34 @@ await check('8. A first pass that is already confident sends no AI request', asy
   } finally {
     delete globalThis.CAMPUS_OS_AI_PROXY;
   }
+});
+
+await check('9. A timetable read by a backup AI (not Gemini) asks the student to check every row', async () => {
+  const results = [];
+  for (const provider of ['Groq', 'Workers AI', 'OpenRouter']) {
+    const mod = createSandbox();
+    globalThis.CAMPUS_OS_AI_PROXY = 'https://proxy.test';
+    mod.AIService.extractStructuredFromImage = async (b64, mime, prompt, onStep) => {
+      onStep(provider);
+      return { schedule: [{ day: 'Mon', time: '10:00', end: '11:00', subject: 'Deep Learning', type: 'lecture' }] };
+    };
+    let firstPass = true;
+    globalThis.Tesseract = {
+      createWorker: async () => ({
+        setParameters: async () => {},
+        recognize: async () => (firstPass ? (firstPass = false, visionFirstPass()) : { data: { words: [], text: '' } }),
+        terminate: async () => {}
+      })
+    };
+    try {
+      const result = await mod.extractTimetableFromImage('ZmFrZQ==', 'image/png');
+      if (result.confidence !== 88) return `${provider}: expected the vision answer, got confidence ${result.confidence}`;
+      results.push(`${provider}=${result.needsReview}`);
+    } finally {
+      delete globalThis.CAMPUS_OS_AI_PROXY;
+    }
+  }
+  return results.every(r => r.endsWith('=backup-ai')) ? true : results.join(', ');
 });
 
 console.log('\n========================================');

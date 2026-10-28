@@ -1976,7 +1976,12 @@ Notice: full subject name with its short code in parentheses, "Prof. <initials>"
         // reached AI-path scans, which is what real scans use.
         const sanitized = mergeAdjacentDuplicatePeriods(sanitizeAiScheduleRows(visionRows));
         if (sanitized.length > 0) {
-          return { schedule: sanitized, confidence: 88 };
+          // A backup AI (Gemini was busy or failed) misreads timetables far
+          // more often (kit: 7-11% of classes found vs 66-98%), so the
+          // review screen asks for every row to be checked.
+          return visionStepName && visionStepName !== 'Gemini'
+            ? { schedule: sanitized, confidence: 88, needsReview: 'backup-ai' }
+            : { schedule: sanitized, confidence: 88 };
         }
       }
     } catch (err) {

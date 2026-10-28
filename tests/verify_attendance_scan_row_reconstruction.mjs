@@ -59,7 +59,7 @@ codeToRun = withScanners(codeToRun);
 const sandboxCode = `
   ${codeToRun}
 
-  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects, flagAttendanceScanRows, extractAttendanceRowsViaVision, AIService };
+  return { reconstructAttendanceTableFromGrid, matchScannedRowToSubjects, flagAttendanceScanRows, extractAttendanceRowsViaVision, flagAttendanceRowsThatWentBack, AIService };
 `;
 
 function createSandbox() {
@@ -361,6 +361,30 @@ await checkAsync('A second answer that is no better, misses a course, or fails k
     if (rows?.length !== 2 || rows[1].absent !== 9 || !rows[1].isUncertain) return `second ${second.message || second.length}: ${JSON.stringify(rows)}`;
   }
   return true;
+});
+
+// Counts only go up during a term: a subject now lower than its last
+// saved baseline is flagged, unless most subjects went down (new term).
+const saved = {
+  CSE23PCC301: { present: 20, absent: 4, leave: 1, notEntered: 0 },
+  CSE23PCC304: { present: 15, absent: 9, leave: 2, notEntered: 0 },
+  CSE23PCC305: { present: 10, absent: 2, leave: 0, notEntered: 0 }
+};
+check('A subject whose present count or classes held went down since the last save is flagged', () => {
+  const rows = [
+    { subject: 'Operating Systems', code: 'CSE23PCC301', present: 24, absent: 4, leave: 1, notEntered: 0 },
+    { subject: 'Computer Networks', code: 'CSE23PCC304', present: 12, absent: 14, leave: 2, notEntered: 0 },
+    { subject: 'Compilers', code: 'CSE23PCC305', present: 11, absent: 2, leave: 0, notEntered: 0 },
+    { subject: 'New Elective', code: 'CSE23OE399', present: 1, absent: 0, leave: 0, notEntered: 0 }
+  ];
+  const out = rowMod.flagAttendanceRowsThatWentBack(rows, saved).map(r => !!r.isUncertain).join(',');
+  return out === 'false,true,false,false' ? true : `expected false,true,false,false, got ${out}`;
+});
+check('When most subjects went down (a new term), nothing is flagged; no saved counts, nothing is flagged', () => {
+  const reset = Object.keys(saved).map(code => ({ subject: code, code, present: 1, absent: 0, leave: 0, notEntered: 0 }));
+  const a = rowMod.flagAttendanceRowsThatWentBack(reset, saved).some(r => r.isUncertain);
+  const b = rowMod.flagAttendanceRowsThatWentBack(reset, {}).some(r => r.isUncertain);
+  return !a && !b ? true : `flagged: new term ${a}, nothing saved ${b}`;
 });
 
 console.log('\n========================================');
