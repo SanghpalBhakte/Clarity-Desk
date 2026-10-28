@@ -39,7 +39,7 @@
 
   --raw-success: #4f6b45;
   --raw-warning: #a97328;
-  --raw-error: #b8593b;
+  --raw-error: #a63a3a;            /* deep brick red: error text reads at 5.4:1+ on every light surface, white on it at 6.4:1 */
   --raw-info: #5f7a7d;
 
   --raw-rule: #dde1d0;
@@ -5312,7 +5312,6 @@ body::before {
 :root[data-theme="paper-slate"]:not([data-accent]) {
   --raw-brand-1: #a8452c;
   --raw-brand-2: #8a3822;
-  --raw-error: #a63a3a;
   --color-accent-text: #8a5a14;
 }
 
