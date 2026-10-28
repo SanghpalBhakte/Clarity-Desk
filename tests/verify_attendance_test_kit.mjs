@@ -67,17 +67,19 @@ if (!kitSamples().length) {
 }
 
 // ── Page with the real attendance pipeline sliced out of app.js ───────
+// (AIService and the OCR engine) and scanners.js (the attendance scan).
 const appLines = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').split('\n');
-const lineOf = (prefix) => {
-  const i = appLines.findIndex(l => l.startsWith(prefix));
-  if (i === -1) throw new Error(`app.js marker not found: "${prefix}" -- update verify_attendance_test_kit.mjs if this code moved`);
+const scanLines = fs.readFileSync(path.join(ROOT, 'scanners.js'), 'utf8').split('\n');
+const lineOf = (prefix, lines = appLines, file = 'app.js') => {
+  const i = lines.findIndex(l => l.startsWith(prefix));
+  if (i === -1) throw new Error(`${file} marker not found: "${prefix}" -- update verify_attendance_test_kit.mjs if this code moved`);
   return i;
 };
 const pipelineJs = [
   'function getSubjectList() { return []; }',            // fresh student, no saved subjects
   'function safeGetStorage(k, d) { return d; }',
   appLines.slice(lineOf('const AIService = {'), lineOf('function triggerTimetableImport')).join('\n'),
-  appLines.slice(lineOf('function preprocessAttendanceImageForOCR'), lineOf('function showAttendanceScanReviewModal')).join('\n'),
+  scanLines.slice(lineOf('function preprocessAttendanceImageForOCR', scanLines, 'scanners.js'), lineOf('function showAttendanceScanReviewModal', scanLines, 'scanners.js')).join('\n'),
   `window.__scan = async (base64Data, mimeType) => {
      const preprocessed = await preprocessAttendanceImageForOCR(base64Data, mimeType);
      const worker = await getTesseractWorker();

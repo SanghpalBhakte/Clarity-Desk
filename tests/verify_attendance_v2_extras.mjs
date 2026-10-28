@@ -12,6 +12,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withScanners } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -49,7 +50,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { getSubjectList, getSubjectAttendance, getOverallAttendance, attV2ProjectionText, attV2MonthlyCheck, buildAttendanceCloudSummary, keepPlannedSessions, renderSubjectsOverview };`)();
+const app = new Function(`${withScanners(code)}\n return { getSubjectList, getSubjectAttendance, getOverallAttendance, attV2ProjectionText, attV2MonthlyCheck, buildAttendanceCloudSummary, keepPlannedSessions, renderSubjectsOverview };`)();
 
 function seed({ baselines = {}, mode = 'v2' } = {}) {
   for (const k of Object.keys(store)) delete store[k];
