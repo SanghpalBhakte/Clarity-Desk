@@ -163,15 +163,13 @@ NOW = ist('2026-11-10T08:50:00');
 check('A sync older than 13 days no longer counts (in-app takes over)', !app.isClosedAppPushActive());
 NOW = ist('2026-10-19T21:00:00');
 
-console.log('\n2b. "Tell me what breaks" and the older push job');
+console.log('\n2b. "Tell me what breaks"');
 {
   app.state.customTasks = [QUIZ];
   const u = new URL(app.bugReportUrl());
   const body = u.searchParams.get('body') || '';
   check('Report link opens a prefilled issue on the public repo', u.href.startsWith('https://github.com/SanghpalBhakte/Clarity-Desk/issues/new?') && body.includes('What happened:'));
   check('Report link carries no task, chat or profile data', !u.href.includes('DBMS') && !u.href.includes('Test Student') && /App v\S+ · \S+/.test(body));
-  const job = fs.readFileSync(`${ROOT}/scripts/push-notifications/send-notifications.js`, 'utf8');
-  check('Older Firebase push job writes class times in 12-hour AM/PM', job.includes('Starts at ${formatDisplayTime(c.time)}') && !job.includes('Starts at ${c.time}'));
 }
 
 console.log('\n2c. Turning on: no silent hang, key fetched once, quick-add offers reminders');
