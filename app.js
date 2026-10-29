@@ -14779,14 +14779,10 @@ function renderResources() {
     <div class="page-header" style="margin-bottom: 16px;">
       <div>
         <div class="page-title">${currentTab === 'links' ? 'Study Vault' : 'Daily Briefing'}</div>
-        <div class="page-subtitle">${currentTab === 'links' ? 'Links and files you saved, by subject' : 'Your day in one read'}</div>
+        <div class="page-subtitle">${currentTab === 'links' ? 'Links and files you saved, by subject' : `${DAY_NAMES[new Date().getDay()]}, ${new Date().getDate()} ${MONTH_NAMES[new Date().getMonth()]}`}</div>
       </div>
       ${currentTab === 'links' ? `
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-secondary" onclick="openVaultBulk(null)" style="font-size:var(--text-base);padding:8px 14px">Add files or links</button>
-          <button class="btn-secondary" onclick="showWhatsAppImport(null, { tab: 'links' })" style="font-size:var(--text-base);padding:8px 14px">Import links from WhatsApp</button>
-          <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base);padding:8px 14px">+ Add Subject Vault</button>
-        </div>
+        <button class="btn-primary" onclick="openVaultAddMenu()" aria-haspopup="dialog" style="font-size:var(--text-base);padding:8px 16px;display:inline-flex;align-items:center;gap:6px">${icons.plus()} Add</button>
       ` : ''}
     </div>
 
@@ -14976,11 +14972,11 @@ function renderLinksContent(container) {
   if (!links || links.length === 0) {
     container.innerHTML = `
       <div class="card" style="text-align:center;padding:40px 20px;color:var(--text-muted)">
-        <div style="font-size:var(--text-hero);margin-bottom:12px">📚</div>
-        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);margin-bottom:6px">No Course Materials in Study Vault</div>
-        <div style="font-size:var(--text-base);margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">Attach notes, syllabus PDFs, lab cheat sheets, and cloud drive folders per subject for 1-click access.</div>
+        <div style="margin-bottom:12px;color:var(--accent)">${icons.book()}</div>
+        <div style="font-weight:700;font-size:var(--text-lg);color:var(--text-primary);margin-bottom:6px">Your Study Vault is empty</div>
+        <div style="font-size:var(--text-base);margin-bottom:20px;max-width:380px;margin-left:auto;margin-right:auto">Save notes, PDFs and drive links for each subject, then open them in one tap.</div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-          <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base)">+ Create Your First Subject Vault</button>
+          <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base)">+ New subject</button>
           <button class="btn-secondary" onclick="openVaultBulk(null)" style="font-size:var(--text-base)">Add files or links</button>
         </div>
       </div>
@@ -14997,6 +14993,47 @@ function renderLinksContent(container) {
     <div id="vault-grid"></div>`;
   renderVaultGrid();
 }
+
+const _vaultOpenSubjects = new Set();
+window.vaultToggleSubject = function(si) {
+  const s = loadCustomLinks()[si];
+  if (!s) return;
+  const key = String(s.subject || si);
+  _vaultOpenSubjects.has(key) ? _vaultOpenSubjects.delete(key) : _vaultOpenSubjects.add(key);
+  renderVaultGrid();
+};
+
+// One "Add" button instead of three: the same three actions, in one place.
+window.openVaultAddMenu = function() {
+  document.getElementById('vault-add-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'vault-add-backdrop';
+  const item = (fn, icon, title, sub) => `
+        <button type="button" class="more-sheet-item" onclick="${fn}">
+          ${icon}<span><strong>${title}</strong><small>${sub}</small></span>
+        </button>`;
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:420px;width:94vw" role="dialog" aria-modal="true" aria-labelledby="va-title" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title" id="va-title">Add to Study Vault</span>
+        <button class="modal-close" aria-label="Close" onclick="closeVaultAddMenu()">${icons.x()}</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:2px;padding-top:4px" onclick="if (event.target.closest('.more-sheet-item')) closeVaultAddMenu()">
+        ${item('openVaultBulk(null)', icons.filetext(), 'Files or links', 'PDFs, notes, drive folders')}
+        <button type="button" class="more-sheet-item" onclick="showWhatsAppImport(null, { tab: 'links' })">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span><strong>Import links from WhatsApp</strong><small>Paste a chat, keep the links</small></span>
+        </button>
+        ${item('addLinkSubject()', icons.book(), 'New subject', "A place for one subject's material")}
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+};
+
+window.closeVaultAddMenu = function() {
+  document.getElementById('vault-add-backdrop')?.remove();
+};
 
 window.vaultSearch = function(value) {
   _vaultQuery = String(value || '').slice(0, 80);
@@ -15016,11 +15053,17 @@ function renderVaultGrid() {
     const subjectHit = tokens.length && tokens.every(t => `${s.subject || ''} ${s.code || ''}`.toLowerCase().includes(t));
     if (tokens.length && !hits.length && !subjectHit) return '';
     shown++; files += hits.length;
+    // Closed by default so many subjects fit on a phone; a search, or a
+    // single subject, shows everything. Open/closed lives in memory only.
+    const open = tokens.length > 0 || links.length === 1 || _vaultOpenSubjects.has(String(s.subject || si));
     return `
-    <div class="link-subject-card" id="link-card-${si}">
+    <div class="link-subject-card${open ? '' : ' is-collapsed'}" id="link-card-${si}">
       <div class="link-subject-header">
         <span class="link-color-dot" style="background:${vaultEsc(s.color || '#394B63')}"></span>
-        <span class="link-subject-title" title="${vaultEsc(s.subject)}">${vaultEsc(s.subject)}</span>
+        <button type="button" class="link-subject-toggle" onclick="vaultToggleSubject(${si})" aria-expanded="${open}" aria-controls="link-card-${si}">
+          <span class="link-subject-title" title="${vaultEsc(s.subject)}">${vaultEsc(s.subject)}</span>
+          <span class="link-subject-count">${all.length} item${all.length !== 1 ? 's' : ''}</span>
+        </button>
         <span class="link-code">${vaultEsc(s.code)}</span>
         <div class="link-subject-actions">
           <button class="icon-btn-sm" onclick="editLinkSubject(${si})" title="Edit subject" aria-label="Edit subject">${icons.edit()}</button>
@@ -15760,46 +15803,67 @@ function renderSummaryContent(container) {
   const overdueItems = allTasks().filter(a => isTaskOverdue(a));
   const ongoingMissions = allTasks().filter(a => a.status === 'pending' && (a.taskType === 'mission' || !!a.noDeadline));
   const currentMin   = currentTimeMinutes();
-  const remaining    = classes.filter(c => c.type !== 'off' && c.subject !== 'Recess' && timeToMinutes(c.end || '23:59') > currentMin);
+  const realClasses  = classes.filter(c => c.type !== 'off' && c.subject !== 'Recess');
+  const remaining    = realClasses.filter(c => timeToMinutes(c.end || '23:59') > currentMin);
+  const doneCount    = realClasses.length - remaining.length;
+  const submittedCount = allTasks().filter(a => a.status === 'submitted').length;
+  const next = remaining[0];
+  const quiet = [
+    realClasses.length ? '' : 'no classes today',
+    dueTodayItems.length ? '' : 'nothing due today',
+    overdueItems.length ? '' : 'nothing overdue',
+    importantNotices.length ? '' : 'no urgent notices'
+  ].filter(Boolean);
+  const stats = [
+    { n: remaining.length, label: 'Classes left', color: 'var(--text-primary)', go: "navigateTo('timetable')" },
+    { n: dueTodayItems.length, label: 'Due today', color: 'var(--yellow)', go: "filterAndNavigateToAssignments('today')" },
+    { n: overdueItems.length, label: 'Overdue', color: 'var(--red)', go: "filterAndNavigateToAssignments('overdue')" },
+    { n: submittedCount, label: 'Completed', color: 'var(--green)', go: "filterAndNavigateToAssignments('submitted')" }
+  ].filter(s => s.n > 0);
+  const tmr = briefingTomorrow(today);
   container.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;background:var(--surface);padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm)">
-      <div style="font-weight:600;font-size:var(--text-md);color:var(--text-secondary)">📅 Today's Date</div>
-      <div style="font-weight:700;font-size:var(--text-md);color:var(--accent)">${DAY_NAMES[todayDay]}, ${today.getDate()} ${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}</div>
+    <div class="card briefing-lead">
+      <div class="briefing-headline">${escHtml_cd(briefingHeadline({ classesToday: realClasses.length, left: remaining.length, due: dueTodayItems.length, overdue: overdueItems.length, notices: importantNotices.length }))}</div>
+      ${next ? `<div class="briefing-next">${icons.clock()}<span>Next: <strong>${escHtml_cd(next.subject)}</strong>, ${formatDisplayTimeRange(next.time, next.end)}${next.room ? ` · ${escHtml_cd(next.room)}` : ''}</span></div>` : ''}
     </div>
 
-    <div class="section-heading">Today's Schedule</div>
-    ${classes.length === 0
-      ? '<div class="card" style="text-align:center;padding:24px;color:var(--text-muted)">🏖️ No classes scheduled for today.</div>'
-      : classes.map(c => {
-          const isPast = currentMin >= timeToMinutes(c.end);
-          return `<div class="summary-item" style="${isPast?'opacity:0.5':''}">
-            <div class="summary-icon" style="background:var(--accent-dim);color:var(--brand-primary)">${icons.timetable()}</div>
-            <div style="flex:1;min-width:0">
-              <div class="summary-text-main" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.subject}</span>
-                <span class="type-badge type-${c.type}">${c.type}</span>
-              </div>
-              <div class="summary-text-sub">${formatDisplayTimeRange(c.time, c.end)} · ${c.room} · ${c.teacher}</div>
-            </div>
-          </div>`;
-        }).join('')
-    }
+    ${stats.length ? `
+    <div class="stat-grid briefing-stats" style="margin-bottom:0">
+      ${stats.map(s => `
+      <div class="stat-card" onclick="${s.go}" role="button" tabindex="0" style="cursor:pointer">
+        <div class="stat-value" style="color:${s.color}">${s.n}</div>
+        <div class="stat-label">${s.label} →</div>
+      </div>`).join('')}
+    </div>` : ''}
 
+    ${realClasses.length ? `
+    <div class="section-heading" style="margin-top:20px">Today's Schedule</div>
+    ${remaining.map(c => `
+      <div class="summary-item">
+        <div class="summary-icon" style="background:var(--accent-dim);color:var(--brand-primary)">${icons.timetable()}</div>
+        <div style="flex:1;min-width:0">
+          <div class="summary-text-main" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.subject}</span>
+            <span class="type-badge type-${c.type}">${c.type}</span>
+          </div>
+          <div class="summary-text-sub">${formatDisplayTimeRange(c.time, c.end)} · ${c.room} · ${c.teacher}</div>
+        </div>
+      </div>`).join('')}
+    ${doneCount ? `<div class="briefing-done">${remaining.length ? `${doneCount} class${doneCount !== 1 ? 'es' : ''} done earlier today` : `All ${doneCount} class${doneCount !== 1 ? 'es' : ''} done for today`}</div>` : ''}` : ''}
+
+    ${dueTodayItems.length ? `
     <div class="section-heading" style="margin-top:20px">Due Today</div>
-    ${dueTodayItems.length
-      ? dueTodayItems.map(a => `
-          <div class="summary-item">
-            <div class="summary-icon" style="background:color-mix(in srgb, var(--status-warning) 12%, transparent);color:var(--status-warning)">${icons.assignments()}</div>
-            <div style="flex:1;min-width:0">
-              <div class="summary-text-main">${a.title}</div>
-              <div class="summary-text-sub">${a.subject} · ${a.marks > 0 ? a.marks + ' marks' : 'Academic task'}</div>
-            </div>
-          </div>`).join('')
-      : '<div class="card" style="text-align:center;padding:20px;color:var(--text-muted)">🌿 No tasks due today. All clear!</div>'
-    }
+    ${dueTodayItems.map(a => `
+      <div class="summary-item">
+        <div class="summary-icon" style="background:color-mix(in srgb, var(--status-warning) 12%, transparent);color:var(--status-warning)">${icons.assignments()}</div>
+        <div style="flex:1;min-width:0">
+          <div class="summary-text-main">${a.title}</div>
+          <div class="summary-text-sub">${a.subject} · ${a.marks > 0 ? a.marks + ' marks' : 'Academic task'}</div>
+        </div>
+      </div>`).join('')}` : ''}
 
     ${ongoingMissions.length ? `
-      <div class="section-heading" style="margin-top:20px;color:var(--brand-secondary)">🚀 Ongoing Missions</div>
+      <div class="section-heading" style="margin-top:20px;color:var(--brand-secondary)">Ongoing Missions</div>
       ${ongoingMissions.map(a => `
         <div class="summary-item" style="border-left:3px solid var(--brand-secondary)">
           <div class="summary-icon" style="background:color-mix(in srgb, var(--brand-secondary) 12%, transparent);color:var(--brand-secondary)">${icons.target()}</div>
@@ -15810,7 +15874,7 @@ function renderSummaryContent(container) {
         </div>`).join('')}` : ''}
 
     ${overdueItems.length ? `
-      <div class="section-heading" style="margin-top:20px;color:var(--status-error)">⚠ Overdue Tasks</div>
+      <div class="section-heading" style="margin-top:20px;color:var(--status-error)">Overdue Tasks</div>
       ${overdueItems.map(a => `
         <div class="summary-item" style="border-left:3px solid var(--status-error)">
           <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.alert()}</div>
@@ -15820,39 +15884,53 @@ function renderSummaryContent(container) {
           </div>
         </div>`).join('')}` : ''}
 
+    ${importantNotices.length ? `
     <div class="section-heading" style="margin-top:20px">Key Notices</div>
-    ${importantNotices.length
-      ? importantNotices.map(n => `
-          <div class="summary-item" onclick="showNotice('${n.id}')" style="cursor:pointer">
-            <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.notices()}</div>
-            <div style="flex:1;min-width:0">
-              <div class="summary-text-main">${n.title}</div>
-              <div class="summary-text-sub">${formatDate(n.date)} · ${n.category}</div>
-            </div>
-          </div>`).join('')
-      : '<div class="card" style="text-align:center;padding:20px;color:var(--text-muted)">No urgent notices today.</div>'
-    }
+    ${importantNotices.map(n => `
+      <div class="summary-item" onclick="showNotice('${n.id}')" style="cursor:pointer">
+        <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.notices()}</div>
+        <div style="flex:1;min-width:0">
+          <div class="summary-text-main">${n.title}</div>
+          <div class="summary-text-sub">${formatDate(n.date)} · ${n.category}</div>
+        </div>
+      </div>`).join('')}` : ''}
 
-    <div class="section-heading" style="margin-top:20px">Quick Stats &amp; Direct Views</div>
-    <div class="stat-grid" style="margin-bottom:0">
-      <div class="stat-card" onclick="navigateTo('timetable')" title="Open Today's Timetable Schedule" style="cursor:pointer">
-        <div class="stat-value">${remaining.length}</div>
-        <div class="stat-label">Classes Remaining →</div>
-      </div>
-      <div class="stat-card" onclick="filterAndNavigateToAssignments('today')" title="View Tasks Due Today" style="cursor:pointer">
-        <div class="stat-value" style="color:var(--yellow)">${dueTodayItems.length}</div>
-        <div class="stat-label">Due Today →</div>
-      </div>
-      <div class="stat-card" onclick="filterAndNavigateToAssignments('overdue')" title="View Overdue Tasks Needing Action" style="cursor:pointer">
-        <div class="stat-value" style="color:${overdueItems.length ? 'var(--red)' : 'var(--text-primary)'}">${overdueItems.length}</div>
-        <div class="stat-label">Overdue Tasks →</div>
-      </div>
-      <div class="stat-card" onclick="filterAndNavigateToAssignments('submitted')" title="View Completed Tasks &amp; History" style="cursor:pointer">
-        <div class="stat-value" style="color:var(--green)">${allTasks().filter(a => a.status === 'submitted').length}</div>
-        <div class="stat-label">Completed Tasks →</div>
+    ${quiet.length ? `<div class="briefing-quiet">${icons.check()}<span>${quiet.join(' · ').replace(/^./, ch => ch.toUpperCase())}</span></div>` : ''}
+
+    <div class="summary-item briefing-tomorrow" onclick="navigateTo('timetable')" role="button" tabindex="0" style="cursor:pointer;margin-top:20px">
+      <div class="summary-icon" style="background:color-mix(in srgb, var(--green) 14%, transparent);color:var(--green)">${icons.calendar()}</div>
+      <div style="flex:1;min-width:0">
+        <div class="summary-text-sub" style="text-transform:uppercase;letter-spacing:0.08em;font-weight:700">Tomorrow</div>
+        <div class="summary-text-main">${tmr}</div>
       </div>
     </div>
   `;
+}
+
+// One line for the top of the Daily Briefing, e.g.
+// "2 classes left, 1 task due, nothing urgent." Built only from counts the
+// page already shows, so it can never disagree with the sections below.
+function briefingHeadline({ classesToday = 0, left = 0, due = 0, overdue = 0, notices = 0 } = {}) {
+  const plural = (n, word) => `${n} ${word}${n !== 1 ? 's' : ''}`;
+  const classPart = left ? `${left} class${left !== 1 ? 'es' : ''} left`
+    : classesToday ? 'classes done for today' : 'no classes today';
+  const duePart = due ? `${plural(due, 'task')} due` : 'nothing due today';
+  const urgent = overdue ? `${overdue} overdue`
+    : notices ? plural(notices, 'important notice') : 'nothing urgent';
+  const line = `${classPart}, ${duePart}, ${urgent}.`;
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+// "4 classes, first at 9:00 AM" for tomorrow. A holiday that covers
+// tomorrow shows no classes, the same rule the timetable uses today.
+function briefingTomorrow(today = new Date()) {
+  const t = new Date(today);
+  t.setDate(t.getDate() + 1);
+  const list = isHolidayActive(localDateKey(t)) ? [] : ((loadTimetable() || {})[t.getDay()] || [])
+    .filter(c => c.type !== 'off' && c.subject !== 'Recess');
+  if (!list.length) return 'No classes';
+  const first = list.slice().sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))[0];
+  return `${list.length} class${list.length !== 1 ? 'es' : ''}, first at ${formatDisplayTime(first.time)}`;
 }
 
 // ── Settings ────────────────────────────────────────────────
