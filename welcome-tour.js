@@ -26,7 +26,6 @@ const STOPS = [
     title: (n) => (n ? `That's the tour, ${n}!` : "That's the tour!"),
     text: 'Last thing. Add your timetable and Today fills up with your real classes.' }
 ];
-const COUNTED = STOPS.filter(s => !s.last).length;
 const PAD = 6;
 const EDGE = 12;
 
@@ -58,9 +57,13 @@ export function startTour({ name = '', track = () => {}, onDone = () => {} } = {
   };
 
   let i = -1, target = null, frame = 0, last = '';
+  // Number only the stops this screen has, so the count never skips.
+  const counted = STOPS.filter(s => !s.last && s.targets.some(visible));
 
   const place = () => {
-    if (!target || !target.isConnected) return;
+    // A re-render can swap the element out; find it again and keep going.
+    if (target && !target.isConnected) target = visible(spot.dataset.target) || null;
+    if (!target) { frame = requestAnimationFrame(place); return; }
     const r = target.getBoundingClientRect();
     const key = `${r.left},${r.top},${r.width},${r.height},${innerWidth},${innerHeight}`;
     if (key !== last) {
@@ -99,7 +102,7 @@ export function startTour({ name = '', track = () => {}, onDone = () => {} } = {
       i = j; target = visible(sel); last = '';
       if (stop.last) target.scrollIntoView({ block: 'center' });
       spot.dataset.target = sel;
-      els.count.textContent = stop.last ? '' : `${j + 1} of ${COUNTED}`;
+      els.count.textContent = stop.last ? '' : `${counted.indexOf(stop) + 1} of ${counted.length}`;
       els.title.textContent = stop.title(name);
       els.text.textContent = typeof stop.text === 'function' ? stop.text(sel.startsWith('#sidebar')) : stop.text;
       els.skip.textContent = stop.last ? 'Later' : 'Skip tour';

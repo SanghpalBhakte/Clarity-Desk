@@ -300,6 +300,19 @@ check('No lab groups, or a group already saved: no group card, the greeting asks
   return ok ? true : 'expected the name ask in the greeting';
 });
 
+check('A lab group saved the old way (cos_user_batch) also hides the group card', () => {
+  seed({ cos_custom_timetable: WITH_GROUPS, cos_user_batch: 'A1' }); const h = todayHtml(makeApp());
+  return !h.includes('One quick thing') ? true : 'group card shown though a group is saved';
+});
+
+check('Saving an empty name keeps the box and points at it', () => {
+  seed({ cos_custom_timetable: NO_GROUPS }); todayHtml(makeApp());
+  const box = domStub('greet-name'); box.value = '  '; let focused = 0; box.focus = () => { focused++; };
+  const attrs = {}; box.setAttribute = (k, v) => { attrs[k] = v; };
+  globalThis.onbSaveGreetingName(false);
+  return focused === 1 && attrs['aria-invalid'] === 'true' && /name/i.test(box.placeholder || '') && !hist().onb_name_skip && !prof().name ? true : `focused=${focused} attrs=${JSON.stringify(attrs)} ph=${box.placeholder}`;
+});
+
 check('With a name saved, no name ask and the greeting uses it', () => {
   seed({ cos_custom_timetable: NO_GROUPS, cos_profile: JSON.stringify({ name: 'Riya Shah' }) }); const html = todayHtml(makeApp());
   return !html.includes('greet-name') && greetingOf(html).includes('Riya') ? true : greetingOf(html).slice(0, 200);
@@ -344,6 +357,7 @@ check('Later hides the attendance card for today only', () => {
   seed(READY({ cos_notified_history: JSON.stringify({ onb_tt_day: '2026-10-13' }) })); todayHtml(makeApp());
   globalThis.onbAttLater();
   if (todayHtml(makeApp()).includes('Want your attendance %?')) return 'still shown today';
+  if (hist().onb_att_later !== '2026-10-14' || Object.keys(hist()).some(k => k.startsWith('onb_att_later_'))) return `stored ${JSON.stringify(hist())}`;
   const saved = { ...store };
   globalThis.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(NOW + 86400000); } static now() { return NOW + 86400000; } };
   try {

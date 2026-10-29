@@ -85,6 +85,31 @@ test.describe('First-run tour', () => {
     expect(await checkStop(page)).toContain('Notices, calendar, study vault and settings are all in this sidebar.');
   });
 
+  test('laptop: the count skips no numbers when a stop is missing', async ({ page }) => {
+    await freshWelcome(page, 1280, 800);
+    await page.addStyleTag({ content: '#sidebar-subjects { display: none !important; }' });
+    await startTour(page, null);
+    const counts: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      counts.push((await page.locator('.tour-count').textContent()) || '');
+      await page.locator('.tour-bubble').getByRole('button', { name: 'Next' }).click();
+    }
+    expect(counts).toEqual(['1 of 4', '2 of 4', '3 of 4', '4 of 4']);
+  });
+
+  test('laptop: the spotlight finds its item again after the page redraws it', async ({ page }) => {
+    await freshWelcome(page, 1280, 800);
+    await startTour(page, null);
+    await checkStop(page);
+    await page.evaluate(() => {
+      const old = document.querySelector('#sidebar-dashboard') as HTMLElement;
+      const fresh = old.cloneNode(true) as HTMLElement;
+      fresh.style.marginTop = '48px';
+      old.replaceWith(fresh);
+    });
+    await checkStop(page);
+  });
+
   test('Escape closes the tour and the welcome never comes back', async ({ page }) => {
     await freshWelcome(page, 390, 844);
     await startTour(page, null);

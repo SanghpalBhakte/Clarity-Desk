@@ -2606,6 +2606,7 @@ a.card:hover,
 .greet-ask-row .form-input { flex: 1; min-width: 0; font-size: var(--text-md); padding: 10px 14px; border-radius: 12px; }
 .greet-ask-row .btn-primary { padding: 10px 18px; border-radius: 12px; }
 .greet-ask-skip { margin: 6px 0 0; padding-left: 0; }
+.greet-ask-row .form-input[aria-invalid="true"] { border-color: var(--accent); }
 .add-tt-choice { max-width: 420px; }
 .add-tt-title { margin: 0 0 4px; font-size: var(--text-xl); font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
 .add-tt-sub { margin-bottom: 14px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }

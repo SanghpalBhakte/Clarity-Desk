@@ -8185,7 +8185,8 @@ window.updateBunkCalc = updateBunkCalc;
 
 // ── Onboarding Flow ───────────────────────────────────────────
 // Onboarding remembers "Skip" / "Later" and the first timetable day as onb_
-// keys in cos_notified_history (no new storage key; backups carry it).
+// keys in cos_notified_history (no new storage key). Backups leave that map out,
+// so after a restore a skipped card may ask once more.
 function onbGet(key) {
   return (safeGetStorage('cos_notified_history', {}) || {})[key];
 }
@@ -8435,11 +8436,15 @@ window.onbSaveGreetingName = function(skip) {
   const name = skip ? '' : (document.getElementById('greet-name')?.value || '').trim();
   if (name) { saveProfileField('name', name); updateTopbarProfile(); }
   else if (skip) onbSet('onb_name_skip', true);
-  else return;
+  else {
+    const box = document.getElementById('greet-name');
+    if (box) { box.placeholder = 'Type your name first'; box.setAttribute('aria-invalid', 'true'); box.focus(); }
+    return;
+  }
   renderPage(state.currentPage);
 };
 window.onbAttLater = function() {
-  onbSet(`onb_att_later_${todayStr()}`, true);
+  onbSet('onb_att_later', todayStr());
   renderPage(state.currentPage);
 };
 window.onbShowBunk = function() {
@@ -8604,7 +8609,7 @@ function renderDashboard() {
   // (onb_tt_day is written on save, on open and at a new day, never here:
   // showing Today writes nothing.)
   const currentProf = loadProfile() || liveProfile || {};
-  const groupChoices = hasCustomTT && !selfStudy && !(currentProf.batch || '').trim() && !onbGet('onb_group_skip') ? timetableBatches() : [];
+  const groupChoices = hasCustomTT && !selfStudy && !(currentProf.batch || safeGetStorage(KEY_USER_BATCH, '') || '').trim() && !onbGet('onb_group_skip') ? timetableBatches() : [];
   if (groupChoices.length) {
     setupSteps.push({
       id: 'group',
@@ -8629,7 +8634,7 @@ function renderDashboard() {
     });
   }
 
-  const attDayReady = (onbGet('onb_tt_day') || dateStr) < dateStr && !onbGet(`onb_att_later_${dateStr}`);
+  const attDayReady = (onbGet('onb_tt_day') || dateStr) < dateStr && onbGet('onb_att_later') !== dateStr;
   if (hasCustomTT && !selfStudy && !onHoliday && !hasAttendanceData && !hasBaselinesConfigured && !groupChoices.length && !askName && attDayReady) {
     setupSteps.push({
       id: 'att',
