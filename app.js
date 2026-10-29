@@ -6516,6 +6516,7 @@ function refreshIfDayChanged() {
   const previousWeekday = new Date(`${lastRenderedDayKey}T00:00:00`).getDay();
   lastRenderedDayKey = nowKey;
   checkHolidayExpiry();
+  noteTimetableDay();
   // The timetable follows "today" unless the student had picked another day.
   if (state.ttDay === previousWeekday) state.ttDay = new Date().getDay();
   // The calendar's month and selected date live only in `state`, so a tab
@@ -6938,6 +6939,7 @@ function isCustomTimetableActive() {
 
 function saveTimetable(ttMap) {
   safeSetStorage(KEY_CUSTOM_TIMETABLE, ttMap);
+  noteTimetableDay();
   syncToCloud();
 }
 
@@ -8420,6 +8422,31 @@ window.setupAddClasses = function() {
   navigateTo('timetable');
   showTimetableEntryModal(new Date().getDay(), null);
 };
+let _onbBunkOpen = false;
+// Picking a group can leave other groups' labs in the timetable; the existing
+// clean-up review (preview first, nothing removed until confirmed) opens so
+// Today really shows only their labs.
+window.onbPickGroup = function(batch) {
+  if (batch) saveProfileField('batch', batch); else onbSet('onb_group_skip', true);
+  renderPage(state.currentPage);
+  if (batch && detectDeskPollution()) window.showDeclutterDeskModal();
+};
+window.onbSaveGreetingName = function(skip) {
+  const name = skip ? '' : (document.getElementById('greet-name')?.value || '').trim();
+  if (name) { saveProfileField('name', name); updateTopbarProfile(); }
+  else if (skip) onbSet('onb_name_skip', true);
+  else return;
+  renderPage(state.currentPage);
+};
+window.onbAttLater = function() {
+  onbSet(`onb_att_later_${todayStr()}`, true);
+  renderPage(state.currentPage);
+};
+window.onbShowBunk = function() {
+  _onbBunkOpen = true;
+  renderPage(state.currentPage);
+};
+
 window.setupSelfStudy = function() {
   trackUsage('welcome_choice', 'self');
   window.setSelfStudyMode();
@@ -8572,18 +8599,22 @@ function renderDashboard() {
     });
   }
 
-  // 2. Profile (only after the timetable exists)
+  // 2. After the timetable, one ask at a time: lab group (a card), then the
+  // name (asked inside the greeting), then attendance from the next day.
+  // (onb_tt_day is written on save, on open and at a new day, never here:
+  // showing Today writes nothing.)
   const currentProf = loadProfile() || liveProfile || {};
-  const hasProfileSetup = !!((currentProf.name && currentProf.name.trim()) || (currentProf.batch && currentProf.batch.trim()));
-  if (hasCustomTT && !hasProfileSetup) {
+  const groupChoices = hasCustomTT && !selfStudy && !(currentProf.batch || '').trim() && !onbGet('onb_group_skip') ? timetableBatches() : [];
+  if (groupChoices.length) {
     setupSteps.push({
-      id: 'profile',
-      label: 'Add your name and group',
-      desc: 'So Today greets you and only shows your own lab group.',
-      action: `navigateTo('settings')`,
+      id: 'group',
+      label: 'Timetable added ✓ One quick thing',
+      desc: 'Which lab group are you in? So you only see your labs.',
+      action: '',
       icon: icons.user()
     });
   }
+  const askName = hasCustomTT && !selfStudy && !groupChoices.length && !(currentProf.name || '').trim() && !onbGet('onb_name_skip');
 
   // 3. Set Attendance Starting Counts
   const currentBaselines = loadAttendanceBaselines();
@@ -8598,11 +8629,12 @@ function renderDashboard() {
     });
   }
 
-  if (!selfStudy && !onHoliday && !hasAttendanceData && !hasBaselinesConfigured) {
+  const attDayReady = (onbGet('onb_tt_day') || dateStr) < dateStr && !onbGet(`onb_att_later_${dateStr}`);
+  if (hasCustomTT && !selfStudy && !onHoliday && !hasAttendanceData && !hasBaselinesConfigured && !groupChoices.length && !askName && attDayReady) {
     setupSteps.push({
       id: 'att',
-      label: 'Set your attendance so far',
-      desc: 'Enter your counts from the college portal once to see your percentage and safe skips.',
+      label: 'Want your attendance %?',
+      desc: 'Copy your counts from the college portal once. Or just start marking classes from today.',
       action: `showBaselineModal(null, 'manual')`,
       icon: icons.summary()
     });
@@ -8768,7 +8800,22 @@ function renderDashboard() {
   // Setup card: one ask at a time. No timetable yet = one big button (photo
   // or typing is picked in the next dialog) and a quiet self-study link.
   const firstStep = setupSteps[0];
-  const setupBanner = !firstStep ? '' : firstStep.id === 'tt' ? `
+  const setupAsk = (s, body) => `
+    <div class="desk-setup-guide setup-ask" role="complementary" aria-label="${escHtml_cd(s.label)}">
+      <div class="setup-ask-title">${s.label}</div>
+      <div class="setup-ask-sub">${s.desc}</div>
+      ${body}
+    </div>`;
+  const setupBanner = !firstStep ? '' : firstStep.id === 'group' ? setupAsk(firstStep, `
+      <div class="setup-ask-actions">
+        ${groupChoices.map(b => `<button class="btn btn-sm btn-secondary" onclick="onbPickGroup('${escHtml_cd(b).replace(/'/g, '&#39;')}')">${escHtml_cd(b)}</button>`).join('')}
+        <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbPickGroup(null)">Skip</button>
+      </div>`) : firstStep.id === 'att' ? setupAsk(firstStep, `
+      <div class="setup-ask-actions">
+        <button class="btn btn-sm btn-primary" onclick="${firstStep.action}">Add counts</button>
+        <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbAttLater()">Later</button>
+      </div>
+      ${_onbBunkOpen ? bunkCalcHtml('today') : `<button type="button" class="setup-first-alt setup-ask-link" onclick="onbShowBunk()">Just check how many I can miss</button>`}`) : firstStep.id === 'tt' ? `
     <div class="desk-setup-guide setup-first" role="complementary" aria-label="Add your timetable">
       <div class="setup-first-title">${firstStep.label}</div>
       <div class="setup-first-sub">${firstStep.desc}</div>
@@ -8867,7 +8914,17 @@ function renderDashboard() {
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
-          <div class="desk-greeting">${greeting}</div>
+          <div class="desk-greeting">${askName ? `Hey there.` : greeting}</div>
+          ${askName ? `
+          <div class="greet-ask">
+            <label class="greet-ask-line" for="greet-name">Your week's all set. What should we call you?</label>
+            <div class="greet-ask-row">
+              <input type="text" class="form-input" id="greet-name" maxlength="40" autocomplete="given-name" placeholder="Your name"
+                onkeydown="if (event.key === 'Enter') { event.preventDefault(); onbSaveGreetingName(false); }">
+              <button class="btn-primary" onclick="onbSaveGreetingName(false)">Save</button>
+            </div>
+            <button type="button" class="setup-first-alt greet-ask-skip" onclick="onbSaveGreetingName(true)">Not now</button>
+          </div>` : ''}
           ${contextLine ? `<div class="desk-greeting-sub">${contextLine}</div>` : ''}
           ${examNoteHTML}
           ${holidaySoonHTML}
@@ -17379,6 +17436,7 @@ function init() {
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
   try { checkHolidayExpiry(); } catch (e) { console.warn('[Holiday] expiry check skipped:', e); }
+  try { noteTimetableDay(); } catch (e) { console.warn('[Onboarding] timetable day skipped:', e); }
   try { vaultIdbStart(); } catch (e) { console.warn('[Vault] file store skipped:', e); }
   initTheme();
   initAccent();

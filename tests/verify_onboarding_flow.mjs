@@ -59,7 +59,7 @@ const code = appSrc.replace('function trackUsage(name, ...parts) {', 'function t
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
   const NOTICES = globalThis.__TEST_NOTICES__ || [];
 `);
-const EXPORTS = ['state', 'checkOnboarding', 'renderDashboard', 'loadProfile', 'onbGet', 'onbSet', 'saveProfileField', 'timetableBatches', 'noteTimetableDay', 'pruneNotifiedHistory'];
+const EXPORTS = ['bunkCalcAnswer', 'saveTimetable', 'state', 'checkOnboarding', 'renderDashboard', 'loadProfile', 'onbGet', 'onbSet', 'saveProfileField', 'timetableBatches', 'noteTimetableDay', 'pruneNotifiedHistory'];
 const makeApp = () => new Function(`${code}\n return { ${EXPORTS.map(n => `${n}: typeof ${n} === 'undefined' ? undefined : ${n}`).join(', ')} };`)();
 
 function seed(extra = {}) {
@@ -245,6 +245,129 @@ check('The timetable card and the dialog use plain words with no dashes', () => 
 check('Self-study with no exam date still gets the countdown step', () => {
   seed({ cos_profile: JSON.stringify({ studyMode: 'self' }) }); const html = todayHtml(makeApp());
   return html.includes('Set your exam countdown') && !html.includes("Let's add your timetable") ? true : 'countdown step missing';
+});
+
+// ── Task 4: group card, name fallback, next-day attendance card ──
+const lab = (b) => ({ subject: 'DS Lab', code: 'DSL', time: '14:00', end: '16:00', type: 'lab', batches: b });
+const lec = { subject: 'Maths', code: 'M3', time: '15:00', end: '16:00', type: 'lecture', batches: [] };
+const week = (cls) => { const t = {}; for (let i = 0; i < 7; i++) t[i] = cls; return JSON.stringify(t); };
+const WITH_GROUPS = week([lab(['A1']), lab(['A2']), lec]);
+const NO_GROUPS = week([lec]);
+const greetingOf = (html) => { const i = html.indexOf('class="desk-greeting"'); if (i < 0) return ''; const j = html.indexOf('<!-- 2. PRIMARY', i); return html.slice(i, j < 0 ? i + 900 : j); };
+const cardOf = (html) => { const i = html.indexOf('class="desk-setup-guide'); if (i < 0) return ''; const j = html.indexOf('class="dashboard-layout"', i); return html.slice(i, j < 0 ? i + 2500 : j); };
+
+check('Timetable with lab groups and no group saved: group card with chips and Skip', () => {
+  seed({ cos_custom_timetable: WITH_GROUPS }); const app = makeApp(); const card = cardOf(todayHtml(app));
+  const t = visibleText(card).replace(/\s+/g, ' ');
+  const ok = t.includes('Timetable added ✓ One quick thing') && t.includes('Which lab group are you in? So you only see your labs.')
+    && card.includes(`onbPickGroup('A1')`) && card.includes(`onbPickGroup('A2')`) && card.includes('onbPickGroup(null)');
+  if (!ok) return t.slice(0, 200);
+  globalThis.onbPickGroup('A2');
+  return prof().batch === 'A2' ? true : JSON.stringify(prof());
+});
+
+check('Picking a group with other groups\' labs left opens the existing clean-up review (nothing removed yet)', () => {
+  seed({ cos_custom_timetable: WITH_GROUPS }); makeApp(); const before = store.cos_custom_timetable;
+  let opened = 0; globalThis.showDeclutterDeskModal = () => { opened++; };
+  globalThis.onbPickGroup('A2');
+  if (opened !== 1) return `review opened ${opened} times`;
+  seed({ cos_custom_timetable: NO_GROUPS }); makeApp(); opened = 0; globalThis.showDeclutterDeskModal = () => { opened++; };
+  globalThis.onbPickGroup('A1');
+  return store.cos_custom_timetable === NO_GROUPS && before === WITH_GROUPS && opened === 0 ? true : 'opened with nothing to clean, or timetable changed';
+});
+
+check('Skipping the group card hides it for good and moves on to the name', () => {
+  seed({ cos_custom_timetable: WITH_GROUPS }); const app = makeApp(); todayHtml(app);
+  globalThis.onbPickGroup(null);
+  const html = todayHtml(makeApp());
+  return hist().onb_group_skip === true && !html.includes('One quick thing') && greetingOf(html).includes('What should we call you?') ? true : 'group card still shown or no name ask';
+});
+
+check('No lab groups, or a group already saved: no group card, the greeting asks the name', () => {
+  seed({ cos_custom_timetable: NO_GROUPS }); const a = todayHtml(makeApp());
+  seed({ cos_custom_timetable: WITH_GROUPS, cos_profile: JSON.stringify({ batch: 'B1' }) }); const b = todayHtml(makeApp());
+  const ok = [a, b].every(h => !h.includes('One quick thing') && greetingOf(h).includes("Your week's all set. What should we call you?") && h.includes('id="greet-name"'));
+  return ok ? true : 'expected the name ask in the greeting';
+});
+
+check('With a name saved, no name ask and the greeting uses it', () => {
+  seed({ cos_custom_timetable: NO_GROUPS, cos_profile: JSON.stringify({ name: 'Riya Shah' }) }); const html = todayHtml(makeApp());
+  return !html.includes('greet-name') && greetingOf(html).includes('Riya') ? true : greetingOf(html).slice(0, 200);
+});
+
+check('Name in the greeting: Save stores it, Not now remembers the skip', () => {
+  seed({ cos_custom_timetable: NO_GROUPS }); todayHtml(makeApp());
+  domStub('greet-name').value = ' Riya ';
+  globalThis.onbSaveGreetingName(false);
+  if (prof().name !== 'Riya') return `saved ${prof().name}`;
+  seed({ cos_custom_timetable: NO_GROUPS }); todayHtml(makeApp());
+  globalThis.onbSaveGreetingName(true);
+  const html = todayHtml(makeApp());
+  return hist().onb_name_skip === true && !html.includes('greet-name') ? true : 'skip not remembered';
+});
+
+const READY = (extra = {}) => ({ cos_custom_timetable: NO_GROUPS, cos_profile: JSON.stringify({ name: 'Riya' }), ...extra });
+check('Attendance card waits until the day after the timetable showed up', () => {
+  seed(READY()); let app = makeApp();
+  if (todayHtml(app).includes('Want your attendance %?')) return 'card shown before the day was recorded';
+  app.noteTimetableDay(); app = makeApp();
+  return hist().onb_tt_day === '2026-10-14' && !todayHtml(app).includes('Want your attendance %?') ? true : 'card shown on day one';
+});
+
+check('Saving a timetable records the day; showing Today writes nothing', () => {
+  seed({ cos_profile: JSON.stringify({ name: 'Riya' }) }); const app = makeApp();
+  const before = JSON.stringify(store); todayHtml(app);
+  if (JSON.stringify(store) !== before) return 'render wrote to storage';
+  app.saveTimetable(JSON.parse(NO_GROUPS));
+  return hist().onb_tt_day === '2026-10-14' ? true : 'day not recorded on save';
+});
+
+check('Next day: attendance card with Add counts, Later and the quick calculator link', () => {
+  seed(READY({ cos_notified_history: JSON.stringify({ onb_tt_day: '2026-10-13' }) })); const card = cardOf(todayHtml(makeApp()));
+  const t = visibleText(card).replace(/\s+/g, ' ');
+  const ok = t.includes('Want your attendance %?') && t.includes('Copy your counts from the college portal once. Or just start marking classes from today.')
+    && card.includes(`showBaselineModal(null, 'manual')`) && card.includes('onbAttLater()') && t.includes('Just check how many I can miss') && !card.includes('id="today-bunk"');
+  return ok ? true : t.slice(0, 220);
+});
+
+check('Later hides the attendance card for today only', () => {
+  seed(READY({ cos_notified_history: JSON.stringify({ onb_tt_day: '2026-10-13' }) })); todayHtml(makeApp());
+  globalThis.onbAttLater();
+  if (todayHtml(makeApp()).includes('Want your attendance %?')) return 'still shown today';
+  const saved = { ...store };
+  globalThis.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(NOW + 86400000); } static now() { return NOW + 86400000; } };
+  try {
+    seed(saved); return todayHtml(makeApp()).includes('Want your attendance %?') ? true : 'not back the next day';
+  } finally { globalThis.Date = FakeDate; }
+});
+
+check('Attendance card hides during a holiday, with counts set, or once a class is marked', () => {
+  const base = { cos_notified_history: JSON.stringify({ onb_tt_day: '2026-10-13' }) };
+  const cases = {
+    holiday: READY({ ...base, cos_holiday: JSON.stringify({ on: true, since: '2026-10-10', until: null }) }),
+    counts: READY({ ...base, cos_attendance_baseline: JSON.stringify({ M3: { present: 10, totalCount: 12 } }) }),
+    marked: READY({ ...base, cos_attendance: JSON.stringify({ '2026-10-13': { M3_1500: 'attended' } }) }),
+  };
+  const shown = Object.entries(cases).filter(([, st]) => { seed(st); return todayHtml(makeApp()).includes('Want your attendance %?'); }).map(([k]) => k);
+  return shown.length ? `shown with: ${shown.join(', ')}` : true;
+});
+
+check('"Just check how many I can miss" opens the same calculator, same answer', () => {
+  seed(READY({ cos_notified_history: JSON.stringify({ onb_tt_day: '2026-10-13' }) })); const app = makeApp(); todayHtml(app);
+  globalThis.onbShowBunk();
+  const html = domCache['page-dashboard'].innerHTML;
+  if (!html.includes('id="today-bunk"')) return 'calculator not shown';
+  domStub('today-bunk-a').value = '75'; domStub('today-bunk-h').value = '100'; domStub('today-bunk-t').value = '75';
+  const r = globalThis.updateBunkCalc('today');
+  const want = app.bunkCalcAnswer('75', '100', 75);
+  return r.kind === want.kind && r.text === want.text ? true : `${r.kind} vs ${want.kind}`;
+});
+
+check('Group, name and attendance cards use plain words with no dashes', () => {
+  seed({ cos_custom_timetable: WITH_GROUPS }); const a = cardOf(todayHtml(makeApp()));
+  seed({ cos_custom_timetable: NO_GROUPS }); const b = greetingOf(todayHtml(makeApp()));
+  seed(READY({ cos_notified_history: JSON.stringify({ onb_tt_day: '2026-10-13' }) })); const c = cardOf(todayHtml(makeApp()));
+  return BAD_WORDING(a) || BAD_WORDING(b) || BAD_WORDING(c) || true;
 });
 
 globalThis.setTimeout = realSetTimeout;

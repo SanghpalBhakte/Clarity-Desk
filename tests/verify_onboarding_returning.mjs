@@ -142,13 +142,13 @@ check('Empty Today: one setup card with the scan first, no stat tiles, no repeat
   return true;
 });
 
-check('With a timetable: no repeated stat tiles, the schedule shows, and the profile step appears only then', () => {
+check('With a timetable: no repeated stat tiles, the schedule shows, and the name is asked only then', () => {
   seed(RETURNING['a saved timetable']); const app = makeApp(); app.state.currentPage = 'dashboard'; app.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
   if (html.includes('vitals-strip')) return 'stat tiles are back (they only repeated the sections below)';
   if (!html.includes("Today's Schedule") || !html.includes('Attendance') || !html.includes('Tasks &amp; Deadlines')) return 'a Today section is missing';
   if (html.includes("Let's add your timetable")) return 'still asking to scan';
-  return html.includes('Add your name and group') ? true : 'profile step missing after timetable';
+  return html.includes('What should we call you?') ? true : 'name ask missing after timetable';
 });
 
 check('Built-in sample notices drop off after their date; dated-today, future and non-built-in ones stay', () => {

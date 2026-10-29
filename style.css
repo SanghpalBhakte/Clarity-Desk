@@ -2589,6 +2589,20 @@ a.card:hover,
 .setup-first-btn { width: 100%; min-height: 48px; margin-top: 16px; justify-content: center; font-size: var(--text-base); }
 .setup-first-alt { display: block; margin: 12px auto 0; padding: 6px 8px; font-size: var(--text-sm); color: var(--text-muted); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
 .setup-first-alt:hover, .setup-first-alt:focus-visible { color: var(--text-secondary); text-decoration-color: currentColor; }
+.setup-ask-title { font-weight: 600; color: var(--text-primary); }
+.setup-ask-sub { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
+.setup-ask-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.setup-ask-actions .btn { min-width: 48px; min-height: 40px; }
+.setup-ask-actions .setup-ask-quiet { background: none; border-color: transparent; box-shadow: none; color: var(--text-muted); }
+.setup-ask-link { margin: 10px 0 0; padding-left: 0; }
+.setup-ask .bunk-calc { margin-top: 12px; }
+/* Name, asked inside the greeting once the timetable is in. */
+.greet-ask { margin-top: 10px; max-width: 360px; }
+.greet-ask-line { display: block; font-size: var(--text-md); color: var(--text-secondary); }
+.greet-ask-row { display: flex; gap: 8px; margin-top: 10px; }
+.greet-ask-row .form-input { flex: 1; min-width: 0; font-size: var(--text-md); padding: 10px 14px; border-radius: 12px; }
+.greet-ask-row .btn-primary { padding: 10px 18px; border-radius: 12px; }
+.greet-ask-skip { margin: 6px 0 0; padding-left: 0; }
 .add-tt-choice { max-width: 420px; }
 .add-tt-title { margin: 0 0 4px; font-size: var(--text-xl); font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
 .add-tt-sub { margin-bottom: 14px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
