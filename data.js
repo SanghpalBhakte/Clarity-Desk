@@ -199,6 +199,42 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u124",
+    date: "2026-10-29",
+    title: "Link icons in the Study Vault now show the whole chain, not half of it",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Link icons in the Study Vault now show the whole chain, not half of it",
+    points: [
+
+    ]
+  },
+  {
+    id: "u123",
+    date: "2026-10-29",
+    title: "Daily Briefing tells you your day in one line, and the Study Vault is easier to use on phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The briefing now opens with a summary like \"2 classes left, 1 task due, nothing urgent\", shows the next class, hides empty sections and zero counts, and adds a Tomorrow card.",
+    points: [
+      "In the Study Vault, one Add button replaces three, and subjects open and close from their name so long lists fit on a phone."
+    ]
+  },
+  {
+    id: "u122",
+    date: "2026-10-29",
+    title: "Daily Briefing and Study Vault now open as their own pages",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Each page has its own title, the shared tab bar is gone, and only the page you are on is highlighted in the menu.",
+    points: [
+      "On phones, tapping Study Vault in More after reading the briefing now opens the vault, not the briefing again."
+    ]
+  },
+  {
     id: "u121",
     date: "2026-10-29",
     title: "The tidy up your desk screen now explains itself in plain words.",
