@@ -1,6 +1,6 @@
 name: Tests
 
-# Runs the deterministic suite and the PWA smoke suite on every push to main
+# Runs the deterministic suite, the PWA smoke suite and the visual suite on every push to main
 # and on every pull request.
 
 on:
@@ -34,6 +34,10 @@ jobs:
       - run: npm run test:pwa-smoke
 
       - run: npm run test:onboarding
+
+      # Screenshots compare against the *-linux.png files; refresh them with
+      # the "Refresh Linux screenshots" workflow after a deliberate UI change.
+      - run: npm run test:visual
 
       - name: Upload Playwright report on failure
         if: failure()
