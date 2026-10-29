@@ -53,6 +53,7 @@ No new keys and no shape changes.
 - "Skip", "Not now" and "Later" are remembered in the existing `cos_notified_history` map, like the holiday welcome-back card: `onb_group_skip`, `onb_name_skip`, `onb_att_later_<date>` (Later hides the attendance card for that day only).
 - The day the timetable first appeared is stored as `onb_tt_day: 'YYYY-MM-DD'` in the same map, so step 7 waits a day. Students who already have a timetable when this ships get it set on first open, so they see step 7 at once if they still have no counts.
 - Backups already carry `cos_notified_history`, so restore stays compatible.
+- The reminder code trims that map to its last 50 keys once it passes 100; it must keep every `onb_` key so skipped cards stay skipped.
 
 ## Files
 
