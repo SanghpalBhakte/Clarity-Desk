@@ -33,6 +33,8 @@ jobs:
 
       - run: npm run test:pwa-smoke
 
+      - run: npm run test:onboarding
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7

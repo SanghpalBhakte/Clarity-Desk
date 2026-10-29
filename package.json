@@ -12,6 +12,7 @@
     "test:visual:update": "playwright test tests/clarity-visual-verification.spec.ts --update-snapshots",
     "test:photo-check": "node tests/verify_scan_photo_check.mjs",
     "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts --project=chromium-desktop",
+    "test:onboarding": "playwright test tests/onboarding-tour.spec.ts --project=chromium-desktop",
     "test:mobile": "playwright test tests/mobile-layout.spec.ts --project=chromium-mobile",
     "test:smoke": "playwright test tests/post-deploy-smoke.spec.ts --project=chromium-desktop",
     "test:ocr-kit": "node tests/verify_ocr_test_kit.mjs",

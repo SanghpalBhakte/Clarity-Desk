@@ -9,7 +9,7 @@ Closest existing material, checked against current code:
 
 | Source | Issue | Still valid? | One-line fix or workaround |
 |---|---|---|---|
-| `Claude outputs/AUDIT.md` #7 | `showOnboardingStep2` never called | Not rechecked | Grep callers; delete or wire up |
+| `Claude outputs/AUDIT.md` #7 | `showOnboardingStep2` never called | Fixed (29 Oct 2026) | Removed with the old step 2 profile form in the onboarding redesign |
 | `Claude outputs/AUDIT.md` #6 | ~18 `alert()` / 15 `confirm()` dialogs | Likely (app.js grew since) | Route through existing toast/modal |
 | memory: slow-load follow-ups | app.js 1.1 MB raw | Yes | Lazy-load OCR and Ask Desk, like `deadline-import.js` |
 | memory: slow-load follow-ups | Unused FCM token write | Fixed 2026-10-28 | Removed with the SW handler, messaging script and GitHub job |
