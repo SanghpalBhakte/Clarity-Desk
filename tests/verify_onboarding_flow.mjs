@@ -211,6 +211,42 @@ check('After the name step the welcome never comes back, even mid tour', () => {
   return welcomeScheduled() ? 'welcome scheduled again' : true;
 });
 
+// ── Task 3: one timetable card and the "how to add it" dialog ──
+const todayHtml = (app) => { app.state.currentPage = 'dashboard'; app.renderDashboard(); return domCache['page-dashboard'].innerHTML; };
+check('A new Today shows one timetable card with one button and a quiet self-study link', () => {
+  seed(); const html = todayHtml(makeApp());
+  const cards = (html.match(/class="desk-setup-guide/g) || []).length;
+  const t = visibleText(html).replace(/\s+/g, ' ');
+  const ok = cards === 1 && t.includes("Let's add your timetable") && t.includes('Takes about a minute. The rest can wait.')
+    && html.includes('onclick="showAddTimetableChoice()"') && html.includes('onclick="setupSelfStudy()"') && t.includes('No timetable? I study on my own');
+  return ok ? true : `cards=${cards} ${t.slice(0, 160)}`;
+});
+
+check('A new Today has no step counter and no calculator', () => {
+  seed(); const html = todayHtml(makeApp());
+  return !/steps? left/.test(html) && !html.includes('id="today-bunk"') && !html.includes('Get started') ? true : 'counter or calculator still there';
+});
+
+check('"How do you want to add it?" offers a photo or typing, plus Not now', () => {
+  seed(); makeApp(); MISSING.add('add-tt-choice-backdrop'); globalThis.showAddTimetableChoice(); MISSING.clear();
+  const html = appended.map(x => x.innerHTML || '').join('');
+  const t = visibleText(html).replace(/\s+/g, ' ');
+  const ok = t.includes('How do you want to add it?') && t.includes('You check every class before anything is saved.') && t.includes('Take a photo')
+    && t.includes('Type it in') && t.includes('Not now') && html.includes('setupScanTimetable()') && html.includes('setupAddClasses()');
+  return ok ? true : t.slice(0, 200);
+});
+
+check('The timetable card and the dialog use plain words with no dashes', () => {
+  seed(); const app = makeApp(); const card = todayHtml(app);
+  MISSING.add('add-tt-choice-backdrop'); globalThis.showAddTimetableChoice(); MISSING.clear();
+  return BAD_WORDING(card.slice(card.indexOf('desk-setup-guide'), card.indexOf('desk-setup-guide') + 1500)) || BAD_WORDING(appended.map(x => x.innerHTML || '').join('')) || true;
+});
+
+check('Self-study with no exam date still gets the countdown step', () => {
+  seed({ cos_profile: JSON.stringify({ studyMode: 'self' }) }); const html = todayHtml(makeApp());
+  return html.includes('Set your exam countdown') && !html.includes("Let's add your timetable") ? true : 'countdown step missing';
+});
+
 globalThis.setTimeout = realSetTimeout;
 console.log('==================================================================');
 console.log(`PASSED: ${passed}`);

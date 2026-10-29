@@ -180,7 +180,7 @@ check('Nothing scheduled anywhere: no look-ahead line, and no crash', () => {
   // With no timetable at all, Today shows the setup card instead of the
   // Rest Day card (onboarding pass); it must still render with no look-ahead.
   const html = todayWith('2026-09-27T11:00:00', {});
-  if (!html.includes('Scan your timetable')) return 'setup card missing for an empty timetable';
+  if (!html.includes("Let's add your timetable")) return 'setup card missing for an empty timetable';
   return !html.includes('Next class:') ? true : 'look-ahead shown for an empty timetable';
 });
 

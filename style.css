@@ -2583,6 +2583,17 @@ a.card:hover,
   #onboarding-backdrop { height: 100dvh; }
 }
 
+/* First Today: one ask, one button, one quiet way out. */
+.setup-first-title { font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+.setup-first-sub { margin-top: 4px; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+.setup-first-btn { width: 100%; min-height: 48px; margin-top: 16px; justify-content: center; font-size: var(--text-base); }
+.setup-first-alt { display: block; margin: 12px auto 0; padding: 6px 8px; font-size: var(--text-sm); color: var(--text-muted); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.setup-first-alt:hover, .setup-first-alt:focus-visible { color: var(--text-secondary); text-decoration-color: currentColor; }
+.add-tt-choice { max-width: 420px; }
+.add-tt-title { margin: 0 0 4px; font-size: var(--text-xl); font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+.add-tt-sub { margin-bottom: 14px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
+.add-tt-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+
 /* ── Dashboard Setup Guide (inline stepper, no card box) ─────── */
 .desk-setup-guide {
   margin-bottom: 20px;

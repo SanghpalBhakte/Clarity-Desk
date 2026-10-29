@@ -8384,6 +8384,37 @@ window.setupScanTimetable = function() {
   trackUsage('welcome_choice', 'scan');
   triggerTimetableImport();
 };
+// "Add your timetable": photo or typing, both go through the existing review.
+window.showAddTimetableChoice = function() {
+  if (document.getElementById('add-tt-choice-backdrop')) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'add-tt-choice-backdrop';
+  const close = () => document.getElementById('add-tt-choice-backdrop')?.remove();
+  window.closeAddTimetableChoice = close;
+  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  const row = (fn, icon, title, sub) => `
+        <button class="setup-guide-step" onclick="closeAddTimetableChoice(); ${fn}">
+          <span class="setup-step-icon">${icon}</span>
+          <div style="flex:1;min-width:0">
+            <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${title}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${sub}</div>
+          </div>
+          <span class="setup-step-arrow" aria-hidden="true">→</span>
+        </button>`;
+  backdrop.innerHTML = `
+    <div class="modal add-tt-choice" role="dialog" aria-modal="true" aria-labelledby="add-tt-title">
+      <h2 id="add-tt-title" class="add-tt-title">How do you want to add it?</h2>
+      <div class="add-tt-sub">You check every class before anything is saved.</div>
+      <div class="setup-guide-steps">
+        ${row('setupScanTimetable()', icons.camera(), 'Take a photo', 'Of the printed timetable or a screenshot.')}
+        ${row('setupAddClasses()', icons.plus(), 'Type it in', 'Add your classes one by one.')}
+      </div>
+      <div class="add-tt-foot"><button type="button" class="btn-secondary ob-quiet" onclick="closeAddTimetableChoice()">Not now</button></div>
+    </div>`;
+  document.body.appendChild(backdrop);
+};
+
 window.setupAddClasses = function() {
   trackUsage('welcome_choice', 'manual');
   navigateTo('timetable');
@@ -8534,9 +8565,9 @@ function renderDashboard() {
   if (!hasCustomTT && !selfStudy) {
     setupSteps.push({
       id: 'tt',
-      label: 'Scan your timetable',
-      desc: 'Take a photo of your class timetable. You check every class before anything is saved.',
-      action: `setupScanTimetable()`,
+      label: "Let's add your timetable",
+      desc: 'Takes about a minute. The rest can wait.',
+      action: `showAddTimetableChoice()`,
       icon: icons.camera()
     });
   }
@@ -8734,44 +8765,28 @@ function renderDashboard() {
     beaconHTML = '';
   }
 
-  // Setup guide banner — shown only when there are missing setup steps
-  const setupBanner = !isFullySetup ? `
-    <div class="desk-setup-guide" role="complementary" aria-label="Setup checklist">
-      <div class="setup-guide-header">
-        <span class="setup-guide-title">${iconText(icons.settings(), hasCustomTT ? 'Finish setting up' : 'Get started')}</span>
-        <span class="setup-guide-count">${setupSteps.length} step${setupSteps.length !== 1 ? 's' : ''} left</span>
-      </div>
-      ${!hasCustomTT && liveProfile?.studyMode !== 'self' ? bunkCalcHtml('today') : ''}
+  // Setup card: one ask at a time. No timetable yet = one big button (photo
+  // or typing is picked in the next dialog) and a quiet self-study link.
+  const firstStep = setupSteps[0];
+  const setupBanner = !firstStep ? '' : firstStep.id === 'tt' ? `
+    <div class="desk-setup-guide setup-first" role="complementary" aria-label="Add your timetable">
+      <div class="setup-first-title">${firstStep.label}</div>
+      <div class="setup-first-sub">${firstStep.desc}</div>
+      <button class="btn-primary setup-first-btn" onclick="${firstStep.action}">Add your timetable</button>
+      <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">No timetable? I study on my own</button>
+    </div>` : `
+    <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
-        ${setupSteps.slice(0, 1).map((s) => `
-          <button class="setup-guide-step" onclick="${s.action}" aria-label="${s.label}">
-            <span class="setup-step-icon">${s.icon}</span>
-            <div style="flex:1;min-width:0">
-              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${s.label}</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${s.desc}</div>
-            </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
-          </button>
-          ${s.id === 'tt' ? `
-          <button class="setup-guide-step" onclick="setupAddClasses()" aria-label="Add classes myself">
-            <span class="setup-step-icon">${icons.plus()}</span>
-            <div style="flex:1;min-width:0">
-              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">Add classes myself</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">Type in your classes one by one.</div>
-            </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Add →</span>
-          </button>
-          <button class="setup-guide-step" onclick="setupSelfStudy()" aria-label="I study on my own">
-            <span class="setup-step-icon">${icons.target()}</span>
-            <div style="flex:1;min-width:0">
-              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">I study on my own</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">No class timetable? Plan with tasks and an exam countdown.</div>
-            </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Choose →</span>
-          </button>` : ''}
-        `).join('')}
+        <button class="setup-guide-step" onclick="${firstStep.action}" aria-label="${firstStep.label}">
+          <span class="setup-step-icon">${firstStep.icon}</span>
+          <div style="flex:1;min-width:0">
+            <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${firstStep.label}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${firstStep.desc}</div>
+          </div>
+          <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
+        </button>
       </div>
-    </div>` : '';
+    </div>`;
 
   // Urgent & Active tasks
   const urgentTasks = allTasks()
