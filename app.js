@@ -6039,7 +6039,7 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   document.querySelectorAll('[data-nav]').forEach(el => {
     const navVal = el.dataset.nav;
     if (page === 'resources') {
-      el.classList.toggle('active', navVal === 'resources' || navVal === state.resourcesTab);
+      el.classList.toggle('active', isResourcesNavActive(navVal, state.resourcesTab));
     } else {
       el.classList.toggle('active', navVal === page);
     }
@@ -14756,9 +14756,16 @@ function switchResourcesTab(tab) {
   window.location.hash = tab;
   document.querySelectorAll('[data-nav]').forEach(el => {
     const navVal = el.dataset.nav;
-    el.classList.toggle('active', navVal === 'resources' || navVal === tab || (navVal === 'links' && tab === 'links'));
+    el.classList.toggle('active', isResourcesNavActive(navVal, tab));
   });
   renderResources();
+}
+
+// Study Vault and Daily Briefing share one page but are separate places to
+// the student: light up only the one that is open, never both.
+function isResourcesNavActive(navVal, tab) {
+  if (tab === 'summary') return navVal === 'summary';
+  return navVal === 'resources' || navVal === 'links';
 }
 
 function renderResources() {
@@ -14766,12 +14773,13 @@ function renderResources() {
   if (!el) return;
 
   const currentTab = state.resourcesTab || 'links';
+  el.setAttribute('aria-label', currentTab === 'links' ? 'Study Vault' : 'Daily Briefing');
 
   el.innerHTML = `
     <div class="page-header" style="margin-bottom: 16px;">
       <div>
-        <div class="page-title">Study Vault &amp; Summary</div>
-        <div class="page-subtitle">Course notes, syllabus documents, cloud repositories &amp; academic briefing</div>
+        <div class="page-title">${currentTab === 'links' ? 'Study Vault' : 'Daily Briefing'}</div>
+        <div class="page-subtitle">${currentTab === 'links' ? 'Links and files you saved, by subject' : 'Your day in one read'}</div>
       </div>
       ${currentTab === 'links' ? `
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -14780,23 +14788,6 @@ function renderResources() {
           <button class="btn-primary" onclick="addLinkSubject()" style="font-size:var(--text-base);padding:8px 14px">+ Add Subject Vault</button>
         </div>
       ` : ''}
-    </div>
-
-    <div class="resources-tab-bar" role="tablist" aria-label="Resources sections">
-      <button role="tab" aria-selected="${currentTab === 'links'}" class="res-tab-btn ${currentTab === 'links' ? 'active' : ''}" onclick="switchResourcesTab('links')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-        </svg>
-        Vault Materials
-      </button>
-      <button role="tab" aria-selected="${currentTab === 'summary'}" class="res-tab-btn ${currentTab === 'summary' ? 'active' : ''}" onclick="switchResourcesTab('summary')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        Daily Briefing
-      </button>
     </div>
 
     <div id="resources-subtab-content"></div>
