@@ -1,0 +1,38 @@
+name: Refresh Linux screenshots
+
+# CI runs the visual tests on Linux, where fonts render a little differently
+# from a Mac, so it needs its own saved screenshots. Run this by hand
+# (Actions > Refresh Linux screenshots > Run workflow, pick the branch) after
+# a deliberate UI change, download the "linux-screenshots" artifact and
+# commit the files into tests/clarity-visual-verification.spec.ts-snapshots/.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npx playwright test tests/clarity-visual-verification.spec.ts --update-snapshots=all
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-screenshots
+          path: tests/clarity-visual-verification.spec.ts-snapshots/*-linux.png
+          retention-days: 7
+          if-no-files-found: error
