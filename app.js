@@ -5440,6 +5440,18 @@ function buildUpcomingReminders(now = new Date(), days = PUSH_SYNC_DAYS) {
   return out.filter(r => !seen.has(r.tag) && seen.add(r.tag)).slice(0, PUSH_MAX_REMINDERS);
 }
 
+// Past 100 keys the history keeps its newest 50, plus every onb_ flag
+// (onboarding skips and the first timetable day), so skipped setup cards
+// never come back after a busy week of reminders.
+function pruneNotifiedHistory(map) {
+  const keys = Object.keys(map);
+  if (keys.length <= 100) return map;
+  const pruned = {};
+  keys.filter(k => k.startsWith('onb_')).forEach(k => { pruned[k] = map[k]; });
+  keys.slice(-50).forEach(k => { pruned[k] = map[k]; });
+  return pruned;
+}
+
 function checkScheduledNotifications() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const prefs = loadNotifPrefs();
@@ -5588,14 +5600,7 @@ function checkScheduledNotifications() {
     }
   }
 
-  const keys = Object.keys(notifiedMap);
-  if (keys.length > 100) {
-    const pruned = {};
-    keys.slice(-50).forEach(k => { pruned[k] = notifiedMap[k]; });
-    safeSetStorage('cos_notified_history', pruned);
-  } else {
-    safeSetStorage('cos_notified_history', notifiedMap);
-  }
+  safeSetStorage('cos_notified_history', pruneNotifiedHistory(notifiedMap));
 }
 
 function triggerNoticeNotification(notice) {
@@ -8176,6 +8181,39 @@ function updateBunkCalc(idPrefix) {
 window.updateBunkCalc = updateBunkCalc;
 
 // ── Onboarding Flow ───────────────────────────────────────────
+// Onboarding remembers "Skip" / "Later" and the first timetable day as onb_
+// keys in cos_notified_history (no new storage key; backups carry it).
+function onbGet(key) {
+  return (safeGetStorage('cos_notified_history', {}) || {})[key];
+}
+function onbSet(key, value) {
+  const seen = safeGetStorage('cos_notified_history', {}) || {};
+  seen[key] = value;
+  safeSetStorage('cos_notified_history', seen);
+}
+
+// Onboarding writes only the name and the lab group, the same way Settings does.
+function saveProfileField(field, value) {
+  const v = String(value || '').trim();
+  if (!v || (field !== 'name' && field !== 'batch')) return;
+  safeSetStorage(KEY_PROFILE, { ...loadProfile(), [field]: v });
+  liveProfile[field] = v;
+  syncToCloud();
+}
+
+function timetableBatches() {
+  const tt = loadTimetable() || {};
+  const all = new Set();
+  Object.values(tt).forEach(day => (Array.isArray(day) ? day : []).forEach(c => (c.batches || []).forEach(b => b && all.add(String(b)))));
+  return [...all].sort();
+}
+
+// The next-day attendance card waits one day after the timetable first shows up.
+function noteTimetableDay() {
+  if (onbGet('onb_tt_day') || !hasAnyTimetable()) return;
+  onbSet('onb_tt_day', todayStr());
+}
+
 function checkOnboarding() {
   const p = loadProfile();
   if (!p.name && !localStorage.getItem('cos_onboarding_dismissed') && !hasExistingUserData()) {
