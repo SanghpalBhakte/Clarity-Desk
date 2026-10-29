@@ -133,20 +133,19 @@ check('Only digits from the inputs ever reach the page', () => {
   return r.kind === 'recover' && r.n === 14 && !/[<"]/.test(domCache['ob-bunk-ans'].innerHTML.replace(/<\/?strong>/g, '')) ? true : `got ${r.kind}: ${domCache['ob-bunk-ans'].innerHTML}`;
 });
 
-check('Welcome has only Explore and Log in (the calculator lives on Today)', () => {
+check('Welcome has only Show me around and Log in (the calculator lives on Today)', () => {
   seed(); makeApp(); MISSING.add('onboarding-backdrop'); globalThis.showOnboardingModal(); MISSING.clear();
   const html = appended.map(x => x.innerHTML || '').join('');
-  const step1 = html.slice(html.indexOf('id="onboarding-step-1"'), html.indexOf('id="onboarding-step-2"'));
+  const step1 = html.slice(html.indexOf('id="onboarding-step-1"'));
   const buttons = (step1.match(/<button/g) || []).length;
-  return !step1.includes('id="ob-bunk"') && buttons === 2 && step1.includes('onboardingExplore()') && step1.includes('onboardingLogin()') ? true : `buttons=${buttons}`;
+  return !step1.includes('id="ob-bunk"') && buttons === 2 && step1.includes('onboardingShowName()') && step1.includes('onboardingLogin()') ? true : `buttons=${buttons}`;
 });
 
-check('Empty Today: calculator inside the one setup card', () => {
+check('Empty Today: one setup card, calculator not on it (it opens from the attendance card)', () => {
   seed(); const app = makeApp(); app.state.currentPage = 'dashboard'; app.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  const cards = (html.match(/class="desk-setup-guide"/g) || []).length;
-  const inCard = html.indexOf('id="today-bunk"') > html.indexOf('class="desk-setup-guide"');
-  return cards === 1 && html.includes('id="today-bunk"') && inCard ? true : `cards=${cards} calc=${html.includes('id="today-bunk"')}`;
+  const cards = (html.match(/class="desk-setup-guide/g) || []).length;
+  return cards === 1 && !html.includes('id="today-bunk"') ? true : `cards=${cards} calc=${html.includes('id="today-bunk"')}`;
 });
 
 check('Not shown once a timetable exists', () => {

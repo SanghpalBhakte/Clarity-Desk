@@ -4976,7 +4976,8 @@ async function copyInAppLink() {
 const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
-  'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved'];
+  'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved',
+  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
 let _scanStartedAt = 0;
@@ -5440,6 +5441,18 @@ function buildUpcomingReminders(now = new Date(), days = PUSH_SYNC_DAYS) {
   return out.filter(r => !seen.has(r.tag) && seen.add(r.tag)).slice(0, PUSH_MAX_REMINDERS);
 }
 
+// Past 100 keys the history keeps its newest 50, plus every onb_ flag
+// (onboarding skips and the first timetable day), so skipped setup cards
+// never come back after a busy week of reminders.
+function pruneNotifiedHistory(map) {
+  const keys = Object.keys(map);
+  if (keys.length <= 100) return map;
+  const pruned = {};
+  keys.filter(k => k.startsWith('onb_')).forEach(k => { pruned[k] = map[k]; });
+  keys.slice(-50).forEach(k => { pruned[k] = map[k]; });
+  return pruned;
+}
+
 function checkScheduledNotifications() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const prefs = loadNotifPrefs();
@@ -5588,14 +5601,7 @@ function checkScheduledNotifications() {
     }
   }
 
-  const keys = Object.keys(notifiedMap);
-  if (keys.length > 100) {
-    const pruned = {};
-    keys.slice(-50).forEach(k => { pruned[k] = notifiedMap[k]; });
-    safeSetStorage('cos_notified_history', pruned);
-  } else {
-    safeSetStorage('cos_notified_history', notifiedMap);
-  }
+  safeSetStorage('cos_notified_history', pruneNotifiedHistory(notifiedMap));
 }
 
 function triggerNoticeNotification(notice) {
@@ -6510,6 +6516,7 @@ function refreshIfDayChanged() {
   const previousWeekday = new Date(`${lastRenderedDayKey}T00:00:00`).getDay();
   lastRenderedDayKey = nowKey;
   checkHolidayExpiry();
+  noteTimetableDay();
   // The timetable follows "today" unless the student had picked another day.
   if (state.ttDay === previousWeekday) state.ttDay = new Date().getDay();
   // The calendar's month and selected date live only in `state`, so a tab
@@ -6932,6 +6939,7 @@ function isCustomTimetableActive() {
 
 function saveTimetable(ttMap) {
   safeSetStorage(KEY_CUSTOM_TIMETABLE, ttMap);
+  noteTimetableDay();
   syncToCloud();
 }
 
@@ -8176,6 +8184,40 @@ function updateBunkCalc(idPrefix) {
 window.updateBunkCalc = updateBunkCalc;
 
 // ── Onboarding Flow ───────────────────────────────────────────
+// Onboarding remembers "Skip" / "Later" and the first timetable day as onb_
+// keys in cos_notified_history (no new storage key). Backups leave that map out,
+// so after a restore a skipped card may ask once more.
+function onbGet(key) {
+  return (safeGetStorage('cos_notified_history', {}) || {})[key];
+}
+function onbSet(key, value) {
+  const seen = safeGetStorage('cos_notified_history', {}) || {};
+  seen[key] = value;
+  safeSetStorage('cos_notified_history', seen);
+}
+
+// Onboarding writes only the name and the lab group, the same way Settings does.
+function saveProfileField(field, value) {
+  const v = String(value || '').trim();
+  if (!v || (field !== 'name' && field !== 'batch')) return;
+  safeSetStorage(KEY_PROFILE, { ...loadProfile(), [field]: v });
+  liveProfile[field] = v;
+  syncToCloud();
+}
+
+function timetableBatches() {
+  const tt = loadTimetable() || {};
+  const all = new Set();
+  Object.values(tt).forEach(day => (Array.isArray(day) ? day : []).forEach(c => (c.batches || []).forEach(b => b && all.add(String(b)))));
+  return [...all].sort();
+}
+
+// The next-day attendance card waits one day after the timetable first shows up.
+function noteTimetableDay() {
+  if (onbGet('onb_tt_day') || !hasAnyTimetable()) return;
+  onbSet('onb_tt_day', todayStr());
+}
+
 function checkOnboarding() {
   const p = loadProfile();
   if (!p.name && !localStorage.getItem('cos_onboarding_dismissed') && !hasExistingUserData()) {
@@ -8200,116 +8242,39 @@ function hasExistingUserData() {
   return false;
 }
 
+// Welcome: full screen. Three questions students actually ask, each answered
+// by a small note made of real app pieces, then Show me around (name, then
+// the tour) or Log in. Sample text only; nothing here reads stored data.
+const OB_LOGO = `<svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M 23.36 11.75 A 8.5 8.5 0 1 0 23.36 20.25" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="currentColor"/></svg>`;
+
 window.showOnboardingModal = function() {
   if (document.getElementById('onboarding-backdrop')) return;
 
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = 'modal-backdrop ob-full';
   backdrop.id = 'onboarding-backdrop';
-  
-  const p = loadProfile();
+
+  const qa = (q, a, tone) => `
+        <div class="ob-q">
+          <div class="ob-q-text">${q}</div>
+          <div class="ob-q-note ob-tone-${tone}"><span class="ob-q-dot" aria-hidden="true"></span>${a}</div>
+        </div>`;
 
   backdrop.innerHTML = `
-    <div class="modal onboarding-card" id="onboarding-modal-box">
-      <div id="onboarding-step-1">
-        <div class="ob-mark">
-          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <path d="M 23.36 11.75 A 8.5 8.5 0 1 0 23.36 20.25" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
-            <circle cx="16" cy="16" r="3.2" fill="currentColor"/>
-          </svg>
+    <div class="ob-screen" id="onboarding-modal-box" role="dialog" aria-modal="true" aria-label="Welcome to Clarity Desk">
+      <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
+      <div id="onboarding-step-1" class="ob-step">
+        <div class="ob-qs">
+          ${qa('Which room is the next class in?', '<b>Room 204</b> Data Structures, in 12 min', 'accent')}
+          ${qa('Can I skip this one?', '<b>Yep.</b> You can still miss 3 and stay above 75%', 'green')}
+          ${qa("When's the lab record due?", "<b>Tomorrow</b> and you haven't started", 'warm')}
         </div>
-        <h2 class="ob-title">Clarity Desk</h2>
-        <p class="ob-line">Your timetable, attendance, tasks and notes in one calm place, even offline.</p>
-        <div class="ob-actions" id="onboarding-actions">
-          <button class="btn-primary" onclick="onboardingExplore()">Explore<span class="ob-arrow" aria-hidden="true">→</span></button>
-          <button class="btn-secondary" onclick="onboardingLogin()">Log in</button>
+        <p class="ob-pitch">Clarity Desk keeps all of this on your phone, so you're never asking around. Works without internet too.</p>
+        <div class="ob-actions">
+          <button class="btn-primary" onclick="onboardingShowName()">Show me around</button>
+          <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">I already have an account</button>
         </div>
         ${usageActive() ? `<div class="ob-note">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}
-      </div>
-
-      <div id="onboarding-step-2" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-          <div>
-            <h2 style="margin:0;font-size:var(--text-xl);font-weight:700;letter-spacing:-0.02em;color:var(--text-primary)">Profile Setup</h2>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Personalizes your timetable and countdown</div>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Full Name <span style="color:var(--red)">*</span></label>
-            <input type="text" class="form-input" id="ob-name" value="${(p.name||'').replace(/"/g, '&quot;')}" placeholder="Your full name (e.g. Alex Morgan)">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Student ID / Roll Number <span style="color:var(--text-muted);font-weight:normal">(optional)</span></label>
-            <input type="text" class="form-input" id="ob-roll" value="${(p.rollNo||'').replace(/"/g, '&quot;')}" placeholder="Student ID or Roll number (optional)">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">College / University <span style="color:var(--red)">*</span></label>
-            <input type="text" class="form-input" id="ob-college" value="${(p.college||'').replace(/"/g, '&quot;')}" placeholder="College, university, or school name">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Major / Branch / Department</label>
-            <input type="text" class="form-input" id="ob-branch" value="${(p.branch||'').replace(/"/g, '&quot;')}" placeholder="e.g. Computer Science, Mechanical, Biology">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Year / Semester / Term</label>
-            <input type="text" class="form-input" id="ob-year" value="${(p.year||'').replace(/"/g, '&quot;')}" placeholder="e.g. 3rd Semester, Year 2, Fall 2026">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Practical Batch / Section <span style="color:var(--text-muted);font-weight:normal">(optional)</span></label>
-            <input type="text" class="form-input" id="ob-batch" value="${(p.batch||'').replace(/"/g, '&quot;')}" placeholder="e.g. A1, A2, B2, D1">
-          </div>
-
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:4px">
-            <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);margin-bottom:2px">
-              Timetable Schedule Setup
-            </div>
-            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45;margin-bottom:10px">
-              Start clean to build or scan your own class schedule, or load a sample college timetable.
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
-                <input type="radio" name="ob-tt-choice" value="clean" id="ob-tt-clean" checked style="accent-color:var(--accent)">
-                <span>Start with a clean schedule</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-base);cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface)">
-                <input type="radio" name="ob-tt-choice" value="aids" id="ob-tt-aids" style="accent-color:var(--accent)">
-                <span>Load sample timetable (SY AI-DS)</span>
-              </label>
-            </div>
-          </div>
-
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:4px">
-            <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);margin-bottom:2px">
-              Set your current attendance (Optional)
-            </div>
-            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45;margin-bottom:10px">
-              Add your current attended and missed class counts once. Clarity Desk will track continuously from there.
-            </div>
-            <button type="button" class="btn btn-sm btn-secondary" onclick="showBaselineModal()" style="font-size:var(--text-sm);padding:5px 12px;display:inline-flex;align-items:center;gap:6px">
-              ${icons.chartLine()} Set attendance counts →
-            </button>
-          </div>
-
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-top:4px">
-            <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);margin-bottom:2px">
-              Attendance Target (%)
-            </div>
-            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45;margin-bottom:8px">
-              Configure your institution's minimum required attendance % (default is 75%).
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="number" class="form-input" id="ob-att-target" value="75" min="50" max="100" step="1" style="width:90px;font-size:var(--text-md);padding:5px 10px">
-              <span style="font-size:var(--text-base);color:var(--text-muted)">% minimum</span>
-            </div>
-          </div>
-
-          <div id="ob-error" style="color:var(--red);font-size:var(--text-sm);display:none">Please enter your name to finish setup.</div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
-          <button class="btn-secondary" onclick="dismissOnboarding()" style="font-size:var(--text-base)">Skip</button>
-          <button class="btn-primary" onclick="finishOnboarding()" style="font-size:var(--text-base);padding:8px 18px">Finish setup</button>
-        </div>
       </div>
     </div>
   `;
@@ -8318,11 +8283,44 @@ window.showOnboardingModal = function() {
   trackUsage('welcome_shown');
 };
 
-window.showOnboardingStep2 = function() {
-  const s1 = document.getElementById('onboarding-step-1');
-  const s2 = document.getElementById('onboarding-step-2');
-  if (s1) s1.style.display = 'none';
-  if (s2) s2.style.display = 'block';
+// Asked only after Show me around, so it never stands between a student and
+// seeing what the app does. One box, Enter goes on, Skip is always there.
+window.onboardingShowName = function() {
+  const step = document.getElementById('onboarding-step-1');
+  if (!step) return;
+  trackUsage('welcome_choice', 'explore');
+  step.innerHTML = `
+    <div class="ob-name">
+      <label class="ob-big" for="ob-name">Hi! What do your friends call you?</label>
+      <input type="text" class="form-input ob-name-input" id="ob-name" maxlength="40" autocomplete="given-name" autofocus placeholder="Your name"
+        onkeydown="if (event.key === 'Enter') { event.preventDefault(); onboardingSaveName(false); }">
+      <div class="ob-hint">Just so the app can say hi properly. You can skip this.</div>
+    </div>
+    <div class="ob-actions">
+      <button class="btn-primary" onclick="onboardingSaveName(false)">That's me</button>
+      <button class="btn-secondary ob-quiet" onclick="onboardingSaveName(true)">Skip</button>
+    </div>`;
+  document.getElementById('ob-name')?.focus();
+};
+
+window.onboardingSaveName = function(skip) {
+  const name = skip ? '' : (document.getElementById('ob-name')?.value || '').trim();
+  if (name) saveProfileField('name', name);
+  trackUsage(name ? 'name_given' : 'name_skipped');
+  if (name) updateTopbarProfile();
+  window.onboardingStartTour();
+};
+
+// Closes the welcome, then walks the real app. The tour file is precached by
+// sw.js; if it still can't load, Today is simply showing.
+window.onboardingStartTour = async function() {
+  window.dismissOnboarding();
+  try {
+    const T = await import('./welcome-tour.js');
+    T.startTour({ name: (loadProfile().name || '').split(' ')[0], track: trackUsage });
+  } catch (err) {
+    console.warn('[Onboarding] tour unavailable:', err);
+  }
 };
 
 window.dismissOnboarding = function() {
@@ -8335,28 +8333,9 @@ window.dismissOnboarding = function() {
   renderPage(state.currentPage);
 };
 
-// Welcome actions. Explore loads the tour on demand (welcome-tour.js) so it
-// stays out of first paint; Log in and "Continue without account" close the
-// welcome the same way. The old scan / add / self-study choices now live on
-// the Today setup card (setupScanTimetable and friends) with the same
-// welcome_choice events.
-window.onboardingExplore = async function() {
-  trackUsage('welcome_choice', 'explore');
-  const step = document.getElementById('onboarding-step-1');
-  if (!step) return;
-  try {
-    const T = await import('./welcome-tour.js');
-    step.innerHTML = '<div id="onboarding-tour"></div>';
-    T.mountTour(document.getElementById('onboarding-tour'), {
-      onSignIn: window.onboardingLogin,
-      onContinue: window.onboardingLookAround
-    });
-  } catch (err) {
-    // Offline and never cached: the tour is optional, go on without it.
-    window.onboardingLookAround();
-  }
-};
-
+// Log in and "Continue without account" close the welcome the same way. The
+// scan / add / self-study choices live on the Today setup card
+// (setupScanTimetable and friends) with the same welcome_choice events.
 window.onboardingLogin = function() {
   trackUsage('welcome_choice', 'login');
   const step = document.getElementById('onboarding-step-1');
@@ -8408,79 +8387,74 @@ window.setupScanTimetable = function() {
   trackUsage('welcome_choice', 'scan');
   triggerTimetableImport();
 };
+// "Add your timetable": photo or typing, both go through the existing review.
+window.showAddTimetableChoice = function() {
+  if (document.getElementById('add-tt-choice-backdrop')) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'add-tt-choice-backdrop';
+  const close = () => document.getElementById('add-tt-choice-backdrop')?.remove();
+  window.closeAddTimetableChoice = close;
+  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  const row = (fn, icon, title, sub) => `
+        <button class="setup-guide-step" onclick="closeAddTimetableChoice(); ${fn}">
+          <span class="setup-step-icon">${icon}</span>
+          <div style="flex:1;min-width:0">
+            <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${title}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${sub}</div>
+          </div>
+          <span class="setup-step-arrow" aria-hidden="true">→</span>
+        </button>`;
+  backdrop.innerHTML = `
+    <div class="modal add-tt-choice" role="dialog" aria-modal="true" aria-labelledby="add-tt-title">
+      <h2 id="add-tt-title" class="add-tt-title">How do you want to add it?</h2>
+      <div class="add-tt-sub">You check every class before anything is saved.</div>
+      <div class="setup-guide-steps">
+        ${row('setupScanTimetable()', icons.camera(), 'Take a photo', 'Of the printed timetable or a screenshot.')}
+        ${row('setupAddClasses()', icons.plus(), 'Type it in', 'Add your classes one by one.')}
+      </div>
+      <div class="add-tt-foot"><button type="button" class="btn-secondary ob-quiet" onclick="closeAddTimetableChoice()">Not now</button></div>
+    </div>`;
+  document.body.appendChild(backdrop);
+};
+
 window.setupAddClasses = function() {
   trackUsage('welcome_choice', 'manual');
   navigateTo('timetable');
   showTimetableEntryModal(new Date().getDay(), null);
 };
+let _onbBunkOpen = false;
+// Picking a group can leave other groups' labs in the timetable; the existing
+// clean-up review (preview first, nothing removed until confirmed) opens so
+// Today really shows only their labs.
+window.onbPickGroup = function(batch) {
+  if (batch) saveProfileField('batch', batch); else onbSet('onb_group_skip', true);
+  renderPage(state.currentPage);
+  if (batch && detectDeskPollution()) window.showDeclutterDeskModal();
+};
+window.onbSaveGreetingName = function(skip) {
+  const name = skip ? '' : (document.getElementById('greet-name')?.value || '').trim();
+  if (name) { saveProfileField('name', name); updateTopbarProfile(); }
+  else if (skip) onbSet('onb_name_skip', true);
+  else {
+    const box = document.getElementById('greet-name');
+    if (box) { box.placeholder = 'Type your name first'; box.setAttribute('aria-invalid', 'true'); box.focus(); }
+    return;
+  }
+  renderPage(state.currentPage);
+};
+window.onbAttLater = function() {
+  onbSet('onb_att_later', todayStr());
+  renderPage(state.currentPage);
+};
+window.onbShowBunk = function() {
+  _onbBunkOpen = true;
+  renderPage(state.currentPage);
+};
+
 window.setupSelfStudy = function() {
   trackUsage('welcome_choice', 'self');
   window.setSelfStudyMode();
-};
-
-window.finishOnboarding = function() {
-  const nameVal = (document.getElementById('ob-name')?.value || '').trim();
-  const collegeVal = (document.getElementById('ob-college')?.value || '').trim();
-  const errEl = document.getElementById('ob-error');
-
-  if (!nameVal || !collegeVal) {
-    if (errEl) errEl.style.display = 'block';
-    return;
-  }
-
-  const isAidsOptIn = !!document.getElementById('ob-tt-aids')?.checked;
-
-  let branchVal = (document.getElementById('ob-branch')?.value || '').trim();
-  let yearVal = (document.getElementById('ob-year')?.value || '').trim();
-
-  if (isAidsOptIn) {
-    if (!branchVal) branchVal = 'AI & Data Science';
-    if (!yearVal) yearVal = '2nd Year (Sem 3)';
-    safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
-    const existingCustom = safeGetStorage(KEY_CUSTOM_TIMETABLE, null);
-    if (!existingCustom) {
-      // Same batch-aware split as the standalone "Load sample timetable"
-      // button (buildFilteredAidsTimetable) -- popping its interactive
-      // preview modal on top of onboarding would be disruptive here, and
-      // the batch this student just typed a few fields up is right there,
-      // so this filters straight to their own classes without it.
-      const batchVal = (document.getElementById('ob-batch')?.value || '').trim();
-      safeSetStorage(KEY_CUSTOM_TIMETABLE, buildFilteredAidsTimetable(batchVal || 'all'));
-    }
-  } else {
-    safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
-    const existingCustom = safeGetStorage(KEY_CUSTOM_TIMETABLE, null);
-    if (!existingCustom) {
-      safeSetStorage(KEY_CUSTOM_TIMETABLE, getEmptyTimetable());
-    }
-  }
-
-  const profile = {
-    name: nameVal,
-    rollNo: (document.getElementById('ob-roll')?.value || '').trim(),
-    college: collegeVal,
-    branch: branchVal,
-    year: yearVal,
-    batch: (document.getElementById('ob-batch')?.value || '').trim(),
-    examDate: liveProfile.examDate || '',
-    examLabel: liveProfile.examLabel || '',
-    studyMode: liveProfile.studyMode || '',
-  };
-
-  safeSetStorage(KEY_PROFILE, profile);
-  Object.assign(liveProfile, profile);
-
-  // Save attendance target from onboarding
-  const obAttTargetRaw = parseInt(document.getElementById('ob-att-target')?.value || '75', 10);
-  const obAttTargetSafe = (isNaN(obAttTargetRaw) || obAttTargetRaw < 50 || obAttTargetRaw > 100) ? 75 : obAttTargetRaw;
-  safeSetStorage(KEY_ATT_TARGET, obAttTargetSafe);
-
-  localStorage.setItem('cos_onboarding_dismissed', 'true');
-
-  syncToCloud();
-  updateTopbarProfile();
-  document.getElementById('onboarding-backdrop')?.remove();
-  renderPage(state.currentPage);
 };
 
 // ── Ask Clarity Assistant ─────────────────────────────────────
@@ -8623,25 +8597,29 @@ function renderDashboard() {
   if (!hasCustomTT && !selfStudy) {
     setupSteps.push({
       id: 'tt',
-      label: 'Scan your timetable',
-      desc: 'Take a photo of your class timetable. You check every class before anything is saved.',
-      action: `setupScanTimetable()`,
+      label: "Let's add your timetable",
+      desc: 'Takes about a minute. The rest can wait.',
+      action: `showAddTimetableChoice()`,
       icon: icons.camera()
     });
   }
 
-  // 2. Profile (only after the timetable exists)
+  // 2. After the timetable, one ask at a time: lab group (a card), then the
+  // name (asked inside the greeting), then attendance from the next day.
+  // (onb_tt_day is written on save, on open and at a new day, never here:
+  // showing Today writes nothing.)
   const currentProf = loadProfile() || liveProfile || {};
-  const hasProfileSetup = !!((currentProf.name && currentProf.name.trim()) || (currentProf.batch && currentProf.batch.trim()));
-  if (hasCustomTT && !hasProfileSetup) {
+  const groupChoices = hasCustomTT && !selfStudy && !(currentProf.batch || safeGetStorage(KEY_USER_BATCH, '') || '').trim() && !onbGet('onb_group_skip') ? timetableBatches() : [];
+  if (groupChoices.length) {
     setupSteps.push({
-      id: 'profile',
-      label: 'Add your name and group',
-      desc: 'So Today greets you and only shows your own lab group.',
-      action: `navigateTo('settings')`,
+      id: 'group',
+      label: 'Timetable added ✓ One quick thing',
+      desc: 'Which lab group are you in? So you only see your labs.',
+      action: '',
       icon: icons.user()
     });
   }
+  const askName = hasCustomTT && !selfStudy && !groupChoices.length && !(currentProf.name || '').trim() && !onbGet('onb_name_skip');
 
   // 3. Set Attendance Starting Counts
   const currentBaselines = loadAttendanceBaselines();
@@ -8656,11 +8634,12 @@ function renderDashboard() {
     });
   }
 
-  if (!selfStudy && !onHoliday && !hasAttendanceData && !hasBaselinesConfigured) {
+  const attDayReady = (onbGet('onb_tt_day') || dateStr) < dateStr && onbGet('onb_att_later') !== dateStr;
+  if (hasCustomTT && !selfStudy && !onHoliday && !hasAttendanceData && !hasBaselinesConfigured && !groupChoices.length && !askName && attDayReady) {
     setupSteps.push({
       id: 'att',
-      label: 'Set your attendance so far',
-      desc: 'Enter your counts from the college portal once to see your percentage and safe skips.',
+      label: 'Want your attendance %?',
+      desc: 'Copy your counts from the college portal once. Or just start marking classes from today.',
       action: `showBaselineModal(null, 'manual')`,
       icon: icons.summary()
     });
@@ -8823,44 +8802,43 @@ function renderDashboard() {
     beaconHTML = '';
   }
 
-  // Setup guide banner — shown only when there are missing setup steps
-  const setupBanner = !isFullySetup ? `
-    <div class="desk-setup-guide" role="complementary" aria-label="Setup checklist">
-      <div class="setup-guide-header">
-        <span class="setup-guide-title">${iconText(icons.settings(), hasCustomTT ? 'Finish setting up' : 'Get started')}</span>
-        <span class="setup-guide-count">${setupSteps.length} step${setupSteps.length !== 1 ? 's' : ''} left</span>
+  // Setup card: one ask at a time. No timetable yet = one big button (photo
+  // or typing is picked in the next dialog) and a quiet self-study link.
+  const firstStep = setupSteps[0];
+  const setupAsk = (s, body) => `
+    <div class="desk-setup-guide setup-ask" role="complementary" aria-label="${escHtml_cd(s.label)}">
+      <div class="setup-ask-title">${s.label}</div>
+      <div class="setup-ask-sub">${s.desc}</div>
+      ${body}
+    </div>`;
+  const setupBanner = !firstStep ? '' : firstStep.id === 'group' ? setupAsk(firstStep, `
+      <div class="setup-ask-actions">
+        ${groupChoices.map(b => `<button class="btn btn-sm btn-secondary" data-batch="${escHtml_cd(b).replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="onbPickGroup(this.dataset.batch)">${escHtml_cd(b)}</button>`).join('')}
+        <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbPickGroup(null)">Skip</button>
+      </div>`) : firstStep.id === 'att' ? setupAsk(firstStep, `
+      <div class="setup-ask-actions">
+        <button class="btn btn-sm btn-primary" onclick="${firstStep.action}">Add counts</button>
+        <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbAttLater()">Later</button>
       </div>
-      ${!hasCustomTT && liveProfile?.studyMode !== 'self' ? bunkCalcHtml('today') : ''}
+      ${_onbBunkOpen ? bunkCalcHtml('today') : `<button type="button" class="setup-first-alt setup-ask-link" onclick="onbShowBunk()">Just check how many I can miss</button>`}`) : firstStep.id === 'tt' ? `
+    <div class="desk-setup-guide setup-first" role="complementary" aria-label="Add your timetable">
+      <div class="setup-first-title">${firstStep.label}</div>
+      <div class="setup-first-sub">${firstStep.desc}</div>
+      <button class="btn-primary setup-first-btn" onclick="${firstStep.action}">Add your timetable</button>
+      <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">No timetable? I study on my own</button>
+    </div>` : `
+    <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
-        ${setupSteps.slice(0, 1).map((s) => `
-          <button class="setup-guide-step" onclick="${s.action}" aria-label="${s.label}">
-            <span class="setup-step-icon">${s.icon}</span>
-            <div style="flex:1;min-width:0">
-              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${s.label}</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${s.desc}</div>
-            </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
-          </button>
-          ${s.id === 'tt' ? `
-          <button class="setup-guide-step" onclick="setupAddClasses()" aria-label="Add classes myself">
-            <span class="setup-step-icon">${icons.plus()}</span>
-            <div style="flex:1;min-width:0">
-              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">Add classes myself</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">Type in your classes one by one.</div>
-            </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Add →</span>
-          </button>
-          <button class="setup-guide-step" onclick="setupSelfStudy()" aria-label="I study on my own">
-            <span class="setup-step-icon">${icons.target()}</span>
-            <div style="flex:1;min-width:0">
-              <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">I study on my own</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">No class timetable? Plan with tasks and an exam countdown.</div>
-            </div>
-            <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Choose →</span>
-          </button>` : ''}
-        `).join('')}
+        <button class="setup-guide-step" onclick="${firstStep.action}" aria-label="${firstStep.label}">
+          <span class="setup-step-icon">${firstStep.icon}</span>
+          <div style="flex:1;min-width:0">
+            <div class="setup-step-label" style="font-weight:600;color:var(--text-primary)">${firstStep.label}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:1px">${firstStep.desc}</div>
+          </div>
+          <span class="setup-step-arrow" style="font-weight:600;font-size:var(--text-sm)">Start →</span>
+        </button>
       </div>
-    </div>` : '';
+    </div>`;
 
   // Urgent & Active tasks
   const urgentTasks = allTasks()
@@ -8941,7 +8919,17 @@ function renderDashboard() {
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
-          <div class="desk-greeting">${greeting}</div>
+          <div class="desk-greeting">${askName ? `Hey there.` : greeting}</div>
+          ${askName ? `
+          <div class="greet-ask">
+            <label class="greet-ask-line" for="greet-name">Your week's all set. What should we call you?</label>
+            <div class="greet-ask-row">
+              <input type="text" class="form-input" id="greet-name" maxlength="40" autocomplete="given-name" placeholder="Your name"
+                onkeydown="if (event.key === 'Enter') { event.preventDefault(); onbSaveGreetingName(false); }">
+              <button class="btn-primary" onclick="onbSaveGreetingName(false)">Save</button>
+            </div>
+            <button type="button" class="setup-first-alt greet-ask-skip" onclick="onbSaveGreetingName(true)">Not now</button>
+          </div>` : ''}
           ${contextLine ? `<div class="desk-greeting-sub">${contextLine}</div>` : ''}
           ${examNoteHTML}
           ${holidaySoonHTML}
@@ -17453,6 +17441,7 @@ function init() {
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
   try { checkHolidayExpiry(); } catch (e) { console.warn('[Holiday] expiry check skipped:', e); }
+  try { noteTimetableDay(); } catch (e) { console.warn('[Onboarding] timetable day skipped:', e); }
   try { vaultIdbStart(); } catch (e) { console.warn('[Vault] file store skipped:', e); }
   initTheme();
   initAccent();

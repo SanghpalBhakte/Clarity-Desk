@@ -63,17 +63,18 @@ check('Unit 3: Single Subject Hub provides empty-state "+ Add Study Link / Note"
 });
 
 // 4. Unit 4: First-run setup checklist
-// Order changed on purpose (onboarding pass): timetable first, then profile
-// (asked only once a timetable exists), then attendance counts.
+// Order changed on purpose (onboarding redesign): timetable first, then the
+// lab group (only once a timetable exists; the name is asked in the
+// greeting), then attendance counts from the next day.
 check('Unit 4: First-run setup checklist presents 3-step sequence for new users and hides for active users', () => {
-  const tt = jsSrc.indexOf("label: 'Scan your timetable'");
-  const prof = jsSrc.indexOf("label: 'Add your name and group'");
-  const att = jsSrc.indexOf("label: 'Set your attendance so far'");
+  const tt = jsSrc.indexOf("label: \"Let's add your timetable\"");
+  const prof = jsSrc.indexOf("label: 'Timetable added ✓ One quick thing'");
+  const att = jsSrc.indexOf("label: 'Want your attendance %?'");
   if (tt < 0) return 'Timetable step missing';
-  if (prof < 0) return 'Profile step missing';
+  if (prof < 0) return 'Lab group step missing';
   if (att < 0) return 'Attendance step missing';
-  if (!(tt < prof && prof < att)) return 'Steps out of order (timetable, profile, attendance)';
-  if (!jsSrc.includes("hasCustomTT ? 'Finish setting up' : 'Get started'")) return 'Header missing';
+  if (!(tt < prof && prof < att)) return 'Steps out of order (timetable, lab group, attendance)';
+  if (!jsSrc.includes('const firstStep = setupSteps[0];')) return 'Card no longer shows one step at a time';
   if (!jsSrc.includes('const isFullySetup = setupSteps.length === 0;')) return 'Checklist no longer hides when setup is done';
   return true;
 });

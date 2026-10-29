@@ -120,7 +120,7 @@ check('Final week context line uses the label', () => {
 check('Self-study Today: asks for a countdown, not a scan or attendance', () => {
   seed(profile({ name: 'Ravi', studyMode: 'self' })); const app = makeApp();
   const html = today(app);
-  if (html.includes('Scan your timetable')) return 'still asking to scan a timetable';
+  if (html.includes("Let's add your timetable")) return 'still asking to scan a timetable';
   if (html.includes('Set your attendance so far')) return 'still asking for attendance';
   if (html.includes('Add your timetable to see your day here')) return 'timetable line shown';
   if (!html.includes('Set your exam countdown')) return 'countdown step missing';
@@ -145,7 +145,7 @@ check('College student with a timetable still sees schedule and attendance panel
 check('No timetable yet: Today hides schedule, attendance, notices and the subtitle', () => {
   seed(profile({ name: 'Asha', batch: 'A2' })); const app = makeApp();
   const html = today(app);
-  if (!html.includes('Get started')) return 'Get started card missing';
+  if (!html.includes("Let's add your timetable")) return 'timetable card missing';
   if (!html.includes('id="quick-add-input"')) return 'quick-add missing';
   if ((html.match(/class="dashboard-panel" style="display:none"/g) || []).length !== 2) return 'schedule/attendance panels not hidden';
   if (html.includes('Notice Board') || html.includes('today-focus')) return 'extra cards shown';
@@ -171,14 +171,14 @@ check('Self-study with a date set: no setup card left', () => {
 check('College path unchanged and offers "I study on my own"', () => {
   seed(); const app = makeApp();
   const html = today(app);
-  if (!html.includes('Scan your timetable') || !html.includes('Add classes myself')) return 'college options missing';
+  if (!html.includes("Let's add your timetable") || !html.includes('showAddTimetableChoice()')) return 'college options missing';
   return html.includes('I study on my own') ? true : 'self-study choice missing';
 });
 
-check('Welcome is Explore / Log in only; self-study is a Today setup choice', () => {
+check('Welcome is Show me around / Log in only; self-study is a Today setup choice', () => {
   const start = appSrc.indexOf('window.showOnboardingModal');
-  const tpl = appSrc.slice(start, appSrc.indexOf('id="onboarding-step-2"'));
-  if (tpl.includes('onboardingSelfStudy') || !tpl.includes('onboardingExplore()') || !tpl.includes('onboardingLogin()')) return 'welcome buttons wrong';
+  const tpl = appSrc.slice(start, appSrc.indexOf('document.body.appendChild(backdrop)', start));
+  if (tpl.includes('onboardingSelfStudy') || !tpl.includes('onboardingShowName()') || !tpl.includes('onboardingLogin()')) return 'welcome buttons wrong';
   return appSrc.includes('onclick="setupSelfStudy()"') && appSrc.includes("trackUsage('welcome_choice', 'self')") ? true : 'Today button missing';
 });
 

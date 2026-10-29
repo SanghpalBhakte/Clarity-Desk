@@ -1,96 +1,136 @@
-// Welcome tour. Loaded only when a student taps Explore (import() in app.js),
-// so it is not part of first paint. Static previews built from the app's own
-// CSS classes with sample text; nothing here reads or writes stored data.
+// First-run tour. Loaded only when a student taps Show me around (import() in
+// app.js; precached by sw.js so it works offline). It dims the real page and
+// lights up one real tab (phone) or sidebar item (laptop) at a time, with a
+// short bubble. Nothing here reads or writes stored data; the name comes in
+// from app.js and is set with textContent.
 
-const SLIDES = [
-  {
-    title: 'Your timetable, always at hand',
-    text: 'See the class on now, the room, and what is next. Mark attendance in one tap.',
-    preview: `
-      <div class="chrono-beacon is-live">
-        <div class="chrono-beacon-main">
-          <span class="chrono-beacon-badge">Now</span>
-          <div class="chrono-beacon-title">Data Structures</div>
-          <div class="chrono-beacon-meta"><span>10:00 AM – 11:00 AM · Room 204</span></div>
-        </div>
-      </div>
-      <div class="chrono-beacon-then">Next: <strong>Maths</strong> at 11:15 AM</div>`
-  },
-  {
-    title: 'Tasks and deadlines',
-    text: 'Everything due, sorted by how soon. Overdue work stands out.',
-    preview: `
-      <div class="card card-sm assignment-card priority-high"><div style="flex:1;min-width:0"><div class="assignment-title">Lab record</div><div style="font-size:var(--text-sm);color:var(--text-muted)">Due tomorrow</div></div></div>
-      <div class="card card-sm assignment-card priority-medium"><div style="flex:1;min-width:0"><div class="assignment-title">Maths assignment 3</div><div style="font-size:var(--text-sm);color:var(--text-muted)">Due in 4 days</div></div></div>`
-  },
-  {
-    title: 'A daily briefing',
-    text: 'Open Today for classes, pending tasks and attendance in one calm view.',
-    preview: `
-      <div class="card" style="padding:14px 16px;border-left:3px solid var(--accent-warm)">
-        <div style="font-weight:700;color:var(--text-primary)">Good morning</div>
-        <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;line-height:1.5">4 classes today · 2 tasks pending · attendance 82%</div>
-      </div>`
-  },
-  {
-    title: 'Study vault',
-    text: 'Keep notes, links and files for each subject in one place.',
-    preview: `
-      <div class="resource-link"><span class="vault-type">PDF</span><span style="flex:1;min-width:0">Unit 2 notes</span></div>
-      <div class="resource-link"><span class="vault-type">LINK</span><span style="flex:1;min-width:0">Previous year papers</span></div>`
-  },
-  {
-    title: 'Import deadlines from chats',
-    text: 'Paste a class WhatsApp export. You review every deadline before it is saved.',
-    preview: `
-      <div class="wa-tabs"><span class="wa-tab active" style="text-align:center;display:grid;place-items:center">Deadlines</span><span class="wa-tab" style="text-align:center;display:grid;place-items:center">Links</span></div>
-      <div class="card card-sm assignment-card"><div style="flex:1;min-width:0"><div class="assignment-title">Submit mini project</div><div style="font-size:var(--text-sm);color:var(--text-muted)">Found in chat · Friday</div></div></div>`
-  }
+const STOPS = [
+  { targets: ['.bottom-nav-item[data-nav="dashboard"]', '#sidebar-dashboard'],
+    title: (n) => (n ? `Okay ${n}, this is Today` : 'This is Today'),
+    text: "Your next class and anything due soon. Open the app and it's right here." },
+  { targets: ['.bottom-nav-item[data-nav="timetable"]', '#sidebar-timetable'],
+    title: () => 'Your timetable',
+    text: 'Your whole week of classes. Tap a class to say if you went.' },
+  { targets: ['.bottom-nav-item[data-nav="subjects"]', '#sidebar-subjects'],
+    title: () => 'Subjects',
+    text: 'Every subject gets its own page for notes, links and files.' },
+  { targets: ['.bottom-nav-item[data-nav="assignments"]', '#sidebar-assignments'],
+    title: () => 'Tasks',
+    text: 'Homework, assignments, exams. Just type "lab report Friday" and it\'s saved.' },
+  { targets: ['#bnav-more', '#sidebar-notices'],
+    title: () => 'Everything else',
+    text: (onSidebar) => (onSidebar
+      ? 'Notices, calendar, study vault and settings are all in this sidebar.'
+      : 'Notices, calendar, settings and backups live in here.') },
+  { targets: ['.desk-setup-guide'], last: true,
+    title: (n) => (n ? `That's the tour, ${n}!` : "That's the tour!"),
+    text: 'Last thing. Add your timetable and Today fills up with your real classes.' }
 ];
+const PAD = 6;
+const EDGE = 12;
 
-export function mountTour(host, { onSignIn, onContinue }) {
-  const slides = SLIDES.map(s => `
-    <section class="ob-slide" aria-roledescription="slide">
-      <div class="ob-preview" aria-hidden="true">${s.preview}</div>
-      <h3>${s.title}</h3>
-      <p>${s.text}</p>
-    </section>`).join('') + `
-    <section class="ob-slide" aria-roledescription="slide">
-      <h3 style="margin-top:0">Sign in to sync across your devices</h3>
-      <p>Your tasks, timetable and attendance follow you to your phone and laptop. Or keep everything on this device only.</p>
-      <div class="ob-actions">
-        <button type="button" class="btn-primary" data-ob="signin">Sign in</button>
-        <button type="button" class="btn-secondary" data-ob="local">Continue without account</button>
+const visible = (sel) => [...document.querySelectorAll(sel)].find(el => el.offsetParent !== null || getComputedStyle(el).position === 'fixed');
+
+export function startTour({ name = '', track = () => {}, onDone = () => {} } = {}) {
+  document.getElementById('tour-root')?.remove();
+  const before = document.activeElement;
+  const root = document.createElement('div');
+  root.id = 'tour-root';
+  root.innerHTML = `
+    <div class="tour-block"></div>
+    <div class="tour-spot" aria-hidden="true"></div>
+    <div class="tour-bubble" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+      <div class="tour-count"></div>
+      <div class="tour-title" id="tour-title"></div>
+      <div class="tour-text" id="tour-text"></div>
+      <div class="tour-actions">
+        <button type="button" class="tour-skip"></button>
+        <button type="button" class="btn btn-sm btn-primary tour-next"></button>
       </div>
-    </section>`;
-  const count = SLIDES.length + 1;
-  host.innerHTML = `
-    <div class="ob-tour-track" role="group" aria-label="Clarity Desk tour" tabindex="0">${slides}</div>
-    <div class="ob-dots">${Array.from({ length: count }, (_, i) =>
-      `<button type="button" class="ob-dot" data-i="${i}" aria-label="Card ${i + 1} of ${count}"></button>`).join('')}</div>`;
-
-  const track = host.querySelector('.ob-tour-track');
-  const dots = [...host.querySelectorAll('.ob-dot')];
-  const current = () => Math.max(0, Math.min(count - 1, Math.round(track.scrollLeft / (track.clientWidth || 1))));
-  const cards = [...host.querySelectorAll('.ob-slide')];
-  const sync = () => {
-    const c = current();
-    dots.forEach((d, i) => d.setAttribute('aria-current', i === c ? 'true' : 'false'));
-    cards.forEach((el, i) => el.classList.toggle('is-on', i === c));
+    </div>`;
+  document.body.appendChild(root);
+  const spot = root.querySelector('.tour-spot');
+  const bubble = root.querySelector('.tour-bubble');
+  const els = {
+    count: root.querySelector('.tour-count'), title: root.querySelector('.tour-title'), text: root.querySelector('.tour-text'),
+    skip: root.querySelector('.tour-skip'), next: root.querySelector('.tour-next')
   };
-  const go = (i) => track.scrollTo({ left: i * track.clientWidth });
-  sync();
-  track.addEventListener('scroll', sync, { passive: true });
-  track.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight') { e.preventDefault(); go(Math.min(count - 1, current() + 1)); }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); go(Math.max(0, current() - 1)); }
-  });
-  host.addEventListener('click', (e) => {
-    const dot = e.target.closest('.ob-dot');
-    if (dot) return go(Number(dot.dataset.i));
-    const act = e.target.closest('[data-ob]');
-    if (!act) return;
-    if (act.dataset.ob === 'signin') onSignIn();
-    else onContinue();
-  });
+
+  let i = -1, target = null, frame = 0, last = '';
+  // Number only the stops this screen has, so the count never skips.
+  const counted = STOPS.filter(s => !s.last && s.targets.some(visible));
+
+  const place = () => {
+    // A re-render can swap the element out; find it again and keep going.
+    if (target && !target.isConnected) target = visible(spot.dataset.target) || null;
+    if (!target) { frame = requestAnimationFrame(place); return; }
+    const r = target.getBoundingClientRect();
+    const key = `${r.left},${r.top},${r.width},${r.height},${innerWidth},${innerHeight}`;
+    if (key !== last) {
+      last = key;
+      Object.assign(spot.style, { left: `${r.left - PAD}px`, top: `${r.top - PAD}px`, width: `${r.width + PAD * 2}px`, height: `${r.height + PAD * 2}px` });
+      const bw = bubble.offsetWidth, bh = bubble.offsetHeight, vw = innerWidth, vh = innerHeight;
+      let left, top;
+      if (r.width < vw / 3 && r.right + PAD + 16 + bw <= vw - EDGE && r.height < vh / 3 && r.left < vw / 3) {
+        left = r.right + PAD + 16; top = r.top + r.height / 2 - bh / 2; // beside the sidebar
+      } else {
+        left = r.left + r.width / 2 - bw / 2;
+        top = r.top - PAD - 14 - bh >= EDGE ? r.top - PAD - 14 - bh : r.bottom + PAD + 14;
+      }
+      bubble.style.left = `${Math.min(Math.max(EDGE, left), vw - bw - EDGE)}px`;
+      bubble.style.top = `${Math.min(Math.max(EDGE, top), vh - bh - EDGE)}px`;
+    }
+    frame = requestAnimationFrame(place);
+  };
+
+  const end = (how) => {
+    cancelAnimationFrame(frame);
+    document.removeEventListener('keydown', onKey, true);
+    root.remove();
+    // Hand focus back to where it was, or to the page, never to nothing.
+    const back = before && before.isConnected && before !== document.body ? before : document.querySelector('.setup-first-btn, main, #app');
+    if (back) { if (!back.hasAttribute('tabindex') && !/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(back.tagName)) back.setAttribute('tabindex', '-1'); back.focus(); }
+    track(how === 'skip' ? 'tour_skipped' : 'tour_done');
+    onDone(how);
+  };
+
+  const show = (to, dir = 1) => {
+    for (let j = to; j >= 0 && j < STOPS.length; j += dir) {
+      const stop = STOPS[j];
+      const sel = stop.targets.find(visible);
+      if (!sel) continue;
+      i = j; target = visible(sel); last = '';
+      if (stop.last) target.scrollIntoView({ block: 'center' });
+      spot.dataset.target = sel;
+      els.count.textContent = stop.last ? '' : `${counted.indexOf(stop) + 1} of ${counted.length}`;
+      els.title.textContent = stop.title(name);
+      els.text.textContent = typeof stop.text === 'function' ? stop.text(sel.startsWith('#sidebar')) : stop.text;
+      els.skip.textContent = stop.last ? 'Later' : 'Skip tour';
+      els.next.textContent = stop.last ? "Let's do it" : 'Next';
+      track('tour_step', String(j + 1));
+      cancelAnimationFrame(frame); place();
+      els.next.focus();
+      return true;
+    }
+    return false;
+  };
+
+  const next = () => {
+    if (STOPS[i] && STOPS[i].last) { end('done'); window.showAddTimetableChoice && window.showAddTimetableChoice(); return; }
+    if (!show(i + 1)) end('done');
+  };
+  const onKey = (e) => {
+    if (e.key === 'Tab') {
+      // aria-modal: keep focus on the bubble's two buttons.
+      e.preventDefault();
+      (document.activeElement === els.next ? els.skip : els.next).focus();
+    } else if (e.key === 'Escape') { e.preventDefault(); end('skip'); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); show(i - 1, -1); }
+  };
+
+  els.next.addEventListener('click', next);
+  els.skip.addEventListener('click', () => end(STOPS[i] && STOPS[i].last ? 'done' : 'skip'));
+  document.addEventListener('keydown', onKey, true);
+  if (!show(0)) end('done');
 }

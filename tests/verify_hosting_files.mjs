@@ -95,14 +95,14 @@ scenario('.git, internal notes, test kits and tests are never published', () => 
 });
 const CDN_PREFIX = /^https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@[0-9a-f]{40}\//;
 const CDN_ALL = /https:\/\/cdn\.jsdelivr\.net\/gh\/SanghpalBhakte\/Clarity-Desk@([0-9a-f]{40})\//g;
-scenario('Lazy modules app.js imports (Ask Desk, scanners, timetable reader) are precached and checked on jsDelivr', () => {
+scenario('Lazy modules app.js imports (Ask Desk, scanners, timetable reader, first-run tour) are precached and checked on jsDelivr', () => {
   const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const ship = fs.readFileSync(path.join(ROOT, 'scripts/ship.mjs'), 'utf8');
   const list = sw.slice(sw.indexOf('PRECACHE_ASSETS = ['), sw.indexOf('];', sw.indexOf('PRECACHE_ASSETS = [')));
   const cdn = (ship.match(/CDN_FILES = \[([^\]]*)\]/) || [, ''])[1];
   const bad = [];
-  for (const f of ['desk-assistant.js', 'scanners.js', 'timetable-ocr.js']) {
+  for (const f of ['desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'welcome-tour.js']) {
     if (!app.includes(`import('./${f}')`)) bad.push(`app.js does not import ${f}`);
     if (!list.includes(`/${f}'`)) bad.push(`sw.js does not precache ${f} (offline)`);
     if (!cdn.includes(`'${f}'`)) bad.push(`ship.mjs CDN_FILES is missing ${f}`);

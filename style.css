@@ -2505,19 +2505,66 @@ a.card:hover,
 .ob-actions .btn-primary, .ob-actions .btn-secondary { width: 100%; justify-content: center; min-height: 44px; }
 .ob-note { margin-top: 14px; font-size: var(--text-xs); color: var(--text-muted); line-height: 1.45; text-align: center; }
 
+/* Welcome, full screen: the student's own questions answered by small
+   tilted notes, then the name step on the same screen. */
+#onboarding-backdrop.ob-full { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; }
+.ob-screen { width: 100%; max-width: 440px; min-height: 100%; margin: 0 auto; box-sizing: border-box; display: flex; flex-direction: column; color: var(--text-primary);
+  padding: max(28px, env(safe-area-inset-top)) 22px max(24px, env(safe-area-inset-bottom)); }
+#onboarding-modal-box.ob-screen { max-width: 440px; background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.ob-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: var(--text-md); }
+.ob-brand svg { color: var(--accent); }
+.ob-step { flex: 1; display: flex; flex-direction: column; }
+.ob-qs { display: grid; gap: 18px; margin-top: 24px; }
+.ob-q-text { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 6.4vw, 27px); line-height: 1.2; letter-spacing: -0.02em; }
+.ob-q-note { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 9px 13px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.35; }
+.ob-q-note b { color: var(--text-primary); font-weight: 700; }
+.ob-q:nth-child(1) .ob-q-note { transform: rotate(-1.2deg); }
+.ob-q:nth-child(2) .ob-q-note { transform: rotate(1deg); }
+.ob-q:nth-child(3) .ob-q-note { transform: rotate(-0.8deg); }
+.ob-q-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
+.ob-tone-green .ob-q-dot { background: var(--green); }
+.ob-tone-warm .ob-q-dot { background: var(--accent-warm); }
+.ob-pitch { margin: 26px 0 24px; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.55; }
+.ob-step .ob-actions { margin-top: auto; }
+.ob-step .ob-actions .btn-primary, .ob-step .ob-actions .btn-secondary { min-height: 48px; font-size: var(--text-md); }
+.ob-actions .ob-quiet { background: none; border-color: transparent; box-shadow: none; }
+.ob-name { margin: auto 0; padding: 24px 0; }
+.ob-big { display: block; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 8.5vw, 34px); line-height: 1.15; letter-spacing: -0.02em; color: var(--text-primary); }
+.ob-name-input { width: 100%; box-sizing: border-box; margin-top: 20px; font-size: 22px; padding: 14px 16px; border-radius: 14px; }
+.ob-hint { margin-top: 10px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
+@media (min-width: 768px) {
+  .ob-screen { min-height: 0; margin: auto; padding: 40px 28px; }
+  #onboarding-modal-box.ob-screen { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 20px 48px rgba(0, 0, 0, 0.12); }
+  .ob-step .ob-actions { margin-top: 8px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ob-q { animation: ob-rise 0.45s ease-out backwards; }
+  .ob-q:nth-child(2) { animation-delay: 0.12s; }
+  .ob-q:nth-child(3) { animation-delay: 0.24s; }
+  .ob-pitch, .ob-step .ob-actions, .ob-name { animation: ob-rise 0.45s ease-out 0.36s backwards; }
+}
+
 /* Tour (welcome-tour.js, loaded on Explore): CSS scroll-snap, no library. */
-.ob-tour-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -26px; }
-.ob-tour-track::-webkit-scrollbar { display: none; }
-.ob-slide { flex: 0 0 100%; box-sizing: border-box; scroll-snap-align: start; scroll-snap-stop: always; padding: 0 26px; min-width: 0; }
-.ob-slide h3 { margin: 14px 0 4px; font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); }
-.ob-slide p { margin: 0 0 14px; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.5; }
-.ob-preview { display: flex; flex-direction: column; gap: 8px; min-height: 132px; pointer-events: none; }
-.ob-preview .chrono-beacon-badge { width: fit-content; }
-.ob-preview .chrono-beacon, .ob-preview .card, .ob-preview .resource-link { margin: 0; }
-.ob-dots { display: flex; justify-content: center; gap: 8px; margin: 16px 0; }
-.ob-dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; background: var(--border); cursor: pointer; transition: background-color 0.2s ease, width 0.2s ease; }
-.ob-dot[aria-current="true"] { width: 22px; background: var(--accent); }
-@media (prefers-reduced-motion: no-preference) { .ob-tour-track { scroll-behavior: smooth; } }
+/* First-run tour over the real page: one lit element, one bubble. */
+#tour-root { position: fixed; inset: 0; z-index: 300; }
+.tour-block { position: absolute; inset: 0; }
+.tour-spot { position: fixed; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(20, 16, 12, 0.62); outline: 2px solid var(--accent); outline-offset: 0; pointer-events: none; }
+.tour-bubble { position: fixed; width: min(300px, calc(100% - 24px)); box-sizing: border-box; padding: 16px 16px 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); color: var(--text-primary); }
+.tour-count { min-height: 1em; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.tour-title { margin-top: 4px; font-size: var(--text-md); font-weight: 700; overflow-wrap: anywhere; }
+/* A long name with no spaces must wrap, not run off a small phone. */
+.desk-greeting, .greet-ask-line { overflow-wrap: anywhere; min-width: 0; }
+.tour-text { margin-top: 4px; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.tour-skip { padding: 8px 4px; font-size: var(--text-sm); color: var(--text-muted); }
+.tour-skip:hover, .tour-skip:focus-visible { color: var(--text-secondary); }
+.tour-next { min-height: 36px; min-width: 72px; justify-content: center; }
+@media (prefers-reduced-motion: no-preference) {
+  .tour-spot { transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease; }
+  .tour-bubble { transition: left 0.25s ease, top 0.25s ease; animation: fadeIn 0.2s ease; }
+}
 
 /* Motion: transform and opacity only (no layout work), played once on open,
    plus one small arrow nudge. All off for prefers-reduced-motion. */
@@ -2532,16 +2579,38 @@ a.card:hover,
   #onboarding-step-1 .ob-actions > :nth-child(2) { animation-delay: 0.66s; }
   .ob-arrow { display: inline-block; margin-left: 8px; animation: ob-nudge 1.8s ease-in-out 1.4s infinite; }
   .ob-actions .btn-primary:hover .ob-arrow, .ob-actions .btn-primary:focus-visible .ob-arrow { animation: none; transform: translateX(4px); transition: transform 0.2s ease; }
-  .ob-slide .ob-preview > * { opacity: 0; transform: translateY(12px); }
-  .ob-slide.is-on .ob-preview > * { opacity: 1; transform: none; transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-  .ob-slide.is-on .ob-preview > :nth-child(2) { transition-delay: 0.12s; }
-  .ob-slide.is-on h3, .ob-slide.is-on p { animation: ob-rise 0.4s ease-out 0.1s backwards; }
 }
 @media (prefers-reduced-motion: reduce) { .ob-arrow { display: inline-block; margin-left: 8px; } }
 
 @supports (height: 100dvh) {
   #onboarding-backdrop { height: 100dvh; }
 }
+
+/* First Today: one ask, one button, one quiet way out. */
+.setup-first-title { font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+.setup-first-sub { margin-top: 4px; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+.setup-first-btn { width: 100%; min-height: 48px; margin-top: 16px; justify-content: center; font-size: var(--text-base); }
+.setup-first-alt { display: block; margin: 12px auto 0; padding: 6px 8px; font-size: var(--text-sm); color: var(--text-muted); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.setup-first-alt:hover, .setup-first-alt:focus-visible { color: var(--text-secondary); text-decoration-color: currentColor; }
+.setup-ask-title { font-weight: 600; color: var(--text-primary); }
+.setup-ask-sub { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
+.setup-ask-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.setup-ask-actions .btn { min-width: 48px; min-height: 40px; }
+.setup-ask-actions .setup-ask-quiet { background: none; border-color: transparent; box-shadow: none; color: var(--text-muted); }
+.setup-ask-link { margin: 10px 0 0; padding-left: 0; }
+.setup-ask .bunk-calc { margin-top: 12px; }
+/* Name, asked inside the greeting once the timetable is in. */
+.greet-ask { margin-top: 10px; max-width: 360px; }
+.greet-ask-line { display: block; font-size: var(--text-md); color: var(--text-secondary); }
+.greet-ask-row { display: flex; gap: 8px; margin-top: 10px; }
+.greet-ask-row .form-input { flex: 1; min-width: 0; font-size: var(--text-md); padding: 10px 14px; border-radius: 12px; }
+.greet-ask-row .btn-primary { padding: 10px 18px; border-radius: 12px; }
+.greet-ask-skip { margin: 6px 0 0; padding-left: 0; }
+.greet-ask-row .form-input[aria-invalid="true"] { border-color: var(--accent); }
+.add-tt-choice { max-width: 420px; }
+.add-tt-title { margin: 0 0 4px; font-size: var(--text-xl); font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+.add-tt-sub { margin-bottom: 14px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
+.add-tt-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
 
 /* ── Dashboard Setup Guide (inline stepper, no card box) ─────── */
 .desk-setup-guide {
