@@ -11380,27 +11380,27 @@ function showDeclutterDeskModal() {
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
         <div>
           <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Declutter my desk</h2>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Clean up duplicate, noisy, or other-batch subject cards and normalize your schedule.</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Tidy up your subjects so you only see your own classes, once each.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
 
       <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
-        💡 <strong>How decluttering works:</strong>
+        💡 <strong>Here's what happens:</strong>
         <ul style="margin:6px 0 0 16px;padding:0;font-size:var(--text-sm);line-height:1.4">
-          <li><strong>General lectures</strong> with no batch markers will be kept for everyone.</li>
-          <li><strong>Practical lab sessions</strong> will only be kept if they match your specific batch.</li>
-          <li>Duplicate variations and OCR noise will be merged into clean canonical Subject Hub cards.</li>
-          <li>Garbled/unreadable scan text (e.g. "ADzeame") will be removed from your subject list.</li>
-          <li>Attendance baselines, daily check-in logs, and tasks will be safely remapped.</li>
+          <li><strong>Lectures</strong> for the whole class stay as they are.</li>
+          <li><strong>Labs</strong> stay only if they're for your group.</li>
+          <li>The same subject saved twice under slightly different names becomes one.</li>
+          <li>Jumbled words from a blurry photo (like "ADzeame") get removed.</li>
+          <li>Your attendance and tasks move over to the right subject, so nothing is lost.</li>
         </ul>
       </div>
 
       <div class="form-group" style="margin-bottom:18px">
-        <label class="form-label" style="font-weight:600">Your Practical Batch / Section</label>
-        <input type="text" id="declutter-user-batch" class="form-input" value="${(currentBatch || '').replace(/"/g, '&quot;')}" placeholder="e.g. A2, B1, D1 (or leave blank for All)" style="font-size:var(--text-md)">
+        <label class="form-label" style="font-weight:600" for="declutter-user-batch">Your lab group</label>
+        <input type="text" id="declutter-user-batch" class="form-input" value="${(currentBatch || '').replace(/"/g, '&quot;')}" placeholder="Like A2 or B1" style="font-size:var(--text-md)">
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">
-          Enter your batch (e.g. <strong>A1</strong>, <strong>A2</strong>, <strong>B2</strong>, <strong>D1</strong>). Leave blank if you wish to keep all sessions.
+          Type it the way your timetable shows it, like <strong>A1</strong> or <strong>B2</strong>. Leave it empty to keep every lab.
         </div>
       </div>
 
@@ -11408,7 +11408,7 @@ function showDeclutterDeskModal() {
         <div>
           ${backup && backup.timestamp ? `
             <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove(); showRestoreDeskModal();" style="font-size:var(--text-sm);padding:6px 12px;color:var(--text-secondary)">
-              ↩ Restore Previous Backup
+              ↩ Restore previous desk
             </button>
           ` : `
             <button type="button" class="btn-secondary" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" style="font-size:var(--text-base)">
@@ -11423,7 +11423,7 @@ function showDeclutterDeskModal() {
             </button>
           ` : ''}
           <button type="button" class="btn-primary" onclick="proceedToDeclutterPreview()" style="font-size:var(--text-base);padding:8px 18px;font-weight:600">
-            Preview Cleanup Plan →
+            See what changes →
           </button>
         </div>
       </div>
@@ -11792,9 +11792,9 @@ function renderDeclutterPreviewModal(plan, userBatch) {
   const archivedHTML = plan.archivedSlots.length > 0 ? plan.archivedSlots.map(a => `
     <div style="font-size:var(--text-sm);color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between">
       <span>${a.subject}</span>
-      <span style="color:var(--yellow)">${a.reason === 'garbled-ocr' ? '⚠️ Garbled scan text' : `Batch: ${(a.batches || []).join(', ') || 'Other'}`}</span>
+      <span style="color:var(--yellow)">${a.reason === 'garbled-ocr' ? '⚠️ Jumbled scan text' : `Group ${(a.batches || []).join(', ') || 'Other'}`}</span>
     </div>
-  `).join('') : '<div style="font-size:var(--text-sm);color:var(--text-muted)">No other-batch or garbled-scan classes found to remove.</div>';
+  `).join('') : '<div style="font-size:var(--text-sm);color:var(--text-muted)">Nothing to remove. Every class here is yours.</div>';
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -11803,8 +11803,8 @@ function renderDeclutterPreviewModal(plan, userBatch) {
     <div class="modal declutter-preview-dialog" onclick="event.stopPropagation()" style="max-width:620px;padding:26px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Preview your clean desk setup</h2>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Review the normalized course structure before applying changes.</div>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Here's your tidied desk</h2>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Nothing changes until you tap Clean up.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
       </div>
@@ -11813,52 +11813,52 @@ function renderDeclutterPreviewModal(plan, userBatch) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:14px">
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
           <div style="font-size:var(--text-lg);font-weight:700;color:var(--accent)">${plan.survivingSubjects.length}</div>
-          <div style="font-size:var(--text-xs);color:var(--text-muted)">Canonical Hubs</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Subjects</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
           <div style="font-size:var(--text-lg);font-weight:700;color:var(--yellow)">${plan.archivedSlots.length}</div>
-          <div style="font-size:var(--text-xs);color:var(--text-muted)">Sessions Removed</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Classes removed</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
           <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${plan.remappedDailyLogs.length}</div>
-          <div style="font-size:var(--text-xs);color:var(--text-muted)">Daily Logs Remapped</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Attendance days moved</div>
         </div>
         <div style="background:var(--surface-2);padding:8px 10px;border-radius:6px;text-align:center">
           <div style="font-size:var(--text-lg);font-weight:700;color:var(--text-primary)">${plan.remappedBaselines.length}</div>
-          <div style="font-size:var(--text-xs);color:var(--text-muted)">Baselines Merged</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted)">Counts moved</div>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:var(--text-sm)">
-        <span>🎓 Practical Batch Filter:</span>
-        <strong style="color:var(--accent)">${userBatch === 'all' ? 'All (Keep all batches)' : `Batch ${userBatch.toUpperCase()}`}</strong>
+        <span>🎓 Your lab group:</span>
+        <strong style="color:var(--accent)">${userBatch === 'all' ? 'Not set (keeping every lab)' : userBatch.toUpperCase()}</strong>
       </div>
 
       <div style="max-height:48vh;overflow-y:auto;padding-right:4px;margin-bottom:16px">
         <div style="font-weight:700;font-size:var(--text-base);margin-bottom:8px;color:var(--text-primary)">
-          🟢 Surviving Canonical Subject Hubs (${plan.survivingSubjects.length})
+          🟢 Subjects you'll keep (${plan.survivingSubjects.length})
         </div>
         ${subjectsHTML}
 
         ${plan.archivedSlots.length > 0 ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
-            🗑️ Sessions Removed (${plan.archivedSlots.length})
+            🗑️ Classes removed (${plan.archivedSlots.length})
           </div>
           ${archivedHTML}
         ` : ''}
 
         ${plan.remappedBaselines.length > 0 ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
-            📊 Attendance Baselines Reassigned (${plan.remappedBaselines.length})
+            📊 Attendance counts moved (${plan.remappedBaselines.length})
           </div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
-            All existing present and absent counts have been safely mapped to your clean canonical subjects.
+            Your present and absent counts move to the matching subject, exactly as they are.
           </div>
         ` : ''}
 
         ${plan.remappedDailyLogs.length > 0 ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
-            📅 Daily Attendance Logs Remapped (${plan.remappedDailyLogs.length})
+            📅 Attendance days moved (${plan.remappedDailyLogs.length})
           </div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
             Attendance you marked under the old subject names will now count toward the matching subjects in your timetable.
@@ -11867,32 +11867,32 @@ function renderDeclutterPreviewModal(plan, userBatch) {
 
         ${plan.unmatchedDailyLogs && plan.unmatchedDailyLogs.length > 0 ? `
           <div style="font-size:var(--text-xs);color:var(--text-muted);background:var(--surface-2);padding:6px 10px;border-radius:6px;margin-top:10px">
-            🛡️ <strong>Data Safety:</strong> ${plan.unmatchedDailyLogs.length} unassociated check-in logs were safely retained without modification.
+            🛡️ ${plan.unmatchedDailyLogs.length} marked class${plan.unmatchedDailyLogs.length !== 1 ? 'es' : ''} didn't match a subject, so ${plan.unmatchedDailyLogs.length !== 1 ? 'they stay' : 'it stays'} exactly as ${plan.unmatchedDailyLogs.length !== 1 ? 'they are' : 'it is'}.
           </div>
         ` : ''}
 
         ${plan.orphanSubjects && plan.orphanSubjects.length > 0 ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
-            🚫 Not in Your Timetable — Removed (${plan.orphanSubjects.length})
+            🚫 Not in your timetable, so removed (${plan.orphanSubjects.length})
           </div>
           ${plan.orphanSubjects.map(o => `
             <div style="font-size:var(--text-sm);color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between;gap:8px">
               <span>${String(o.name).replace(/</g, '&lt;')}</span>
-              <span style="color:var(--yellow)">${[o.tasks && `${o.tasks} task${o.tasks !== 1 ? 's' : ''}`, o.links && `${o.links} link${o.links !== 1 ? 's' : ''}`, o.baselines && 'attendance baseline'].filter(Boolean).join(' · ')}</span>
+              <span style="color:var(--yellow)">${[o.tasks && `${o.tasks} task${o.tasks !== 1 ? 's' : ''}`, o.links && `${o.links} link${o.links !== 1 ? 's' : ''}`, o.baselines && 'attendance count'].filter(Boolean).join(' · ')}</span>
             </div>
           `).join('')}
-          <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:4px">These subjects and their tasks, links and attendance baselines will be deleted. Restore Previous Desk brings them back.</div>
+          <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:4px">These subjects go, along with their tasks, links and attendance counts. Restore previous desk in Settings brings them back.</div>
         ` : ''}
 
         ${(plan.removedGarbledLinks && plan.removedGarbledLinks.length > 0) || (plan.droppedGarbledBaselines && plan.droppedGarbledBaselines.length > 0) ? `
           <div style="font-weight:700;font-size:var(--text-base);margin:14px 0 6px 0;color:var(--text-secondary)">
-            ⚠️ Garbled Scan Data Removed
+            ⚠️ Jumbled scan text removed
           </div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);background:var(--surface-2);padding:8px 12px;border-radius:6px">
-            ${plan.removedGarbledLinks.length > 0 ? `${plan.removedGarbledLinks.length} quick link${plan.removedGarbledLinks.length !== 1 ? 's' : ''} filed under unreadable scan text (e.g. "${plan.removedGarbledLinks[0].subject}")` : ''}
+            ${plan.removedGarbledLinks.length > 0 ? `${plan.removedGarbledLinks.length} quick link${plan.removedGarbledLinks.length !== 1 ? 's' : ''} saved under jumbled scan text (like "${plan.removedGarbledLinks[0].subject}")` : ''}
             ${plan.removedGarbledLinks.length > 0 && plan.droppedGarbledBaselines.length > 0 ? ' and ' : ''}
-            ${plan.droppedGarbledBaselines.length > 0 ? `${plan.droppedGarbledBaselines.length} attendance baseline${plan.droppedGarbledBaselines.length !== 1 ? 's' : ''} for an unreadable subject name` : ''}
-            will be removed. Your other quick links, tasks, and attendance stay untouched.
+            ${plan.droppedGarbledBaselines.length > 0 ? `${plan.droppedGarbledBaselines.length} attendance count${plan.droppedGarbledBaselines.length !== 1 ? 's' : ''} for a jumbled subject name` : ''}
+            will be removed. Your other links, tasks and attendance stay as they are.
           </div>
         ` : ''}
       </div>
@@ -11902,7 +11902,7 @@ function renderDeclutterPreviewModal(plan, userBatch) {
           ← Back
         </button>
         <button type="button" class="btn-primary" onclick="confirmExecuteDeclutter()" style="font-size:var(--text-base);padding:8px 20px;font-weight:600">
-          Confirm &amp; Clean Up Desk ✓
+          Clean up ✓
         </button>
       </div>
     </div>

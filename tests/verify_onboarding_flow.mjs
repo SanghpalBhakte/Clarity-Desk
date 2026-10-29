@@ -394,6 +394,17 @@ check('Group, name and attendance cards use plain words with no dashes', () => {
   return BAD_WORDING(a) || BAD_WORDING(b) || BAD_WORDING(c) || true;
 });
 
+check('The lab group clean-up and its preview use plain words', () => {
+  seed({ cos_custom_timetable: WITH_GROUPS }); makeApp(); appended.length = 0;
+  globalThis.showDeclutterDeskModal();
+  domStub('declutter-user-batch').value = 'A1';
+  globalThis.proceedToDeclutterPreview();
+  const html = appended.map(x => x.innerHTML || '').join(' ');
+  if (!html.includes('Your lab group') || !html.includes('Subjects you\'ll keep')) return 'dialogs not rendered';
+  const jargon = visibleText(html).match(/canonical|normaliz|remapp|baseline|OCR|garbled|batch|Practical|Sessions Removed|Data Safety/i);
+  return jargon ? `jargon: ${jargon[0]}` : (BAD_WORDING(visibleText(html)) || true);
+});
+
 globalThis.setTimeout = realSetTimeout;
 console.log('==================================================================');
 console.log(`PASSED: ${passed}`);
