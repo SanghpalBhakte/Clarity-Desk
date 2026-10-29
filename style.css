@@ -3085,6 +3085,27 @@ a.card:hover,
   flex-shrink: 0;
 }
 
+/* Study Vault: subjects open and close from their name */
+.link-subject-toggle {
+  flex: 1; min-width: 0; min-height: 44px;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
+  background: none; border: none; padding: 0; text-align: left; color: inherit; font: inherit;
+}
+.link-subject-toggle .link-subject-title { max-width: 100%; }
+.link-subject-count { font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); }
+.link-subject-card.is-collapsed .link-subject-header { border-bottom: none; }
+.link-subject-card.is-collapsed .link-resources,
+.link-subject-card.is-collapsed .vault-card-actions { display: none; }
+
+/* Daily Briefing: the one-line summary, the quiet line, the done count */
+.briefing-lead { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border-color: transparent; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.briefing-headline { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 700; line-height: 1.3; color: var(--text-primary); }
+.briefing-next { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-secondary); }
+.briefing-next svg { flex-shrink: 0; color: var(--accent); }
+.briefing-done { font-size: var(--text-sm); color: var(--text-muted); padding: 2px 4px 0; }
+.briefing-quiet { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); font-size: var(--text-sm); font-weight: 600; }
+.briefing-quiet svg { flex-shrink: 0; }
+
 .link-resources {
   display: grid;
   grid-template-columns: 1fr;
