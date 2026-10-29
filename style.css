@@ -2505,6 +2505,46 @@ a.card:hover,
 .ob-actions .btn-primary, .ob-actions .btn-secondary { width: 100%; justify-content: center; min-height: 44px; }
 .ob-note { margin-top: 14px; font-size: var(--text-xs); color: var(--text-muted); line-height: 1.45; text-align: center; }
 
+/* Welcome, full screen: the student's own questions answered by small
+   tilted notes, then the name step on the same screen. */
+#onboarding-backdrop.ob-full { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; }
+.ob-screen { width: 100%; max-width: 440px; min-height: 100%; margin: 0 auto; box-sizing: border-box; display: flex; flex-direction: column; color: var(--text-primary);
+  padding: max(28px, env(safe-area-inset-top)) 22px max(24px, env(safe-area-inset-bottom)); }
+#onboarding-modal-box.ob-screen { max-width: 440px; background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.ob-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: var(--text-md); }
+.ob-brand svg { color: var(--accent); }
+.ob-step { flex: 1; display: flex; flex-direction: column; }
+.ob-qs { display: grid; gap: 18px; margin-top: 24px; }
+.ob-q-text { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 6.4vw, 27px); line-height: 1.2; letter-spacing: -0.02em; }
+.ob-q-note { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 9px 13px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.35; }
+.ob-q-note b { color: var(--text-primary); font-weight: 700; }
+.ob-q:nth-child(1) .ob-q-note { transform: rotate(-1.2deg); }
+.ob-q:nth-child(2) .ob-q-note { transform: rotate(1deg); }
+.ob-q:nth-child(3) .ob-q-note { transform: rotate(-0.8deg); }
+.ob-q-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
+.ob-tone-green .ob-q-dot { background: var(--green); }
+.ob-tone-warm .ob-q-dot { background: var(--accent-warm); }
+.ob-pitch { margin: 26px 0 24px; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.55; }
+.ob-step .ob-actions { margin-top: auto; }
+.ob-step .ob-actions .btn-primary, .ob-step .ob-actions .btn-secondary { min-height: 48px; font-size: var(--text-md); }
+.ob-actions .ob-quiet { background: none; border-color: transparent; box-shadow: none; }
+.ob-name { margin: auto 0; padding: 24px 0; }
+.ob-big { display: block; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 8.5vw, 34px); line-height: 1.15; letter-spacing: -0.02em; color: var(--text-primary); }
+.ob-name-input { width: 100%; box-sizing: border-box; margin-top: 20px; font-size: 22px; padding: 14px 16px; border-radius: 14px; }
+.ob-hint { margin-top: 10px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
+@media (min-width: 768px) {
+  .ob-screen { min-height: 0; margin: auto; padding: 40px 28px; }
+  #onboarding-modal-box.ob-screen { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 20px 48px rgba(0, 0, 0, 0.12); }
+  .ob-step .ob-actions { margin-top: 8px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ob-q { animation: ob-rise 0.45s ease-out backwards; }
+  .ob-q:nth-child(2) { animation-delay: 0.12s; }
+  .ob-q:nth-child(3) { animation-delay: 0.24s; }
+  .ob-pitch, .ob-step .ob-actions, .ob-name { animation: ob-rise 0.45s ease-out 0.36s backwards; }
+}
+
 /* Tour (welcome-tour.js, loaded on Explore): CSS scroll-snap, no library. */
 .ob-tour-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -26px; }
 .ob-tour-track::-webkit-scrollbar { display: none; }

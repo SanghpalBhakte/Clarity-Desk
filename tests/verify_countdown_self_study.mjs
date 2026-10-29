@@ -175,10 +175,10 @@ check('College path unchanged and offers "I study on my own"', () => {
   return html.includes('I study on my own') ? true : 'self-study choice missing';
 });
 
-check('Welcome is Explore / Log in only; self-study is a Today setup choice', () => {
+check('Welcome is Show me around / Log in only; self-study is a Today setup choice', () => {
   const start = appSrc.indexOf('window.showOnboardingModal');
-  const tpl = appSrc.slice(start, appSrc.indexOf('id="onboarding-step-2"'));
-  if (tpl.includes('onboardingSelfStudy') || !tpl.includes('onboardingExplore()') || !tpl.includes('onboardingLogin()')) return 'welcome buttons wrong';
+  const tpl = appSrc.slice(start, appSrc.indexOf('document.body.appendChild(backdrop)', start));
+  if (tpl.includes('onboardingSelfStudy') || !tpl.includes('onboardingShowName()') || !tpl.includes('onboardingLogin()')) return 'welcome buttons wrong';
   return appSrc.includes('onclick="setupSelfStudy()"') && appSrc.includes("trackUsage('welcome_choice', 'self')") ? true : 'Today button missing';
 });
 

@@ -40,17 +40,19 @@ globalThis.cancelAnimationFrame = () => {};
 globalThis.window = globalThis;
 let domCache = {};
 const domStub = (id) => (domCache[id] ||= { id, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild() {}, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null });
+const MISSING = new Set();
+const appended = [];
 globalThis.document = {
-  getElementById: domStub,
+  getElementById: (id) => (MISSING.has(id) ? null : domStub(id)),
   querySelector: () => null,
   querySelectorAll: () => [],
   activeElement: null, hidden: false,
   addEventListener() {}, removeEventListener() {},
   createElement: (tag) => ({ tagName: tag, style: {}, classList: { add() {}, remove() {} }, appendChild() {}, remove() {}, addEventListener() {}, removeEventListener() {}, setAttribute() {} }),
-  body: { appendChild() {} }, documentElement: { setAttribute() {}, getAttribute: () => null, style: {} }
+  body: { appendChild(x) { appended.push(x); } }, documentElement: { setAttribute() {}, getAttribute: () => null, style: {} }
 };
 
-const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
+const code = appSrc.replace('function trackUsage(name, ...parts) {', 'function trackUsage(name, ...parts) { (globalThis.__EV__ ||= []).push([name, ...parts].join("/"));').replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const STUDENT = { name: '', batch: '', roll: '' };
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
@@ -62,9 +64,17 @@ const makeApp = () => new Function(`${code}\n return { ${EXPORTS.map(n => `${n}:
 
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];
-  domCache = {}; timers.length = 0;
+  domCache = {}; timers.length = 0; appended.length = 0; MISSING.clear(); globalThis.__EV__ = [];
   Object.assign(store, extra);
 }
+const visibleText = (html) => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+const BAD_WORDING = (html) => {
+  const t = visibleText(html);
+  const m = t.match(/[\u2013\u2014]|\s-\s|seamless|effortless|unlock|journey/i);
+  return m ? `bad wording "${m[0]}" in: ${t.replace(/\s+/g, ' ').trim().slice(0, 120)}` : null;
+};
+const welcomeHtml = () => { MISSING.add('onboarding-backdrop'); globalThis.showOnboardingModal(); MISSING.delete('onboarding-backdrop'); return appended.map(x => x.innerHTML || '').join(''); };
+const welcomeScheduled = () => timers.some((fn) => fn === globalThis.showOnboardingModal);
 const hist = () => JSON.parse(store.cos_notified_history || '{}');
 const prof = () => JSON.parse(store.cos_profile || '{}');
 const day = (batches) => ({ subject: 'DS', code: 'DS', time: '10:00', end: '11:00', type: batches.length ? 'lab' : 'lecture', batches });
@@ -128,6 +138,77 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
   const out = app.pruneNotifiedHistory(map);
   const n = Object.keys(out).length;
   return out.onb_tt_day === '2026-10-01' && out.onb_group_skip === true && out.reminder_119 && !out.reminder_0 && n === 52 ? true : `keys=${n}`;
+});
+
+// ── Task 2: welcome and name screen ──
+check('Welcome shows the three student questions and their answers', () => {
+  seed(); makeApp(); const html = welcomeHtml();
+  const want = ['Which room is the next class in?', 'Room 204', 'Data Structures, in 12 min', 'Can I skip this one?', 'Yep.', 'You can still miss 3 and stay above 75%',
+    "When's the lab record due?", 'Tomorrow', "and you haven't started", "Clarity Desk keeps all of this on your phone, so you're never asking around. Works without internet too.",
+    'Show me around', 'I already have an account'];
+  const t = visibleText(html).replace(/\s+/g, ' ');
+  const missing = want.filter(w => !t.includes(w));
+  return missing.length ? `missing: ${missing.join(' | ')}` : true;
+});
+
+check('Welcome has exactly two buttons: Show me around and log in', () => {
+  seed(); makeApp(); const html = welcomeHtml();
+  const buttons = (html.match(/<button/g) || []).length;
+  return buttons === 2 && html.includes('onboardingShowName()') && html.includes('onboardingLogin()') && !html.includes('onboarding-step-2') && !html.includes('ob-bunk') ? true : `buttons=${buttons}`;
+});
+
+check('Name screen asks what friends call you, with a skip', () => {
+  seed(); makeApp(); welcomeHtml(); globalThis.onboardingShowName();
+  const html = domCache['onboarding-step-1'].innerHTML;
+  const t = visibleText(html).replace(/\s+/g, ' ');
+  const ok = t.includes('Hi! What do your friends call you?') && t.includes('Just so the app can say hi properly. You can skip this.')
+    && t.includes("That's me") && t.includes('Skip') && html.includes('id="ob-name"') && html.includes('maxlength="40"') && html.includes('autofocus');
+  return ok ? true : t.slice(0, 200);
+});
+
+check('Show me around counts the explore choice and its onclick only calls globals', () => {
+  seed(); makeApp(); const html = welcomeHtml();
+  const calls = [...html.matchAll(/onclick="([^"]+)"/g)].flatMap(m => [...m[1].matchAll(/([A-Za-z_]\w*)\(/g)].map(x => x[1]));
+  const notGlobal = calls.filter(n => typeof globalThis[n] !== 'function');
+  globalThis.onboardingShowName();
+  return !notGlobal.length && globalThis.__EV__.includes('welcome_choice/explore') ? true : `not global: ${notGlobal.join(',')} events: ${globalThis.__EV__}`;
+});
+
+check('Welcome and name screens use plain words with no dashes', () => {
+  seed(); makeApp(); const a = welcomeHtml(); globalThis.onboardingShowName();
+  return BAD_WORDING(a) || BAD_WORDING(domCache['onboarding-step-1'].innerHTML) || true;
+});
+
+check('Saving a name stores it as typed (trimmed) and Today escapes it', () => {
+  seed(); const app = makeApp(); welcomeHtml();
+  domStub('ob-name').value = '  <b>Riya</b> "x"  ';
+  globalThis.onboardingSaveName(false);
+  if (prof().name !== '<b>Riya</b> "x"') return `stored ${prof().name}`;
+  const fresh = makeApp(); fresh.state.currentPage = 'dashboard'; fresh.renderDashboard();
+  const html = domCache['page-dashboard'].innerHTML;
+  return !html.includes('<b>Riya') && html.includes('&lt;b&gt;Riya') && globalThis.__EV__.includes('name_given') ? true : 'name not escaped or no event';
+});
+
+check('A 40 character name is kept whole', () => {
+  seed(); makeApp(); welcomeHtml();
+  domStub('ob-name').value = 'A'.repeat(40);
+  globalThis.onboardingSaveName(false);
+  return prof().name === 'A'.repeat(40) ? true : prof().name;
+});
+
+check('A blank name counts as a skip and saves nothing', () => {
+  seed(); makeApp(); welcomeHtml();
+  domStub('ob-name').value = '    ';
+  globalThis.onboardingSaveName(false);
+  return !prof().name && globalThis.__EV__.includes('name_skipped') && !globalThis.__EV__.includes('name_given') ? true : JSON.stringify([prof(), globalThis.__EV__]);
+});
+
+check('After the name step the welcome never comes back, even mid tour', () => {
+  seed(); makeApp(); welcomeHtml();
+  globalThis.onboardingSaveName(true);
+  if (store.cos_onboarding_dismissed !== 'true') return 'not dismissed';
+  const app = makeApp(); timers.length = 0; app.checkOnboarding();
+  return welcomeScheduled() ? 'welcome scheduled again' : true;
 });
 
 globalThis.setTimeout = realSetTimeout;
