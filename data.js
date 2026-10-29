@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u121",
+    date: "2026-10-29",
+    title: "The tidy up your desk screen now explains itself in plain words.",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The tidy up your desk screen now explains itself in plain words.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u120",
+    date: "2026-10-29",
+    title: "New students now get a quick look around the app and set things up one step at a time.",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New students now get a quick look around the app and set things up one step at a time.",
+    points: [
+
+    ]
+  },
+  {
     id: "u119",
     date: "2026-10-28",
     title: "Scans now warn you when a backup AI read your timetable, and attendance scans highlight any subject whose counts went down since your last save.",
