@@ -8316,7 +8316,7 @@ window.onboardingStartTour = async function() {
   window.dismissOnboarding();
   try {
     const T = await import('./welcome-tour.js');
-    T.startTour({ name: (loadProfile().name || '').split(' ')[0], onDone: () => {} });
+    T.startTour({ name: (loadProfile().name || '').split(' ')[0], track: trackUsage });
   } catch (err) {
     console.warn('[Onboarding] tour unavailable:', err);
   }
