@@ -8808,7 +8808,7 @@ function renderDashboard() {
     </div>`;
   const setupBanner = !firstStep ? '' : firstStep.id === 'group' ? setupAsk(firstStep, `
       <div class="setup-ask-actions">
-        ${groupChoices.map(b => `<button class="btn btn-sm btn-secondary" onclick="onbPickGroup('${escHtml_cd(b).replace(/'/g, '&#39;')}')">${escHtml_cd(b)}</button>`).join('')}
+        ${groupChoices.map(b => `<button class="btn btn-sm btn-secondary" data-batch="${escHtml_cd(b).replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="onbPickGroup(this.dataset.batch)">${escHtml_cd(b)}</button>`).join('')}
         <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbPickGroup(null)">Skip</button>
       </div>`) : firstStep.id === 'att' ? setupAsk(firstStep, `
       <div class="setup-ask-actions">

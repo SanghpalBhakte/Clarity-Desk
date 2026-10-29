@@ -2553,7 +2553,9 @@ a.card:hover,
 .tour-bubble { position: fixed; width: min(300px, calc(100% - 24px)); box-sizing: border-box; padding: 16px 16px 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); color: var(--text-primary); }
 .tour-count { min-height: 1em; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
-.tour-title { margin-top: 4px; font-size: var(--text-md); font-weight: 700; }
+.tour-title { margin-top: 4px; font-size: var(--text-md); font-weight: 700; overflow-wrap: anywhere; }
+/* A long name with no spaces must wrap, not run off a small phone. */
+.desk-greeting, .greet-ask-line { overflow-wrap: anywhere; min-width: 0; }
 .tour-text { margin-top: 4px; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
 .tour-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 .tour-skip { padding: 8px 4px; font-size: var(--text-sm); color: var(--text-muted); }

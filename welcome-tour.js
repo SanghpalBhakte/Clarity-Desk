@@ -34,6 +34,7 @@ const visible = (sel) => [...document.querySelectorAll(sel)].find(el => el.offse
 
 export function startTour({ name = '', track = () => {}, onDone = () => {} } = {}) {
   document.getElementById('tour-root')?.remove();
+  const before = document.activeElement;
   const root = document.createElement('div');
   root.id = 'tour-root';
   root.innerHTML = `
@@ -83,6 +84,9 @@ export function startTour({ name = '', track = () => {}, onDone = () => {} } = {
     cancelAnimationFrame(frame);
     document.removeEventListener('keydown', onKey, true);
     root.remove();
+    // Hand focus back to where it was, or to the page, never to nothing.
+    const back = before && before.isConnected && before !== document.body ? before : document.querySelector('.setup-first-btn, main, #app');
+    if (back) { if (!back.hasAttribute('tabindex') && !/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(back.tagName)) back.setAttribute('tabindex', '-1'); back.focus(); }
     track(how === 'skip' ? 'tour_skipped' : 'tour_done');
     onDone(how);
   };
@@ -113,7 +117,11 @@ export function startTour({ name = '', track = () => {}, onDone = () => {} } = {
     if (!show(i + 1)) end('done');
   };
   const onKey = (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); end('skip'); }
+    if (e.key === 'Tab') {
+      // aria-modal: keep focus on the bubble's two buttons.
+      e.preventDefault();
+      (document.activeElement === els.next ? els.skip : els.next).focus();
+    } else if (e.key === 'Escape') { e.preventDefault(); end('skip'); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); show(i - 1, -1); }
   };

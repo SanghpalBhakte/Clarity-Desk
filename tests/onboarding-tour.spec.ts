@@ -98,6 +98,51 @@ test.describe('First-run tour', () => {
     await expect(page.locator('.setup-first-btn')).toBeVisible();
   });
 
+  test('320 phone with a 40 letter name: tour title and greeting stay on screen', async ({ page }) => {
+    await freshWelcome(page, 320, 640);
+    const long = 'Aadhyaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    await startTour(page, long);
+    await checkStop(page);
+    const fits = (sel: string) => page.evaluate((sel) => {
+      const el = document.querySelector(sel) as HTMLElement;
+      const r = el.getBoundingClientRect();
+      return el.scrollWidth <= el.clientWidth + 1 && r.right <= innerWidth + 1;
+    }, sel);
+    expect(await fits('.tour-title')).toBe(true);
+    await page.keyboard.press('Escape');
+    expect(await fits('.desk-greeting')).toBe(true);
+  });
+
+  test('Tab stays inside the tour bubble, and focus comes back after', async ({ page }) => {
+    await freshWelcome(page, 390, 844);
+    await startTour(page, null);
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => !!document.activeElement?.closest('.tour-bubble'))).toBe(true);
+    }
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('.tour-bubble'))).toBe(true);
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.activeElement !== null && document.activeElement.isConnected)).toBe(true);
+  });
+
+  test('a crafted lab group name runs no code when tapped', async ({ page }) => {
+    const evil = "x');window.__pwn=1;('";
+    await page.addInitScript((evil) => {
+      if (sessionStorage.getItem('s')) return;
+      const lab = (b: string) => ({ subject: 'DS Lab', code: 'DSL', time: '23:00', end: '23:50', type: 'lab', batches: [b] });
+      const t: any = {}; for (let i = 0; i < 7; i++) t[i] = [lab(evil), lab('B"2')];
+      localStorage.setItem('cos_onboarding_dismissed', 'true');
+      localStorage.setItem('cos_custom_timetable', JSON.stringify(t));
+      sessionStorage.setItem('s', '1');
+    }, evil);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.locator('.setup-ask-actions button', { hasText: 'x' }).first().click();
+    expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_profile') || '{}').batch)).toBe(evil);
+  });
+
   test('works offline after one online visit', async ({ page, context }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');

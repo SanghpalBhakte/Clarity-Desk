@@ -260,7 +260,7 @@ check('Timetable with lab groups and no group saved: group card with chips and S
   seed({ cos_custom_timetable: WITH_GROUPS }); const app = makeApp(); const card = cardOf(todayHtml(app));
   const t = visibleText(card).replace(/\s+/g, ' ');
   const ok = t.includes('Timetable added ✓ One quick thing') && t.includes('Which lab group are you in? So you only see your labs.')
-    && card.includes(`onbPickGroup('A1')`) && card.includes(`onbPickGroup('A2')`) && card.includes('onbPickGroup(null)');
+    && card.includes('data-batch="A1"') && card.includes('data-batch="A2"') && card.includes('onbPickGroup(null)');
   if (!ok) return t.slice(0, 200);
   globalThis.onbPickGroup('A2');
   return prof().batch === 'A2' ? true : JSON.stringify(prof());
@@ -274,6 +274,16 @@ check('Picking a group with other groups\' labs left opens the existing clean-up
   seed({ cos_custom_timetable: NO_GROUPS }); makeApp(); opened = 0; globalThis.showDeclutterDeskModal = () => { opened++; };
   globalThis.onbPickGroup('A1');
   return store.cos_custom_timetable === NO_GROUPS && before === WITH_GROUPS && opened === 0 ? true : 'opened with nothing to clean, or timetable changed';
+});
+
+check('A lab group name with quotes cannot break out of its button', () => {
+  const evil = `x');globalThis.__pwn=1;('`;
+  seed({ cos_custom_timetable: week([lab([evil]), lab(['B"2']), lab(["O'Neil"]), lec]) });
+  const card = cardOf(todayHtml(makeApp()));
+  const clicks = [...card.matchAll(/onclick="([^"]*)"/g)].map(m => m[1]);
+  const inline = clicks.filter(c => c.startsWith('onbPickGroup(') && c !== 'onbPickGroup(this.dataset.batch)' && c !== 'onbPickGroup(null)');
+  const attrs = [...card.matchAll(/data-batch="([^"]*)"/g)].map(m => m[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+  return !inline.length && attrs.includes(evil) && attrs.includes('B"2') && attrs.includes("O'Neil") ? true : `inline=${inline.length} attrs=${JSON.stringify(attrs)}`;
 });
 
 check('Skipping the group card hides it for good and moves on to the name', () => {
