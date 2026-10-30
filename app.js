@@ -8397,6 +8397,7 @@ window.onboardingLogin = function() {
   step.innerHTML = `
     <h2 class="ob-title">Log in</h2>
     <p class="ob-line">Sign in to sync your desk across your devices.</p>
+    <div class="ob-hint">Google only lists accounts this browser is already signed into. If you see a plain sign-in box instead, enter your Google email there, or use email.</div>
     <div class="ob-actions">
       <button class="btn-primary" onclick="onboardingLoginWith('google')">Continue with Google</button>
       <button class="btn-secondary" onclick="onboardingLoginWith('email')">Use email</button>
@@ -16024,6 +16025,7 @@ function renderSettings() {
                 ? `<button class="btn btn-primary" onclick="showInAppBanner()" style="display:flex;align-items:center;gap:6px" title="Google blocks sign-in inside Instagram, Facebook and other apps">🌐 Google: open in browser first</button>`
                 : `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>`}
               <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">✉️ Sign In with Email</button>
+              <div style="flex-basis:100%;font-size:var(--text-xs);color:var(--text-muted)">Google lists the accounts this browser is signed into. No list? Enter your Google email, or use email sign-in.</div>
             </div>`
           }
         </div>
