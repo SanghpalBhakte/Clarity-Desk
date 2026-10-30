@@ -177,7 +177,7 @@ check('Pruning keeps the ongoing_ markers', () => {
 });
 
 check('Settings save keeps the new fields (form field ids exist in source)', () => {
-  return ['np-ongoing-nudges', 'np-nudge-time'].every(id => (appSrc.match(new RegExp(id, 'g')) || []).length >= 2) && /ongoingNudges: document\.getElementById/.test(appSrc) ? true : 'save handler or ids missing';
+  return ['np-ongoing-nudges', 'np-nudge-time'].every(id => (appSrc.match(new RegExp(id, 'g')) || []).length >= 2) && /ongoingNudges: document\.getElementById\('np-ongoing-nudges'\)\?\.value \|\| loadNotifPrefs\(\)\.ongoingNudges/.test(appSrc) ? true : 'save handler or ids missing';
 });
 
 console.log(`\n${passed}/${total} passed`);
