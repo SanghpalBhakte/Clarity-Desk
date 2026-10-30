@@ -47,19 +47,23 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
 
-function makeDevice(name) {
+function makeDevice(name, dayOffsetMs = 0) {
   const store = {};
+  const writes = [];
   const failKeys = new Set();
   const ls = {
     getItem: (k) => (k in store ? store[k] : null),
-    setItem: (k, v) => { if (failKeys.has(k)) throw new Error('QuotaExceededError'); store[k] = String(v); },
+    setItem: (k, v) => { if (failKeys.has(k)) throw new Error('QuotaExceededError'); writes.push(k); store[k] = String(v); },
     removeItem: (k) => { delete store[k]; },
     clear: () => { for (const k of Object.keys(store)) delete store[k]; }
   };
   const timers = new Map(); let tid = 0;
   const st = (fn, ms) => { const id = ++tid; timers.set(id, { fn, ms }); return id; };
   const ct = (id) => { timers.delete(id); };
-  const dev = { name, store, failKeys, timers, sets: [], listener: null, failSet: null };
+  const RealDate = Date;
+  // A device whose clock (and so its local date) runs dayOffsetMs ahead.
+  const DevDate = dayOffsetMs ? class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(RealDate.now() + dayOffsetMs); } static now() { return RealDate.now() + dayOffsetMs; } } : RealDate;
+  const dev = { name, store, writes, failKeys, timers, sets: [], listener: null, failSet: null };
   const ref = {
     set: (payload, opts) => {
       dev.sets.push(payload);
@@ -79,13 +83,13 @@ function makeDevice(name) {
     onSnapshot: (opts, cb) => { dev.listener = cb; return () => { dev.listener = null; }; }
   };
   const db = { collection: () => ({ doc: () => ref }) };
-  dev.app = new Function('__db', 'localStorage', 'setTimeout', 'clearTimeout', `${code}
+  dev.app = new Function('__db', 'localStorage', 'setTimeout', 'clearTimeout', 'Date', `${code}
     db = __db; currentUser = { uid: 'u1' };
     return { state, saveCustomTasks, saveCustomLinks, loadCustomTasks, pushLocalDataToCloud, applyCloudDataToLocalState,
       subscribeUserCloudData, calculatePayloadHash, importData, syncToCloud, onCloudPushError,
       pushGuard: typeof pushGuard === 'function' ? pushGuard : undefined,
       nextPushDelay: typeof nextPushDelay === 'function' ? nextPushDelay : undefined,
-      get pushFailed() { return cloudPushFailed; } };`)(db, ls, st, ct);
+      get pushFailed() { return cloudPushFailed; } };`)(db, ls, st, ct, DevDate);
   dev.app.state.currentPage = 'none';
   return dev;
 }
@@ -430,8 +434,10 @@ await check('M2: an old done task coming back from the cloud is pruned again, no
   D.app.state.customTasks = D.app.loadCustomTasks();
   D.app.applyCloudDataToLocalState(clone(cloud));
   await flushPush(D);
-  return !byId(D, 'old') && !D.app.state.customTasks.some(t => t.id === 'old') && !cloud.customTasks.some(t => t.id === 'old')
-    ? true : JSON.stringify({ t: tasksOf(D).map(t => t.id), c: cloud.customTasks.map(t => t.id) });
+  const noPushForIt = D.sets.length === 0;          // this device would prune it anyway: not a difference (fix round 1, I1)
+  edit(D, 'keep', { title: 'next edit' }); await flushPush(D);
+  return noPushForIt && !byId(D, 'old') && !D.app.state.customTasks.some(t => t.id === 'old') && !cloud.customTasks.some(t => t.id === 'old')
+    ? true : JSON.stringify({ noPushForIt, t: tasksOf(D).map(t => t.id), c: cloud.customTasks.map(t => t.id) });
 });
 
 await check('M2: a task reopened on B survives when stale A prunes it', async () => {
@@ -450,6 +456,108 @@ await check('M2: a task reopened on B survives when stale A prunes it', async ()
   await settle([A, B]);
   return [A, B].every(d => byId(d, 't1') && byId(d, 't1').status === 'pending') && !stonesOf(A).some(s => s.id === 't1')
     ? true : JSON.stringify({ A: tasksOf(A), B: tasksOf(B), sA: stonesOf(A) });
+});
+
+// ── Fix round 1 ──
+const dateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+await check('C1: tombstones with equal deletedAt in different orders converge with zero pushes after the first round', async () => {
+  cloud = {};
+  const T = Date.now() - 1000;
+  const A = makeDevice('C1A'), B = makeDevice('C1B');
+  A.store.cos_tombstones = JSON.stringify([{ id: 'x', deletedAt: T }, { id: 'y', deletedAt: T }, { id: 'z', deletedAt: T - 5 }]);
+  B.store.cos_tombstones = JSON.stringify([{ id: 'z', deletedAt: T - 5 }, { id: 'y', deletedAt: T }, { id: 'x', deletedAt: T }]);
+  A.app.pushLocalDataToCloud('u1'); await tick();
+  B.app.pushLocalDataToCloud('u1'); await tick();
+  for (const d of [A, B]) d.app.subscribeUserCloudData('u1');
+  const before = A.sets.length + B.sets.length;
+  let threw = null;
+  try { await settle([A, B]); } catch (e) { threw = e.message; }
+  const extra = A.sets.length + B.sets.length - before;
+  const order = cloud.tombstones.map(t => t.id).join();
+  return !threw && extra === 0 && order === 'x,y,z' && stonesOf(A).map(t => t.id).sort().join() === stonesOf(B).map(t => t.id).sort().join()
+    ? true : JSON.stringify({ threw, extra, order, A: stonesOf(A), B: stonesOf(B) });
+});
+
+await check('I1: devices whose prune dates differ by a day settle within 3 writes; a local edit then pushes', async () => {
+  cloud = {};
+  const d = new Date(); d.setDate(d.getDate() - 14);
+  const A = makeDevice('I1A'), B = makeDevice('I1B', 24 * 60 * 60 * 1000);   // B's date is tomorrow
+  const list = [task('old', { status: 'submitted', dueDate: dateKey(d) }), task('keep')];
+  for (const x of [A, B]) { x.store.cos_custom_tasks = JSON.stringify(list); x.app.state.customTasks = x.app.loadCustomTasks(); }
+  A.app.pushLocalDataToCloud('u1'); await tick();
+  for (const x of [A, B]) x.app.subscribeUserCloudData('u1');
+  await settle([A, B]);
+  const before = A.sets.length + B.sets.length;
+  B.app.saveCustomTasks();                          // B's prune drops 'old', A's does not
+  await flushPush(B);
+  let threw = null;
+  try { await settle([A, B]); } catch (e) { threw = e.message; }
+  const writes = A.sets.length + B.sets.length - before;
+  edit(A, 'keep', { title: 'after' }); await flushPush(A);
+  const pushed = cloud.customTasks.some(t => t.title === 'after');
+  return !threw && writes <= 3 && pushed ? true : JSON.stringify({ threw, writes, pushed });
+});
+
+await check('I1: circuit breaker: at most 3 apply-triggered pushes per minute; a local edit resets it', async () => {
+  cloud = {};
+  const D = makeDevice('CB');
+  D.store.cos_custom_tasks = JSON.stringify([task('mine', { updatedAt: Date.now() })]);
+  D.app.state.customTasks = D.app.loadCustomTasks();
+  const stale = { customTasks: [task('other')] };      // another device keeps writing a list without 'mine'
+  for (let i = 0; i < 6; i++) { D.app.applyCloudDataToLocalState(clone(stale)); await flushPush(D); cloud = clone(stale); }
+  const capped = D.sets.length;
+  edit(D, 'mine', { title: 'edited' }); await flushPush(D);
+  const afterEdit = D.sets.length;
+  D.app.applyCloudDataToLocalState(clone(stale)); await flushPush(D);
+  return capped === 3 && afterEdit === 4 && D.sets.length === 5 && cloud.customTasks.some(t => t.title === 'edited')
+    ? true : JSON.stringify({ capped, afterEdit, total: D.sets.length });
+});
+
+await check('I2: empty vault sections deleted on A stay gone when stale B syncs; sections with resources are kept', async () => {
+  const [A, B] = await pair([], [section('PHY', [{ label: 'P', url: 'https://x.test/p' }]), section('CHE', []), section('BIO', [])]);
+  A.app.saveCustomLinks(linksOf(A).filter(s => s.code === 'PHY'));               // deletes the empty CHE and BIO folders
+  const lb = linksOf(B);
+  lb.find(s => s.code === 'BIO').resources.push({ label: 'B1', url: 'https://x.test/b1' });   // B, offline, filled BIO
+  lb.push(section('MAT', [{ label: 'M', url: 'https://x.test/m' }]));
+  B.app.saveCustomLinks(lb);
+  await flushPush(A); await flushPush(B);
+  await settle([A, B]);
+  const codes = (dv) => linksOf(dv).map(s => s.code).join();
+  return codes(A) === 'PHY,BIO,MAT' && codes(B) === 'PHY,BIO,MAT' && cloud.customLinks.map(s => s.code).join() === 'PHY,BIO,MAT'
+    ? true : JSON.stringify({ A: codes(A), B: codes(B) });
+});
+
+await check('I3: duplicate local sections and identical resources are saved to cos_sync_prev before the merge folds them', async () => {
+  cloud = { customLinks: [section('PHY', [{ label: 'A', url: 'https://x.test/a' }])] };
+  const D = makeDevice('DUP');
+  const second = { subject: 'Physics 2', code: 'PHY', color: '#ff0000', resources: [{ label: 'Z', url: 'https://x.test/z' }, { label: 'Z', url: 'https://x.test/z' }] };
+  D.store.cos_custom_links = JSON.stringify([section('PHY', [{ label: 'A', url: 'https://x.test/a' }]), second]);
+  D.app.applyCloudDataToLocalState(clone(cloud));
+  const prev = JSON.parse(D.store.cos_sync_prev || 'null');
+  const out = linksOf(D);
+  const zs = out.flatMap(s => s.resources).filter(r => r.label === 'Z').length;
+  return prev && prev.customLinks.length === 2 && prev.customLinks[1].color === '#ff0000' && prev.customLinks[1].resources.length === 2
+    && out.length === 1 && zs === 1 && out[0].resources.some(r => r.label === 'A')
+    ? true : JSON.stringify({ prev, out });
+});
+
+await check('M-a: a failed task write never leaves state ahead of storage; cos_sync_prev is written after the lists', async () => {
+  const now = Date.now();
+  cloud = { customTasks: [task('c1', { updatedAt: now }), task('x', { title: 'cloud', updatedAt: now })] };
+  const D = makeDevice('MA');
+  D.store.cos_custom_tasks = JSON.stringify([task('x', { title: 'mine' })]);
+  D.app.state.customTasks = D.app.loadCustomTasks();
+  D.failKeys.add('cos_custom_tasks');
+  D.app.applyCloudDataToLocalState(clone(cloud));
+  const sig = (l) => l.map(t => `${t.id}:${t.title}`).join();
+  const sameAsStore = sig(D.app.state.customTasks) === sig(tasksOf(D));
+  const E = makeDevice('MA2');
+  E.store.cos_custom_tasks = JSON.stringify([task('x', { title: 'mine' })]);
+  E.app.state.customTasks = E.app.loadCustomTasks();
+  E.app.applyCloudDataToLocalState(clone(cloud));
+  const order = E.writes.indexOf('cos_custom_tasks') >= 0 && E.writes.indexOf('cos_custom_tasks') < E.writes.indexOf('cos_sync_prev');
+  return sameAsStore && order && sig(E.app.state.customTasks) === sig(tasksOf(E)) ? true : JSON.stringify({ state: sig(D.app.state.customTasks), store: sig(tasksOf(D)), writes: E.writes });
 });
 
 console.log('\n========================================');

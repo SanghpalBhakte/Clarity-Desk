@@ -3738,6 +3738,12 @@ function mergeRecords(local, cloud, tombstones, keyOf) {
   return { merged, changed, removedLocal };
 }
 
+// One fixed order for tombstones (newest first, then id), so two devices
+// holding the same set always compare and push them identically.
+function byTombstoneOrder(a, b) {
+  return (Number(b.deletedAt) - Number(a.deletedAt)) || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0);
+}
+
 // One entry per String(id), deletedAt clamped (a far-future one would never expire), larger wins.
 function normalizeTombstones(list, now = Date.now()) {
   const m = new Map();
@@ -3746,14 +3752,13 @@ function normalizeTombstones(list, now = Date.now()) {
     const id = String(t.id), deletedAt = clampStamp(t.deletedAt, now), cur = m.get(id);
     if (!cur || deletedAt > cur.deletedAt) m.set(id, { ...t, id, deletedAt });
   });
-  return [...m.values()];
+  return [...m.values()].sort(byTombstoneOrder);
 }
 
 // Drop tombstones older than 30 days, then keep the newest 200.
 function pruneTombstones(t, now = Date.now()) {
   return normalizeTombstones(t, now)
     .filter(x => now - x.deletedAt <= TOMBSTONE_MAX_AGE_MS)
-    .sort((a, b) => b.deletedAt - a.deletedAt)
     .slice(0, TOMBSTONE_MAX_COUNT);
 }
 
@@ -3814,10 +3819,26 @@ function stampVault(prev, next, opts) {
   };
   if (!Array.isArray(next)) return next;
   const done = stampChanges(flat(prev), flat(next), r => vaultKey(owner.get(r), r), opts);
+  stampSections(prev, next);
   let i = 0;
   return next.map(s => (s && Array.isArray(s.resources))
     ? { ...s, resources: s.resources.map(r => (r && typeof r === 'object') ? done[i++] : r) }
     : s);
+}
+
+// Vault sections have no stamps; a removed section leaves a tombstone
+// `sec|<code or subject>` so an empty folder deleted here is not brought back
+// by a stale device. Adding the section again clears it.
+const sectionStoneId = (s) => `sec|${s.code || s.subject}`;
+function stampSections(prev, next) {
+  const ids = (list) => new Set((Array.isArray(list) ? list : []).filter(s => s && typeof s === 'object').map(sectionStoneId));
+  const before = ids(prev), after = ids(next);
+  const gone = [...before].filter(k => !after.has(k)), added = new Set([...after].filter(k => !before.has(k)));
+  if (!gone.length && !added.size) return;
+  const existing = safeGetStorage(KEY_TOMBSTONES, []);
+  const kept = (Array.isArray(existing) ? existing : []).filter(t => !(t && added.has(String(t.id))));
+  const merged = pruneTombstones(mergeTombstones(kept, gone.map(id => ({ id, deletedAt: nextStamp() }))));
+  if (stableStringify(merged) !== stableStringify(existing)) safeSetStorage(KEY_TOMBSTONES, merged);
 }
 
 // Write a stamped list; if the write fails, put the tombstones back as they were.
@@ -3868,8 +3889,14 @@ function lostLocal(local, merged, keyOf) {
 //    kept even when empty;
 //  - sections only on this device follow, in local order; kept if they still
 //    have resources after the merge, or were empty here already (new, not
-//    synced yet); one whose resources were all deleted elsewhere is dropped.
-// A resource sits in the section its key names (code, else subject).
+//    synced yet); one whose resources were all deleted elsewhere is dropped;
+//  - a section left empty by the merge is dropped (on either side) when it
+//    has a section tombstone (`sec|key`, deleted on some device); a section
+//    that still holds resources is always kept (content wins).
+// A resource sits in the section its key names (code, else subject); two
+// sections with the same key, or identical resources, fold into one. When
+// that happens on this device, `lost` is set so cos_sync_prev keeps the
+// unfolded copy first.
 function mergeVaultLinks(localLinks, cloudLinks, tombstones) {
   const local = Array.isArray(localLinks) ? localLinks : [];
   const cloud = mergeCloudLinks(cloudLinks, local);
@@ -3896,9 +3923,13 @@ function mergeVaultLinks(localLinks, cloudLinks, tombstones) {
     const res = bySec.get(k) || [];
     if (res.length || keepEmpty) links.push(Array.isArray(s.resources) || res.length ? { ...s, resources: res } : s);
   };
-  cloud.forEach(s => place(s, true));
-  local.forEach(s => place(s, !(s && Array.isArray(s.resources) && s.resources.length)));
-  return { links, lost: lostLocal(lf, merged, keyOf) };
+  const deadSec = new Set((Array.isArray(tombstones) ? tombstones : []).filter(t => t && t.id != null).map(t => String(t.id)));
+  const stoned = (s) => deadSec.has(sectionStoneId(s));
+  cloud.forEach(s => place(s, !(s && typeof s === 'object' && stoned(s))));
+  local.forEach(s => place(s, !(s && Array.isArray(s.resources) && s.resources.length) && !(s && typeof s === 'object' && stoned(s))));
+  const localSecKeys = local.filter(s => s && typeof s === 'object').map(secKey);
+  const folded = new Set(localSecKeys).size !== localSecKeys.length || new Set(lf.map(keyOf)).size !== lf.length;
+  return { links, lost: folded || lostLocal(lf, merged, keyOf) };
 }
 
 // Same 14-day rule saveCustomTasks applies: done dated tasks older than 14 days go.
@@ -3942,17 +3973,25 @@ function mergeCloudIntoLocal(data) {
     links = v.links;
     lost = lost || v.lost;
   }
-  // Keep what this device had before a merge drops or replaces something.
-  if (lost) safeSetStorage(KEY_SYNC_PREV, { at: Date.now(), customTasks: localTasks, customLinks: linksForCloud(localLinks) });
-  if (stableStringify(stones) !== stableStringify(localStones)) safeSetStorage(KEY_TOMBSTONES, stones);
+  // What this device had before a merge drops or replaces something; saved
+  // after the lists (best effort), so it can never crowd out the real write.
+  const prevSnap = lost ? { at: Date.now(), customTasks: localTasks, customLinks: linksForCloud(localLinks) } : null;
   if (hasTasks) {
-    state.customTasks = tasks;
-    if (stableStringify(tasks) !== stableStringify(localTasks)) safeSetStorage(KEY_CUSTOM_TASKS, tasks);
+    const ok = stableStringify(tasks) === stableStringify(localTasks) || safeSetStorage(KEY_CUSTOM_TASKS, tasks);
+    // state follows storage: if the write failed, keep what is saved.
+    state.customTasks = ok ? tasks : loadCustomTasks();
+    if (!ok) tasks = state.customTasks;
   }
-  if (hasLinks && (rawLinks === null || stableStringify(links) !== stableStringify(rawLinks))) safeSetStorage(KEY_CUSTOM_LINKS, links);
-  return (hasTasks && stableStringify(tasks) !== stableStringify(cloudTasks))
+  if (hasLinks && (rawLinks === null || stableStringify(links) !== stableStringify(rawLinks))) {
+    if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) links = localLinks;
+  }
+  if (stableStringify(stones) !== stableStringify(localStones)) safeSetStorage(KEY_TOMBSTONES, stones);
+  if (prevSnap) safeSetStorage(KEY_SYNC_PREV, prevSnap);
+  // Compare with the cloud copy after this device's own prune/expiry rules,
+  // so a record this device would drop anyway is not a reason to push.
+  return (hasTasks && stableStringify(tasks) !== stableStringify(pruneDoneTasks(cloudTasks)))
     || (hasLinks && stableStringify(linksForCloud(links)) !== stableStringify(data.customLinks))
-    || stableStringify(stones) !== stableStringify(cloudStones);
+    || stableStringify(stones) !== stableStringify(pruneTombstones(cloudStones));
 }
 
 // ── Push guards ──
@@ -4002,7 +4041,7 @@ function calculatePayloadHash(data) {
       // Vault in its cloud shape (device files as placeholders) and the
       // delete markers: a vault edit or delete on another device must count.
       l: Array.isArray(data.customLinks) ? data.customLinks : null,
-      ts: Array.isArray(data.tombstones) && data.tombstones.length ? data.tombstones : null
+      ts: Array.isArray(data.tombstones) && data.tombstones.length ? data.tombstones.filter(t => t && typeof t === 'object').slice().sort(byTombstoneOrder) : null
       // theme deliberately excluded: it's applied via initTheme()/CSS
       // variables, never needs a dashboard rebuild, and including it here
       // was causing every theme switch (and the first cloud echo after
@@ -4091,6 +4130,11 @@ function subscribeUserCloudData(uid) {
 
 function applyCloudDataToLocalState(data) {
   if (!data || typeof data !== 'object') return;
+  applyingCloudData = true;
+  try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
+}
+
+function applyCloudDataInner(data) {
   // The cloud copy may now differ from what this device last wrote.
   lastPushed = null;
   if (data.profile && typeof data.profile === 'object') {
@@ -4823,7 +4867,29 @@ window.vaultOpenFile = async function(fileId) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 };
 
+// Circuit breaker (free-tier write quota): pushes started while applying
+// cloud data may run at most 3 times per rolling minute. Beyond that they
+// are skipped (one console warning) until a local edit or a quiet minute.
+// Guards against loops from per-device clock/date differences.
+const APPLY_PUSH_MAX = 3;
+const APPLY_PUSH_WINDOW_MS = 60000;
+let applyingCloudData = false;
+let applyPushTimes = [];
+let applyPushWarned = false;
+function allowApplyPush(now = Date.now()) {
+  applyPushTimes = applyPushTimes.filter(t => now - t < APPLY_PUSH_WINDOW_MS);
+  if (!applyPushTimes.length) applyPushWarned = false;
+  if (applyPushTimes.length >= APPLY_PUSH_MAX) {
+    if (!applyPushWarned) { applyPushWarned = true; console.warn('Cloud sync: too many pushes after cloud updates; pausing them until the next change.'); }
+    return false;
+  }
+  applyPushTimes.push(now);
+  return true;
+}
+
 function syncToCloud() {
+  if (applyingCloudData) { if (!allowApplyPush()) return; }
+  else { applyPushTimes = []; applyPushWarned = false; }
   schedulePushSync();
   if (!currentUser) return;
   clearTimeout(syncDebounceTimer);
