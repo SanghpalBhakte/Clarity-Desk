@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u126",
+    date: "2026-10-30",
+    title: "Keep a student's nudge setting if the settings form is missing a field",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Keep a student's nudge setting if the settings form is missing a field",
+    points: [
+
+    ]
+  },
+  {
+    id: "u125",
+    date: "2026-10-30",
+    title: "Add optional gentle nudges for tasks with no deadline",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Students can turn on a friendly reminder (every day, every 2 days or weekly, at a time they pick) that suggests one ongoing task at a time.",
+    points: [
+      "Off by default."
+    ]
+  },
+  {
     id: "u124",
     date: "2026-10-29",
     title: "Link icons in the Study Vault now show the whole chain, not half of it",
