@@ -4491,7 +4491,9 @@ function loadNotifPrefs() {
     classReminders: "15_min",    // "15_min" | "30_min" | "1_hour" | "off"
     attendanceAlerts: "instant", // "instant" | "weekly" | "off"
     newNotices: "instant",       // "instant" | "same_day" | "off"
-    dailySummaryTime: "08:00"
+    dailySummaryTime: "08:00",
+    ongoingNudges: "off",        // "off" | "daily" | "every_2_days" | "weekly" (tasks with no deadline)
+    ongoingNudgeTime: "18:00"
   };
   if (saved && typeof saved === 'object') {
     const mapped = { ...defaults, ...saved };
@@ -5361,6 +5363,45 @@ function buildTaskReminder(kind, t, dateKey, overdueDays = 1) {
   return { tag: `overdue_${t.id}_${dateKey}`, title: `Task Overdue: ${t.title}`, body: `${subject} is ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue.`, url };
 }
 
+// Gentle nudge for ongoing (no-deadline) tasks. Warm wording, never
+// "due" or "overdue". The line rotates with the date so it doesn't read
+// the same every time; one tag per day so a nudge replaces, not stacks.
+function buildOngoingNudge(t, dateKey) {
+  const name = String(t.title || 'your task').slice(0, 60);
+  const where = t.subject ? `${t.subject} · ` : '';
+  const day = Number(String(dateKey).slice(8, 10)) || 0;
+  const lines = [
+    { title: `A small step on "${name}"`, body: `${where}Even 15 minutes counts.` },
+    { title: `"${name}" is ready when you are`, body: `${where}No rush. A little progress today is plenty.` },
+    { title: `Quick check-in: ${name}`, body: `${where}Pick it up for a few minutes?` }
+  ];
+  const l = lines[day % lines.length];
+  return { tag: `ongoing_nudge_${dateKey}`, title: l.title, body: l.body, url: taskReminderUrl(t) };
+}
+
+// One ongoing task per nudge, rotating through them: the one after the
+// task nudged last time (kept in cos_notified_history as ongoing_last_task).
+function pickOngoingNudgeTask(tasks, lastId) {
+  if (!tasks.length) return null;
+  const i = tasks.findIndex(t => String(t.id) === String(lastId));
+  return tasks[(i + 1) % tasks.length];
+}
+
+// Due at most once a day, no earlier than the chosen time, and only for
+// 3 hours after it: opening the app late at night won't fire a stale
+// "evening" nudge. The gap counts days since the last one actually sent.
+const ONGOING_NUDGE_GAP_DAYS = { daily: 1, every_2_days: 2, weekly: 7 };
+function ongoingNudgeDue(prefs, lastDate, dateKey, currentMin) {
+  const gap = ONGOING_NUDGE_GAP_DAYS[prefs.ongoingNudges];
+  if (!gap) return false;
+  const t = /^\d{2}:\d{2}$/.test(prefs.ongoingNudgeTime || '') ? prefs.ongoingNudgeTime : '18:00';
+  const start = timeToMinutes(t);
+  if (currentMin < start || currentMin > start + 180) return false;
+  if (typeof lastDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(lastDate)) return true;
+  const days = Math.round((new Date(dateKey + 'T00:00:00') - new Date(lastDate + 'T00:00:00')) / 86400000);
+  return !(days >= 0 && days < gap);
+}
+
 function buildClassReminder(c, dateKey) {
   return {
     tag: `class_rem_${c.code || c.subject}_${c.time}_${dateKey}`,
@@ -5442,13 +5483,14 @@ function buildUpcomingReminders(now = new Date(), days = PUSH_SYNC_DAYS) {
 }
 
 // Past 100 keys the history keeps its newest 50, plus every onb_ flag
-// (onboarding skips and the first timetable day), so skipped setup cards
-// never come back after a busy week of reminders.
+// (onboarding skips and the first timetable day) and the ongoing_ nudge
+// markers, so skipped setup cards never come back and a nudge never
+// repeats early after a busy week of reminders.
 function pruneNotifiedHistory(map) {
   const keys = Object.keys(map);
   if (keys.length <= 100) return map;
   const pruned = {};
-  keys.filter(k => k.startsWith('onb_')).forEach(k => { pruned[k] = map[k]; });
+  keys.filter(k => k.startsWith('onb_') || k.startsWith('ongoing_')).forEach(k => { pruned[k] = map[k]; });
   keys.slice(-50).forEach(k => { pruned[k] = map[k]; });
   return pruned;
 }
@@ -5598,6 +5640,18 @@ function checkScheduledNotifications() {
         data: { url: './#dashboard' }
       });
       notifiedMap[summaryKey] = true;
+    }
+  }
+
+  // 6. Gentle nudge for ongoing tasks (opt-in, one at a time).
+  if (prefs.ongoingNudges !== 'off' && ongoingNudgeDue(prefs, notifiedMap.ongoing_last_date, today, currentMin)) {
+    const pool = tasks.filter(t => isOngoingTask(t) && !(onHoliday && isTaskPausedForHoliday(t, today)));
+    const pick = pickOngoingNudgeTask(pool, notifiedMap.ongoing_last_task);
+    if (pick) {
+      const r = buildOngoingNudge(pick, today);
+      dispatchNotification(r.title, { body: r.body, tag: r.tag, vibrate: [60], data: { url: r.url } });
+      notifiedMap.ongoing_last_date = today;
+      notifiedMap.ongoing_last_task = String(pick.id);
     }
   }
 
@@ -16269,6 +16323,29 @@ function renderSettings() {
           </div>
           <input type="time" class="form-input" id="np-summary-time" value="${nPrefs.dailySummaryTime || '08:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
         </div>
+
+        <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Motivation</div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <span style="font-weight:500;color:var(--text-primary)">Gentle Nudges</span>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">A friendly nudge for tasks with no deadline. One task at a time, never more than once a day.</div>
+          </div>
+          <select class="form-select" id="np-ongoing-nudges" style="width:170px;padding:5px 8px;font-size:var(--text-base)" onchange="document.getElementById('np-nudge-time-row').style.display = this.value === 'off' ? 'none' : 'flex'">
+            <option value="off" ${nPrefs.ongoingNudges === 'off' ? 'selected' : ''}>Off</option>
+            <option value="daily" ${nPrefs.ongoingNudges === 'daily' ? 'selected' : ''}>Every Day</option>
+            <option value="every_2_days" ${nPrefs.ongoingNudges === 'every_2_days' ? 'selected' : ''}>Every 2 Days</option>
+            <option value="weekly" ${nPrefs.ongoingNudges === 'weekly' ? 'selected' : ''}>Once a Week</option>
+          </select>
+        </div>
+
+        <div id="np-nudge-time-row" style="display:${nPrefs.ongoingNudges === 'off' ? 'none' : 'flex'};align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
+          <div>
+            <span style="font-weight:500;color:var(--text-primary)">Nudge Time</span>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">Sent around this time, only while it is still a good moment</div>
+          </div>
+          <input type="time" class="form-input" id="np-nudge-time" value="${nPrefs.ongoingNudgeTime || '18:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
+        </div>
       </div>
     </div>
 
@@ -16595,6 +16672,8 @@ function saveSettings() {
     attendanceAlerts: document.getElementById('np-attendance-alerts')?.value || 'instant',
     newNotices: document.getElementById('np-new-notices')?.value || 'instant',
     dailySummaryTime: document.getElementById('np-summary-time')?.value || '08:00',
+    ongoingNudges: document.getElementById('np-ongoing-nudges')?.value || 'off',
+    ongoingNudgeTime: document.getElementById('np-nudge-time')?.value || '18:00',
   };
   saveNotifPrefs(nPrefs);
 
