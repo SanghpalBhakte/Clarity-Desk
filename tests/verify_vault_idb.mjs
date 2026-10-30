@@ -317,7 +317,7 @@ await check('Open-time sweep: unused blobs under a day old are kept', async () =
 });
 
 await check('Only cos_custom_links (and the test\'s own undo copy) are written: no new cos_* key', () => {
-  const keys = Object.keys(store).filter(k => k.startsWith('cos_') && k !== 'cos_custom_links');
+  const keys = Object.keys(store).filter(k => k.startsWith('cos_') && k !== 'cos_custom_links' && k !== 'cos_sync_clock' && k !== 'cos_tombstones');   // sync stamps (step 3) are the only other keys a vault save may write
   return keys.length === 0 ? true : keys.join();
 });
 

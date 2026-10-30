@@ -3597,6 +3597,9 @@ function sanitizeTask(t) {
     extra.startTime = t.startTime;
     if (isHHMM(t.endTime) && t.endTime > t.startTime) extra.endTime = t.endTime;
   }
+  // When this task was last changed on a device (sync stamp). Only kept when
+  // it is a real number, so older tasks keep exactly their old shape.
+  if (Number.isFinite(t.updatedAt)) extra.updatedAt = t.updatedAt;
 
   return {
     id:          String(t.id || `c-${Date.now()}`),
@@ -3725,6 +3728,83 @@ function pruneTombstones(t, now = Date.now()) {
 // Union by id, the larger deletedAt wins.
 function mergeTombstones(a, b) {
   return normalizeTombstones([].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : []));
+}
+
+// ── Stamps and tombstones at the save points ──
+const taskKey = (t) => String(t.id);
+// Vault items have no id: section + file + label. A device file keeps the same
+// key after it moves into IndexedDB (the id is worked out from the file).
+const vaultKey = (section, r) => `${section.code || section.subject}|${r.fileId || (isVaultDeviceFile(r) ? vaultFileId(r.url) : r.url)}|${r.label}`;
+
+// Returns next with updatedAt = nextStamp() on every new or changed record
+// (all of them with opts.all, for a restore); unchanged ones keep their stamp.
+// Records in prev but not in next get a tombstone; a record that is back
+// (undo, restore) loses its tombstone. Tombstones go through merge/prune only.
+function stampChanges(prev, next, keyOf, opts) {
+  const all = !!(opts && opts.all);
+  const same = (a, b) => { const { updatedAt: _a, ...x } = a; const { updatedAt: _b, ...y } = b; return stableStringify(x) === stableStringify(y); };
+  const before = new Map();
+  (Array.isArray(prev) ? prev : []).forEach(r => { if (r && typeof r === 'object') before.set(String(keyOf(r)), r); });
+  const seen = new Set(), stamped = new Set();
+  const out = (Array.isArray(next) ? next : []).map(r => {
+    if (!r || typeof r !== 'object') return r;
+    const k = String(keyOf(r));
+    seen.add(k);
+    const old = before.get(k);
+    if (!all && old && same(old, r)) {
+      return r.updatedAt === undefined && old.updatedAt !== undefined ? { ...r, updatedAt: old.updatedAt } : r;
+    }
+    stamped.add(k);
+    return { ...r, updatedAt: nextStamp() };
+  });
+  const gone = [...before.keys()].filter(k => !seen.has(k));
+  if (gone.length || stamped.size) {
+    const existing = safeGetStorage(KEY_TOMBSTONES, []);
+    const kept = (Array.isArray(existing) ? existing : []).filter(t => !(t && stamped.has(String(t.id))));
+    const added = gone.map(id => ({ id, deletedAt: nextStamp() }));
+    const merged = pruneTombstones(mergeTombstones(kept, added));
+    if (stableStringify(merged) !== stableStringify(existing)) safeSetStorage(KEY_TOMBSTONES, merged);
+  }
+  return out;
+}
+
+// Stamp the vault: items live inside sections, so work on the flat list of items.
+function stampVault(prev, next, opts) {
+  const owner = new Map();
+  const flat = (list) => {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+      if (r && typeof r === 'object') { owner.set(r, s); out.push(r); }
+    }));
+    return out;
+  };
+  if (!Array.isArray(next)) return next;
+  const done = stampChanges(flat(prev), flat(next), r => vaultKey(owner.get(r), r), opts);
+  let i = 0;
+  return next.map(s => (s && Array.isArray(s.resources))
+    ? { ...s, resources: s.resources.map(r => (r && typeof r === 'object') ? done[i++] : r) }
+    : s);
+}
+
+// Write a stamped list; if the write fails, put the tombstones back as they were.
+function writeStamped(storageKey, stampFn) {
+  let before = null;
+  try { before = localStorage.getItem(KEY_TOMBSTONES); } catch (e) { /* storage blocked */ }
+  const list = stampFn();
+  const ok = safeSetStorage(storageKey, list);
+  if (!ok) {
+    try { if (before == null) localStorage.removeItem(KEY_TOMBSTONES); else localStorage.setItem(KEY_TOMBSTONES, before); } catch (e) { /* storage blocked */ }
+  }
+  return { list, ok };
+}
+
+// Save the student's tasks with stamps/tombstones; returns the list as saved.
+function persistCustomTasks(next, opts) {
+  return writeStamped(KEY_CUSTOM_TASKS, () => stampChanges(loadCustomTasks(), next, taskKey, opts)).list;
+}
+
+function persistCustomLinks(next, opts) {
+  return writeStamped(KEY_CUSTOM_LINKS, () => stampVault(loadCustomLinks(), next, opts));
 }
 
 function calculatePayloadHash(data) {
@@ -4177,7 +4257,7 @@ function loadCustomLinks() {
 
 // True only when the vault really was saved; sync runs only then.
 function saveCustomLinks(links) {
-  if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) return false;
+  if (!persistCustomLinks(links).ok) return false;
   syncToCloud();
   return true;
 }
@@ -5816,7 +5896,7 @@ function loadCustomTasks() {
   return raw.map(sanitizeTask).filter(Boolean);
 }
 
-function saveCustomTasks() {
+function saveCustomTasks(opts) {
   // Prune completed dated tasks older than 14 days; never prune ongoing/standing missions
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
@@ -5831,7 +5911,7 @@ function saveCustomTasks() {
       return true;
     });
 
-  safeSetStorage(KEY_CUSTOM_TASKS, state.customTasks);
+  state.customTasks = persistCustomTasks(state.customTasks, opts);
   syncToCloud();
 }
 
@@ -9799,8 +9879,7 @@ function permanentlyDeleteSubject(subjectName) {
   // Student-authored tasks only -- never touches state.assignments, which
   // is synced from the official course source, not local data a card
   // delete should be able to wipe out.
-  state.customTasks = (state.customTasks || []).filter(t => getCanonicalSubjectKey(t.subject || '') !== key);
-  safeSetStorage(KEY_CUSTOM_TASKS, state.customTasks);
+  state.customTasks = persistCustomTasks((state.customTasks || []).filter(t => getCanonicalSubjectKey(t.subject || '') !== key));
 
   // Quick Links / Subject Vaults
   saveCustomLinks(loadCustomLinks().filter(l => getCanonicalSubjectKey(l.subject || '') !== key));
@@ -12107,9 +12186,8 @@ function executeDeclutterPlan(plan, userBatch) {
   }
 
   // 5-6. Tasks and links (remapped; garbled/non-timetable ones removed)
-  state.customTasks = plan.newTasks;
-  safeSetStorage(KEY_CUSTOM_TASKS, plan.newTasks);
-  safeSetStorage(KEY_CUSTOM_LINKS, plan.newLinks);
+  state.customTasks = persistCustomTasks(plan.newTasks);
+  persistCustomLinks(plan.newLinks);
 
   // Safety net (same as a card delete): hide removed subjects in case a
   // synced assignment or an old attendance log still names them.
@@ -12204,10 +12282,9 @@ function confirmExecuteRestore() {
     if (backup.liveAttendance) safeSetStorage(KEY_ATTENDANCE_LIVE, backup.liveAttendance);
     if (backup.dailyAttendance) safeSetStorage(KEY_ATTENDANCE, backup.dailyAttendance);
     if (backup.tasks) {
-      safeSetStorage(KEY_CUSTOM_TASKS, backup.tasks);
-      state.customTasks = backup.tasks;
+      state.customTasks = persistCustomTasks(backup.tasks);
     }
-    if (backup.links) safeSetStorage(KEY_CUSTOM_LINKS, backup.links);
+    if (backup.links) persistCustomLinks(backup.links);
     if (Array.isArray(backup.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, backup.hiddenSubjects);
     if (backup.userBatch) safeSetStorage(KEY_USER_BATCH, backup.userBatch);
     if (backup.profile) {
@@ -13556,8 +13633,7 @@ window.deleteSelectedTasks = () => {
     // Put back exactly what was removed. Written directly (not through
     // saveCustomTasks) so its 14-day clean-up cannot delete them again.
     const have = new Set(state.customTasks.map(t => t.id));
-    state.customTasks = [...state.customTasks, ...removed.filter(t => !have.has(t.id))];
-    safeSetStorage(KEY_CUSTOM_TASKS, state.customTasks);
+    state.customTasks = persistCustomTasks([...state.customTasks, ...removed.filter(t => !have.has(t.id))]);
     syncToCloud();
     renderPage(state.currentPage);
     updateNavBadges();
@@ -16822,6 +16898,7 @@ function exportData() {
   const data = {
     profile:            loadProfile(),
     customTasks:        state.customTasks,
+    tombstones:         pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
     customTimetable:    safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
     timetableChoice:    safeGetStorage(KEY_TIMETABLE_CHOICE, null),
     customLinks:        safeGetStorage(KEY_CUSTOM_LINKS, null),
@@ -16874,9 +16951,11 @@ function importData(event) {
       if (!data || typeof data !== 'object') throw new Error('Invalid JSON format');
 
       if (data.profile) safeSetStorage(KEY_PROFILE, data.profile);
+      // Deleted-item markers first: restored items below stamp themselves and win over them.
+      if (Array.isArray(data.tombstones)) safeSetStorage(KEY_TOMBSTONES, pruneTombstones(mergeTombstones(safeGetStorage(KEY_TOMBSTONES, []), data.tombstones)));
       if (Array.isArray(data.customTasks)) {
         state.customTasks = data.customTasks;
-        saveCustomTasks();
+        saveCustomTasks({ all: true });   // restored tasks are stamped now, so older cloud copies cannot beat them
       }
       if (data.customTimetable) safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
       if (data.timetableChoice) safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
@@ -16919,7 +16998,10 @@ function importData(event) {
       // didn't go in is left as data: URLs for saveLinksFittingStorage().
       let vaultDropped = [];
       if (data.customLinks && vaultIdbOk === true) data.customLinks = await vaultLinksIntoIdb(data.customLinks);
-      if (data.customLinks) vaultDropped = saveLinksFittingStorage(data.customLinks).dropped;
+      if (data.customLinks) {
+        data.customLinks = stampVault(loadCustomLinks(), data.customLinks, { all: true });
+        vaultDropped = saveLinksFittingStorage(data.customLinks).dropped;
+      }
 
       updateTopbarProfile();
       setupFABDrag();

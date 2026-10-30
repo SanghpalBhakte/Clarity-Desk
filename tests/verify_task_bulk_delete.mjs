@@ -155,7 +155,7 @@ check('Undo puts back exactly the deleted tasks, even ones the clean-up rule wou
   window.deleteSelectedTasks();
   if (typeof globalThis.__undo !== 'function') return 'no undo offered';
   globalThis.__undo();
-  const back = JSON.stringify(app.state.customTasks.filter(t => t.id === 'd-old'));
+  const back = JSON.stringify(app.state.customTasks.filter(t => t.id === 'd-old').map(({ updatedAt, ...t }) => t));   // restored tasks get a fresh sync stamp; everything else is unchanged
   const saved = JSON.parse(store['cos_custom_tasks'] || '[]').map(t => t.id).sort().join(',');
   return ids() === 'd-new,d-nodl,d-old,p1' && back === before && saved === 'd-new,d-nodl,d-old,p1' ? true : `after undo ${ids()}, saved ${saved}`;
 });
