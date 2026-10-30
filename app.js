@@ -29,6 +29,11 @@ const KEY_TOMBSTONES          = 'cos_tombstones';
 // Local-only (never synced): tasks + vault (cloud shape, no file bytes) as they
 // were before a cloud merge removed or overwrote a local record. For Undo.
 const KEY_SYNC_PREV           = 'cos_sync_prev';
+// Local-only: uids this phone has already merged with (first sign-in review done).
+const KEY_SIGNIN_SEEN         = 'cos_signin_seen';
+// Local-only: this phone's data (vault without file bytes) right before the
+// first sign-in choice was applied. For Undo.
+const KEY_SIGNIN_BACKUP       = 'cos_signin_backup';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -4053,6 +4058,251 @@ function calculatePayloadHash(data) {
   }
 }
 
+// ── First sign-in review ──
+// A phone that already has data, signing in to an account that has data
+// too, is asked first (Keep both / Use account copy / Use this phone /
+// Decide later). Until then the cloud copy is not applied and nothing is
+// pushed for that uid. A safety copy (KEY_SIGNIN_BACKUP) is saved first.
+let signinHold = null;        // { uid, data, backupOk, later }
+let signinLastCloud = null;   // latest cloud copy seen, so Undo can ask again
+const SIGNIN_BACKUP_KEYS = [KEY_CUSTOM_TASKS, KEY_CUSTOM_LINKS, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE,
+  KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_PROFILE, KEY_ASSIGNMENTS, KEY_TOMBSTONES,
+  // Everything else applying the cloud copy may overwrite, so Undo is exact.
+  KEY_SYLLABUS, KEY_NOTIF_PREFS, KEY_NOTICE_CHANNELS, KEY_ATT_TARGET, KEY_HOLIDAY, KEY_THEME, KEY_ACCENT];
+
+function signinDataIn(src) {
+  const nonEmptyObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
+  if (!src || typeof src !== 'object') return false;
+  if (Array.isArray(src.customTasks) && src.customTasks.length) return true;
+  if (Array.isArray(src.customLinks) && src.customLinks.some(s => s && Array.isArray(s.resources) && s.resources.length)) return true;
+  if (src.customTimetable && typeof src.customTimetable === 'object'
+    && Object.values(src.customTimetable).some(d => Array.isArray(d) && d.length)) return true;
+  return nonEmptyObj(src.attendance) || nonEmptyObj(src.attendanceBaseline) || nonEmptyObj(src.attendanceLive);
+}
+function localHasData() {
+  return signinDataIn({
+    customTasks: safeGetStorage(KEY_CUSTOM_TASKS, null),
+    customLinks: safeGetStorage(KEY_CUSTOM_LINKS, null),
+    customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+    attendance: safeGetStorage(KEY_ATTENDANCE, null),
+    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, null),
+    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, null)
+  });
+}
+function cloudHasData(data) { return signinDataIn(data); }
+
+// Read-only. A phone that synced before this check existed (it has
+// cos_sync_last_pushed but no cos_signin_seen) is not asked.
+function needsSigninReview(uid, localHas, cloudHas) {
+  if (!uid || !localHas || !cloudHas) return false;
+  const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
+  if (!Array.isArray(seen)) return localStorage.getItem(KEY_SYNC_LAST_PUSHED) === null;
+  return !seen.includes(uid);
+}
+function markSigninSeen(uid) {
+  if (!uid) return;
+  const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
+  const list = Array.isArray(seen) ? seen : [];
+  if (!list.includes(uid)) safeSetStorage(KEY_SIGNIN_SEEN, [...list, uid]);
+}
+function unmarkSigninSeen(uid) {
+  const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
+  if (Array.isArray(seen) && seen.includes(uid)) safeSetStorage(KEY_SIGNIN_SEEN, seen.filter(u => u !== uid));
+}
+
+// Raw stored strings (exact Undo); the vault in cloud shape (no file bytes).
+function saveSigninBackup(uid) {
+  const keys = {};
+  SIGNIN_BACKUP_KEYS.forEach(k => { keys[k] = localStorage.getItem(k); });
+  const links = safeGetStorage(KEY_CUSTOM_LINKS, null);
+  if (Array.isArray(links)) keys[KEY_CUSTOM_LINKS] = JSON.stringify(linksForCloud(links));
+  return safeSetStorage(KEY_SIGNIN_BACKUP, { at: Date.now(), uid, keys });
+}
+
+// true = hold this cloud copy (review open or decided later); false = apply it.
+function signinGate(uid, data) {
+  signinLastCloud = data;
+  if (signinHold && signinHold.uid === uid) {
+    signinHold.data = data;
+    if (!signinHold.later && !document.getElementById('signin-review-backdrop')) showSigninReviewModal();
+    return true;
+  }
+  // Same tasks, vault, timetable and marks on both sides: nothing to mix, no question.
+  if (!needsSigninReview(uid, localHasData(), cloudHasData(data)) || signinSameContent(data)) { markSigninSeen(uid); return false; }
+  signinHold = { uid, data, backupOk: saveSigninBackup(uid), later: false };
+  showSigninReviewModal();
+  return true;
+}
+function signinShape(src) {
+  const obj = (v) => (v && typeof v === 'object' ? v : {});
+  return stableStringify({
+    t: Array.isArray(src.customTasks) ? src.customTasks.map(sanitizeTask).filter(Boolean) : [],
+    l: Array.isArray(src.customLinks) ? linksForCloud(src.customLinks) : [],
+    tt: src.customTimetable || null,
+    a: obj(src.attendance), ab: obj(src.attendanceBaseline), al: obj(src.attendanceLive)
+  });
+}
+function signinSameContent(data) {
+  return signinShape({
+    customTasks: loadCustomTasks(),
+    customLinks: safeGetStorage(KEY_CUSTOM_LINKS, null),
+    customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+    attendance: safeGetStorage(KEY_ATTENDANCE, null),
+    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, null),
+    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, null)
+  }) === signinShape(data || {});
+}
+function signinHeld(uid) { return !!(signinHold && signinHold.uid === uid); }
+
+function signinCounts(src) {
+  const tasks = Array.isArray(src.customTasks) ? src.customTasks.length : 0;
+  const links = Array.isArray(src.customLinks) ? src.customLinks.reduce((n, s) => n + (s && Array.isArray(s.resources) ? s.resources.length : 0), 0) : 0;
+  return `${tasks} task${tasks === 1 ? '' : 's'}, ${links} vault item${links === 1 ? '' : 's'}`;
+}
+
+function showSigninReviewModal() {
+  if (!signinHold) return;
+  const old = document.getElementById('signin-review-backdrop');
+  if (old) old.remove();
+  const here = signinCounts({ customTasks: safeGetStorage(KEY_CUSTOM_TASKS, []), customLinks: safeGetStorage(KEY_CUSTOM_LINKS, []) });
+  const there = signinCounts(signinHold.data || {});
+  const ok = signinHold.backupOk;
+  const opt = (choice, cls, title, sub) => `
+    <button type="button" class="${cls}" onclick="chooseSigninOption('${choice}')" style="display:block;width:100%;text-align:left;padding:10px 14px;margin-bottom:8px;white-space:normal">
+      <span style="display:block;font-weight:600;font-size:var(--text-base)">${title}</span>
+      <span style="display:block;font-size:var(--text-sm);opacity:.85;margin-top:2px;line-height:1.35">${sub}</span>
+    </button>`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'signin-review-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal signin-review-dialog" onclick="event.stopPropagation()" style="max-width:480px;padding:22px 18px">
+      <h2 class="modal-title" style="margin:0 0 6px;font-size:var(--text-xl);font-weight:700">Your account has saved data too</h2>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:12px;line-height:1.45">
+        This phone: ${here}. Your account: ${there}. Timetable and attendance count too. How should we put them together?
+      </div>
+      <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.4">
+        ${ok ? 'We saved a copy of this phone first, so you can undo your choice.'
+             : "We couldn't save a safety copy on this phone (storage is full), so only Keep both is offered. Nothing gets removed."}
+      </div>
+      ${opt('both', 'btn-primary', 'Keep both (recommended)', 'Tasks and vault items from both are kept. Timetable and attendance come from your account.')}
+      ${ok ? opt('cloud', 'btn-secondary', "Use my account's copy", "This phone's tasks, vault, timetable and attendance are replaced by your account's. Files saved only on this phone are not kept.") : ''}
+      ${ok ? opt('device', 'btn-secondary', "Use this phone's copy", "Your account gets this phone's tasks, vault, timetable and attendance. Where the same item differs, this phone's version wins.") : ''}
+      <button type="button" class="btn-secondary" onclick="signinDecideLater()" style="display:block;width:100%;margin-top:4px;font-size:var(--text-sm);color:var(--text-secondary)">
+        Decide later (syncing waits; nothing on this phone changes)
+      </button>
+    </div>`;
+  document.body.appendChild(backdrop);
+}
+
+function closeSigninReviewModal() {
+  const el = document.getElementById('signin-review-backdrop');
+  if (el) el.remove();
+}
+
+// Applies the student's choice to the held cloud copy, then marks the uid
+// as seen. Returns the choice actually used ('both' if no safety copy).
+function applySigninChoice(choice, cloudData) {
+  const uid = (signinHold && signinHold.uid) || (currentUser && currentUser.uid) || null;
+  const data = cloudData && typeof cloudData === 'object' ? cloudData : ((signinHold && signinHold.data) || {});
+  if (!['both', 'cloud', 'device'].includes(choice)) choice = 'both';
+  const backupOk = saveSigninBackup(uid);
+  if (!backupOk) choice = 'both';
+  signinHold = null;
+  closeSigninReviewModal();
+  lastCloudPayloadHash = calculatePayloadHash(data);
+  if (choice === 'cloud') {
+    if (Array.isArray(data.customTasks)) {
+      const tasks = pruneDoneTasks(data.customTasks.map(sanitizeTask).filter(Boolean));
+      if (safeSetStorage(KEY_CUSTOM_TASKS, tasks)) state.customTasks = loadCustomTasks();
+    }
+    if (Array.isArray(data.customLinks)) safeSetStorage(KEY_CUSTOM_LINKS, mergeCloudLinks(data.customLinks, safeGetStorage(KEY_CUSTOM_LINKS, null)));
+    safeSetStorage(KEY_TOMBSTONES, pruneTombstones(Array.isArray(data.tombstones) ? data.tombstones : []));
+    applyCloudDataToLocalState(data);
+  } else if (choice === 'device') {
+    // Same merge as Keep both, but where an item differs this phone's version
+    // is stamped now so it wins here and on other devices. Timetable, marks
+    // and profile stay as they are here and are pushed.
+    const d = { ...data };
+    ['profile', 'customTimetable', 'timetableChoice', 'attendance', 'attendanceBaseline', 'attendanceLive', 'assignmentStatuses'].forEach(k => { delete d[k]; });
+    if (Array.isArray(data.customTasks)) {
+      data.customTasks.forEach(t => { if (t) observeStamp(t.updatedAt); });
+      const mine = new Map(loadCustomTasks().map(t => [taskKey(t), t]));
+      d.customTasks = data.customTasks.map(t => {
+        const l = t && t.id != null ? mine.get(taskKey(t)) : null;
+        return l && stableStringify(sanitizeTask(t)) !== stableStringify(l) ? { ...l, updatedAt: nextStamp() } : t;
+      });
+    }
+    if (Array.isArray(data.customLinks)) {
+      const mine = new Map();
+      (safeGetStorage(KEY_CUSTOM_LINKS, []) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => { if (r) mine.set(vaultKey(s, r), r); }));
+      d.customLinks = data.customLinks.map(s => (s && Array.isArray(s.resources)) ? { ...s, resources: s.resources.map(r => {
+        if (!r) return r;
+        const l = mine.get(vaultKey(s, r));
+        return l && stableStringify(vaultPlaceholderOrSelf(l)) !== stableStringify(r) ? { ...l, updatedAt: nextStamp() } : r;
+      }) } : s);
+    }
+    applyCloudDataToLocalState(d);
+    syncToCloud();
+  } else {
+    applyCloudDataToLocalState(data);
+  }
+  if (uid) markSigninSeen(uid);
+  const msg = choice === 'cloud' ? "Using your account's copy on this phone"
+    : choice === 'device' ? "Using this phone's copy for your account" : 'Kept everything from this phone and your account';
+  if (backupOk) showUndoToast(msg, () => { if (!undoSignin()) showToast("Couldn't undo. Your data is still on this phone.", 'error'); });
+  else showToast("We couldn't save a safety copy on this phone, so we kept everything from both. Nothing was removed.", 'info');
+  return choice;
+}
+function vaultPlaceholderOrSelf(r) {
+  return (isVaultDeviceFile(r) || isVaultIdbFile(r)) ? vaultPlaceholder(r) : r;
+}
+
+window.chooseSigninOption = (choice) => {
+  if (!signinHold) { closeSigninReviewModal(); return; }
+  applySigninChoice(choice, signinHold.data);
+};
+
+// Close the review for this visit. Nothing is applied or pushed for this
+// uid until the next sign-in or app start asks again.
+function signinDecideLater() {
+  if (signinHold) signinHold.later = true;
+  closeSigninReviewModal();
+  showToast('Syncing is paused until you choose. Everything on this phone stays as it is.', 'info');
+}
+window.signinDecideLater = signinDecideLater;
+
+// Puts this phone back exactly as it was before the choice and asks again
+// (nothing is pushed until the student chooses). Returns false if there is
+// no safety copy or it could not be written back.
+function undoSignin() {
+  const b = safeGetStorage(KEY_SIGNIN_BACKUP, null);
+  if (!b || typeof b !== 'object' || !b.keys || typeof b.keys !== 'object') return false;
+  clearTimeout(syncDebounceTimer);
+  if (b.uid) {
+    unmarkSigninSeen(b.uid);
+    signinHold = { uid: b.uid, data: signinLastCloud || {}, backupOk: true, later: false };
+  }
+  const curLinks = safeGetStorage(KEY_CUSTOM_LINKS, null);
+  let ok = true;
+  SIGNIN_BACKUP_KEYS.forEach(k => {
+    let v = Object.prototype.hasOwnProperty.call(b.keys, k) ? b.keys[k] : null;
+    try {
+      // Vault files this phone still holds get their bytes back.
+      if (k === KEY_CUSTOM_LINKS && v) { const parsed = JSON.parse(v); if (Array.isArray(parsed)) v = JSON.stringify(mergeCloudLinks(parsed, curLinks)); }
+      if (v === null || v === undefined) localStorage.removeItem(k); else localStorage.setItem(k, v);
+    } catch (e) { ok = false; }
+  });
+  state.customTasks = loadCustomTasks();
+  state.assignments = loadAssignments();
+  try { initTheme(); initAccent(); } catch (e) { /* theme stays as shown until next start */ }
+  lastCloudPayloadHash = null;
+  syncToCloud();   // held: schedules reminders only, no cloud write
+  if (state.currentPage && state.currentPage !== 'none') renderPage(state.currentPage);
+  if (signinHold) showSigninReviewModal();
+  return ok;
+}
+
 function subscribeUserCloudData(uid) {
   if (!db || !uid) return;
   if (cloudUnsubscribe) cloudUnsubscribe();
@@ -4095,7 +4345,8 @@ function subscribeUserCloudData(uid) {
       // rebuilt the current page's DOM even when nothing had changed,
       // which is what made the dashboard cards look like they were
       // popping in and out.
-      if (currentHash && currentHash === lastCloudPayloadHash) return;
+      if (currentHash && currentHash === lastCloudPayloadHash) { if (!signinHeld(uid)) markSigninSeen(uid); return; }
+      if (signinGate(uid, data)) return;   // first sign-in: ask before applying
       lastCloudPayloadHash = currentHash;
       applyCloudDataToLocalState(data);
     }
@@ -4105,6 +4356,7 @@ function subscribeUserCloudData(uid) {
   cloudUnsubscribe = userRef.onSnapshot({ includeMetadataChanges: false }, doc => {
     if (!doc || !doc.exists) {
       lastPushed = null;   // the doc is gone: write it again even if nothing changed here
+      if (!signinHeld(uid)) markSigninSeen(uid);   // the account now gets this phone's copy
       pushLocalDataToCloud(uid);
       return;
     }
@@ -4114,7 +4366,9 @@ function subscribeUserCloudData(uid) {
 
     const data = doc.data() || {};
     const currentHash = calculatePayloadHash(data);
-    if (currentHash && currentHash === lastCloudPayloadHash) return;
+    // Same as this phone already: nothing to mix, so no first sign-in question later.
+    if (currentHash && currentHash === lastCloudPayloadHash) { if (!signinHeld(uid)) markSigninSeen(uid); return; }
+    if (signinGate(uid, data)) return;   // first sign-in: ask before applying
     lastCloudPayloadHash = currentHash;
 
     applyCloudDataToLocalState(data);
@@ -4256,6 +4510,8 @@ let cloudFullWarned = false;
 
 function pushLocalDataToCloud(uid) {
   if (!db || !uid) return;
+  // Waiting for the first sign-in choice: never push over the account's copy.
+  if (signinHeld(uid)) return;
   const sanitizedTasks = state.customTasks.map(sanitizeTask).filter(Boolean);
   const payload = {
     profile:            loadProfile(),
@@ -4670,7 +4926,7 @@ async function vaultGetBlob(fileId) {
   try { const rec = await vaultIdbStore(db, 'readonly', s => s.get(fileId)); return (rec && rec.blob) || null; } catch (_) { return null; }
 }
 
-// Every fileId the vault, or the declutter undo copy, still points at.
+// Every fileId the vault, or the declutter / first sign-in undo copy, still points at.
 function vaultReferencedIds() {
   const ids = new Set();
   const add = (links) => (Array.isArray(links) ? links : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
@@ -4679,6 +4935,11 @@ function vaultReferencedIds() {
   add(safeGetStorage(KEY_CUSTOM_LINKS, null));
   const undo = safeGetStorage(KEY_CLEANUP_BACKUP, null);
   if (undo && typeof undo === 'object') add(undo.links);
+  // The first sign-in safety copy too, so its Undo gets device files back.
+  const signin = safeGetStorage(KEY_SIGNIN_BACKUP, null);
+  if (signin && signin.keys && typeof signin.keys[KEY_CUSTOM_LINKS] === 'string') {
+    try { add(JSON.parse(signin.keys[KEY_CUSTOM_LINKS])); } catch (e) { /* unreadable copy: nothing extra kept */ }
+  }
   return ids;
 }
 
