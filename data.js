@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u127",
+    date: "2026-10-30",
+    title: "Give the app icon a polished, premium look like native Mac apps",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The home screen, dock, install and browser tab icons now use a smooth squircle with a soft gradient and a thin light edge.",
+    points: [
+      "The \"C\" and brand colours are the same, and notification icons are unchanged."
+    ]
+  },
+  {
     id: "u126",
     date: "2026-10-30",
     title: "Keep a student's nudge setting if the settings form is missing a field",
