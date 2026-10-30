@@ -199,6 +199,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u131",
+    date: "2026-10-31",
+    title: "Signing in on a phone that already has data now asks before mixing it with your account",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Signing in on a phone that already has data now asks before mixing it with your account",
+    points: [
+
+    ]
+  },
+  {
+    id: "u130",
+    date: "2026-10-31",
+    title: "Syncing between devices no longer risks repeated saves or merged folders",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Syncing between devices no longer risks repeated saves or merged folders",
+    points: [
+
+    ]
+  },
+  {
+    id: "u129",
+    date: "2026-10-31",
+    title: "Your tasks and vault no longer overwrite each other when you use two devices",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Your tasks and vault no longer overwrite each other when you use two devices",
+    points: [
+
+    ]
+  },
+  {
+    id: "u128",
+    date: "2026-10-31",
+    title: "Explain why Google sign-in sometimes shows no account list",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Explain why Google sign-in sometimes shows no account list",
+    points: [
+
+    ]
+  },
+  {
     id: "u127",
     date: "2026-10-30",
     title: "Give the app icon a polished, premium look like native Mac apps",
