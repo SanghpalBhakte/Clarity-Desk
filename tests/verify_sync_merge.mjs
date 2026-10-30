@@ -180,6 +180,35 @@ check('observeStamp clamps a far-future stamp (3 days) to about now + 24 h, and 
   return capped && Number(store.cos_sync_clock) === v ? true : String(v);
 });
 
+check('A clock poisoned 30 days ahead is capped: next stamp <= now + 24 h + 1 and still increasing', () => {
+  store.cos_sync_clock = String(Date.now() + 30 * DAY);
+  const a = app.nextStamp(), b = app.nextStamp();
+  const lim = Date.now() + DAY + 1;
+  return a <= lim && b <= lim && a < b ? true : JSON.stringify([a, b, lim]);
+});
+
+check('Tombstone ids 1 and "1" are one tombstone (merge and prune), larger deletedAt wins', () => {
+  const now = Date.now();
+  const m = app.mergeTombstones([{ id: 1, deletedAt: 5 }], [{ id: '1', deletedAt: 9 }]);
+  const p = app.pruneTombstones([{ id: 1, deletedAt: now - 2000 }, { id: '1', deletedAt: now - 1000 }], now);
+  return m.length === 1 && m[0].deletedAt === 9 && p.length === 1 && p[0].deletedAt === now - 1000 ? true : JSON.stringify({ m, p });
+});
+
+check('mergeRecords: numeric record id vs string tombstone id (and the reverse) still removes', () => {
+  const k = (r) => String(r.id);
+  const r1 = app.mergeRecords([{ id: 1, updatedAt: 1 }], [], [{ id: '1', deletedAt: 5 }], k);
+  const r2 = app.mergeRecords([{ id: '2', updatedAt: 1 }], [], [{ id: 2, deletedAt: 5 }], k);
+  return r1.merged.length === 0 && r2.merged.length === 0 ? true : JSON.stringify({ r1, r2 });
+});
+
+check('Far-future tombstone (now + 365 days) is stored as <= now and a later edit survives', () => {
+  const now = Date.now();
+  const t = app.mergeTombstones([{ id: 'a', deletedAt: now + 365 * DAY }], []);
+  const p = app.pruneTombstones([{ id: 'a', deletedAt: now + 365 * DAY }], now);
+  const r = app.mergeRecords([{ id: 'a', updatedAt: now + 1000 }], [], t, keyOf);
+  return t[0].deletedAt <= now && p[0].deletedAt <= now && r.merged.length === 1 ? true : JSON.stringify({ t, p, r });
+});
+
 check('A corrupt cos_sync_clock value does not break nextStamp', () => {
   store.cos_sync_clock = 'garbage';
   const a = app.nextStamp();

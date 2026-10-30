@@ -3645,20 +3645,21 @@ function clampStamp(n, now = Date.now()) {
 }
 
 function readSyncClock() {
-  try {
-    const v = Number(localStorage.getItem(KEY_SYNC_CLOCK));
-    return Number.isFinite(v) && v > 0 ? v : 0;
-  } catch (e) { return 0; }
+  const v = Number(safeGetStorage(KEY_SYNC_CLOCK, 0));
+  return Number.isFinite(v) && v > 0 ? v : 0;
 }
 
 function writeSyncClock(v) {
-  try { localStorage.setItem(KEY_SYNC_CLOCK, String(v)); } catch (e) {}
+  safeSetStorage(KEY_SYNC_CLOCK, String(v));
 }
 
 // Next edit stamp: never goes backwards, so two edits in one millisecond
 // (or after a clock change) still get increasing stamps.
 function nextStamp() {
-  const n = Math.max(Date.now(), readSyncClock() + 1);
+  const now = Date.now();
+  // A once-wrong clock must not leave every later stamp more than 24 h ahead.
+  const last = readSyncClock();
+  const n = Math.max(now, (last > now + SYNC_FUTURE_LIMIT_MS ? 0 : last) + 1);
   writeSyncClock(n);
   return n;
 }
@@ -3702,23 +3703,28 @@ function mergeRecords(local, cloud, tombstones, keyOf) {
   return { merged, changed, removedLocal };
 }
 
+// One entry per String(id), deletedAt clamped (a far-future one would never expire), larger wins.
+function normalizeTombstones(list, now = Date.now()) {
+  const m = new Map();
+  (Array.isArray(list) ? list : []).forEach(t => {
+    if (!t || t.id == null) return;
+    const id = String(t.id), deletedAt = clampStamp(t.deletedAt, now), cur = m.get(id);
+    if (!cur || deletedAt > cur.deletedAt) m.set(id, { ...t, id, deletedAt });
+  });
+  return [...m.values()];
+}
+
 // Drop tombstones older than 30 days, then keep the newest 200.
 function pruneTombstones(t, now = Date.now()) {
-  return (Array.isArray(t) ? t : [])
-    .filter(x => x && x.id != null && now - clampStamp(x.deletedAt, now) <= TOMBSTONE_MAX_AGE_MS)
-    .sort((a, b) => clampStamp(b.deletedAt, now) - clampStamp(a.deletedAt, now))
+  return normalizeTombstones(t, now)
+    .filter(x => now - x.deletedAt <= TOMBSTONE_MAX_AGE_MS)
+    .sort((a, b) => b.deletedAt - a.deletedAt)
     .slice(0, TOMBSTONE_MAX_COUNT);
 }
 
 // Union by id, the larger deletedAt wins.
 function mergeTombstones(a, b) {
-  const m = new Map();
-  [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : []).forEach(t => {
-    if (!t || t.id == null) return;
-    const cur = m.get(t.id);
-    if (!cur || clampStamp(t.deletedAt) > clampStamp(cur.deletedAt)) m.set(t.id, t);
-  });
-  return [...m.values()];
+  return normalizeTombstones([].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : []));
 }
 
 function calculatePayloadHash(data) {
