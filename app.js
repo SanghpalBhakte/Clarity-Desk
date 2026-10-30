@@ -22,6 +22,10 @@ const KEY_ATT_V2_STATE        = 'cos_att_v2_state';
 const KEY_ATT_REASSIGN_LOG    = 'cos_att_reassign_log';
 // Local-only (never synced): attendance as last synced, for sending deletes.
 const KEY_SYNC_LAST_PUSHED    = 'cos_sync_last_pushed';
+// Local-only (never synced): edit clock behind the updatedAt stamps.
+const KEY_SYNC_CLOCK          = 'cos_sync_clock';
+// Synced: {id, deletedAt} for deleted tasks/resources, so a delete wins over an older copy.
+const KEY_TOMBSTONES          = 'cos_tombstones';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -3622,6 +3626,99 @@ function stableStringify(v) {
     return `{${Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
   }
   return JSON.stringify(v === undefined ? null : v);
+}
+
+// ── Sync merge (offline-first) ──
+// Pure building blocks, not used by apply/push yet. A record's updatedAt is a
+// ms stamp from nextStamp(); the higher stamp wins, a tie takes the cloud copy,
+// a missing stamp counts as 0. Tombstones are {id, deletedAt} for deletes.
+const SYNC_FUTURE_LIMIT_MS = 24 * 60 * 60 * 1000;
+const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const TOMBSTONE_MAX_COUNT = 200;
+
+// 0 for a missing/invalid stamp; a stamp more than 24 h ahead is treated as now,
+// so a device with a wrong clock cannot win every merge forever.
+function clampStamp(n, now = Date.now()) {
+  const v = Number(n);
+  if (n == null || n === '' || !Number.isFinite(v) || v < 0) return 0;
+  return v > now + SYNC_FUTURE_LIMIT_MS ? now : v;
+}
+
+function readSyncClock() {
+  try {
+    const v = Number(localStorage.getItem(KEY_SYNC_CLOCK));
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch (e) { return 0; }
+}
+
+function writeSyncClock(v) {
+  try { localStorage.setItem(KEY_SYNC_CLOCK, String(v)); } catch (e) {}
+}
+
+// Next edit stamp: never goes backwards, so two edits in one millisecond
+// (or after a clock change) still get increasing stamps.
+function nextStamp() {
+  const n = Math.max(Date.now(), readSyncClock() + 1);
+  writeSyncClock(n);
+  return n;
+}
+
+// Raise the clock to a stamp seen in the cloud so our next edit sorts after it.
+function observeStamp(n) {
+  const v = clampStamp(n, Date.now());
+  const capped = Number(n) > Date.now() + SYNC_FUTURE_LIMIT_MS ? Date.now() + SYNC_FUTURE_LIMIT_MS : v;
+  if (capped > readSyncClock()) writeSyncClock(capped);
+}
+
+// One pass over a Map keyed by keyOf. removedLocal = local records a tombstone removed.
+function mergeRecords(local, cloud, tombstones, keyOf) {
+  const now = Date.now();
+  const localList = Array.isArray(local) ? local : [];
+  const cloudList = Array.isArray(cloud) ? cloud : [];
+  const dead = new Map();
+  (Array.isArray(tombstones) ? tombstones : []).forEach(t => {
+    if (t && t.id != null) dead.set(String(t.id), Math.max(dead.get(String(t.id)) || 0, clampStamp(t.deletedAt, now)));
+  });
+  const picked = new Map();   // key -> { rec, fromCloud, inLocal, localRec }
+  localList.forEach(r => picked.set(keyOf(r), { rec: r, fromCloud: false, inLocal: true }));
+  cloudList.forEach(r => {
+    const k = keyOf(r);
+    const cur = picked.get(k);
+    if (!cur) picked.set(k, { rec: r, fromCloud: true, inLocal: false });
+    else if (clampStamp(r.updatedAt, now) >= clampStamp(cur.rec.updatedAt, now)) picked.set(k, { rec: r, fromCloud: true, inLocal: true, localRec: cur.rec });
+  });
+  const merged = [], removedLocal = [];
+  let changed = false;
+  picked.forEach((p, k) => {
+    const d = dead.get(String(k));
+    if (d && d > clampStamp(p.rec.updatedAt, now)) {
+      changed = changed || p.inLocal;
+      if (p.inLocal) removedLocal.push(p.localRec || p.rec);
+      return;
+    }
+    merged.push(p.rec);
+    if (p.fromCloud && (!p.inLocal || stableStringify(p.rec) !== stableStringify(p.localRec))) changed = true;
+  });
+  return { merged, changed, removedLocal };
+}
+
+// Drop tombstones older than 30 days, then keep the newest 200.
+function pruneTombstones(t, now = Date.now()) {
+  return (Array.isArray(t) ? t : [])
+    .filter(x => x && x.id != null && now - clampStamp(x.deletedAt, now) <= TOMBSTONE_MAX_AGE_MS)
+    .sort((a, b) => clampStamp(b.deletedAt, now) - clampStamp(a.deletedAt, now))
+    .slice(0, TOMBSTONE_MAX_COUNT);
+}
+
+// Union by id, the larger deletedAt wins.
+function mergeTombstones(a, b) {
+  const m = new Map();
+  [].concat(Array.isArray(a) ? a : [], Array.isArray(b) ? b : []).forEach(t => {
+    if (!t || t.id == null) return;
+    const cur = m.get(t.id);
+    if (!cur || clampStamp(t.deletedAt) > clampStamp(cur.deletedAt)) m.set(t.id, t);
+  });
+  return [...m.values()];
 }
 
 function calculatePayloadHash(data) {
