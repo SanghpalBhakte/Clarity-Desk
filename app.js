@@ -26,6 +26,9 @@ const KEY_SYNC_LAST_PUSHED    = 'cos_sync_last_pushed';
 const KEY_SYNC_CLOCK          = 'cos_sync_clock';
 // Synced: {id, deletedAt} for deleted tasks/resources, so a delete wins over an older copy.
 const KEY_TOMBSTONES          = 'cos_tombstones';
+// Local-only (never synced): tasks + vault (cloud shape, no file bytes) as they
+// were before a cloud merge removed or overwrote a local record. For Undo.
+const KEY_SYNC_PREV           = 'cos_sync_prev';
 const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
@@ -426,8 +429,19 @@ function showUpdateAvailableBanner() {
 // on the badge until a push works again; data is always safe on the phone.
 let cloudPushFailed = null;
 let cloudPushFailToastShown = false;
+let cloudFullToastShown = false;
+let pushFailCount = 0;
+let pushRetryTimer = null;
+
+// Back-off state goes back to the start after a good push or `online`.
+function resetPushBackoff() {
+  pushFailCount = 0;
+  clearTimeout(pushRetryTimer);
+  pushRetryTimer = null;
+}
 
 function onCloudPushOk() {
+  resetPushBackoff();
   if (!cloudPushFailed) return;
   cloudPushFailed = null;
   updateSyncUI();
@@ -436,9 +450,27 @@ function onCloudPushOk() {
 function onCloudPushError(err) {
   const code = (err && err.code) || 'unknown';
   console.warn('Cloud push error:', err);
+  lastPushed = null;   // the next push must not be skipped as "already sent"
   if (code === 'permission-denied') { updateSyncUI('denied'); return; }
   cloudPushFailed = code;
   updateSyncUI('failed');
+  if (code === 'cloud-full') {
+    // Size guard: nothing was sent. Retrying can't help until the desk shrinks.
+    if (!cloudFullToastShown) {
+      cloudFullToastShown = true;
+      showToast('Your cloud copy is full, so this change was not synced. Everything is safe on this device. Remove large vault links or old tasks to sync again.', 'error');
+    }
+    return;
+  }
+  if (code !== 'invalid-argument') {
+    pushFailCount++;
+    const delay = nextPushDelay(pushFailCount);
+    clearTimeout(pushRetryTimer);
+    pushRetryTimer = delay == null ? null : setTimeout(() => {
+      pushRetryTimer = null;
+      if (currentUser) pushLocalDataToCloud(currentUser.uid);
+    }, delay);
+  }
   if (!cloudPushFailToastShown) {
     cloudPushFailToastShown = true;
     showToast(code === 'invalid-argument'
@@ -3632,7 +3664,7 @@ function stableStringify(v) {
 }
 
 // ── Sync merge (offline-first) ──
-// Pure building blocks, not used by apply/push yet. A record's updatedAt is a
+// Pure building blocks (used by the cloud merge on apply). A record's updatedAt is a
 // ms stamp from nextStamp(); the higher stamp wins, a tie takes the cloud copy,
 // a missing stamp counts as 0. Tombstones are {id, deletedAt} for deletes.
 const SYNC_FUTURE_LIMIT_MS = 24 * 60 * 60 * 1000;
@@ -3706,6 +3738,12 @@ function mergeRecords(local, cloud, tombstones, keyOf) {
   return { merged, changed, removedLocal };
 }
 
+// One fixed order for tombstones (newest first, then id), so two devices
+// holding the same set always compare and push them identically.
+function byTombstoneOrder(a, b) {
+  return (Number(b.deletedAt) - Number(a.deletedAt)) || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0);
+}
+
 // One entry per String(id), deletedAt clamped (a far-future one would never expire), larger wins.
 function normalizeTombstones(list, now = Date.now()) {
   const m = new Map();
@@ -3714,14 +3752,13 @@ function normalizeTombstones(list, now = Date.now()) {
     const id = String(t.id), deletedAt = clampStamp(t.deletedAt, now), cur = m.get(id);
     if (!cur || deletedAt > cur.deletedAt) m.set(id, { ...t, id, deletedAt });
   });
-  return [...m.values()];
+  return [...m.values()].sort(byTombstoneOrder);
 }
 
 // Drop tombstones older than 30 days, then keep the newest 200.
 function pruneTombstones(t, now = Date.now()) {
   return normalizeTombstones(t, now)
     .filter(x => now - x.deletedAt <= TOMBSTONE_MAX_AGE_MS)
-    .sort((a, b) => b.deletedAt - a.deletedAt)
     .slice(0, TOMBSTONE_MAX_COUNT);
 }
 
@@ -3757,7 +3794,9 @@ function stampChanges(prev, next, keyOf, opts) {
     stamped.add(k);
     return { ...r, updatedAt: nextStamp() };
   });
-  const gone = [...before.keys()].filter(k => !seen.has(k));
+  // opts.noTombstone: keys removed by a rule every device applies (the 14-day prune).
+  const quiet = opts && opts.noTombstone;
+  const gone = [...before.keys()].filter(k => !seen.has(k) && !(quiet && quiet.has(k)));
   if (gone.length || stamped.size) {
     const existing = safeGetStorage(KEY_TOMBSTONES, []);
     const kept = (Array.isArray(existing) ? existing : []).filter(t => !(t && stamped.has(String(t.id))));
@@ -3780,18 +3819,35 @@ function stampVault(prev, next, opts) {
   };
   if (!Array.isArray(next)) return next;
   const done = stampChanges(flat(prev), flat(next), r => vaultKey(owner.get(r), r), opts);
+  stampSections(prev, next);
   let i = 0;
   return next.map(s => (s && Array.isArray(s.resources))
     ? { ...s, resources: s.resources.map(r => (r && typeof r === 'object') ? done[i++] : r) }
     : s);
 }
 
+// Vault sections have no stamps; a removed section leaves a tombstone
+// `sec|<code or subject>` so an empty folder deleted here is not brought back
+// by a stale device. Adding the section again clears it.
+const sectionStoneId = (s) => `sec|${s.code || s.subject}`;
+function stampSections(prev, next) {
+  const ids = (list) => new Set((Array.isArray(list) ? list : []).filter(s => s && typeof s === 'object').map(sectionStoneId));
+  const before = ids(prev), after = ids(next);
+  const gone = [...before].filter(k => !after.has(k)), added = new Set([...after].filter(k => !before.has(k)));
+  if (!gone.length && !added.size) return;
+  const existing = safeGetStorage(KEY_TOMBSTONES, []);
+  const kept = (Array.isArray(existing) ? existing : []).filter(t => !(t && added.has(String(t.id))));
+  const merged = pruneTombstones(mergeTombstones(kept, gone.map(id => ({ id, deletedAt: nextStamp() }))));
+  if (stableStringify(merged) !== stableStringify(existing)) safeSetStorage(KEY_TOMBSTONES, merged);
+}
+
 // Write a stamped list; if the write fails, put the tombstones back as they were.
-function writeStamped(storageKey, stampFn) {
+// write(list) -> true/false replaces the plain safeSetStorage (restore uses it).
+function writeStamped(storageKey, stampFn, write) {
   let before = null;
   try { before = localStorage.getItem(KEY_TOMBSTONES); } catch (e) { /* storage blocked */ }
   const list = stampFn();
-  const ok = safeSetStorage(storageKey, list);
+  const ok = write ? write(list) : safeSetStorage(storageKey, list);
   if (!ok) {
     try { if (before == null) localStorage.removeItem(KEY_TOMBSTONES); else localStorage.setItem(KEY_TOMBSTONES, before); } catch (e) { /* storage blocked */ }
   }
@@ -3805,6 +3861,154 @@ function persistCustomTasks(next, opts) {
 
 function persistCustomLinks(next, opts) {
   return writeStamped(KEY_CUSTOM_LINKS, () => stampVault(loadCustomLinks(), next, opts));
+}
+
+// ── Cloud merge on apply ──
+// Merged lists follow the cloud's order, then records only on this device in
+// local order, so two devices settle on one order instead of trading pushes.
+function cloudOrder(merged, cloudList, keyOf) {
+  const at = new Map();
+  cloudList.forEach((r, i) => at.set(String(keyOf(r)), i));
+  return merged
+    .map((r, i) => ({ r, c: at.has(String(keyOf(r))) ? at.get(String(keyOf(r))) : Infinity, i }))
+    .sort((a, b) => (a.c - b.c) || (a.i - b.i))
+    .map(x => x.r);
+}
+
+// True when some local record is gone from merged or replaced by different content.
+function lostLocal(local, merged, keyOf) {
+  const out = new Map(merged.map(r => [String(keyOf(r)), stableStringify(r)]));
+  return local.some(r => out.get(String(keyOf(r))) !== stableStringify(r));
+}
+
+// Vault merge. Resources merge per record (vaultKey; newest stamp wins, a tie
+// takes the cloud copy, tombstones apply). Cloud placeholders for files this
+// device holds first get the local file back (mergeCloudLinks), so a device
+// file always survives. Sections carry no stamps, so their rule is:
+//  - sections in the cloud copy: cloud order and cloud subject/code/color,
+//    kept even when empty;
+//  - sections only on this device follow, in local order; kept if they still
+//    have resources after the merge, or were empty here already (new, not
+//    synced yet); one whose resources were all deleted elsewhere is dropped;
+//  - a section left empty by the merge is dropped (on either side) when it
+//    has a section tombstone (`sec|key`, deleted on some device); a section
+//    that still holds resources is always kept (content wins).
+// A resource sits in the section its key names (code, else subject); two
+// sections with the same key, or identical resources, fold into one. When
+// that happens on this device, `lost` is set so cos_sync_prev keeps the
+// unfolded copy first.
+function mergeVaultLinks(localLinks, cloudLinks, tombstones) {
+  const local = Array.isArray(localLinks) ? localLinks : [];
+  const cloud = mergeCloudLinks(cloudLinks, local);
+  const secKey = (s) => String(s.code || s.subject);
+  const owner = new Map();
+  const flat = (list) => {
+    const out = [];
+    list.forEach(s => (s && typeof s === 'object' && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+      if (r && typeof r === 'object') { owner.set(r, s); out.push(r); }
+    }));
+    return out;
+  };
+  const lf = flat(local), cf = flat(cloud);
+  const keyOf = (r) => vaultKey(owner.get(r), r);
+  const merged = cloudOrder(mergeRecords(lf, cf, tombstones, keyOf).merged, cf, keyOf);
+  const bySec = new Map();
+  merged.forEach(r => { const k = secKey(owner.get(r)); if (!bySec.has(k)) bySec.set(k, []); bySec.get(k).push(r); });
+  const links = [], seen = new Set();
+  const place = (s, keepEmpty) => {
+    if (!s || typeof s !== 'object') return;
+    const k = secKey(s);
+    if (seen.has(k)) return;
+    seen.add(k);
+    const res = bySec.get(k) || [];
+    if (res.length || keepEmpty) links.push(Array.isArray(s.resources) || res.length ? { ...s, resources: res } : s);
+  };
+  const deadSec = new Set((Array.isArray(tombstones) ? tombstones : []).filter(t => t && t.id != null).map(t => String(t.id)));
+  const stoned = (s) => deadSec.has(sectionStoneId(s));
+  cloud.forEach(s => place(s, !(s && typeof s === 'object' && stoned(s))));
+  local.forEach(s => place(s, !(s && Array.isArray(s.resources) && s.resources.length) && !(s && typeof s === 'object' && stoned(s))));
+  const localSecKeys = local.filter(s => s && typeof s === 'object').map(secKey);
+  const folded = new Set(localSecKeys).size !== localSecKeys.length || new Set(lf.map(keyOf)).size !== lf.length;
+  return { links, lost: folded || lostLocal(lf, merged, keyOf) };
+}
+
+// Same 14-day rule saveCustomTasks applies: done dated tasks older than 14 days go.
+function pruneDoneTasks(list) {
+  const d = new Date();
+  d.setDate(d.getDate() - 14);
+  const cutoffStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return list.filter(t => {
+    if (t.noDeadline || (t.taskType === 'mission' && !t.dueDate)) return true;
+    if (t.status === 'submitted' && t.dueDate && t.dueDate < cutoffStr) return false;
+    return true;
+  });
+}
+
+// Merge the cloud copy's tasks, vault and tombstones into this device. Never
+// stamps (no push loops). Returns true when the result has something the
+// cloud copy lacks, so the caller schedules one push.
+function mergeCloudIntoLocal(data) {
+  const hasTasks = Array.isArray(data.customTasks), hasLinks = Array.isArray(data.customLinks);
+  const cloudStones = Array.isArray(data.tombstones) ? data.tombstones : [];
+  const cloudTasks = hasTasks ? data.customTasks.map(sanitizeTask).filter(Boolean) : [];
+  // Every incoming stamp moves this device's clock on, so its next edit sorts after it.
+  cloudTasks.forEach(t => observeStamp(t.updatedAt));
+  if (hasLinks) data.customLinks.forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => { if (r) observeStamp(r.updatedAt); }));
+  cloudStones.forEach(t => { if (t) observeStamp(t.deletedAt); });
+
+  const localStones = safeGetStorage(KEY_TOMBSTONES, []);
+  const stones = pruneTombstones(mergeTombstones(localStones, cloudStones));
+  const localTasks = loadCustomTasks();
+  const rawLinks = safeGetStorage(KEY_CUSTOM_LINKS, null);
+  const localLinks = Array.isArray(rawLinks) ? rawLinks : [];
+  let tasks = localTasks, links = localLinks, lost = false;
+  if (hasTasks) {
+    const merged = cloudOrder(mergeRecords(localTasks, cloudTasks, stones, taskKey).merged, cloudTasks, taskKey);
+    lost = lostLocal(localTasks, merged, taskKey);
+    // An old done task back from a stale device is pruned again (no tombstone needed).
+    tasks = pruneDoneTasks(merged);
+  }
+  if (hasLinks) {
+    const v = mergeVaultLinks(localLinks, data.customLinks, stones);
+    links = v.links;
+    lost = lost || v.lost;
+  }
+  // What this device had before a merge drops or replaces something; saved
+  // after the lists (best effort), so it can never crowd out the real write.
+  const prevSnap = lost ? { at: Date.now(), customTasks: localTasks, customLinks: linksForCloud(localLinks) } : null;
+  if (hasTasks) {
+    const ok = stableStringify(tasks) === stableStringify(localTasks) || safeSetStorage(KEY_CUSTOM_TASKS, tasks);
+    // state follows storage: if the write failed, keep what is saved.
+    state.customTasks = ok ? tasks : loadCustomTasks();
+    if (!ok) tasks = state.customTasks;
+  }
+  if (hasLinks && (rawLinks === null || stableStringify(links) !== stableStringify(rawLinks))) {
+    if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) links = localLinks;
+  }
+  if (stableStringify(stones) !== stableStringify(localStones)) safeSetStorage(KEY_TOMBSTONES, stones);
+  if (prevSnap) safeSetStorage(KEY_SYNC_PREV, prevSnap);
+  // Compare with the cloud copy after this device's own prune/expiry rules,
+  // so a record this device would drop anyway is not a reason to push.
+  return (hasTasks && stableStringify(tasks) !== stableStringify(pruneDoneTasks(cloudTasks)))
+    || (hasLinks && stableStringify(linksForCloud(links)) !== stableStringify(data.customLinks))
+    || stableStringify(stones) !== stableStringify(pruneTombstones(cloudStones));
+}
+
+// ── Push guards ──
+// Firestore caps one doc at 1 MiB: warn at 700 KB, stop pushing at 900 KB.
+const PUSH_WARN_BYTES = 700000;
+const PUSH_FULL_BYTES = 900000;
+function pushGuard(payload) {
+  const json = JSON.stringify(payload) || '';
+  let bytes = json.length;
+  try { const n = new Blob([json]).size; if (Number.isFinite(n)) bytes = n; } catch (e) { /* no Blob: char count */ }
+  const level = bytes >= PUSH_FULL_BYTES ? 'full' : bytes >= PUSH_WARN_BYTES ? 'warn' : 'ok';
+  return { ok: level !== 'full', bytes, level };
+}
+
+// Back-off after failed pushes: 5 s, 30 s, 2 min, then wait for the next change or `online`.
+function nextPushDelay(failCount) {
+  return [5000, 30000, 120000][failCount - 1] ?? null;
 }
 
 function calculatePayloadHash(data) {
@@ -3833,7 +4037,11 @@ function calculatePayloadHash(data) {
       att: data.attendance || null,
       attB: data.attendanceBaseline || null,
       attL: data.attendanceLive || null,
-      hol: data.holiday || null
+      hol: data.holiday || null,
+      // Vault in its cloud shape (device files as placeholders) and the
+      // delete markers: a vault edit or delete on another device must count.
+      l: Array.isArray(data.customLinks) ? data.customLinks : null,
+      ts: Array.isArray(data.tombstones) && data.tombstones.length ? data.tombstones.filter(t => t && typeof t === 'object').slice().sort(byTombstoneOrder) : null
       // theme deliberately excluded: it's applied via initTheme()/CSS
       // variables, never needs a dashboard rebuild, and including it here
       // was causing every theme switch (and the first cloud echo after
@@ -3869,7 +4077,9 @@ function subscribeUserCloudData(uid) {
     attendance: safeGetStorage(KEY_ATTENDANCE, {}),
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
     attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
-    holiday: safeGetStorage(KEY_HOLIDAY, null)
+    holiday: safeGetStorage(KEY_HOLIDAY, null),
+    customLinks: linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS, null)),
+    tombstones: pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
   });
 
   const userRef = db.collection('users').doc(uid);
@@ -3894,6 +4104,7 @@ function subscribeUserCloudData(uid) {
   // Server Listener with metadata echo filter
   cloudUnsubscribe = userRef.onSnapshot({ includeMetadataChanges: false }, doc => {
     if (!doc || !doc.exists) {
+      lastPushed = null;   // the doc is gone: write it again even if nothing changed here
       pushLocalDataToCloud(uid);
       return;
     }
@@ -3919,6 +4130,13 @@ function subscribeUserCloudData(uid) {
 
 function applyCloudDataToLocalState(data) {
   if (!data || typeof data !== 'object') return;
+  applyingCloudData = true;
+  try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
+}
+
+function applyCloudDataInner(data) {
+  // The cloud copy may now differ from what this device last wrote.
+  lastPushed = null;
   if (data.profile && typeof data.profile === 'object') {
     // Merge onto the current local profile instead of replacing it whole.
     // Two real bugs lived here: `batch` was never in this list at all, so
@@ -3947,20 +4165,13 @@ function applyCloudDataToLocalState(data) {
     applyIfPresent('studyMode', 10);
     safeSetStorage(KEY_PROFILE, cleanProfile);
   }
-  if (Array.isArray(data.customTasks)) {
-    state.customTasks = data.customTasks.map(sanitizeTask).filter(Boolean);
-    safeSetStorage(KEY_CUSTOM_TASKS, state.customTasks);
-  }
+  // Tasks, vault and tombstones merge per record, never a whole-list replace.
+  const mergeNeedsPush = mergeCloudIntoLocal(data);
   if (data.customTimetable && typeof data.customTimetable === 'object') {
     safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
   }
   if (data.timetableChoice && typeof data.timetableChoice === 'string') {
     safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
-  }
-  if (Array.isArray(data.customLinks)) {
-    // Merge, never replace: the cloud holds placeholders for files that
-    // live only on this device.
-    safeSetStorage(KEY_CUSTOM_LINKS, mergeCloudLinks(data.customLinks, safeGetStorage(KEY_CUSTOM_LINKS, [])));
   }
   if (Array.isArray(data.syllabus)) {
     safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
@@ -4028,6 +4239,8 @@ function applyCloudDataToLocalState(data) {
     safeSetStorage(KEY_HOLIDAY, data.holiday);
     checkHolidayExpiry();
   }
+  // One push (2.5 s debounce) when the merge kept something the cloud lacks.
+  if (mergeNeedsPush) syncToCloud();
   updateTopbarProfile();
   setupFABDrag();
   updateNavBadges();
@@ -4037,6 +4250,9 @@ function applyCloudDataToLocalState(data) {
 }
 
 let syncDebounceTimer = null;
+// Memory only: { uid, hash } of the last write sent, to skip an identical one.
+let lastPushed = null;
+let cloudFullWarned = false;
 
 function pushLocalDataToCloud(uid) {
   if (!db || !uid) return;
@@ -4060,13 +4276,23 @@ function pushLocalDataToCloud(uid) {
     attTarget:          getAttendanceTarget(),
     attSummary:         buildAttendanceCloudSummary(),
     holiday:            safeGetStorage(KEY_HOLIDAY, null),
-    updatedAt:          firebase.firestore.FieldValue.serverTimestamp()
+    tombstones:         pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
   };
+  const guard = pushGuard(payload);
+  if (!guard.ok) { onCloudPushError({ code: 'cloud-full' }); return; }
+  if (guard.level === 'warn' && !cloudFullWarned) {
+    cloudFullWarned = true;
+    showToast('Your cloud copy is getting full. Everything is still saved on this device.', 'info');
+  }
+  const hash = calculatePayloadHash(payload);
+  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) return;
+  lastPushed = { uid, hash };
+  payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
   // Mark this write's hash as already-seen so its own ack echo (which
   // comes back through onSnapshot once the server confirms it) isn't
   // mistaken for an incoming remote change and doesn't trigger a needless
   // full re-render of whatever page is currently open.
-  lastCloudPayloadHash = calculatePayloadHash(payload);
+  lastCloudPayloadHash = hash;
   const ref = db.collection('users').doc(uid);
   const deletes = computeSyncDeletePaths(safeGetStorage(KEY_SYNC_LAST_PUSHED, null), payload);
   ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);
@@ -4641,7 +4867,29 @@ window.vaultOpenFile = async function(fileId) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 };
 
+// Circuit breaker (free-tier write quota): pushes started while applying
+// cloud data may run at most 3 times per rolling minute. Beyond that they
+// are skipped (one console warning) until a local edit or a quiet minute.
+// Guards against loops from per-device clock/date differences.
+const APPLY_PUSH_MAX = 3;
+const APPLY_PUSH_WINDOW_MS = 60000;
+let applyingCloudData = false;
+let applyPushTimes = [];
+let applyPushWarned = false;
+function allowApplyPush(now = Date.now()) {
+  applyPushTimes = applyPushTimes.filter(t => now - t < APPLY_PUSH_WINDOW_MS);
+  if (!applyPushTimes.length) applyPushWarned = false;
+  if (applyPushTimes.length >= APPLY_PUSH_MAX) {
+    if (!applyPushWarned) { applyPushWarned = true; console.warn('Cloud sync: too many pushes after cloud updates; pausing them until the next change.'); }
+    return false;
+  }
+  applyPushTimes.push(now);
+  return true;
+}
+
 function syncToCloud() {
+  if (applyingCloudData) { if (!allowApplyPush()) return; }
+  else { applyPushTimes = []; applyPushWarned = false; }
   schedulePushSync();
   if (!currentUser) return;
   clearTimeout(syncDebounceTimer);
@@ -5898,20 +6146,13 @@ function loadCustomTasks() {
 
 function saveCustomTasks(opts) {
   // Prune completed dated tasks older than 14 days; never prune ongoing/standing missions
-  const fourteenDaysAgo = new Date();
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-  const cutoffStr = `${fourteenDaysAgo.getFullYear()}-${String(fourteenDaysAgo.getMonth()+1).padStart(2,'0')}-${String(fourteenDaysAgo.getDate()).padStart(2,'0')}`;
-
-  state.customTasks = state.customTasks
-    .map(sanitizeTask)
-    .filter(Boolean)
-    .filter(t => {
-      if (t.noDeadline || (t.taskType === 'mission' && !t.dueDate)) return true;
-      if (t.status === 'submitted' && t.dueDate && t.dueDate < cutoffStr) return false;
-      return true;
-    });
-
-  state.customTasks = persistCustomTasks(state.customTasks, opts);
+  const all = state.customTasks.map(sanitizeTask).filter(Boolean);
+  const kept = pruneDoneTasks(all);
+  // Pruned tasks leave no tombstone: every device (and every cloud apply)
+  // runs the same rule, and a tombstone from a stale device could delete a
+  // task another device reopened offline.
+  const pruned = new Set(all.filter(t => !kept.includes(t)).map(taskKey));
+  state.customTasks = persistCustomTasks(kept, { ...opts, noTombstone: pruned });
   syncToCloud();
 }
 
@@ -16999,8 +17240,12 @@ function importData(event) {
       let vaultDropped = [];
       if (data.customLinks && vaultIdbOk === true) data.customLinks = await vaultLinksIntoIdb(data.customLinks);
       if (data.customLinks) {
-        data.customLinks = stampVault(loadCustomLinks(), data.customLinks, { all: true });
-        vaultDropped = saveLinksFittingStorage(data.customLinks).dropped;
+        // If the vault can't be saved, its tombstones are rolled back too.
+        writeStamped(KEY_CUSTOM_LINKS, () => (data.customLinks = stampVault(loadCustomLinks(), data.customLinks, { all: true })), () => {
+          const r = saveLinksFittingStorage(data.customLinks);
+          vaultDropped = r.dropped;
+          return r.ok;
+        });
       }
 
       updateTopbarProfile();
@@ -17891,6 +18136,7 @@ function init() {
 
   // Network connectivity status listeners
   window.addEventListener('online', () => {
+    resetPushBackoff();
     showToast('Back online. Cloud sync is on ✓', 'success');
     updateSyncUI();
     flushFeedbackQueue();
