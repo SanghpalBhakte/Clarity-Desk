@@ -16672,8 +16672,9 @@ function saveSettings() {
     attendanceAlerts: document.getElementById('np-attendance-alerts')?.value || 'instant',
     newNotices: document.getElementById('np-new-notices')?.value || 'instant',
     dailySummaryTime: document.getElementById('np-summary-time')?.value || '08:00',
-    ongoingNudges: document.getElementById('np-ongoing-nudges')?.value || 'off',
-    ongoingNudgeTime: document.getElementById('np-nudge-time')?.value || '18:00',
+    // Opt-in settings keep their saved value if a field is missing, never reset to off.
+    ongoingNudges: document.getElementById('np-ongoing-nudges')?.value || loadNotifPrefs().ongoingNudges,
+    ongoingNudgeTime: document.getElementById('np-nudge-time')?.value || loadNotifPrefs().ongoingNudgeTime,
   };
   saveNotifPrefs(nPrefs);
 
