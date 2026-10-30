@@ -111,7 +111,7 @@
 - Test: `tests/verify_signin_merge.mjs`; extend `tests/mobile-layout.spec.ts` or `tests/clarity-visual-verification.spec.ts` for the modal.
 
 **Interfaces:**
-- Consumes: `mergeRecords`, probe result from Task 1 (Gap confirmed: _fill in from Task 1_).
+- Consumes: `mergeRecords`, probe result from Task 1 (Gap confirmed: yes. A cloud doc replaces local tasks on first sign-in; the local task is lost and nothing is pushed).
 - Produces: `needsSigninReview(uid: string, localHasData: boolean, cloudHasData: boolean): boolean` (true only if both have data and `cos_signin_seen` does not list `uid`); `applySigninChoice(choice: 'both'|'cloud'|'device', cloudData: object): void`; `undoSignin(): boolean` restoring `cos_signin_backup`.
 
 - [ ] **Step 1:** Failing tests: one side empty returns false and nothing is shown; both have data returns true and nothing is written until a choice; `cos_signin_backup` exists before any write; `'both'` equals `mergeRecords` result; `undoSignin()` restores the exact prior tasks and links; second sign-in with the same uid never asks again.
