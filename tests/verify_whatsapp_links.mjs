@@ -143,7 +143,7 @@ check('Only ticked links are saved, into the right subjects; a missing subject i
   if (!dbms || dbms.resources.length !== 2 || dbms.resources[1].url !== LINKS()[0].url || dbms.resources[1].icon !== 'database') return JSON.stringify(dbms);
   if (!os || os.resources.length !== 1 || os.resources[0].icon !== 'video') return JSON.stringify(os);
   const shape = Object.keys(dbms.resources[1]).sort().join();
-  if (shape !== 'fileSize,icon,isUpload,label,url') return `shape ${shape}`;
+  if (shape !== 'fileSize,icon,isUpload,label,updatedAt,url') return `shape ${shape}`;
   return !v.some(s => s.subject === 'General') && toasts.some(t => /Added 2 links/.test(t)) ? true : `${JSON.stringify(v)} ${toasts}`;
 });
 
