@@ -53,6 +53,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 
 ## Reminders
 - Foreground: timers in `app.js` (one `setInterval` at ~22102) plus local Notification API.
+- Gentle nudges for ongoing (no-deadline) tasks: foreground only, opt-in. Optional `cos_notif_prefs` fields `ongoingNudges` (`off` default | `daily` | `every_2_days` | `weekly`) and `ongoingNudgeTime` (`HH:MM`, default 18:00); older saved prefs load unchanged. Rule 6 in `checkScheduledNotifications`: at most one nudge a day, from the chosen time to 3 hours after it (`ongoingNudgeDue`), one task per nudge rotating (`pickOngoingNudgeTask`), wording from `buildOngoingNudge` (never due/overdue). Skips tasks resting in holiday mode. Markers `ongoing_last_date` / `ongoing_last_task` live in `cos_notified_history` (kept by `pruneNotifiedHistory`). The Settings save handler rebuilds the whole prefs object, so any new pref must be added there too. Locked by `tests/verify_ongoing_nudges.mjs`.
 - Closed app: device registers with `push-worker`; reminders are sent from D1 by a Cloudflare cron. The old Firebase (FCM) push path (client, `sw.js` handler, GitHub job) was removed on 2026-10-28; `sw.js` loads no third-party scripts.
 
 ## Quality gates
