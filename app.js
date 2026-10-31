@@ -10067,9 +10067,9 @@ function wireCalendarSwipe(el) {
   }, { passive: true });
 }
 
-// Double-tap a date (same cell twice within 500ms): an empty day opens the Add form for it,
-// a day with items scrolls to its list (the "+ Add" button sits right under it).
-// Tracked by key, not by DOM event, because the first tap re-renders the grid.
+// Double-tap a date (same cell twice within 500ms) opens that day's card: its agenda
+// plus an Add button (today and later). Tracked by key, not by DOM event, because the
+// first tap re-renders the grid.
 let calLastTap = { key: '', t: 0 };
 window.calSelectDate = (key) => {
   const now = Date.now();
@@ -10077,11 +10077,38 @@ window.calSelectDate = (key) => {
   calLastTap = isDouble ? { key: '', t: 0 } : { key, t: now };
   state.calSelected = key;
   renderCalendar();
-  if (!isDouble) return;
-  const day = document.querySelector('#page-calendar .cal-day');
-  if (day && day.querySelector('.cal-day-list')) day.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  else if (key >= todayStr()) calQuickAdd(key);
+  if (isDouble) calOpenDayCard(key);
 };
+function calOpenDayCard(key) {
+  document.getElementById('cal-day-backdrop')?.remove();
+  const esc = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const items = getCalendarItems(key, key);
+  const d = new Date(key + 'T00:00:00');
+  const title = `${DAY_NAMES[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+  const close = `document.getElementById('cal-day-backdrop')?.remove()`;
+  const list = items.length
+    ? `<ul class="cal-day-list">${items.map(it => calItemHtml(it, esc)).join('')}</ul>`
+    : '<p class="cal-day-empty">Nothing on this day.</p>';
+  const add = key >= todayStr()
+    ? `<button type="button" class="btn-primary" onclick="calQuickAdd('${key}')">+ Add</button>` : '';
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'cal-day-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:440px;width:92vw">
+      <div class="modal-header">
+        <span class="modal-title">${title}</span>
+        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
+      </div>
+      <div class="modal-body">${list}</div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px">
+        <button type="button" class="btn-secondary" onclick="${close}">Close</button>
+        ${add}
+      </div>
+    </div>`;
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
 window.calShiftMonth = (delta) => {
   const [y, m] = (state.calMonth || todayStr().slice(0, 7)).split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -10095,10 +10122,14 @@ window.calGoToday = () => {
   state.calMonth = state.calSelected.slice(0, 7);
   renderCalendar();
 };
-window.calQuickAdd = (key) => showAddTaskModal(null, null, 'assignment', key);
+window.calQuickAdd = (key) => {
+  document.getElementById('cal-day-backdrop')?.remove();
+  showAddTaskModal(null, null, 'assignment', key);
+};
 // Opens the item's existing screen: a class's weekday on Timetable, a task's
 // edit form. The calendar has no edit UI of its own.
 window.calOpenItem = (type, id) => {
+  document.getElementById('cal-day-backdrop')?.remove();
   if (type === 'class') {
     state.ttDay = Number(id);
     navigateTo('timetable');
