@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u139",
+    date: "2026-10-31",
+    title: "Removed the 'Next deadline' task card from Today after classes end",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Removed the 'Next deadline' task card from Today after classes end",
+    points: [
+
+    ]
+  },
+  {
+    id: "u138",
+    date: "2026-10-31",
+    title: "Double-clicking or double-tapping a date in the Calendar now opens a card with that day's tasks and an Add button",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Double-clicking or double-tapping a date in the Calendar now opens a card with that day's tasks and an Add button",
+    points: [
+
+    ]
+  },
+  {
     id: "u137",
     date: "2026-10-31",
     title: "Double-tapping a date in the Calendar now reliably opens Add Task or shows that day's list on phones",
