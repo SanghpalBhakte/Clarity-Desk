@@ -260,7 +260,7 @@ check('F1: quick-add opens the existing Add Task form with the tapped date prefi
   seed();
   const app = makeApp(); app.renderCalendar();
   const h = domCache['page-calendar'].innerHTML;
-  const hasAction = h.includes(`calQuickAdd('2026-10-20')`) && h.includes('+ Add deadline for Tue, 20 Oct');
+  const hasAction = h.includes(`calQuickAdd('2026-10-20')`) && h.includes('+ Add for Tue, 20 Oct');
   window.calSelectDate('2026-10-14');            // past day: no quick-add
   const pastHidden = !domCache['page-calendar'].innerHTML.includes('calQuickAdd(');
   const before = JSON.stringify(store);
