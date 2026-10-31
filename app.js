@@ -9022,7 +9022,7 @@ function hasExistingUserData() {
 // Welcome: full screen. Three questions students actually ask, each answered
 // by a small note made of real app pieces, then Show me around (name, then
 // the tour) or Log in. Sample text only; nothing here reads stored data.
-const OB_LOGO = `<svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M 23.36 11.75 A 8.5 8.5 0 1 0 23.36 20.25" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="currentColor"/></svg>`;
+const OB_LOGO = `<img src="favicon.svg" alt="" width="24" height="24" style="border-radius:6px">`;
 
 window.showOnboardingModal = function() {
   if (document.getElementById('onboarding-backdrop')) return;
