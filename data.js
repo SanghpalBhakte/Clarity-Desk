@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u140",
+    date: "2026-10-31",
+    title: "Calendar: you can now add a task on any date, including past days",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calendar: you can now add a task on any date, including past days",
+    points: [
+
+    ]
+  },
+  {
     id: "u139",
     date: "2026-10-31",
     title: "Removed the 'Next deadline' task card from Today after classes end",
