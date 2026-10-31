@@ -10067,13 +10067,13 @@ function wireCalendarSwipe(el) {
   }, { passive: true });
 }
 
-// Double-tap a date (same cell twice within 400ms): an empty day opens the Add form for it,
+// Double-tap a date (same cell twice within 500ms): an empty day opens the Add form for it,
 // a day with items scrolls to its list (the "+ Add" button sits right under it).
 // Tracked by key, not by DOM event, because the first tap re-renders the grid.
 let calLastTap = { key: '', t: 0 };
 window.calSelectDate = (key) => {
   const now = Date.now();
-  const isDouble = calLastTap.key === key && now - calLastTap.t < 400;
+  const isDouble = calLastTap.key === key && now - calLastTap.t < 500;
   calLastTap = isDouble ? { key: '', t: 0 } : { key, t: now };
   state.calSelected = key;
   renderCalendar();

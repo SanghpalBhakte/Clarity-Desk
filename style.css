@@ -6632,6 +6632,7 @@ html.more-sheet-open .more-sheet {
   background: transparent; color: var(--text-primary);
   font: inherit; font-size: var(--text-base);
   cursor: pointer;
+  touch-action: manipulation; /* no double-tap zoom, so a double-tap reaches calSelectDate */
   transition: background 0.16s ease, border-color 0.16s ease;
 }
 .cal-cell-pad { cursor: default; }
