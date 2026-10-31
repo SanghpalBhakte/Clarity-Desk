@@ -9955,7 +9955,7 @@ function renderCalendar() {
   // Quick-add opens the existing Add Task form with this date filled in.
   if (hasData && state.calSelected >= todayKey) {
     const shortTitle = `${DAY_SHORT[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
-    dayList += `<button type="button" class="btn-secondary cal-quick-add" onclick="calQuickAdd('${state.calSelected}')">+ Add deadline for ${shortTitle}</button>`;
+    dayList += `<button type="button" class="btn-secondary cal-quick-add" onclick="calQuickAdd('${state.calSelected}')">+ Add for ${shortTitle}</button>`;
   }
 
   let agenda = '';
@@ -10027,7 +10027,21 @@ function wireCalendarSwipe(el) {
   }, { passive: true });
 }
 
-window.calSelectDate = (key) => { state.calSelected = key; renderCalendar(); };
+// Double-tap a date (same cell twice within 400ms): an empty day opens the Add form for it,
+// a day with items scrolls to its list (the "+ Add" button sits right under it).
+// Tracked by key, not by DOM event, because the first tap re-renders the grid.
+let calLastTap = { key: '', t: 0 };
+window.calSelectDate = (key) => {
+  const now = Date.now();
+  const isDouble = calLastTap.key === key && now - calLastTap.t < 400;
+  calLastTap = isDouble ? { key: '', t: 0 } : { key, t: now };
+  state.calSelected = key;
+  renderCalendar();
+  if (!isDouble) return;
+  const day = document.querySelector('#page-calendar .cal-day');
+  if (day && day.querySelector('.cal-day-list')) day.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else if (key >= todayStr()) calQuickAdd(key);
+};
 window.calShiftMonth = (delta) => {
   const [y, m] = (state.calMonth || todayStr().slice(0, 7)).split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
