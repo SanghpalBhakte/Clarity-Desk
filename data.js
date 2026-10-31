@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u132",
+    date: "2026-10-31",
+    title: "Double-tap a date on the calendar to jump to its list or add something to an empty day",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Double-tap a date on the calendar to jump to its list or add something to an empty day",
+    points: [
+
+    ]
+  },
+  {
     id: "u131",
     date: "2026-10-31",
     title: "Signing in on a phone that already has data now asks before mixing it with your account",
