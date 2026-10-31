@@ -446,6 +446,7 @@ function resetPushBackoff() {
 }
 
 function onCloudPushOk() {
+  localPushPendingAt = 0;
   resetPushBackoff();
   if (!cloudPushFailed) return;
   cloudPushFailed = null;
@@ -4347,6 +4348,7 @@ function subscribeUserCloudData(uid) {
       // popping in and out.
       if (currentHash && currentHash === lastCloudPayloadHash) { if (!signinHeld(uid)) markSigninSeen(uid); return; }
       if (signinGate(uid, data)) return;   // first sign-in: ask before applying
+      if (cloudApplyDeferred()) return;   // a newer local change is still on its way up
       lastCloudPayloadHash = currentHash;
       applyCloudDataToLocalState(data);
     }
@@ -4369,6 +4371,7 @@ function subscribeUserCloudData(uid) {
     // Same as this phone already: nothing to mix, so no first sign-in question later.
     if (currentHash && currentHash === lastCloudPayloadHash) { if (!signinHeld(uid)) markSigninSeen(uid); return; }
     if (signinGate(uid, data)) return;   // first sign-in: ask before applying
+    if (cloudApplyDeferred()) return;   // a newer local change is still on its way up
     lastCloudPayloadHash = currentHash;
 
     applyCloudDataToLocalState(data);
@@ -4541,7 +4544,7 @@ function pushLocalDataToCloud(uid) {
     showToast('Your cloud copy is getting full. Everything is still saved on this device.', 'info');
   }
   const hash = calculatePayloadHash(payload);
-  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) return;
+  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) { localPushPendingAt = 0; return; }
   lastPushed = { uid, hash };
   payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
   // Mark this write's hash as already-seen so its own ack echo (which
@@ -5135,6 +5138,12 @@ window.vaultOpenFile = async function(fileId) {
 const APPLY_PUSH_MAX = 3;
 const APPLY_PUSH_WINDOW_MS = 60000;
 let applyingCloudData = false;
+// A local change is waiting to reach the cloud. Until it lands, a cloud copy (even the
+// cached one read when the app regains focus) is older than this phone, so it must not
+// overwrite it -- that is how a cleared timetable used to come back. Expires after 60 s
+// so a push that never lands cannot block cloud updates for good.
+let localPushPendingAt = 0;
+const cloudApplyDeferred = () => localPushPendingAt && Date.now() - localPushPendingAt < 60000;
 let applyPushTimes = [];
 let applyPushWarned = false;
 function allowApplyPush(now = Date.now()) {
@@ -5153,6 +5162,7 @@ function syncToCloud() {
   else { applyPushTimes = []; applyPushWarned = false; }
   schedulePushSync();
   if (!currentUser) return;
+  localPushPendingAt = Date.now();
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     pushLocalDataToCloud(currentUser.uid);
@@ -5163,6 +5173,8 @@ function syncToCloud() {
 document.addEventListener('visibilitychange', () => {
   if (!currentUser || !db) return;
   if (document.hidden) {
+    // The 2.5 s push timer stalls once the app is backgrounded: send the change now.
+    if (localPushPendingAt && cloudUnsubscribe) { clearTimeout(syncDebounceTimer); pushLocalDataToCloud(currentUser.uid); }
     if (cloudUnsubscribe) {
       cloudUnsubscribe();
       cloudUnsubscribe = null;
