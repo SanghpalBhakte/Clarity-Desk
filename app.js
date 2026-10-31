@@ -7731,8 +7731,34 @@ function clearUpcomingAttendanceForNewSchedule(newTT) {
   if (changed) safeSetStorage(KEY_ATTENDANCE, attendanceData);
 }
 
+// In-app yes/no, because the native confirm() is auto-cancelled in installed PWAs and
+// in-app browsers (the button then silently does nothing). `msg` is trusted static text.
+function appConfirm(msg, okLabel, onYes) {
+  document.getElementById('app-confirm-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'app-confirm-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:400px;width:92vw">
+      <div class="modal-body" style="font-size:var(--text-base);line-height:1.45;padding-top:20px">${msg}</div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" class="btn-secondary" data-act="no">Cancel</button>
+        <button type="button" class="btn-primary" data-act="yes">${okLabel}</button>
+      </div>
+    </div>`;
+  backdrop.addEventListener('click', (e) => {
+    const act = e.target.closest && e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'yes') { backdrop.remove(); onYes(); }
+    else if (act === 'no' || e.target === backdrop) backdrop.remove();
+  });
+  document.body.appendChild(backdrop);
+}
+
 function resetTimetableToDefault() {
-  if (!confirm("Clear your timetable schedule and start with a clean slate?")) return;
+  appConfirm('Clear your timetable schedule and start with a clean slate?', 'Clear schedule', doResetTimetable);
+}
+
+function doResetTimetable() {
   safeSetStorage(KEY_CUSTOM_TIMETABLE, getEmptyTimetable());
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
   syncToCloud();
@@ -14036,7 +14062,10 @@ function saveTimetableEntry(oldDay, idx) {
 }
 
 function deleteTimetableEntry(day, idx) {
-  if (!confirm("Delete this class entry?")) return;
+  appConfirm('Delete this class entry?', 'Delete', () => doDeleteTimetableEntry(day, idx));
+}
+
+function doDeleteTimetableEntry(day, idx) {
   const tt = JSON.parse(JSON.stringify(loadTimetable()));
   if (tt[day]?.[idx]) {
     tt[day].splice(idx, 1);
