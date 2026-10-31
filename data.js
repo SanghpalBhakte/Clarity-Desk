@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u135",
+    date: "2026-10-31",
+    title: "The app now shows the official Clarity Desk logo in the top bar and welcome screen",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The app now shows the official Clarity Desk logo in the top bar and welcome screen",
+    points: [
+
+    ]
+  },
+  {
     id: "u134",
     date: "2026-10-31",
     title: "Clear schedule and Delete class now work in the installed app instead of silently doing nothing",
