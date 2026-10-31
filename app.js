@@ -9971,7 +9971,7 @@ function renderCalendar() {
     dayList = `<ul class="cal-day-list">${selItems.map(it => calItemHtml(it, esc)).join('')}</ul>`;
   }
   // Quick-add opens the existing Add Task form with this date filled in.
-  if (hasData && state.calSelected >= todayKey) {
+  if (hasData) {
     const shortTitle = `${DAY_SHORT[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
     dayList += `<button type="button" class="btn-secondary cal-quick-add" onclick="calQuickAdd('${state.calSelected}')">+ Add for ${shortTitle}</button>`;
   }
@@ -10046,7 +10046,7 @@ function wireCalendarSwipe(el) {
 }
 
 // Double-tap a date (same cell twice within 500ms) opens that day's card: its agenda
-// plus an Add button (today and later). Tracked by key, not by DOM event, because the
+// plus an Add button (any date); tapping a task opens its edit form. Tracked by key, not by DOM event, because the
 // first tap re-renders the grid.
 let calLastTap = { key: '', t: 0 };
 window.calSelectDate = (key) => {
@@ -10067,8 +10067,7 @@ function calOpenDayCard(key) {
   const list = items.length
     ? `<ul class="cal-day-list">${items.map(it => calItemHtml(it, esc)).join('')}</ul>`
     : '<p class="cal-day-empty">Nothing on this day.</p>';
-  const add = key >= todayStr()
-    ? `<button type="button" class="btn-primary" onclick="calQuickAdd('${key}')">+ Add</button>` : '';
+  const add = `<button type="button" class="btn-primary" onclick="calQuickAdd('${key}')">+ Add</button>`;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'cal-day-backdrop';

@@ -261,8 +261,8 @@ check('F1: quick-add opens the existing Add Task form with the tapped date prefi
   const app = makeApp(); app.renderCalendar();
   const h = domCache['page-calendar'].innerHTML;
   const hasAction = h.includes(`calQuickAdd('2026-10-20')`) && h.includes('+ Add for Tue, 20 Oct');
-  window.calSelectDate('2026-10-14');            // past day: no quick-add
-  const pastHidden = !domCache['page-calendar'].innerHTML.includes('calQuickAdd(');
+  window.calSelectDate('2026-10-14');            // past day: quick-add too
+  const pastHidden = domCache['page-calendar'].innerHTML.includes(`calQuickAdd('2026-10-14')`);
   const before = JSON.stringify(store);
   const opened = [];
   const realAppend = document.body.appendChild;
@@ -274,7 +274,7 @@ check('F1: quick-add opens the existing Add Task form with the tapped date prefi
   return ok ? true : `action=${hasAction} past=${pastHidden} n=${opened.length} due=${due(opened[0])}/${due(opened[1])}`;
 });
 
-check('F1b: double-tapping a date opens that day\'s card (agenda; Add only from today on)', () => {
+check('F1b: double-tapping a date opens that day\'s card (agenda + Add on any date)', () => {
   seed();
   const app = makeApp(); app.renderCalendar();
   const opened = [];
@@ -291,7 +291,7 @@ check('F1b: double-tapping a date opens that day\'s card (agenda; Add only from 
   const [future, past] = opened.map(n => n.innerHTML || '');
   const ok = afterOne === 0 && opened.length === 2 && opened[0].id === 'cal-day-backdrop'
     && future.includes('Tuesday, 20 Oct') && future.includes(`calQuickAdd('2026-10-20')`)
-    && past.includes('Wednesday, 14 Oct') && !past.includes('calQuickAdd(');
+    && past.includes('Wednesday, 14 Oct') && past.includes(`calQuickAdd('2026-10-14')`);
   return ok ? true : `afterOne=${afterOne} n=${opened.length} future=${future.slice(0, 120)} past=${past.slice(0, 120)}`;
 });
 
