@@ -274,6 +274,27 @@ check('F1: quick-add opens the existing Add Task form with the tapped date prefi
   return ok ? true : `action=${hasAction} past=${pastHidden} n=${opened.length} due=${due(opened[0])}/${due(opened[1])}`;
 });
 
+check('F1b: double-tapping a date opens that day\'s card (agenda; Add only from today on)', () => {
+  seed();
+  const app = makeApp(); app.renderCalendar();
+  const opened = [];
+  const realAppend = document.body.appendChild;
+  document.body.appendChild = (n) => { opened.push(n); };
+  let afterOne;
+  try {
+    window.calSelectDate('2026-10-20');          // one tap: only selects
+    afterOne = opened.length;
+    window.calSelectDate('2026-10-20');          // second tap: card
+    window.calSelectDate('2026-10-14');          // other day, one tap
+    window.calSelectDate('2026-10-14');          // past day, double tap
+  } finally { document.body.appendChild = realAppend; }
+  const [future, past] = opened.map(n => n.innerHTML || '');
+  const ok = afterOne === 0 && opened.length === 2 && opened[0].id === 'cal-day-backdrop'
+    && future.includes('Tuesday, 20 Oct') && future.includes(`calQuickAdd('2026-10-20')`)
+    && past.includes('Wednesday, 14 Oct') && !past.includes('calQuickAdd(');
+  return ok ? true : `afterOne=${afterOne} n=${opened.length} future=${future.slice(0, 120)} past=${past.slice(0, 120)}`;
+});
+
 check('F3: one dot per item up to 3, then "+N"; past days marked; labels list counts', () => {
   const many = [1, 2, 3, 4, 5].map(i => ({ id: `m-${i}`, title: `Item ${i}`, taskType: i < 3 ? 'quiz' : 'study', dueDate: '2026-10-28', status: 'pending' }));
   seed({ tasks: [...TASKS, ...many] });
