@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u137",
+    date: "2026-10-31",
+    title: "Double-tapping a date in the Calendar now reliably opens Add Task or shows that day's list on phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Double-tapping a date in the Calendar now reliably opens Add Task or shows that day's list on phones",
+    points: [
+
+    ]
+  },
+  {
     id: "u136",
     date: "2026-10-31",
     title: "Delete, remove and end-holiday buttons now ask inside the app, so they no longer silently do nothing in the installed app",
