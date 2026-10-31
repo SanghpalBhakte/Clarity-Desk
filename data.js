@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u134",
+    date: "2026-10-31",
+    title: "Clear schedule and Delete class now work in the installed app instead of silently doing nothing",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clear schedule and Delete class now work in the installed app instead of silently doing nothing",
+    points: [
+
+    ]
+  },
+  {
     id: "u133",
     date: "2026-10-31",
     title: "A cleared timetable no longer comes back when you leave and reopen the app",
