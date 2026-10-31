@@ -28,6 +28,10 @@ globalThis.document = {
   body: { appendChild() {} }, documentElement: { setAttribute() {}, getAttribute: () => null, style: {} }
 };
 globalThis.confirm = () => true;
+// appConfirm replaces confirm() in the app: answer it exactly as this stub does.
+{ const mk = document.createElement, body = document.body;
+  document.createElement = (tag) => { const o = mk(tag); let h; o.querySelector = () => ({}); o.addEventListener = (t, f) => { if (t === 'click') h = f; }; o._click = (act) => h && h({ target: { closest: () => ({ dataset: { act } }) } }); return o; };
+  const ap = body.appendChild; body.appendChild = (n) => { ap.call(body, n); if (n && n.id === 'app-confirm-backdrop') n._click(globalThis.confirm() ? 'yes' : 'no'); }; }
 let readerText = '';
 globalThis.FileReader = class { readAsText() { Promise.resolve().then(() => this.onload({ target: { result: readerText } })); } };
 

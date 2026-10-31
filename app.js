@@ -7732,7 +7732,7 @@ function clearUpcomingAttendanceForNewSchedule(newTT) {
 }
 
 // In-app yes/no, because the native confirm() is auto-cancelled in installed PWAs and
-// in-app browsers (the button then silently does nothing). `msg` is trusted static text.
+// in-app browsers (the button then silently does nothing). `msg` is plain text, shown as text.
 function appConfirm(msg, okLabel, onYes) {
   document.getElementById('app-confirm-backdrop')?.remove();
   const backdrop = document.createElement('div');
@@ -7740,12 +7740,13 @@ function appConfirm(msg, okLabel, onYes) {
   backdrop.id = 'app-confirm-backdrop';
   backdrop.innerHTML = `
     <div class="modal" style="max-width:400px;width:92vw">
-      <div class="modal-body" style="font-size:var(--text-base);line-height:1.45;padding-top:20px">${msg}</div>
+      <div class="modal-body" data-msg style="font-size:var(--text-base);line-height:1.45;padding-top:20px;white-space:pre-line"></div>
       <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
         <button type="button" class="btn-secondary" data-act="no">Cancel</button>
         <button type="button" class="btn-primary" data-act="yes">${okLabel}</button>
       </div>
     </div>`;
+  backdrop.querySelector('[data-msg]').textContent = msg;   // text only: messages carry subject/task names
   backdrop.addEventListener('click', (e) => {
     const act = e.target.closest && e.target.closest('[data-act]')?.dataset.act;
     if (act === 'yes') { backdrop.remove(); onYes(); }
@@ -8034,8 +8035,9 @@ function resumeClasses() {
 window.resumeClasses = resumeClasses;
 
 function endHolidayEarly() {
-  if (!confirm('End your holiday now?\n\nClasses, class reminders and ongoing tasks come back today.')) return;
-  resumeClasses();
+  appConfirm('End your holiday now?\n\nClasses, class reminders and ongoing tasks come back today.', 'End holiday', () => {
+    resumeClasses();
+  });
 }
 window.endHolidayEarly = endHolidayEarly;
 
@@ -11611,10 +11613,11 @@ window.assignUnmatchedMark = function(dateStr, key, selectId) {
   const subjectId = document.getElementById(selectId)?.value;
   const subject = getAttendanceV2Derived().store.subjects[subjectId];
   if (!subject) return;
-  if (!confirm(`Count the ${dateStr} mark "${key}" under ${subject.name}?`)) return;
-  const res = reassignAttendanceMark(dateStr, key, subjectId);
-  showToast(res.ok ? `Now counted under ${subject.name} ✓` : res.reason, res.ok ? 'success' : 'error');
-  if (res.ok) renderPage(state.currentPage);
+  appConfirm(`Count the ${dateStr} mark "${key}" under ${subject.name}?`, 'Count it', () => {
+    const res = reassignAttendanceMark(dateStr, key, subjectId);
+    showToast(res.ok ? `Now counted under ${subject.name} ✓` : res.reason, res.ok ? 'success' : 'error');
+    if (res.ok) renderPage(state.currentPage);
+  });
 };
 
 window.undoAttendanceReassign = function() {
@@ -13161,11 +13164,12 @@ window.setSyllabusExamDate = function(subjectKey, value) {
 window.resetSyllabusProgress = function(subjectKey) {
   const entry = findSyllabusEntry(loadSyllabus(), subjectKey);
   if (!entry) return;
-  if (!confirm(`Mark every ${entry.subjectName} topic as not started again?\n\nYour topics, weightage and exam date stay.`)) return;
-  updateSyllabusEntry(subjectKey, (e) => {
-    e.topics.forEach(t => { t.status = 'todo'; delete t.doneAt; delete t.revisedAt; });
+  appConfirm(`Mark every ${entry.subjectName} topic as not started again?\n\nYour topics, weightage and exam date stay.`, 'Yes, reset', () => {
+    updateSyllabusEntry(subjectKey, (e) => {
+      e.topics.forEach(t => { t.status = 'todo'; delete t.doneAt; delete t.revisedAt; });
+    });
+    showToast(`${entry.subjectName} progress reset`, 'info');
   });
-  showToast(`${entry.subjectName} progress reset`, 'info');
 };
 
 // Ask Desk's "Open … syllabus" buttons: open the hub and bring the card
@@ -13183,10 +13187,11 @@ window.removeSyllabus = function(subjectKey) {
   const list = loadSyllabus();
   const entry = findSyllabusEntry(list, subjectKey);
   if (!entry) return;
-  if (!confirm(`Remove the ${entry.subjectName} syllabus (${entry.topics.length} topics)?\n\nThis cannot be undone.`)) return;
-  saveSyllabus(list.filter(e => e.subjectKey !== entry.subjectKey));
-  showToast(`${entry.subjectName} syllabus removed`, 'info');
-  renderPage(state.currentPage);
+  appConfirm(`Remove the ${entry.subjectName} syllabus (${entry.topics.length} topics)?\n\nThis cannot be undone.`, 'Delete', () => {
+    saveSyllabus(list.filter(e => e.subjectKey !== entry.subjectKey));
+    showToast(`${entry.subjectName} syllabus removed`, 'info');
+    renderPage(state.currentPage);
+  });
 };
 
 window.showEditSyllabusTopicModal = function(subjectKey, id) {
@@ -13251,10 +13256,12 @@ window.saveSyllabusTopicEdit = function(subjectKey, id) {
 window.deleteSyllabusTopic = function(subjectKey, id) {
   const entry = findSyllabusEntry(loadSyllabus(), subjectKey);
   const t = entry && entry.topics.find(x => x.id === id);
-  if (!t || !confirm(`Delete "${t.title}"?`)) return;
-  updateSyllabusEntry(subjectKey, (e) => { e.topics = e.topics.filter(x => x.id !== id); });
-  document.getElementById('syl-edit-backdrop')?.remove();
-  showToast('Topic deleted', 'info');
+  if (!t) return;
+  appConfirm(`Delete "${t.title}"?`, 'Delete', () => {
+    updateSyllabusEntry(subjectKey, (e) => { e.topics = e.topics.filter(x => x.id !== id); });
+    document.getElementById('syl-edit-backdrop')?.remove();
+    showToast('Topic deleted', 'info');
+  });
 };
 
 // ── Add topics: paste → preview → save ────────────────────────
@@ -14178,23 +14185,24 @@ window.deleteSelectedTasks = () => {
   const ids = new Set([...taskSelection].filter(id => visible.has(id) && state.customTasks.some(t => t.id === id)));
   if (!ids.size) return;
   const n = ids.size;
-  if (!confirm(`Delete ${n} task${n !== 1 ? 's' : ''}?\n\nYou can undo right after.`)) return;
-  const removed = state.customTasks.filter(t => ids.has(t.id));
-  state.customTasks = state.customTasks.filter(t => !ids.has(t.id));
-  saveCustomTasks();
-  taskSelectMode = false;
-  taskSelection.clear();
-  renderPage(state.currentPage);
-  updateNavBadges();
-  showUndoToast(`${n} task${n !== 1 ? 's' : ''} deleted`, () => {
-    // Put back exactly what was removed. Written directly (not through
-    // saveCustomTasks) so its 14-day clean-up cannot delete them again.
-    const have = new Set(state.customTasks.map(t => t.id));
-    state.customTasks = persistCustomTasks([...state.customTasks, ...removed.filter(t => !have.has(t.id))]);
-    syncToCloud();
+  appConfirm(`Delete ${n} task${n !== 1 ? 's' : ''}?\n\nYou can undo right after.`, 'Delete', () => {
+    const removed = state.customTasks.filter(t => ids.has(t.id));
+    state.customTasks = state.customTasks.filter(t => !ids.has(t.id));
+    saveCustomTasks();
+    taskSelectMode = false;
+    taskSelection.clear();
     renderPage(state.currentPage);
     updateNavBadges();
-    showToast(`${n} task${n !== 1 ? 's' : ''} restored`, 'info');
+    showUndoToast(`${n} task${n !== 1 ? 's' : ''} deleted`, () => {
+      // Put back exactly what was removed. Written directly (not through
+      // saveCustomTasks) so its 14-day clean-up cannot delete them again.
+      const have = new Set(state.customTasks.map(t => t.id));
+      state.customTasks = persistCustomTasks([...state.customTasks, ...removed.filter(t => !have.has(t.id))]);
+      syncToCloud();
+      renderPage(state.currentPage);
+      updateNavBadges();
+      showToast(`${n} task${n !== 1 ? 's' : ''} restored`, 'info');
+    });
   });
 };
 
@@ -16208,12 +16216,13 @@ window.editLinkSubject = function(si) {
 };
 
 window.deleteLinkSubject = function(si) {
-  if (!confirm('Delete this subject and all its materials?')) return;
-  const links = loadCustomLinks();
-  links.splice(si, 1);
-  saveCustomLinks(links);
-  showToast('Subject removed from vault', 'info');
-  renderLinks();
+  appConfirm('Delete this subject and all its materials?', 'Delete', () => {
+    const links = loadCustomLinks();
+    links.splice(si, 1);
+    saveCustomLinks(links);
+    showToast('Subject removed from vault', 'info');
+    renderLinks();
+  });
 };
 
 window.addLinkResource = function(si) {
@@ -16226,13 +16235,14 @@ window.editLinkResource = function(si, ri) {
 };
 
 window.deleteLinkResource = function(si, ri) {
-  if (!confirm('Delete this resource?')) return;
-  const links = loadCustomLinks();
-  const [gone] = links[si].resources.splice(ri, 1);
-  saveCustomLinks(links);
-  if (isVaultIdbFile(gone)) vaultDeleteUnusedBlob(gone.fileId);
-  showToast('Material removed from vault', 'info');
-  renderLinks();
+  appConfirm('Delete this resource?', 'Delete', () => {
+    const links = loadCustomLinks();
+    const [gone] = links[si].resources.splice(ri, 1);
+    saveCustomLinks(links);
+    if (isVaultIdbFile(gone)) vaultDeleteUnusedBlob(gone.fileId);
+    showToast('Material removed from vault', 'info');
+    renderLinks();
+  });
 };
 
 function showLinkSubjectModal(si, existing) {
@@ -17582,11 +17592,12 @@ function importData(event) {
 }
 
 function confirmClearTasks() {
-  if (!confirm(`Delete all ${state.customTasks.length} custom task(s)? This cannot be undone.`)) return;
-  state.customTasks = [];
-  saveCustomTasks();
-  updateNavBadges();
-  renderSettings(); // re-render to update counts
+  appConfirm(`Delete all ${state.customTasks.length} custom task(s)? This cannot be undone.`, 'Delete', () => {
+    state.customTasks = [];
+    saveCustomTasks();
+    updateNavBadges();
+    renderSettings(); // re-render to update counts
+  });
 }
 
 // ── Notice Modal ──────────────────────────────────────────────
@@ -18268,12 +18279,13 @@ window.toggleAssignment = (id) => {
 };
 
 window.deleteCustomTask = (id) => {
-  if (!confirm('Delete this task?')) return;
-  state.customTasks = state.customTasks.filter(t => t.id !== id);
-  saveCustomTasks();
-  showToast('Task removed from desk', 'info');
-  renderPage(state.currentPage);
-  updateNavBadges();
+  appConfirm('Delete this task?', 'Delete', () => {
+    state.customTasks = state.customTasks.filter(t => t.id !== id);
+    saveCustomTasks();
+    showToast('Task removed from desk', 'info');
+    renderPage(state.currentPage);
+    updateNavBadges();
+  });
 };
 
 function handleGlobalSearch(q) {
