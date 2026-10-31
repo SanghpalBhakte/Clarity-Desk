@@ -553,11 +553,8 @@ img { display: block; max-width: 100%; }
 
 .topbar-brand .logo-icon {
   width: 28px; height: 28px;
-  background: var(--accent);
   border-radius: var(--radius-xs);
-  display: grid;
-  place-items: center;
-  color: var(--brand-primary-text, #ffffff);
+  display: block;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   flex-shrink: 0;
 }
@@ -5024,10 +5021,7 @@ body::before {
 /* ── 4. Small quiet details elsewhere — one lift each, nothing
    competing with the beacon for attention. ──────────────── */
 .topbar-brand .logo-icon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.20),
-    0 2px 5px rgba(58, 33, 23, 0.28);
+  box-shadow: 0 2px 5px rgba(58, 33, 23, 0.28);
 }
 
 .desk-vitals-pill {
