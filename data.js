@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u136",
+    date: "2026-10-31",
+    title: "Delete, remove and end-holiday buttons now ask inside the app, so they no longer silently do nothing in the installed app",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Delete, remove and end-holiday buttons now ask inside the app, so they no longer silently do nothing in the installed app",
+    points: [
+
+    ]
+  },
+  {
     id: "u135",
     date: "2026-10-31",
     title: "The app now shows the official Clarity Desk logo in the top bar and welcome screen",
