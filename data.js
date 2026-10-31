@@ -199,6 +199,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u133",
+    date: "2026-10-31",
+    title: "A cleared timetable no longer comes back when you leave and reopen the app",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "A cleared timetable no longer comes back when you leave and reopen the app",
+    points: [
+
+    ]
+  },
+  {
     id: "u132",
     date: "2026-10-31",
     title: "Double-tap a date on the calendar to jump to its list or add something to an empty day",
