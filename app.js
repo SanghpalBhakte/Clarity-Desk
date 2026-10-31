@@ -9544,30 +9544,8 @@ function renderDashboard() {
         <div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(nextStartMin - currentMin)}</span><span class="chrono-beacon-count-label">until it starts</span></div>
       </div>`;
   } else if (dayClasses.length > 0 && classesLeftCount === 0) {
-    // Classes are over: point at the next real deadline. Tasks due today or
-    // overdue are already the focus line, so this only looks 1+ days ahead.
-    const nextDue = allTasks()
-      .filter(t => t.status === 'pending' && t.dueDate && !t.noDeadline && dueDaysLeft(t.dueDate) >= 1)
-      .sort((a, b) => dueDaysLeft(a.dueDate) - dueDaysLeft(b.dueDate))[0];
-    if (nextDue) {
-      const left = dueDaysLeft(nextDue.dueDate);
-      const isCustom = (state.customTasks || []).some(t => String(t.id) === String(nextDue.id));
-      beaconHTML = `
-      <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
-        <div class="chrono-beacon-main">
-          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Classes are over. Next deadline</span></div>
-          <div class="chrono-beacon-title">${escHtml_cd(nextDue.title || 'Task')}</div>
-          <div class="chrono-beacon-meta">
-            ${nextDue.subject ? `<span>${escHtml_cd(nextDue.subject)}</span>` : ''}
-            <span>${left === 1 ? 'Due tomorrow' : `Due in ${left} days`}, ${formatDate(nextDue.dueDate)}</span>
-          </div>
-          ${lookAheadHTML}
-        </div>
-        <div class="chrono-beacon-actions is-compact">
-          <button class="btn btn-sm btn-secondary" data-id="${escHtml_cd(String(nextDue.id))}" onclick="${isCustom ? 'showAssignmentModal(this.dataset.id)' : "navigateTo('assignments')"}">Open task</button>
-        </div>
-      </div>`;
-    } else if (lookAheadHTML) {
+    // Classes are over: only the look-ahead, if there is one.
+    if (lookAheadHTML) {
       beaconHTML = `
       <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
         <div class="chrono-beacon-main">
