@@ -4304,6 +4304,7 @@ function calculatePayloadHash(data) {
 // pushed for that uid. A safety copy (KEY_SIGNIN_BACKUP) is saved first.
 let signinHold = null;        // { uid, data, backupOk, later }
 let signinLastCloud = null;   // latest cloud copy seen, so Undo can ask again
+const SIGNIN_UNDO_MS = 7500;  // a little longer than the Undo toast (7 s)
 const SIGNIN_BACKUP_KEYS = [KEY_CUSTOM_TASKS, KEY_CUSTOM_LINKS, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE,
   KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_PROFILE, KEY_ASSIGNMENTS, KEY_TOMBSTONES,
   // Everything else applying the cloud copy may overwrite, so Undo is exact.
@@ -4338,13 +4339,25 @@ function needsSigninReview(uid, localHas, cloudHas) {
   if (!Array.isArray(seen)) return localStorage.getItem(KEY_SYNC_LAST_PUSHED) === null;
   return !seen.includes(uid);
 }
+// Accounts this phone has looked at (also kept in memory, in case storage is full).
+const signinSeenNow = new Set();
+let signinPushWaiting = false;   // a push waited for the first look at the account
+function signinSeen(uid) {
+  if (signinSeenNow.has(uid)) return true;
+  const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
+  return Array.isArray(seen) && seen.includes(uid);
+}
 function markSigninSeen(uid) {
   if (!uid) return;
+  signinSeenNow.add(uid);
   const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
   const list = Array.isArray(seen) ? seen : [];
   if (!list.includes(uid)) safeSetStorage(KEY_SIGNIN_SEEN, [...list, uid]);
+  // Send the change that waited for this first look.
+  if (signinPushWaiting) { signinPushWaiting = false; syncToCloud(); }
 }
 function unmarkSigninSeen(uid) {
+  signinSeenNow.delete(uid);
   const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
   if (Array.isArray(seen) && seen.includes(uid)) safeSetStorage(KEY_SIGNIN_SEEN, seen.filter(u => u !== uid));
 }
@@ -4491,6 +4504,11 @@ function applySigninChoice(choice, cloudData) {
   }
   } finally { syncUndoQuiet = false; }
   if (uid) markSigninSeen(uid);
+  // Undo stays exact on the account too: it is written only after the toast.
+  if (backupOk && uid && localPushPendingAt) {
+    clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = setTimeout(() => pushLocalDataToCloud(uid), SIGNIN_UNDO_MS);
+  }
   const msg = choice === 'cloud' ? "Using your account's copy on this phone"
     : choice === 'device' ? "Using this phone's copy for your account" : 'Kept everything from this phone and your account';
   if (backupOk) showUndoToast(msg, () => { if (!undoSignin()) showToast("Couldn't undo. Your data is still on this phone.", 'error'); });
@@ -4599,6 +4617,9 @@ function subscribeUserCloudData(uid) {
   // Server Listener with metadata echo filter
   cloudUnsubscribe = userRef.onSnapshot({ includeMetadataChanges: false }, doc => {
     if (!doc || !doc.exists) {
+      // Offline, an empty local cache also says "no doc": the account may
+      // still have data, so wait for the server's answer.
+      if (doc && doc.metadata && doc.metadata.fromCache) return;
       lastPushed = null;   // the doc is gone: write it again even if nothing changed here
       if (!signinHeld(uid)) markSigninSeen(uid);   // the account now gets this phone's copy
       pushLocalDataToCloud(uid);
@@ -4765,8 +4786,10 @@ let cloudFullWarned = false;
 
 function pushLocalDataToCloud(uid) {
   if (!db || !uid) return;
-  // Waiting for the first sign-in choice: never push over the account's copy.
+  // Waiting for the first sign-in choice, or for the first look at this
+  // account's copy: never push over it (lists are written whole).
   if (signinHeld(uid)) return;
+  if (!signinSeen(uid)) { signinPushWaiting = true; return; }
   const sanitizedTasks = state.customTasks.map(sanitizeTask).filter(Boolean);
   const payload = {
     profile:            loadProfile(),

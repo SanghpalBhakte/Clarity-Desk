@@ -60,7 +60,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function('__fakeDb', `${code}\n db = __fakeDb;\n return { state, pushLocalDataToCloud, applyCloudDataToLocalState, computeSyncDeletePaths };`)(fakeDb);
+const app = new Function('__fakeDb', `${code}\n db = __fakeDb;\n // An already signed-in phone: it has looked at its account copy.\n signinSeen = () => true;\n return { state, pushLocalDataToCloud, applyCloudDataToLocalState, computeSyncDeletePaths };`)(fakeDb);
 globalThis.showToast = () => {};
 app.state.currentPage = 'none';
 app.state.customTasks = [];

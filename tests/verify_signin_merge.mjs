@@ -416,6 +416,57 @@ await check("'device' keeps this phone's task statuses and pushes them, not the 
   return local.L1 === 'submitted' && cloud.assignmentStatuses.L1 === 'submitted' ? true : JSON.stringify({ local, cloud: cloud.assignmentStatuses });
 });
 
+await check('G1: an edit made after sign-in but before the account copy arrives is not pushed over the account; the review still asks', async () => {
+  accountWithData();
+  const D = phoneWithData();
+  const accountTasks = ids(cloud.customTasks);
+  D.app.subscribeUserCloudData('u1'); await tick();        // no cached copy, server copy not here yet
+  D.app.state.customTasks = [...D.app.state.customTasks, task('L2', { title: 'made while waiting' })];
+  D.app.saveCustomTasks();
+  await flushPush(D);
+  const untouched = D.sets.length === 0 && ids(cloud.customTasks) === accountTasks;
+  deliver(D); await tick();
+  return untouched && shown.includes(REVIEW_ID) && tasksOf(D).some(t => t.id === 'L2') ? true : JSON.stringify({ sets: D.sets.length, cloud: ids(cloud.customTasks), shown });
+});
+
+await check('G2: a change waiting for that first look is sent once the account turns out to need no question', async () => {
+  cloud = {};                                              // brand-new account
+  const D = phoneWithData();
+  D.app.subscribeUserCloudData('u1'); await tick();
+  D.app.saveCustomTasks();
+  await flushPush(D);
+  const waited = D.sets.length === 0;
+  deliver(D); await tick(); await flushPush(D);
+  return waited && D.sets.length >= 1 && (cloud.customTasks || []).some(t => t.id === 'L1') ? true : JSON.stringify({ waited, sets: D.sets.length });
+});
+
+await check("G3: after a choice the account is written only once its Undo toast is gone, so Undo also leaves the account as it was", async () => {
+  const res = [];
+  for (const choice of ['both', 'device']) {
+    accountWithData();
+    const before = JSON.stringify(cloud);
+    const D = phoneWithData();
+    await signIn(D);
+    D.app.applySigninChoice(choice, clone(cloud));
+    const waits = [...D.timers.values()].filter(t => /pushLocalDataToCloud/.test(String(t.fn))).map(t => t.ms);
+    D.app.undoSignin();
+    await flushPush(D);
+    res.push({ choice, waits, same: JSON.stringify(cloud) === before, sets: D.sets.length });
+  }
+  return res.every(r => r.waits.length && r.waits.every(ms => ms >= 7000) && r.same && r.sets === 0) ? true : JSON.stringify(res);
+});
+
+await check('G4: offline, a "no account copy" answer from the empty local cache is not taken as a new account', async () => {
+  accountWithData();
+  const D = phoneWithData();
+  D.app.subscribeUserCloudData('u1'); await tick();
+  D.listener({ exists: false, data: () => ({}), metadata: { hasPendingWrites: false, fromCache: true } });
+  await tick(); await flushPush(D);
+  const safe = D.sets.length === 0 && !(D.store.cos_signin_seen || '').includes('u1');
+  deliver(D); await tick();
+  return safe && shown.includes(REVIEW_ID) ? true : JSON.stringify({ sets: D.sets.length, seen: D.store.cos_signin_seen, shown });
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);

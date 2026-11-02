@@ -89,6 +89,8 @@ function makeDevice(name, dayOffsetMs = 0) {
   const db = { collection: () => ({ doc: () => ref }) };
   dev.app = new Function('__db', 'localStorage', 'setTimeout', 'clearTimeout', 'Date', `${code}
     db = __db; currentUser = { uid: 'u1' };
+    // An already signed-in phone: it has looked at its account copy (verify_signin_merge covers the first look).
+    signinSeen = () => true;
     return { state, saveCustomTasks, saveCustomLinks, loadCustomTasks, pushLocalDataToCloud, applyCloudDataToLocalState,
       subscribeUserCloudData, calculatePayloadHash, importData, syncToCloud, onCloudPushError,
       loadSyncUndo: typeof loadSyncUndo === 'function' ? loadSyncUndo : undefined,
