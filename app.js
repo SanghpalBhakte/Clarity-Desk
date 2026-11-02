@@ -445,6 +445,18 @@ function resetPushBackoff() {
   pushRetryTimer = null;
 }
 
+// True while a local change has not been confirmed by the cloud yet (also
+// while offline, when Firestore holds the write until the network is back).
+function hasPendingSync() { return !!currentUser && !!localPushPendingAt; }
+
+// Back online: send waiting changes now instead of at the next edit.
+function flushPendingSync() {
+  if (!hasPendingSync() || !db) return;
+  lastPushed = null;   // a held write may not have landed: do not skip it as "already sent"
+  clearTimeout(syncDebounceTimer);
+  pushLocalDataToCloud(currentUser.uid);
+}
+
 function onCloudPushOk() {
   localPushPendingAt = 0;
   resetPushBackoff();
@@ -506,6 +518,14 @@ function updateSyncUI(status = null) {
     if (dot) dot.style.background = 'var(--yellow)';
     if (btn) btn.title = 'Your last change could not reach your account. Everything is saved on this device; it tries again on your next change.';
     if (btn) btn.setAttribute('aria-label', 'Sync failed, saved on this device. Opens Settings');
+  } else if (hasPendingSync()) {
+    if (icon) icon.textContent = '⏳';
+    if (text) text.textContent = 'Waiting to sync';
+    if (dot) dot.style.background = 'var(--yellow)';
+    if (btn) btn.title = isOnline
+      ? 'Sending your latest change to your account · Saved on this device'
+      : 'Offline · Your change is saved on this device and will sync when you are back online';
+    if (btn) btn.setAttribute('aria-label', 'Waiting to sync, saved on this device. Opens Settings');
   } else if (status === 'offline' || !isOnline) {
     if (icon) icon.textContent = '💾';
     if (text) text.textContent = 'Offline · Saved';
@@ -5163,6 +5183,7 @@ function syncToCloud() {
   schedulePushSync();
   if (!currentUser) return;
   localPushPendingAt = Date.now();
+  updateSyncUI();
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     pushLocalDataToCloud(currentUser.uid);
@@ -18474,6 +18495,7 @@ function init() {
   window.addEventListener('online', () => {
     resetPushBackoff();
     showToast('Back online. Cloud sync is on ✓', 'success');
+    flushPendingSync();
     updateSyncUI();
     flushFeedbackQueue();
     flushUsageQueue();
