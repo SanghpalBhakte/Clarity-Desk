@@ -78,13 +78,15 @@ test.describe('Clarity Desk offline baseline', () => {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => typeof (window as any).navigate === 'function');
       for (const p of PAGES) {
-        const len = await page.evaluate(async (name) => {
-          (window as any).navigate(name);
-          await new Promise((r) => setTimeout(r, 150));
-          const el = document.querySelector('.section-page.active') as HTMLElement | null;
-          return el ? (el.innerText || '').trim().length : 0;
-        }, p);
-        if (len === 0) empty.push(p);
+        await page.evaluate((name) => (window as any).navigate(name), p);
+        // The page asked for must be the active one and have content
+        // (links and summary are tabs of the resources page).
+        const ok = await page.waitForFunction((name) => {
+          const id = name === 'links' || name === 'summary' ? 'resources' : name;
+          const el = document.querySelector(`#page-${id}.section-page.active`) as HTMLElement | null;
+          return !!el && (el.innerText || '').trim().length > 0;
+        }, p, { timeout: 3000 }).then(() => true, () => false);
+        if (!ok) empty.push(p);
       }
     } finally {
       await context.setOffline(false);
@@ -100,8 +102,7 @@ test.describe('Clarity Desk offline baseline', () => {
     expect(await storedTitles(page)).toContain('Edit made offline');
     await context.setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
-    await page.waitForTimeout(500);
-    expect(await storedTitles(page)).toContain('Edit made offline');
+    await expect.poll(() => storedTitles(page)).toContain('Edit made offline');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => typeof (window as any).navigate === 'function');
     expect(await storedTitles(page)).toContain('Edit made offline');
