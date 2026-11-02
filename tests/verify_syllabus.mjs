@@ -81,7 +81,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const NOTICES = [];
 `);
 let lastApp = null;
-const makeApp = () => lastApp = new Function('__fakeDb', `${withScanners(code)}\n db = __fakeDb;\n return { state, AIService, topicsFromSyllabusScan, syllabusScanFileProblem, runSyllabusScan, parseSyllabusPaste, parseSyllabusLine, sanitizeSyllabus, loadSyllabus, saveSyllabus, syllabusStats, syllabusCardHTML, syllabusTodayLine, getSubjectList, renderDashboard, pushLocalDataToCloud, applyCloudDataToLocalState, exportData };`)(fakeDb);
+const makeApp = () => lastApp = new Function('__fakeDb', `${withScanners(code)}\n db = __fakeDb;\n signinSeen = () => true; // an already signed-in phone\n return { state, AIService, topicsFromSyllabusScan, syllabusScanFileProblem, runSyllabusScan, parseSyllabusPaste, parseSyllabusLine, sanitizeSyllabus, loadSyllabus, saveSyllabus, syllabusStats, syllabusCardHTML, syllabusTodayLine, getSubjectList, renderDashboard, pushLocalDataToCloud, applyCloudDataToLocalState, exportData };`)(fakeDb);
 
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];
