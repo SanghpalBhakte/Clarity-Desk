@@ -18,7 +18,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 ## Boot and load
 - Firebase Hosting serves two sites from `.` (targets `app` = claritydesk, plus campusos). `index.html` points at `app.js`/`style.css`/`data.js` on jsDelivr pinned to a commit hash, with local `?v=N` fallback on error.
 - `ship.mjs` rewrites the `?v=N`, the pinned commit and `CACHE_NAME` (`clarity-desk-vN`) together.
-- Service worker: precaches shell + app files. Network-first with a 3 s timeout for navigation/JS/CSS (then cached copy; after one slow answer, 30 s of cache-first); stale-while-revalidate for other assets; skips Firebase/Google API and Groq traffic. Handles the `share-target` POST (WhatsApp deadline import).
+- Service worker: precaches shell + app files; `index.html`, `app.js`, `style.css` and `data.js` must all be saved or the new version does not install (the old one keeps serving; `isCoreAsset`), the rest is best effort. Network-first with a 3 s timeout for navigation/JS/CSS (then cached copy; after one slow answer, 30 s of cache-first); stale-while-revalidate for other assets; skips Firebase/Google API and Groq traffic. Handles the `share-target` POST (WhatsApp deadline import).
 
 ## State and storage (all `cos_*` keys, constants at `app.js:8-56`)
 - Profile/tasks: `cos_profile`, `cos_custom_tasks`, `cos_assignments` (task status map), `cos_custom_timetable`, `cos_timetable_choice`, `cos_user_batch`, `cos_hidden_subjects`.

@@ -18756,7 +18756,7 @@ function init() {
   // Network connectivity status listeners
   window.addEventListener('online', () => {
     resetPushBackoff();
-    showToast('Back online. Cloud sync is on ✓', 'success');
+    showToast(currentUser ? 'Back online. Cloud sync is on ✓' : 'Back online ✓', 'success');
     flushPendingSync();
     updateSyncUI();
     flushFeedbackQueue();

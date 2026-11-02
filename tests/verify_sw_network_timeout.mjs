@@ -19,10 +19,11 @@ const WAIT = 40;
 if (!/const NETWORK_WAIT_MS = 3000;/.test(src)) { console.error('✗ NETWORK_WAIT_MS = 3000 not found in sw.js'); process.exit(1); }
 
 const cacheStore = new Map();
-let putDelay = 0;   // ms a cache write takes (a real one is not instant)
+let putDelay = 0;
+let addImpl = async () => {};   // install: cache.add(url)   // ms a cache write takes (a real one is not instant)
 const keyOf = (req, ignoreSearch) => { const u = new URL(typeof req === 'string' ? req : req.url, 'https://app.test/'); return ignoreSearch ? u.origin + u.pathname : u.href; };
 const caches = {
-  open: async () => ({ put: async (req, res) => { if (putDelay) await new Promise(r => setTimeout(r, putDelay)); cacheStore.set(keyOf(req), res); }, addAll: async () => {}, add: async () => {} }),
+  open: async () => ({ put: async (req, res) => { if (putDelay) await new Promise(r => setTimeout(r, putDelay)); cacheStore.set(keyOf(req), res); }, addAll: async () => {}, add: async (u) => addImpl(u) }),
   match: async (req, opts = {}) => {
     if (!opts.ignoreSearch) return cacheStore.get(keyOf(req));
     for (const [k, v] of cacheStore) if (keyOf(k, true) === keyOf(req, true)) return v;
@@ -154,6 +155,27 @@ await check('The worker stays alive until a late network answer is saved', async
   release(); await Promise.all(waits);               // no extra sleep: waitUntil must cover cache.put
   putDelay = 0;
   return cacheStore.get('https://app.test/x.js').body === 'fresh' ? true : 'cache.put not covered by waitUntil';
+});
+
+async function install() {
+  let p = null;
+  listeners.install({ waitUntil: (x) => { p = x; } });
+  return p.then(() => 'ok', () => 'failed');
+}
+await check('Install fails (old version keeps serving) when a core file (index.html, app.js, style.css, data.js) cannot be cached', async () => {
+  const out = [];
+  for (const core of ['index.html', 'app.js', 'style.css', 'data.js']) {
+    addImpl = async (u) => { if (String(u).endsWith(core)) throw new Error('offline'); };
+    out.push(await install());
+  }
+  addImpl = async () => {};
+  return out.every(r => r === 'failed') ? true : out.join();
+});
+await check('Install still succeeds when only an optional file (an icon, a lazy module) cannot be cached', async () => {
+  addImpl = async (u) => { if (/icon-512|scanners\.js/.test(String(u))) throw new Error('flaky'); };
+  const r = await install();
+  addImpl = async () => {};
+  return r === 'ok' ? true : r;
 });
 
 console.log(`\nSW NETWORK WAIT: ${passed}/${total} passed`);
