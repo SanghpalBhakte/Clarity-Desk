@@ -569,6 +569,46 @@ await check('M-a: a failed task write never leaves state ahead of storage; cos_s
   return sameAsStore && order && sig(E.app.state.customTasks) === sig(tasksOf(E)) ? true : JSON.stringify({ state: sig(D.app.state.customTasks), store: sig(tasksOf(D)), writes: E.writes });
 });
 
+// ── Push safety ──
+for (const key of ['cos_custom_tasks', 'cos_custom_links']) {
+  await check(`P1: when the apply cannot save ${key}, nothing is pushed, the cloud keeps the other device's items, and the same copy is applied once space is free`, async () => {
+    const [A, B] = await pair([task('t1')], [section('PHY', [{ label: 'P', url: 'https://x.test/p' }])]);
+    A.app.state.customTasks = [...A.app.state.customTasks, task('fromA', { title: 'new on A' })];
+    A.app.saveCustomTasks();
+    A.app.saveCustomLinks([section('PHY', [{ label: 'P', url: 'https://x.test/p' }, { label: 'A link', url: 'https://x.test/a' }])]);
+    await flushPush(A);
+    const setsBefore = B.sets.length;
+    B.failKeys.add(key);
+    toasts.length = 0;
+    deliver(B); await tick(); await flushPush(B);
+    deliver(B); await tick(); await flushPush(B);
+    const noPush = B.sets.length === setsBefore;
+    const cloudKept = cloud.customTasks.some(t => t.id === 'fromA') && cloud.customLinks[0].resources.some(r => r.label === 'A link');
+    const told = toasts.filter(t => /storage is full/.test(t)).length;
+    B.failKeys.delete(key);
+    deliver(B); await tick();
+    const applied = key === 'cos_custom_tasks' ? tasksOf(B).some(t => t.id === 'fromA') : linksOf(B)[0].resources.some(r => r.label === 'A link');
+    return noPush && cloudKept && told === 1 && applied ? true : JSON.stringify({ noPush, cloudKept, told, applied, toasts });
+  });
+}
+
+await check('P2: once the breaker trips it stays off for apply pushes (even after a quiet minute) until a local edit', async () => {
+  cloud = {};
+  const D = makeDevice('CB2', 0);
+  D.store.cos_custom_tasks = JSON.stringify([task('mine', { updatedAt: Date.now() })]);
+  D.app.state.customTasks = D.app.loadCustomTasks();
+  const stale = { customTasks: [task('other')] };
+  for (let i = 0; i < 4; i++) { D.app.applyCloudDataToLocalState(clone(stale)); await flushPush(D); cloud = clone(stale); }
+  const tripped = D.sets.length;
+  const realNow = Date.now;
+  Date.now = () => realNow() + 5 * 60000;     // five quiet minutes later
+  try { D.app.applyCloudDataToLocalState(clone(stale)); await flushPush(D); } finally { Date.now = realNow; }
+  const later = D.sets.length;
+  edit(D, 'mine', { title: 'edited' }); await flushPush(D);
+  D.app.applyCloudDataToLocalState(clone(stale)); await flushPush(D);
+  return tripped === 3 && later === 3 && D.sets.length === 5 ? true : JSON.stringify({ tripped, later, total: D.sets.length });
+});
+
 // ── Undo last merge (cos_sync_prev) ──
 const prevOf = (dev) => JSON.parse(dev.store.cos_sync_prev || 'null');
 

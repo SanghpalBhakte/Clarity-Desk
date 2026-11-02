@@ -3973,7 +3973,11 @@ function pruneDoneTasks(list) {
 // Merge the cloud copy's tasks, vault and tombstones into this device. Never
 // stamps (no push loops). Returns true when the result has something the
 // cloud copy lacks, so the caller schedules one push.
+// True when the last merge could not save the tasks or vault (storage full).
+let mergeWriteFailed = false;
+let mergeWriteFailedTold = false;
 function mergeCloudIntoLocal(data) {
+  mergeWriteFailed = false;
   const hasTasks = Array.isArray(data.customTasks), hasLinks = Array.isArray(data.customLinks);
   const cloudStones = Array.isArray(data.tombstones) ? data.tombstones : [];
   const cloudTasks = hasTasks ? data.customTasks.map(sanitizeTask).filter(Boolean) : [];
@@ -4006,10 +4010,10 @@ function mergeCloudIntoLocal(data) {
     const ok = stableStringify(tasks) === stableStringify(localTasks) || safeSetStorage(KEY_CUSTOM_TASKS, tasks);
     // state follows storage: if the write failed, keep what is saved.
     state.customTasks = ok ? tasks : loadCustomTasks();
-    if (!ok) tasks = state.customTasks;
+    if (!ok) { tasks = state.customTasks; mergeWriteFailed = true; }
   }
   if (hasLinks && (rawLinks === null || stableStringify(links) !== stableStringify(rawLinks))) {
-    if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) links = localLinks;
+    if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) { links = localLinks; mergeWriteFailed = true; }
   }
   if (stableStringify(stones) !== stableStringify(localStones)) safeSetStorage(KEY_TOMBSTONES, stones);
   if (prevSnap) {
@@ -4021,6 +4025,9 @@ function mergeCloudIntoLocal(data) {
   }
   // Compare with the cloud copy after this device's own prune/expiry rules,
   // so a record this device would drop anyway is not a reason to push.
+  // Never push after a failed write: this device's old lists would replace
+  // the cloud's newer ones (lists are written whole).
+  if (mergeWriteFailed) return false;
   return (hasTasks && stableStringify(tasks) !== stableStringify(pruneDoneTasks(cloudTasks)))
     || (hasLinks && stableStringify(linksForCloud(links)) !== stableStringify(data.customLinks))
     || stableStringify(stones) !== stableStringify(pruneTombstones(cloudStones));
@@ -4626,6 +4633,14 @@ function applyCloudDataToLocalState(data) {
   syncUndoNew = 0;
   try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
   if (syncUndoNew) { const n = syncUndoNew; syncUndoNew = 0; showSyncUndoToast(n); }
+  if (mergeWriteFailed) {
+    // Apply this same cloud copy again on the next read, once there is room.
+    lastCloudPayloadHash = null;
+    if (!mergeWriteFailedTold) {
+      mergeWriteFailedTold = true;
+      showToast("This phone's storage is full, so updates from your other devices couldn't be saved here. Everything on this phone is safe. Remove a big vault file to make room.", 'error');
+    }
+  }
 }
 
 function applyCloudDataInner(data) {
@@ -5373,7 +5388,7 @@ window.vaultOpenFile = async function(fileId) {
 
 // Circuit breaker (free-tier write quota): pushes started while applying
 // cloud data may run at most 3 times per rolling minute. Beyond that they
-// are skipped (one console warning) until a local edit or a quiet minute.
+// are skipped (one console warning) until the next local edit.
 // Guards against loops from per-device clock/date differences.
 const APPLY_PUSH_MAX = 3;
 const APPLY_PUSH_WINDOW_MS = 60000;
@@ -5385,12 +5400,13 @@ let applyingCloudData = false;
 let localPushPendingAt = 0;
 const cloudApplyDeferred = () => localPushPendingAt && Date.now() - localPushPendingAt < 60000;
 let applyPushTimes = [];
-let applyPushWarned = false;
+let applyPushWarned = false;   // tripped: no apply pushes until a local edit
 function allowApplyPush(now = Date.now()) {
+  if (applyPushWarned) return false;
   applyPushTimes = applyPushTimes.filter(t => now - t < APPLY_PUSH_WINDOW_MS);
-  if (!applyPushTimes.length) applyPushWarned = false;
   if (applyPushTimes.length >= APPLY_PUSH_MAX) {
-    if (!applyPushWarned) { applyPushWarned = true; console.warn('Cloud sync: too many pushes after cloud updates; pausing them until the next change.'); }
+    applyPushWarned = true;
+    console.warn('Cloud sync: too many pushes after cloud updates; pausing them until the next change.');
     return false;
   }
   applyPushTimes.push(now);
