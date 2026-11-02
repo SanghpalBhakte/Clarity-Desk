@@ -4012,12 +4012,223 @@ function mergeCloudIntoLocal(data) {
     if (!safeSetStorage(KEY_CUSTOM_LINKS, links)) links = localLinks;
   }
   if (stableStringify(stones) !== stableStringify(localStones)) safeSetStorage(KEY_TOMBSTONES, stones);
-  if (prevSnap) safeSetStorage(KEY_SYNC_PREV, prevSnap);
+  if (prevSnap) {
+    // What was really saved: a failed write lost nothing. Old done tasks the
+    // 14-day prune drops anyway are not offered back.
+    const lostTasks = syncUndoDiff(localTasks.filter(t => pruneDoneTasks([t]).length), tasks, taskKey);
+    const lostLinks = syncUndoVaultDiff(localLinks, links);
+    recordSyncUndo(prevSnap, lostTasks, lostLinks);
+  }
   // Compare with the cloud copy after this device's own prune/expiry rules,
   // so a record this device would drop anyway is not a reason to push.
   return (hasTasks && stableStringify(tasks) !== stableStringify(pruneDoneTasks(cloudTasks)))
     || (hasLinks && stableStringify(linksForCloud(links)) !== stableStringify(data.customLinks))
     || stableStringify(stones) !== stableStringify(pruneTombstones(cloudStones));
+}
+
+// ── Undo last merge (cos_sync_prev, local only) ──
+// { at, customTasks, customLinks, open, lost: { tasks: [entry], links: [entry] } }
+// entry = { rec, gone: true } (the merge removed it) or { rec, after } (the
+// merge replaced it with the version stamped `after`); vault entries also
+// carry `sec` (the folder without its resources). `open` stays true until
+// the student puts things back or keeps them; until then a later merge only
+// adds to it, never replaces it. Copies written before this have no `open`
+// and offer nothing. Undo never removes what a merge brought in.
+const SYNC_UNDO_MAX = 200;
+let syncUndoNew = 0;          // entries the last apply added (for its toast)
+let syncUndoQuiet = false;    // first sign-in choice: its own Undo covers it
+
+// val(x) is the record itself (vault items come wrapped with their folder).
+function syncUndoDiff(before, after, keyOf, val = (x) => x) {
+  const now = new Map(after.map(r => [String(keyOf(r)), val(r)]));
+  const out = [];
+  before.forEach(r => {
+    const m = now.get(String(keyOf(r)));
+    if (!m) out.push({ rec: r, gone: true });
+    else if (stableStringify(m) !== stableStringify(val(r))) out.push({ rec: r, after: Number(m.updatedAt) || 0 });
+  });
+  return out;
+}
+
+// Vault entries keep IndexedDB files as they are (details only, the bytes stay
+// in IndexedDB and vaultReferencedIds keeps them); a data: URL file is kept as
+// a placeholder so the copy stays small.
+function syncUndoVaultDiff(beforeLinks, afterLinks) {
+  const flat = (list) => {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+      if (r && typeof r === 'object') out.push({ s, r });
+    }));
+    return out;
+  };
+  return syncUndoDiff(flat(beforeLinks), flat(afterLinks), x => vaultKey(x.s, x.r), x => x.r)
+    .map(e => {
+      const { resources, ...sec } = e.rec.s;
+      const rec = isVaultDeviceFile(e.rec.r) ? vaultPlaceholder(e.rec.r) : e.rec.r;
+      return e.gone ? { sec, rec, gone: true } : { sec, rec, after: e.after };
+    });
+}
+
+const syncUndoKey = (e) => (e.sec ? `v|${vaultKey(e.sec, e.rec)}` : `t|${taskKey(e.rec)}`);
+
+function recordSyncUndo(base, lostTasks, lostLinks) {
+  syncUndoNew = 0;
+  const prior = safeGetStorage(KEY_SYNC_PREV, null);
+  if (prior && prior.open === true && prior.lost && typeof prior.lost === 'object') {
+    if (syncUndoQuiet) return;
+    let added = 0;
+    const grow = (list, incoming) => {
+      const out = Array.isArray(list) ? list.slice() : [];
+      const at = new Map(out.map((e, i) => [syncUndoKey(e), i]));
+      incoming.forEach(e => {
+        const i = at.get(syncUndoKey(e));
+        if (i === undefined) { if (out.length < SYNC_UNDO_MAX) { out.push(e); added++; } return; }
+        const old = out[i];
+        // Replaced again by the cloud: keep the first copy, follow the new stamp.
+        if (!old.gone && (Number(e.rec.updatedAt) || 0) === old.after) out[i] = e.gone ? { ...old, after: undefined, gone: true } : { ...old, after: e.after };
+        // Changed on this phone in between, then replaced: that newer copy is what to give back.
+        else { out[i] = e; added++; }
+      });
+      return out;
+    };
+    const lost = { tasks: grow(prior.lost.tasks, lostTasks), links: grow(prior.lost.links, lostLinks) };
+    if (stableStringify(lost) !== stableStringify(prior.lost) && safeSetStorage(KEY_SYNC_PREV, { ...prior, lost })) syncUndoNew = added;
+    return;
+  }
+  const lost = { tasks: lostTasks.slice(0, SYNC_UNDO_MAX), links: lostLinks.slice(0, SYNC_UNDO_MAX) };
+  const open = !syncUndoQuiet && (lost.tasks.length + lost.links.length) > 0;
+  if (safeSetStorage(KEY_SYNC_PREV, { ...base, open, lost }) && open) syncUndoNew = lost.tasks.length + lost.links.length;
+}
+
+// The open undo copy, or null.
+function loadSyncUndo() {
+  const p = safeGetStorage(KEY_SYNC_PREV, null);
+  if (!p || typeof p !== 'object' || p.open !== true || !p.lost || typeof p.lost !== 'object') return null;
+  const n = (Array.isArray(p.lost.tasks) ? p.lost.tasks.length : 0) + (Array.isArray(p.lost.links) ? p.lost.links.length : 0);
+  return n ? p : null;
+}
+
+function dismissSyncUndo() {
+  const p = safeGetStorage(KEY_SYNC_PREV, null);
+  if (p && typeof p === 'object' && p.open === true) safeSetStorage(KEY_SYNC_PREV, { ...p, open: false });
+}
+
+// What Undo would do now: each removed record comes back unless it is here
+// again; each replaced record comes back only if it still is the version the
+// merge brought (an edit made since is kept and counted in `skipped`).
+function syncUndoPlan() {
+  const snap = loadSyncUndo();
+  if (!snap) return null;
+  const nextTasks = loadCustomTasks();
+  const tAt = new Map(nextTasks.map((t, i) => [taskKey(t), i]));
+  const tasks = [], links = [];
+  let skipped = 0;
+  (Array.isArray(snap.lost.tasks) ? snap.lost.tasks : []).forEach(e => {
+    const rec = e && e.rec ? sanitizeTask(e.rec) : null;
+    if (!rec) return;
+    const i = tAt.get(taskKey(rec));
+    if (e.gone && i === undefined) { tAt.set(taskKey(rec), nextTasks.length); nextTasks.push(rec); tasks.push(rec); }
+    else if (!e.gone && i !== undefined && (Number(nextTasks[i].updatedAt) || 0) === e.after) { nextTasks[i] = rec; tasks.push(rec); }
+    else skipped++;
+  });
+  const cur = safeGetStorage(KEY_CUSTOM_LINKS, null);
+  const nextLinks = (Array.isArray(cur) ? cur : []).map(s => (s && Array.isArray(s.resources)) ? { ...s, resources: s.resources.slice() } : s);
+  const lAt = new Map();
+  nextLinks.forEach((s, si) => (s && Array.isArray(s.resources) ? s.resources : []).forEach((r, ri) => { if (r && typeof r === 'object') lAt.set(vaultKey(s, r), [si, ri]); }));
+  (Array.isArray(snap.lost.links) ? snap.lost.links : []).forEach(e => {
+    if (!e || !e.rec || typeof e.rec !== 'object' || !e.sec || typeof e.sec !== 'object') return;
+    const k = vaultKey(e.sec, e.rec), pos = lAt.get(k);
+    if (e.gone && !pos) {
+      const sk = String(e.sec.code || e.sec.subject);
+      let si = nextLinks.findIndex(s => s && Array.isArray(s.resources) && String(s.code || s.subject) === sk);
+      if (si < 0) { si = nextLinks.length; nextLinks.push({ ...e.sec, resources: [] }); }
+      lAt.set(k, [si, nextLinks[si].resources.length]);
+      nextLinks[si].resources.push(e.rec);
+      links.push(e.rec);
+    } else if (!e.gone && pos && (Number(nextLinks[pos[0]].resources[pos[1]].updatedAt) || 0) === e.after) {
+      nextLinks[pos[0]].resources[pos[1]] = e.rec;
+      links.push(e.rec);
+    } else skipped++;
+  });
+  return { at: snap.at, tasks, links, count: tasks.length + links.length, skipped, nextTasks, nextLinks: mergeCloudLinks(nextLinks, cur) };
+}
+
+// Puts the plan back with fresh stamps (so other devices take it too) and
+// closes the undo copy. Returns { ok, count, skipped }; on a failed write
+// nothing more is saved and the copy stays open.
+function applySyncUndo() {
+  const plan = syncUndoPlan();
+  if (!plan) return { ok: false, count: 0, skipped: 0 };
+  let ok = true;
+  if (plan.tasks.length) {
+    const saved = writeStamped(KEY_CUSTOM_TASKS, () => stampChanges(loadCustomTasks(), plan.nextTasks, taskKey));
+    if (saved.ok) state.customTasks = loadCustomTasks();
+    else ok = false;
+  }
+  if (ok && plan.links.length && !persistCustomLinks(plan.nextLinks).ok) ok = false;
+  if (ok) dismissSyncUndo();
+  if (plan.count) syncToCloud();
+  if (state.currentPage && state.currentPage !== 'none') renderPage(state.currentPage);
+  return { ok, count: ok ? plan.count : 0, skipped: plan.skipped };
+}
+
+function syncUndoWhen(at) {
+  const d = new Date(Number(at) || Date.now());
+  const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${formatDisplayTime(hm)}`;
+}
+
+// The review step for Undo: lists what comes back before anything is saved.
+function showSyncUndoReview() {
+  document.getElementById('sync-undo-backdrop')?.remove();
+  const plan = syncUndoPlan();
+  if (!plan) { showToast('Nothing to undo.', 'info'); return; }
+  const names = [...plan.tasks.map(t => t.title || 'Task'), ...plan.links.map(r => r.label || 'Vault item')];
+  const shown = names.slice(0, 8).map(n => `<li>${escHtml_cd(n)}</li>`).join('') + (names.length > 8 ? `<li>and ${names.length - 8} more</li>` : '');
+  const plural = (n) => `${n} item${n === 1 ? '' : 's'}`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'sync-undo-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sync-undo-title" style="max-width:440px;width:92vw">
+      <h2 class="modal-title" id="sync-undo-title" style="margin:0 0 6px;font-size:var(--text-xl);font-weight:700">Undo the last sync?</h2>
+      <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
+        ${plan.count
+          ? `On ${escHtml_cd(syncUndoWhen(plan.at))}, syncing with your account replaced or removed ${plural(plan.count)} on this phone. Put ${plan.count === 1 ? 'it' : 'them'} back as ${plan.count === 1 ? 'it was' : 'they were'}?`
+          : 'Everything the last sync replaced has been changed again since, so there is nothing to put back.'}
+      </div>
+      ${plan.count ? `<ul style="margin:10px 0 0 18px;padding:0;font-size:var(--text-sm);line-height:1.5">${shown}</ul>` : ''}
+      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:10px;line-height:1.4">
+        ${plan.count ? 'They come back on your other devices too. Nothing else changes: items the sync added stay.' : ''}
+        ${plan.skipped ? ` ${plural(plan.skipped)} you changed after the sync stay${plan.skipped === 1 ? 's' : ''} as ${plan.skipped === 1 ? 'it is' : 'they are'}.` : ''}
+      </div>
+      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+        ${plan.count
+          ? `<button type="button" class="btn-secondary" data-act="keep">Keep as is</button><button type="button" class="btn-primary" data-act="put">Put ${plan.count === 1 ? 'it' : 'them'} back</button>`
+          : `<button type="button" class="btn-primary" data-act="keep">OK</button>`}
+      </div>
+    </div>`;
+  backdrop.addEventListener('click', (e) => {
+    const act = e.target.closest && e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'put') {
+      backdrop.remove();
+      const res = applySyncUndo();
+      if (res.ok) showToast(`Put back ${plural(res.count)}`, 'success');
+      else showToast("Couldn't put them back: this phone's storage is full. Nothing else was changed; you can try again from Settings.", 'error');
+    } else if (act === 'keep') {
+      backdrop.remove();
+      dismissSyncUndo();
+      if (state.currentPage === 'settings') renderPage('settings');
+    } else if (e.target === backdrop) backdrop.remove();   // decide later: Settings still offers it
+  });
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-act]')?.focus?.();
+}
+window.showSyncUndoReview = showSyncUndoReview;
+
+function showSyncUndoToast(n) {
+  if (signinHold) return;
+  showUndoToast(`Sync replaced or removed ${n} item${n === 1 ? '' : 's'} on this phone`, showSyncUndoReview, 'info');
 }
 
 // ── Push guards ──
@@ -4232,6 +4443,9 @@ function applySigninChoice(choice, cloudData) {
   signinHold = null;
   closeSigninReviewModal();
   lastCloudPayloadHash = calculatePayloadHash(data);
+  // The safety copy above and its Undo cover this merge: no sync Undo too.
+  syncUndoQuiet = true;
+  try {
   if (choice === 'cloud') {
     if (Array.isArray(data.customTasks)) {
       const tasks = pruneDoneTasks(data.customTasks.map(sanitizeTask).filter(Boolean));
@@ -4268,6 +4482,7 @@ function applySigninChoice(choice, cloudData) {
   } else {
     applyCloudDataToLocalState(data);
   }
+  } finally { syncUndoQuiet = false; }
   if (uid) markSigninSeen(uid);
   const msg = choice === 'cloud' ? "Using your account's copy on this phone"
     : choice === 'device' ? "Using this phone's copy for your account" : 'Kept everything from this phone and your account';
@@ -4408,7 +4623,9 @@ function subscribeUserCloudData(uid) {
 function applyCloudDataToLocalState(data) {
   if (!data || typeof data !== 'object') return;
   applyingCloudData = true;
+  syncUndoNew = 0;
   try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
+  if (syncUndoNew) { const n = syncUndoNew; syncUndoNew = 0; showSyncUndoToast(n); }
 }
 
 function applyCloudDataInner(data) {
@@ -4963,6 +5180,9 @@ function vaultReferencedIds() {
   if (signin && signin.keys && typeof signin.keys[KEY_CUSTOM_LINKS] === 'string') {
     try { add(JSON.parse(signin.keys[KEY_CUSTOM_LINKS])); } catch (e) { /* unreadable copy: nothing extra kept */ }
   }
+  // Files a sync removed, while its Undo is still offered.
+  const syncUndo = loadSyncUndo();
+  if (syncUndo && Array.isArray(syncUndo.lost.links)) add([{ resources: syncUndo.lost.links.map(e => e && e.rec) }]);
   return ids;
 }
 
@@ -15429,8 +15649,8 @@ function waSaveLinks() {
 
 // A toast with one action button (used for Undo). Stays a little longer
 // than showToast() so there is time to tap it.
-function showUndoToast(msg, onUndo) {
-  showToast(msg, 'success');
+function showUndoToast(msg, onUndo, type = 'success') {
+  showToast(msg, type);
   const container = document.getElementById('toast-container');
   const toast = container && container.lastElementChild;
   if (!toast) return;
@@ -16791,6 +17011,7 @@ function renderSettings() {
             ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
           </div>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
+          ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
         </div>
         <div>
           ${currentUser ? 
@@ -17606,6 +17827,8 @@ function importData(event) {
       updateTopbarProfile();
       setupFABDrag();
       updateNavBadges();
+      // A restore replaces the lists: an older sync Undo no longer fits them.
+      dismissSyncUndo();
       syncToCloud();
       if (vaultDropped.length) {
         showToast(`Restored. ${vaultDropped.length} vault file${vaultDropped.length !== 1 ? 's were' : ' was'} too big for this phone’s storage; ${vaultDropped.length !== 1 ? 'they’re' : 'it’s'} still in your backup file.`, 'info');

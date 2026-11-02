@@ -45,7 +45,7 @@ const code = appSrc
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `)
-  .replace('function showUndoToast(msg, onUndo) {', 'function showUndoToast(msg, onUndo) { globalThis.__undo = onUndo;');
+  .replace(/function showUndoToast\(msg, onUndo([^)]*)\) \{/, 'function showUndoToast(msg, onUndo$1) { globalThis.__undo = onUndo;');
 const app = new Function(`${code}\n return { state, saveCustomTasks, saveCustomLinks, sanitizeTask, loadCustomTasks, importData, renderAssignments, localDateKey, stampChanges, taskKey, vaultKey };`)();
 app.state.currentPage = 'none';
 

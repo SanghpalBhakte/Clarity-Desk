@@ -46,7 +46,7 @@ const code = appSrc
   const ASSIGNMENTS = [{ id: 'built-1', subject: 'Physics', code: 'PHY', title: 'Built-in', status: 'submitted', dueDate: '2020-01-01', taskType: 'assignment', priority: 'medium', description: '—', marks: 0 }];
   const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `)
-  .replace('function showUndoToast(msg, onUndo) {', 'function showUndoToast(msg, onUndo) { globalThis.__undo = onUndo;');
+  .replace(/function showUndoToast\(msg, onUndo([^)]*)\) \{/, 'function showUndoToast(msg, onUndo$1) { globalThis.__undo = onUndo;');
 const app = new Function(`${code}\n return { state, renderAssignments, localDateKey, getSelection: () => taskSelection, mode: () => taskSelectMode };`)();
 
 let total = 0, passed = 0; const errors = [];

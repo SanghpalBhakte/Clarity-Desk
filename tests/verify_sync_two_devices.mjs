@@ -91,6 +91,11 @@ function makeDevice(name, dayOffsetMs = 0) {
     db = __db; currentUser = { uid: 'u1' };
     return { state, saveCustomTasks, saveCustomLinks, loadCustomTasks, pushLocalDataToCloud, applyCloudDataToLocalState,
       subscribeUserCloudData, calculatePayloadHash, importData, syncToCloud, onCloudPushError,
+      loadSyncUndo: typeof loadSyncUndo === 'function' ? loadSyncUndo : undefined,
+      syncUndoPlan: typeof syncUndoPlan === 'function' ? syncUndoPlan : undefined,
+      applySyncUndo: typeof applySyncUndo === 'function' ? applySyncUndo : undefined,
+      dismissSyncUndo: typeof dismissSyncUndo === 'function' ? dismissSyncUndo : undefined,
+      vaultReferencedIds: typeof vaultReferencedIds === 'function' ? vaultReferencedIds : undefined,
       pushGuard: typeof pushGuard === 'function' ? pushGuard : undefined,
       nextPushDelay: typeof nextPushDelay === 'function' ? nextPushDelay : undefined,
       get pushFailed() { return cloudPushFailed; } };`)(db, ls, st, ct, DevDate);
@@ -562,6 +567,133 @@ await check('M-a: a failed task write never leaves state ahead of storage; cos_s
   E.app.applyCloudDataToLocalState(clone(cloud));
   const order = E.writes.indexOf('cos_custom_tasks') >= 0 && E.writes.indexOf('cos_custom_tasks') < E.writes.indexOf('cos_sync_prev');
   return sameAsStore && order && sig(E.app.state.customTasks) === sig(tasksOf(E)) ? true : JSON.stringify({ state: sig(D.app.state.customTasks), store: sig(tasksOf(D)), writes: E.writes });
+});
+
+// ── Undo last merge (cos_sync_prev) ──
+const prevOf = (dev) => JSON.parse(dev.store.cos_sync_prev || 'null');
+
+await check('U1: a merge that replaces or removes local tasks leaves an open undo copy and one Undo toast', async () => {
+  const [A, B] = await pair([task('t1'), task('t2')]);
+  edit(A, 't1', { title: 'A edit' });
+  remove(A, 't2');
+  await flushPush(A);
+  toasts.length = 0;
+  deliver(B); await tick();
+  const p = prevOf(B);
+  const lost = p && p.lost ? p.lost.tasks.map(e => `${e.rec.id}:${e.gone ? 'gone' : 'changed'}`).sort().join() : '';
+  const toast = toasts.join(' | ');
+  return p && p.open === true && lost === 't1:changed,t2:gone' && /2 items/.test(toast) && B.app.loadSyncUndo()
+    ? true : JSON.stringify({ p, toast });
+});
+
+await check('U2: an open undo copy is never overwritten; a later merge only adds what it newly replaced', async () => {
+  const [A, B] = await pair([task('t1'), task('t2')]);
+  edit(A, 't1', { title: 'A edit' }); await flushPush(A);
+  deliver(B); await tick();
+  const first = prevOf(B);
+  await sleep(2);
+  edit(A, 't1', { title: 'A edit 2' }); edit(A, 't2', { title: 'A t2' }); await flushPush(A);
+  toasts.length = 0;
+  deliver(B); await tick();
+  const p = prevOf(B);
+  const t1 = p.lost.tasks.filter(e => e.rec.id === 't1');
+  return p.open === true && p.at === first.at && stableEq(p.customTasks, first.customTasks)
+    && t1.length === 1 && t1[0].rec.title === 'Task t1' && p.lost.tasks.some(e => e.rec.id === 't2' && e.rec.title === 'Task t2')
+    && /1 item/.test(toasts.join(' | '))
+    ? true : JSON.stringify({ first, p, toasts });
+});
+function stableEq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+await check('U3: an old undo copy (written before this version, no "open") is replaced and offers nothing', async () => {
+  const [A, B] = await pair([task('t1')]);
+  B.store.cos_sync_prev = JSON.stringify({ at: 1, customTasks: [], customLinks: [] });
+  const none = B.app.loadSyncUndo() === null;
+  edit(A, 't1', { title: 'A edit' }); await flushPush(A);
+  deliver(B); await tick();
+  const p = prevOf(B);
+  return none && p.at !== 1 && p.open === true ? true : JSON.stringify(p);
+});
+
+await check('U4: Undo puts back the replaced and removed tasks, keeps what the merge added, and the other device gets them', async () => {
+  const [A, B] = await pair([task('t1'), task('t2')]);
+  edit(A, 't1', { title: 'A edit' });
+  remove(A, 't2');
+  A.app.state.customTasks = [...A.app.state.customTasks, task('t3', { title: 'new on A' })];
+  A.app.saveCustomTasks();
+  await flushPush(A);
+  deliver(B); await tick();
+  const plan = B.app.syncUndoPlan();
+  const res = B.app.applySyncUndo();
+  const after = tasksOf(B).map(t => `${t.id}:${t.title}`).sort().join();
+  const stoned = stonesOf(B).some(s => s.id === 't2');
+  await flushPush(B);
+  deliver(A); await tick();
+  const onA = tasksOf(A).map(t => `${t.id}:${t.title}`).sort().join();
+  const want = 't1:Task t1,t2:Task t2,t3:new on A';
+  return plan.count === 2 && res.ok && after === want && !stoned && onA === want && B.app.loadSyncUndo() === null && prevOf(B).open === false
+    ? true : JSON.stringify({ plan, res, after, onA, stoned });
+});
+
+await check('U5: a task edited on this phone after the merge is kept as edited, not rolled back', async () => {
+  const [A, B] = await pair([task('t1'), task('t2')]);
+  edit(A, 't1', { title: 'A edit' }); edit(A, 't2', { title: 'A t2' }); await flushPush(A);
+  deliver(B); await tick();
+  await sleep(2);
+  edit(B, 't1', { title: 'B later edit' });
+  const plan = B.app.syncUndoPlan();
+  const res = B.app.applySyncUndo();
+  return plan.count === 1 && plan.skipped === 1 && res.ok && byId(B, 't1').title === 'B later edit' && byId(B, 't2').title === 'Task t2'
+    ? true : JSON.stringify({ plan, res, t: tasksOf(B) });
+});
+
+await check('U6: if the undo cannot be saved, nothing changes and the undo copy stays open', async () => {
+  const [A, B] = await pair([task('t1')]);
+  edit(A, 't1', { title: 'A edit' }); await flushPush(A);
+  deliver(B); await tick();
+  const before = B.store.cos_custom_tasks, stones = B.store.cos_tombstones;
+  B.failKeys.add('cos_custom_tasks');
+  const res = B.app.applySyncUndo();
+  B.failKeys.delete('cos_custom_tasks');
+  return !res.ok && B.store.cos_custom_tasks === before && B.store.cos_tombstones === stones && prevOf(B).open === true
+    && B.app.state.customTasks[0].title === 'A edit'
+    ? true : JSON.stringify({ res, p: prevOf(B) });
+});
+
+await check('U7: a vault file removed by a merge is put back in its folder (folder made again if gone); its file stays protected', async () => {
+  const file = { label: 'Notes', url: '', idb: true, fileId: 'fabc-10', bytes: 10, mime: 'application/pdf', isUpload: true };
+  const [A, B] = await pair(null, [section('PHY', [{ label: 'Site', url: 'https://x.test/s' }])]);
+  B.store.cos_custom_links = JSON.stringify([section('PHY', [{ label: 'Site', url: 'https://x.test/s' }]), section('BIO', [file])]);
+  // A cloud copy where BIO and its file were deleted later than B's file was made.
+  const now = Date.now() + 1000;
+  cloud.tombstones = [{ id: 'BIO|fabc-10|Notes', deletedAt: now }, { id: 'sec|BIO', deletedAt: now }];
+  deliver(B); await tick();
+  const gone = !linksOf(B).some(s => s.code === 'BIO');
+  const p = prevOf(B);
+  const kept = B.app.vaultReferencedIds().has('fabc-10');
+  const res = B.app.applySyncUndo();
+  const bio = linksOf(B).find(s => s.code === 'BIO');
+  const back = bio && bio.resources[0];
+  return gone && p.open && kept && res.ok && back && back.idb === true && back.fileId === 'fabc-10' && back.updatedAt > now && bio.color === '#394B63'
+    ? true : JSON.stringify({ gone, p, kept, res, links: linksOf(B) });
+});
+
+await check('U8: a merge that only folds duplicates keeps the copy but offers no Undo', async () => {
+  cloud = { customLinks: [section('PHY', [{ label: 'A', url: 'https://x.test/a' }])] };
+  const D = makeDevice('FOLD');
+  D.store.cos_custom_links = JSON.stringify([section('PHY', [{ label: 'A', url: 'https://x.test/a' }, { label: 'A', url: 'https://x.test/a' }])]);
+  toasts.length = 0;
+  D.app.applyCloudDataToLocalState(clone(cloud));
+  const p = prevOf(D);
+  return p && p.open === false && D.app.loadSyncUndo() === null && !/Undo|replaced/.test(toasts.join(' | ')) ? true : JSON.stringify({ p, toasts });
+});
+
+await check('U9: Keep as is closes the undo copy without touching tasks', async () => {
+  const [A, B] = await pair([task('t1')]);
+  edit(A, 't1', { title: 'A edit' }); await flushPush(A);
+  deliver(B); await tick();
+  const before = B.store.cos_custom_tasks;
+  B.app.dismissSyncUndo();
+  return B.app.loadSyncUndo() === null && B.store.cos_custom_tasks === before ? true : JSON.stringify(prevOf(B));
 });
 
 console.log('\n========================================');
