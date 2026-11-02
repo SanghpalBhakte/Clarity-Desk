@@ -106,4 +106,35 @@ test.describe('Clarity Desk offline baseline', () => {
     await page.waitForFunction(() => typeof (window as any).navigate === 'function');
     expect(await storedTitles(page)).toContain('Edit made offline');
   });
+
+  test('Undo last sync works offline: Settings offers it, the review lists the task, Put it back saves it', async ({ context, page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (e) => pageErrors.push(e.message));
+    await openAppOnline(page);
+    await context.setOffline(true);
+    try {
+      await page.evaluate(() => {
+        const t = { id: 'undo-1', subject: 'Physics', code: 'PHY', title: 'Lab report removed by sync', taskType: 'assignment', noDeadline: true, description: '', dueDate: '', priority: 'medium', status: 'pending', marks: 0, isCustom: true, updatedAt: 5 };
+        localStorage.setItem('cos_sync_prev', JSON.stringify({ at: Date.now() - 60000, customTasks: [t], customLinks: [], open: true, lost: { tasks: [{ rec: t, gone: true }], links: [] } }));
+        (window as any).navigate('settings');
+      });
+      const row = page.getByRole('button', { name: 'Review & undo' });
+      await expect(row).toBeVisible();
+      await row.click();
+      const dialog = page.getByRole('dialog', { name: 'Undo the last sync?' });
+      await expect(dialog).toContainText('Lab report removed by sync');
+      await dialog.getByRole('button', { name: 'Put it back' }).click();
+      await expect(dialog).toBeHidden();
+      const saved = await page.evaluate(() => ({
+        task: (JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]') as any[]).find((x) => x.id === 'undo-1'),
+        prev: JSON.parse(localStorage.getItem('cos_sync_prev') || 'null'),
+      }));
+      expect(saved.task && saved.task.updatedAt).toBeGreaterThan(5);
+      expect(saved.prev.open).toBe(false);
+      await expect(page.getByRole('button', { name: 'Review & undo' })).toHaveCount(0);
+    } finally {
+      await context.setOffline(false);
+    }
+    expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  });
 });
