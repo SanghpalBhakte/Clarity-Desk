@@ -137,4 +137,73 @@ test.describe('Clarity Desk offline baseline', () => {
     }
     expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
   });
+
+  test('offline audit: tasks, attendance, vault files, Ask Desk and feedback all work with the network off', async ({ context, page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (e) => pageErrors.push(e.message));
+    let feedbackPosts = 0;
+    await page.route(/clarity-desk-feedback/, (r) => { feedbackPosts++; r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+    await openAppOnline(page);
+    await context.setOffline(true);
+    const toasts = () => page.evaluate(() => [...document.querySelectorAll('#toast-container .toast')].map((t) => t.textContent || ''));
+    try {
+      // App shell from the service worker.
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+
+      // Tasks: add, edit, delete.
+      await quickAdd(page, 'Audit task');
+      const id = await page.evaluate(() => (window as any).state.customTasks.find((t: any) => t.title === 'Audit task').id);
+      await page.evaluate((tid) => (window as any).showAddTaskModal(tid), id);
+      await page.fill('#task-title', 'Audit task edited');
+      await page.evaluate((tid) => (window as any).submitAddTask(tid), id);
+      expect(await storedTitles(page)).toEqual(expect.arrayContaining(['Audit task edited']));
+      expect(await storedTitles(page)).not.toContain('Audit task');
+      await page.evaluate((tid) => (window as any).deleteCustomTask(tid), id);
+      await page.click('#app-confirm-backdrop [data-act="yes"]');
+      expect(await storedTitles(page)).not.toContain('Audit task edited');
+
+      // Attendance mark, kept after a reload.
+      await page.evaluate(() => (window as any).setAttendance('2026-11-02', 'AUD_0900', 'attended'));
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_attendance') || '{}')['2026-11-02']?.AUD_0900)).toBe('attended');
+
+      // Vault: upload a file offline, then open it offline.
+      await page.evaluate(() => { (window as any).navigate('links'); (window as any).openAddResourceForSubject('Audit Subject', 'AUD'); });
+      await page.fill('#lsm-code', 'AUD');
+      await page.getByRole('button', { name: 'Save Vault' }).click();
+      await page.evaluate(() => { document.getElementById('lrm-file-input') || (window as any).openAddResourceForSubject('Audit Subject', 'AUD'); (window as any).setResourceInputMode('file'); });
+      await page.setInputFiles('#lrm-file-input', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('offline notes') });
+      await page.fill('#lrm-label', 'Offline notes');
+      await page.getByRole('dialog', { name: 'Add Vault Material' }).locator('.btn-primary').last().click();
+      await page.waitForFunction(() => JSON.stringify(JSON.parse(localStorage.getItem('cos_custom_links') || '[]')).includes('Offline notes'));
+      const file = await page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_links') || '[]').flatMap((s: any) => s.resources || []).find((r: any) => r.label === 'Offline notes'));
+      expect(file.idb === true || String(file.url).startsWith('data:')).toBeTruthy();
+      if (file.idb) {
+        const popup = context.waitForEvent('page', { timeout: 3000 }).catch(() => null);
+        await page.evaluate((fid) => (window as any).vaultOpenFile(fid), file.fileId);
+        await popup;
+        expect((await toasts()).join(' ')).not.toContain('missing');
+      }
+
+      // Ask Desk answers (or fails gracefully) offline.
+      await page.evaluate(() => { (window as any).openAssistant(); (window as any).sendAssistantMessage('what is due today'); });
+      await expect.poll(() => page.evaluate(() => (document.getElementById('cd-chat-thread')?.innerText || '').length), { timeout: 5000 }).toBeGreaterThan(20);
+
+      // Feedback written offline is queued.
+      await page.evaluate(() => (window as any).openFeedbackForm());
+      await page.fill('#fb-message', 'Offline audit feedback');
+      await page.evaluate(() => (window as any).submitFeedback());
+      await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('cos_feedback_queue') || '[]').length)).toBe(1);
+    } finally {
+      await context.setOffline(false);
+    }
+    // Back online: the queued report is sent once, even if "online" fires twice.
+    await page.evaluate(() => { window.dispatchEvent(new Event('online')); window.dispatchEvent(new Event('online')); });
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('cos_feedback_queue') || '[]').length)).toBe(0);
+    await page.waitForTimeout(300);
+    expect(feedbackPosts).toBe(1);
+    expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  });
 });

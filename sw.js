@@ -39,13 +39,17 @@ const PRECACHE_ASSETS = [
   './badge-96.png'
 ];
 
+// The app shell must be saved, or this version does not install (the old one
+// keeps working offline and the browser tries again later); a half-saved
+// version would delete the old copy and fail to open offline. Everything else
+// is best effort and also saved on first use.
+const isCoreAsset = (a) => a === './index.html' || /\/(app|data)\.js$|\/style\.css$/.test(a);
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(
-        PRECACHE_ASSETS.map((asset) => cache.add(asset).catch(() => {}))
-      );
-    })
+    caches.open(CACHE_NAME).then((cache) => Promise.all([
+      Promise.all(PRECACHE_ASSETS.filter(isCoreAsset).map((asset) => cache.add(asset))),
+      Promise.allSettled(PRECACHE_ASSETS.filter((a) => !isCoreAsset(a)).map((asset) => cache.add(asset).catch(() => {})))
+    ]))
   );
   self.skipWaiting();
 });
