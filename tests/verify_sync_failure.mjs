@@ -38,7 +38,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const make = () => new Function(`${code}\n return { onCloudPushOk, onCloudPushError, updateSyncUI, signIn(u) { currentUser = u; } };`)();
+const make = () => new Function(`${code}\n let pushed = 0; return { onCloudPushOk, onCloudPushError, updateSyncUI, hasPendingSync, flushPendingSync, syncToCloud, pushes() { return pushed; }, signIn(u) { currentUser = u; db = {}; pushLocalDataToCloud = () => { pushed++; }; } };`)();
 const badge = () => dom['sync-text'].textContent;
 function fresh() { dom = {}; toasts.length = 0; nav.onLine = true; const a = make(); a.signIn({ uid: 'u1' }); return a; }
 
@@ -82,6 +82,21 @@ check('Offline still shows "Offline · Saved" even after a failure', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' }); nav.onLine = false; a.updateSyncUI();
   return badge() === 'Offline · Saved' ? true : badge();
 });
+
+check('A change waiting for the cloud shows "Waiting to sync", online or offline', () => {
+  const a = fresh(); a.syncToCloud();
+  const online = badge(); nav.onLine = false; a.updateSyncUI();
+  return online === 'Waiting to sync' && badge() === 'Waiting to sync' ? true : `${online} / ${badge()}`;
+});
+
+check('Back online with a change waiting: one push; with nothing waiting: none', () => {
+  const a = fresh(); a.flushPendingSync();
+  const idle = a.pushes(); a.syncToCloud(); a.flushPendingSync();
+  return idle === 0 && a.pushes() === 1 ? true : `${idle} ${a.pushes()}`;
+});
+
+check('The online event flushes waiting changes', () =>
+  /addEventListener\('online', \(\) => \{[^}]*flushPendingSync\(\);/.test(appSrc) ? true : 'online not wired');
 
 check('The cloud push is wired to these handlers', () =>
   appSrc.includes('ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);') ? true : 'push not wired');
