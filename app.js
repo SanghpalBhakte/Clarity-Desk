@@ -297,6 +297,9 @@ function initFirebase() {
           subscribeUserCloudData(user.uid);
         } else {
           if (cloudUnsubscribe) { cloudUnsubscribe(); cloudUnsubscribe = null; }
+          // Signed out: a first sign-in question for the old account no longer applies.
+          signinHold = null; signinPushWaiting = false; lastSyncedAt = 0;
+          closeSigninReviewModal();
         }
         if (state.currentPage === 'settings') renderPage('settings');
       });
@@ -457,9 +460,21 @@ function flushPendingSync() {
   pushLocalDataToCloud(currentUser.uid);
 }
 
+// Last time this phone and the account were known to match (memory only).
+let lastSyncedAt = 0;
+function syncTimeLabel(ms) {
+  const d = new Date(ms);
+  return formatDisplayTime(`${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+}
+function markSynced() {
+  lastSyncedAt = Date.now();
+  if (!hasPendingSync()) updateSyncUI();
+}
+
 function onCloudPushOk() {
   localPushPendingAt = 0;
   resetPushBackoff();
+  markSynced();
   if (!cloudPushFailed) return;
   cloudPushFailed = null;
   updateSyncUI();
@@ -534,7 +549,7 @@ function updateSyncUI(status = null) {
     if (btn) btn.setAttribute('aria-label', 'Offline, saved on this device. Opens Settings, where backup is');
   } else if (currentUser) {
     if (icon) icon.textContent = '⚡';
-    if (text) text.textContent = 'Cloud synced';
+    if (text) text.textContent = lastSyncedAt ? `Synced · ${syncTimeLabel(lastSyncedAt)}` : 'Synced';
     if (dot) dot.style.background = 'var(--green)';
     if (btn) btn.title = 'Cloud sync active · Saved locally & synced to your account';
     if (btn) btn.setAttribute('aria-label', 'Saved and synced to your account. Opens Settings, where backup is');
@@ -4428,8 +4443,8 @@ function showSigninReviewModal() {
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'signin-review-backdrop';
   backdrop.innerHTML = `
-    <div class="modal signin-review-dialog" onclick="event.stopPropagation()" style="max-width:480px;padding:22px 18px">
-      <h2 class="modal-title" style="margin:0 0 6px;font-size:var(--text-xl);font-weight:700">Your account has saved data too</h2>
+    <div class="modal signin-review-dialog" role="dialog" aria-modal="true" aria-labelledby="signin-review-title" onclick="event.stopPropagation()" style="max-width:480px;padding:22px 18px">
+      <h2 class="modal-title" id="signin-review-title" style="margin:0 0 6px;font-size:var(--text-xl);font-weight:700">Your account has saved data too</h2>
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:12px;line-height:1.45">
         This phone: ${here}. Your account: ${there}. Timetable and attendance count too. How should we put them together?
       </div>
@@ -4628,6 +4643,7 @@ function subscribeUserCloudData(uid) {
 
     // Skip parsing and UI re-renders on local pending write echo events
     if (doc.metadata && doc.metadata.hasPendingWrites) return;
+    if (!(doc.metadata && doc.metadata.fromCache) && !signinHeld(uid)) markSynced();
 
     const data = doc.data() || {};
     const currentHash = calculatePayloadHash(data);

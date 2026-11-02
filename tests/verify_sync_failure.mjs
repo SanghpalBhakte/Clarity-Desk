@@ -68,9 +68,9 @@ check('Too big for Firestore: the toast says so and points at large vault files'
   return /too big/.test(toasts[0]) && /vault/.test(toasts[0]) ? true : toasts[0];
 });
 
-check('The next successful push brings back "Cloud synced"', () => {
+check('The next successful push brings back "Synced · time"', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' }); a.onCloudPushOk();
-  return badge() === 'Cloud synced' ? true : badge();
+  return /^Synced · \d{1,2}:\d{2} [AP]M$/.test(badge()) ? true : badge();
 });
 
 check('Permission denied keeps its own "Sync denied" state', () => {
