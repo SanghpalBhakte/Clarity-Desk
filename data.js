@@ -199,6 +199,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u146",
+    date: "2026-11-03",
+    title: "The sync status now shows when your phone last synced, and signing out clears any unanswered sign-in question",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The sync status now shows when your phone last synced, and signing out clears any unanswered sign-in question",
+    points: [
+
+    ]
+  },
+  {
+    id: "u145",
+    date: "2026-11-03",
+    title: "The app keeps working offline after an update that was interrupted by a bad connection, and \"Back online\" no longer mentions cloud sync when you're not signed in",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The app keeps working offline after an update that was interrupted by a bad connection, and \"Back online\" no longer mentions cloud sync when you're not signed in",
+    points: [
+
+    ]
+  },
+  {
+    id: "u144",
+    date: "2026-11-03",
+    title: "Signing in on a phone that already has data can no longer overwrite your account before you choose, even on a slow or lost connection, and Undo now leaves your account as it was",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Signing in on a phone that already has data can no longer overwrite your account before you choose, even on a slow or lost connection, and Undo now leaves your account as it was",
+    points: [
+
+    ]
+  },
+  {
+    id: "u143",
+    date: "2026-11-03",
+    title: "When your phone's storage is full, syncing no longer overwrites your account with older tasks and links, and you get a clear message",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When your phone's storage is full, syncing no longer overwrites your account with older tasks and links, and you get a clear message",
+    points: [
+
+    ]
+  },
+  {
+    id: "u142",
+    date: "2026-11-03",
+    title: "If a sync replaces or removes your tasks or vault items, you can now undo it from a toast or from Settings",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "If a sync replaces or removes your tasks or vault items, you can now undo it from a toast or from Settings",
+    points: [
+
+    ]
+  },
+  {
+    id: "u141",
+    date: "2026-11-03",
+    title: "The sync badge now says when changes are waiting and sends them as soon as you're back online",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The sync badge now says when changes are waiting and sends them as soon as you're back online",
+    points: [
+
+    ]
+  },
+  {
     id: "u140",
     date: "2026-10-31",
     title: "Calendar: you can now add a task on any date, including past days",
