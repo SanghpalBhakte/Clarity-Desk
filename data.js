@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u153",
+    date: "2026-11-03",
+    title: "Open Vault files inside the app so it works on Safari, installed PWAs and phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Open Vault files inside the app so it works on Safari, installed PWAs and phones",
+    points: [
+
+    ]
+  },
+  {
+    id: "u152",
+    date: "2026-11-03",
+    title: "Open HTML, PDF, image and text files from the Vault in a new tab instead of downloading them",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Open HTML, PDF, image and text files from the Vault in a new tab instead of downloading them",
+    points: [
+
+    ]
+  },
+  {
     id: "u151",
     date: "2026-11-03",
     title: "Fix the drop guard so it works where the page has no drag events",
