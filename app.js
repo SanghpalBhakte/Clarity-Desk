@@ -16236,7 +16236,7 @@ let _vaultGuardWired = false;
 // leave the app. While the Vault is on screen, stop that (zones that handle
 // the drop have already cancelled it, so they are untouched).
 function vaultWireDropGuard() {
-  if (_vaultGuardWired) return;
+  if (_vaultGuardWired || typeof window.addEventListener !== 'function') return;
   _vaultGuardWired = true;
   const guard = e => {
     if (e.defaultPrevented || !e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
