@@ -34,7 +34,6 @@ const KEY_SIGNIN_SEEN         = 'cos_signin_seen';
 // Local-only: this phone's data (vault without file bytes) right before the
 // first sign-in choice was applied. For Undo.
 const KEY_SIGNIN_BACKUP       = 'cos_signin_backup';
-const KEY_GEMINI_KEY          = 'cos_gemini_key';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
@@ -10336,7 +10335,8 @@ function getCalendarAgenda(todayKey = todayStr(), src = {}) {
   return groups;
 }
 
-function calItemHtml(it, esc) {
+function calItemHtml(it) {
+  const esc = escAttr_cd;
   return `
       <li><button type="button" class="cal-item cal-item-${it.type} ${it.done ? 'done' : ''}" data-type="${it.type}" data-id="${esc(it.sourceId)}" onclick="calOpenItem(this.dataset.type, this.dataset.id)">
         <span class="cal-dot cal-dot-${it.type}" aria-hidden="true"></span>
@@ -10361,7 +10361,6 @@ function renderCalendar() {
   const byDate = {};
   items.forEach(it => { (byDate[it.date] ||= []).push(it); });
 
-  const esc = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const monthName = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long' });
   const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;   // Monday first, like the Timetable tabs
 
@@ -10401,7 +10400,7 @@ function renderCalendar() {
   } else if (!selItems.length) {
     dayList = `<p class="cal-day-empty">Nothing on this day.</p>`;
   } else {
-    dayList = `<ul class="cal-day-list">${selItems.map(it => calItemHtml(it, esc)).join('')}</ul>`;
+    dayList = `<ul class="cal-day-list">${selItems.map(it => calItemHtml(it)).join('')}</ul>`;
   }
   // Quick-add opens the existing Add Task form with this date filled in.
   if (hasData) {
@@ -10421,7 +10420,7 @@ function renderCalendar() {
       ${agendaGroups.map(g => {
         const gd = new Date(g.date + 'T00:00:00');
         const name = g.date === todayKey ? 'Today' : g.date === tomorrowKey ? 'Tomorrow' : `${DAY_SHORT[gd.getDay()]}, ${gd.getDate()} ${MONTH_NAMES[gd.getMonth()]}`;
-        return `<h3 class="cal-agenda-day">${name}</h3><ul class="cal-day-list">${g.items.map(it => calItemHtml(it, esc)).join('')}</ul>`;
+        return `<h3 class="cal-agenda-day">${name}</h3><ul class="cal-day-list">${g.items.map(it => calItemHtml(it)).join('')}</ul>`;
       }).join('')}
     </section>`;
   }
@@ -10492,13 +10491,12 @@ window.calSelectDate = (key) => {
 };
 function calOpenDayCard(key) {
   document.getElementById('cal-day-backdrop')?.remove();
-  const esc = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const items = getCalendarItems(key, key);
   const d = new Date(key + 'T00:00:00');
   const title = `${DAY_NAMES[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
   const close = `document.getElementById('cal-day-backdrop')?.remove()`;
   const list = items.length
-    ? `<ul class="cal-day-list">${items.map(it => calItemHtml(it, esc)).join('')}</ul>`
+    ? `<ul class="cal-day-list">${items.map(it => calItemHtml(it)).join('')}</ul>`
     : '<p class="cal-day-empty">Nothing on this day.</p>';
   const add = `<button type="button" class="btn-primary" onclick="calQuickAdd('${key}')">+ Add</button>`;
   const backdrop = document.createElement('div');
@@ -18580,6 +18578,11 @@ function sendAssistantMessage(presetText) {
 
 function escHtml_cd(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Same as escHtml_cd, also safe inside a quoted attribute.
+function escAttr_cd(s) {
+  return escHtml_cd(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // An answer's button that opens a page or a form (Add task, Open DBMS,
