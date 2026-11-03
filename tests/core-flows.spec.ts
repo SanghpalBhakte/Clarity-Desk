@@ -178,6 +178,28 @@ test.describe('Clarity Desk core flows', () => {
     expect(errors, errors.join(' | ')).toEqual([]);
   });
 
+  test('task text with markup shows as text, and a subject with an apostrophe opens its hub', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.setFixedTime(new Date('2026-09-24T10:20:00'));
+    const title = 'Read <img src=x onerror="window.__xss=1"> & "notes"';
+    await open(page, {
+      // As a WhatsApp import, a backup or another device could bring it in.
+      cos_custom_tasks: JSON.stringify([{ id: 'esc-1', subject: "Women's Studies", code: '', title, description: '<b>bold?</b>', taskType: 'assignment', noDeadline: false, dueDate: '2026-09-26', priority: 'medium', status: 'pending', marks: 0, isCustom: true }])
+    });
+    for (const p of ['dashboard', 'summary', 'assignments']) await page.evaluate((n) => (window as any).navigate(n), p);
+    const card = page.locator('#page-assignments .assignment-card', { hasText: 'Read' });
+    await expect(card.locator('.assignment-title')).toHaveText(title);
+    await expect(card.locator('.assignment-desc')).toHaveText('<b>bold?</b>');
+    expect(await card.locator('.assignment-title img, .assignment-desc b').count()).toBe(0);
+    expect(await page.evaluate(() => (window as any).__xss)).toBeUndefined();
+
+    await page.evaluate(() => { const w = window as any; w.__hub = []; w.openSubjectHub = (s: string) => w.__hub.push(s); });
+    await card.locator('.tk-subj').click();
+    expect(await page.evaluate(() => (window as any).__hub)).toEqual(["Women's Studies"]);
+    expect(errors, errors.join(' | ')).toEqual([]);
+  });
+
   test('a signed-out phone downloads no Firebase SDK until Settings (where sign-in is)', async ({ page }) => {
     const hits = await routeFirebase(page);
     await open(page, {});

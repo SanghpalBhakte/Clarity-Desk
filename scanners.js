@@ -1326,7 +1326,7 @@ function renderReviewRowsHTML(rows, subjects) {
 
     const subjectOptionsHTML = subjects.map(s => {
       const isSel = (s.name.toLowerCase() === r.subject.toLowerCase() || (r.code && s.code && s.code.toLowerCase() === r.code.toLowerCase()));
-      return `<option value="${s.name}|||${s.code || ''}" ${isSel ? 'selected' : ''}>${s.name} ${s.code ? `(${s.code})` : ''}</option>`;
+      return `<option value="${sylEsc(s.name)}|||${sylEsc(s.code || '')}" ${isSel ? 'selected' : ''}>${sylEsc(s.name)} ${s.code ? `(${sylEsc(s.code)})` : ''}</option>`;
     }).join('');
 
     const isExisting = subjects.some(s => s.name.toLowerCase() === r.subject.toLowerCase() || (r.code && s.code && s.code.toLowerCase() === r.code.toLowerCase()));
@@ -1338,7 +1338,7 @@ function renderReviewRowsHTML(rows, subjects) {
             <label class="form-label" style="font-size:var(--text-sm);margin-bottom:3px">Subject</label>
             <select class="form-select review-subject-select" style="font-size:var(--text-base);padding:5px 8px" onchange="onReviewRowInputChange(${idx})">
               ${subjectOptionsHTML}
-              ${!isExisting ? `<option value="${r.subject}|||${r.code || ''}" selected>${r.subject} ${r.code ? `(${r.code})` : ''} (Detected)</option>` : ''}
+              ${!isExisting ? `<option value="${sylEsc(r.subject)}|||${sylEsc(r.code || '')}" selected>${sylEsc(r.subject)} ${r.code ? `(${sylEsc(r.code)})` : ''} (Detected)</option>` : ''}
             </select>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -1407,7 +1407,7 @@ function addScanReviewRow() {
   const newIdx = container.querySelectorAll('.attendance-review-row').length + Math.floor(Math.random()*1000);
 
   const subjectOptionsHTML = subjects.map(s => `
-    <option value="${s.name}|||${s.code || ''}">${s.name} ${s.code ? `(${s.code})` : ''}</option>
+    <option value="${sylEsc(s.name)}|||${sylEsc(s.code || '')}">${sylEsc(s.name)} ${s.code ? `(${sylEsc(s.code)})` : ''}</option>
   `).join('');
 
   const rowDiv = document.createElement('div');

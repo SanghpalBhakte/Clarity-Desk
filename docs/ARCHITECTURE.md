@@ -34,7 +34,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 ## Rendering and navigation
 - Hash routing. `PAGES`: dashboard (Today), timetable, subjects, assignments (Tasks & Deadlines), calendar, notices, resources/links/summary (Vault), settings, review. `navigate()` and the `hashchange` listener.
 - `renderPage(page)` switches to per-page `renderX()` that rebuilds the page with `innerHTML` strings (~90 uses; ~400 inline `onclick=` handlers). It de-dupes calls within 50 ms and saves/restores typed drafts around re-renders.
-- Escaping is by hand: `escHtml_cd` (text) and `escAttr_cd` (also safe inside a quoted attribute); no other local copies.
+- Escaping is by hand: `escHtml_cd` (text), `escAttr_cd` (also safe inside a quoted attribute) and `jsArg_cd` (a text argument inside an inline `onclick`, e.g. `openSubjectHub(${jsArg_cd(a.subject)})`). Older per-feature copies with the same effect: `vaultEsc` (Vault), `waEsc` (WhatsApp import), `sylEsc` (syllabus; also passed to `scanners.js`). Task, subject, room, teacher, note and notice text is always escaped when rendered; `tests/verify_escaping.mjs` fails if the old raw forms come back.
 
 ## Cloud sync (optional, Firestore)
 - One document per user: `users/{uid}` (merge-set), plus old `users/{uid}/fcmTokens/{token}` documents from the removed FCM path (nothing reads or writes them now; left in place, no destructive cleanup). Rules: default deny; `/users/{uid}/**` owner only.

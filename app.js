@@ -8852,9 +8852,9 @@ function renderReview() {
               ${done ? icons.check() : ''}
             </div>
             <div style="flex:1;min-width:0">
-              <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${a.title}</div>
+              <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${escHtml_cd(a.title)}</div>
               <div style="font-size:var(--text-sm);color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:2px">
-                <span onclick="openSubjectHub('${a.subject}')" style="cursor:pointer;font-weight:600">${a.subject}</span>
+                <span onclick="openSubjectHub(${jsArg_cd(a.subject)})" style="cursor:pointer;font-weight:600">${escHtml_cd(a.subject)}</span>
                 <span class="type-badge type-${taskType}" style="font-size:var(--text-2xs);padding:1px 6px">${taskType}</span>
               </div>
             </div>
@@ -8864,7 +8864,7 @@ function renderReview() {
         const n = it.data;
         return `
           <div class="card card-sm notice-card" style="margin-bottom:8px;padding:12px 14px">
-            <div style="font-weight:600;font-size:var(--text-md)">${n.title}</div>
+            <div style="font-weight:600;font-size:var(--text-md)">${escHtml_cd(n.title)}</div>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
           </div>
         `;
@@ -8928,7 +8928,7 @@ function renderReview() {
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${tasksCompleted.map(t => `
               <span class="filter-chip" style="font-size:var(--text-sm);padding:3px 10px;background:color-mix(in srgb, var(--status-success) 10%, transparent);color:var(--status-success);border:1px solid color-mix(in srgb, var(--status-success) 25%, transparent)">
-                ✓ ${t.title} (${t.subject || 'Task'})
+                ✓ ${escHtml_cd(t.title)} (${escHtml_cd(t.subject || 'Task')})
               </span>
             `).join('')}
           </div>
@@ -8964,7 +8964,7 @@ function renderReview() {
       <div style="margin-bottom:22px">
         ${recentNotices.map(n => `
           <div class="card card-sm notice-card" onclick="showNotice('${n.id}')" style="margin-bottom:8px;padding:12px 14px;cursor:pointer">
-            <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${n.title}</div>
+            <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${escHtml_cd(n.title)}</div>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${formatDate(n.date)} · ${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
           </div>
         `).join('')}
@@ -9223,21 +9223,21 @@ function renderWeeklyAttendanceTracker() {
         <div class="card card-sm" style="margin-bottom:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
             <div style="font-weight:600;font-size:var(--text-md);display:flex;align-items:center;gap:6px">
-              ${c.subject}
+              ${escHtml_cd(c.subject)}
               <span class="type-badge" style="font-size:var(--text-2xs);padding:2px 6px;background:${isLab ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'var(--accent-dim)'};color:${isLab ? 'var(--status-success)' : 'var(--brand-primary)'}">
                 ${isLab ? 'Lab' : 'Lecture'}
               </span>
             </div>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-              ${formatDisplayTimeRange(c.time, c.end)} ${c.room ? '· ' + c.room : ''}
+              ${formatDisplayTimeRange(c.time, c.end)} ${c.room ? '· ' + escHtml_cd(c.room) : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${attStatusControlsHTML(dateStr, classKey, status)}
-            <button class="btn btn-sm att-week-btn is-present" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${c.subject} as present on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}">
+            <button class="btn btn-sm att-week-btn is-present" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${escAttr_cd(c.subject)} as present on ${formatDate(dateStr)}" aria-pressed="${status === 'attended'}">
               ${status==='attended'?'✓ Present':'Present'}
             </button>
-            <button class="btn btn-sm att-week-btn is-absent" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${c.subject} as absent on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}">
+            <button class="btn btn-sm att-week-btn is-absent" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${escAttr_cd(c.subject)} as absent on ${formatDate(dateStr)}" aria-pressed="${status === 'skipped'}">
               ${status==='skipped'?'✕ Absent':'Absent'}
             </button>
             ${attMoreMenuHTML(dateStr, classKey, status)}
@@ -9975,12 +9975,12 @@ function renderDashboard() {
       <div class="chrono-beacon is-live" role="region" aria-label="Current class in session"${liveHasEnd ? ` data-beacon="live" data-start="${liveStartMin}" data-end="${liveEndMin}"` : ''}>
         <div class="chrono-beacon-main">
           <div class="chrono-beacon-head"><span class="chrono-beacon-badge">In Session</span></div>
-          <div class="chrono-beacon-title" onclick="openSubjectHub('${activeClass.subject}')" style="cursor:pointer" title="Open Subject Hub">
-            ${activeClass.subject}
+          <div class="chrono-beacon-title" onclick="openSubjectHub(${jsArg_cd(activeClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
+            ${escHtml_cd(activeClass.subject)}
           </div>
           <div class="chrono-beacon-meta">
-            ${activeClass.room ? `<span>${activeClass.room}</span>` : ''}
-            ${activeClass.teacher ? `<span>${formatTeacherName(activeClass.teacher)}</span>` : ''}
+            ${activeClass.room ? `<span>${escHtml_cd(activeClass.room)}</span>` : ''}
+            ${activeClass.teacher ? `<span>${escHtml_cd(formatTeacherName(activeClass.teacher))}</span>` : ''}
           </div>
           ${upNextClass ? `<div class="chrono-beacon-then">Then <strong>${escHtml_cd(upNextClass.subject)}</strong> at ${formatDisplayTime(upNextClass.time)}${upNextClass.room ? ` · ${escHtml_cd(upNextClass.room)}` : ''}</div>` : ''}
         </div>
@@ -10001,12 +10001,12 @@ function renderDashboard() {
       <div class="chrono-beacon" role="region" aria-label="Next upcoming class" data-beacon="next" data-start="${nextStartMin}" data-end="${timeToMinutes(nextClass.end || '23:59')}">
         <div class="chrono-beacon-main">
           <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Next class</span><span class="chrono-beacon-time">${formatDisplayTime(nextClass.time)}</span></div>
-          <div class="chrono-beacon-title" onclick="openSubjectHub('${nextClass.subject}')" style="cursor:pointer" title="Open Subject Hub">
-            ${nextClass.subject}
+          <div class="chrono-beacon-title" onclick="openSubjectHub(${jsArg_cd(nextClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
+            ${escHtml_cd(nextClass.subject)}
           </div>
           <div class="chrono-beacon-meta">
-            ${nextClass.room ? `<span>${nextClass.room}</span>` : ''}
-            ${nextClass.teacher ? `<span>${formatTeacherName(nextClass.teacher)}</span>` : ''}
+            ${nextClass.room ? `<span>${escHtml_cd(nextClass.room)}</span>` : ''}
+            ${nextClass.teacher ? `<span>${escHtml_cd(formatTeacherName(nextClass.teacher))}</span>` : ''}
           </div>
         </div>
         <div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(nextStartMin - currentMin)}</span><span class="chrono-beacon-count-label">until it starts</span></div>
@@ -10200,9 +10200,9 @@ function renderDashboard() {
                 return `
                   <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${c === heroClass ? ' is-in-hero' : ''}">
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
-                    <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub('${c.subject}')">
-                      <div class="schedule-slot-title">${c.subject}</div>
-                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? c.room + ' · ' : ''}${c.teacher ? formatTeacherName(c.teacher) + ' · ' : ''}${c.type || 'lecture'}</div>
+                    <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
+                      <div class="schedule-slot-title">${escHtml_cd(c.subject)}</div>
+                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? escHtml_cd(c.room) + ' · ' : ''}${c.teacher ? escHtml_cd(formatTeacherName(c.teacher)) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     ${isPast && !markedAbove ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
                       <button class="btn btn-xs slot-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">Present</button>
@@ -10251,9 +10251,9 @@ function renderDashboard() {
                     ${done ? icons.check() : ''}
                   </div>
                   <div style="flex:1;min-width:0;cursor:pointer" onclick="navigateTo('assignments')">
-                    <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${a.title}</div>
+                    <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${escHtml_cd(a.title)}</div>
                     <div class="task-ledger-meta" style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
-                      <span onclick="event.stopPropagation(); openSubjectHub('${a.subject}')" style="color:var(--accent);font-weight:600;cursor:pointer">${a.subject || 'General'}</span>
+                      <span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--accent);font-weight:600;cursor:pointer">${escHtml_cd(a.subject || 'General')}</span>
                       <span>·</span>
                       <span>${isOngoing ? 'Standing' : formatDate(a.dueDate)}</span>
                     </div>
@@ -10332,9 +10332,9 @@ function renderDashboard() {
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${quickLinksPreview.map(s => `
-                <div class="filter-chip" style="font-size:var(--text-xs);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub('${s.subject}')" title="Open ${s.subject} Subject Hub">
+                <div class="filter-chip" style="font-size:var(--text-xs);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub(${jsArg_cd(s.subject)})" title="Open ${escAttr_cd(s.subject)} Subject Hub">
                   <span style="width:6px;height:6px;border-radius:50%;background:${s.color || 'var(--accent)'}"></span>
-                  <span>${s.subject}</span>
+                  <span>${escHtml_cd(s.subject)}</span>
                 </div>
               `).join('')}
               ${moreLinks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('links')">+${moreLinks} more →</button>` : ''}
@@ -10636,7 +10636,7 @@ function renderTimetable() {
         return `
         <div class="tt-break ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}">
           <span class="tt-break-time">${formatDisplayTime(c.time)}</span>
-          <span class="tt-break-label">${c.subject || 'Break'}${mins > 0 ? ` · ${mins} min` : ''}${isCurrent ? ' · Now' : ''}</span>
+          <span class="tt-break-label">${escHtml_cd(c.subject || 'Break')}${mins > 0 ? ` · ${mins} min` : ''}${isCurrent ? ' · Now' : ''}</span>
           <span class="tt-break-rule" aria-hidden="true"></span>
           <button class="icon-btn-sm" onclick="showTimetableEntryModal(${day}, ${idx})" title="Edit break" aria-label="Edit break">${icons.edit()}</button>
         </div>`;
@@ -10651,14 +10651,14 @@ function renderTimetable() {
         <div class="tt-att" style="display:flex;align-items:center;gap:4px;margin-right:2px">
           <button class="btn btn-sm ${isAttended ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')"
-                  title="Mark ${c.subject} Attended" aria-label="Mark ${c.subject} as attended" aria-pressed="${isAttended}"
+                  title="Mark ${escAttr_cd(c.subject)} Attended" aria-label="Mark ${escAttr_cd(c.subject)} as attended" aria-pressed="${isAttended}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isAttended ? 'background:var(--green);border-color:var(--green);color:var(--text-inverse);' : ''}">
             ${icons.check()}<span class="tt-att-label">Present</span>
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
-                  title="Mark ${c.subject} as skipped" aria-label="Mark ${c.subject} as skipped" aria-pressed="${isSkipped}"
+                  title="Mark ${escAttr_cd(c.subject)} as skipped" aria-label="Mark ${escAttr_cd(c.subject)} as skipped" aria-pressed="${isSkipped}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
                          ${isSkipped ? 'background:var(--red);border-color:var(--red);color:var(--text-inverse);' : ''}">
             ${icons.x()}<span class="tt-att-label">Absent</span>
@@ -10672,9 +10672,9 @@ function renderTimetable() {
       const codeSuffix = codeInName ? '' : subjectCodeSuffix(c.subject, c.code);
       const metaBits = [
         c.type && c.type !== 'lecture' ? `<span class="type-badge type-${c.type}">${c.type}</span>` : '',
-        c.room ? `<span>Room <strong>${c.room}</strong></span>` : '',
-        c.teacher ? `<span><strong>${formatTeacherName(c.teacher)}</strong></span>` : '',
-        c.notes ? `<span class="tt-note">${c.notes}</span>` : ''
+        c.room ? `<span>Room <strong>${escHtml_cd(c.room)}</strong></span>` : '',
+        c.teacher ? `<span><strong>${escHtml_cd(formatTeacherName(c.teacher))}</strong></span>` : '',
+        c.notes ? `<span class="tt-note">${escHtml_cd(c.notes)}</span>` : ''
       ].filter(Boolean);
 
       return `
@@ -10686,7 +10686,7 @@ function renderTimetable() {
           </div>
           <div class="tt-divider"></div>
           <div class="tt-info">
-            <div class="tt-subject" onclick="openSubjectHub('${c.subject}')" title="Open ${c.subject} Hub">${c.subject} ${codeSuffix}<span class="tt-chev">${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span></div>
+            <div class="tt-subject" onclick="openSubjectHub(${jsArg_cd(c.subject)})" title="Open ${escAttr_cd(c.subject)} Hub">${escHtml_cd(c.subject)} ${escHtml_cd(codeSuffix)}<span class="tt-chev">${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span></div>
             ${metaBits.length ? `<div class="tt-meta">${metaBits.join('')}</div>` : ''}
           </div>
           <div class="tt-actions ${isTeaching ? 'has-att' : ''}" style="display:flex;align-items:center;gap:6px">
@@ -12214,7 +12214,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
   if (subjects.length > 0) {
     optionsHTML = subjects.map(s => {
       const isSel = activeSubj && (s.code === activeSubj.code || s.name === activeSubj.name);
-      return `<option value="${s.code || s.name}" ${isSel ? 'selected' : ''}>${s.name} (${s.code || 'No Code'})</option>`;
+      return `<option value="${escAttr_cd(s.code || s.name)}" ${isSel ? 'selected' : ''}>${escHtml_cd(s.name)} (${escHtml_cd(s.code || 'No Code')})</option>`;
     }).join('') + `<option value="__new__">+ Add New Subject…</option>`;
   }
 
@@ -13049,8 +13049,8 @@ function renderDeclutterPreviewModal(plan, userBatch) {
   const subjectsHTML = plan.survivingSubjects.map(s => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface-2);border-radius:6px;margin-bottom:6px">
       <div>
-        <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${s.name}</div>
-        <div style="font-size:var(--text-sm);color:var(--text-muted)">${s.code || 'No Code'} · ${s.slotsCount} slot${s.slotsCount!==1?'s':''}/wk ${s.room ? `· ${s.room}` : ''}</div>
+        <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${escHtml_cd(s.name)}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted)">${escHtml_cd(s.code || 'No Code')} · ${s.slotsCount} slot${s.slotsCount!==1?'s':''}/wk ${s.room ? `· ${escHtml_cd(s.room)}` : ''}</div>
       </div>
       <span class="type-badge" style="font-size:var(--text-xs);padding:2px 8px;text-transform:capitalize">
         ${s.type}
@@ -13060,7 +13060,7 @@ function renderDeclutterPreviewModal(plan, userBatch) {
 
   const archivedHTML = plan.archivedSlots.length > 0 ? plan.archivedSlots.map(a => `
     <div style="font-size:var(--text-sm);color:var(--text-muted);padding:4px 8px;background:var(--surface-2);border-radius:4px;margin-bottom:4px;display:flex;justify-content:space-between">
-      <span>${a.subject}</span>
+      <span>${escHtml_cd(a.subject)}</span>
       <span style="color:var(--yellow)">${a.reason === 'garbled-ocr' ? '⚠️ Jumbled scan text' : `Group ${(a.batches || []).join(', ') || 'Other'}`}</span>
     </div>
   `).join('') : '<div style="font-size:var(--text-sm);color:var(--text-muted)">Nothing to remove. Every class here is yours.</div>';
@@ -14116,17 +14116,17 @@ function renderSubjectsOverview(el, subjects) {
     const projection = attV2ProjectionText(labIsWorse(att) ? att.labPart : att);
 
     return `
-      <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer${picked(s) ? ';outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub('${s.name}')`}" title="${subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub'}">
-        <svg class="sj-ring ${tier}${animateRings ? ' animate' : ''}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${s.name} attendance ${label}, target ${att.targetPct}%">
+      <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer${picked(s) ? ';outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub(${jsArg_cd(s.name)})`}" title="${escAttr_cd(subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub')}">
+        <svg class="sj-ring ${tier}${animateRings ? ' animate' : ''}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${escAttr_cd(s.name)} attendance ${label}, target ${att.targetPct}%">
           <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
           <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
           <line class="sj-ring-tick" x1="${tick[0]}" y1="${tick[1]}" x2="${tick[2]}" y2="${tick[3]}"/>
         </svg>
         <div class="sj-body">
-          <div class="card-title sj-title">${s.name}</div>
+          <div class="card-title sj-title">${escHtml_cd(s.name)}</div>
           <div class="sj-line">${line}</div>
           ${projection ? `<div class="sj-meta">${projection}</div>` : ''}
-          <div class="sj-meta">${s.code}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}${sylLine(s)}</div>
+          <div class="sj-meta">${escHtml_cd(s.code)}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}${sylLine(s)}</div>
         </div>
         <div class="sj-side">
           ${subjectManageMode ? `
@@ -14222,11 +14222,11 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     <div class="card card-sm" style="margin-bottom:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div>
         <div style="font-weight:600;font-size:var(--text-base)">${DAY_NAMES[sl.day]} · ${formatDisplayTimeRange(sl.time, sl.end)}</div>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${sl.room || subj.room || 'Classroom'} ${sl.teacher ? '· ' + sl.teacher : subj.teacher ? '· ' + subj.teacher : ''} ${sl.batches && sl.batches.length > 0 ? '· Batch ' + sl.batches.join(', ') : ''}</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${escHtml_cd(sl.room || subj.room || 'Classroom')} ${escHtml_cd(sl.teacher ? '· ' + sl.teacher : subj.teacher ? '· ' + subj.teacher : '')} ${sl.batches && sl.batches.length > 0 ? '· Batch ' + sl.batches.join(', ') : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
         <span class="type-badge" style="font-size:var(--text-xs);text-transform:capitalize">${sl.type || 'lecture'}</span>
-        <span class="type-badge">${sl.code || subj.code}</span>
+        <span class="type-badge">${escHtml_cd(sl.code || subj.code)}</span>
       </div>
     </div>
   `).join('') : `<div style="font-size:var(--text-base);color:var(--text-muted);padding:10px 0">No weekly timetable slots assigned to this subject yet.</div>`;
@@ -14245,7 +14245,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
           ${done ? icons.check() : ''}
         </div>
         <div style="flex:1;min-width:0">
-          <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${a.title}</div>
+          <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${escHtml_cd(a.title)}</div>
           <div class="text-xs text-muted">${dateText}</div>
         </div>
         <span class="due-badge ${cls}">${label}</span>
@@ -14276,7 +14276,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     <div class="empty-state-card" style="padding:16px 14px;margin-top:6px;text-align:center">
       <div style="font-size:var(--text-xl);margin-bottom:4px">📚</div>
       <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary);margin-bottom:2px">No Study Links or Notes Yet</div>
-      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px">Attach drive folders, lecture notes, syllabus PDFs, or code repos for ${subj.name}.</div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px">Attach drive folders, lecture notes, syllabus PDFs, or code repos for ${escHtml_cd(subj.name)}.</div>
       <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:5px 14px">+ Add Study Link / Note</button>
     </div>
   `;
@@ -14290,11 +14290,11 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
       <div class="card" style="padding:20px;border-left:4px solid ${subj.color || 'var(--accent)'}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">${subj.name}</div>
+            <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">${escHtml_cd(subj.name)}</div>
             <div style="font-size:var(--text-base);color:var(--text-muted);margin-top:2px">
-              ${subj.code ? 'Course Code: <strong>' + subj.code + '</strong> · ' : ''}
-              ${subj.teacher ? 'Faculty: <strong>' + formatTeacherName(subj.teacher) + '</strong> · ' : ''}
-              ${subj.room ? 'Room: <strong>' + subj.room + '</strong>' : ''}
+              ${subj.code ? 'Course Code: <strong>' + escHtml_cd(subj.code) + '</strong> · ' : ''}
+              ${subj.teacher ? 'Faculty: <strong>' + escHtml_cd(formatTeacherName(subj.teacher)) + '</strong> · ' : ''}
+              ${subj.room ? 'Room: <strong>' + escHtml_cd(subj.room) + '</strong>' : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -14302,7 +14302,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
               ${att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}% Attendance (${att.attended}/${att.total})` : 'Attendance not set yet'}
             </span>
             ${att.labPart && att.labPart.pct !== null ? `<span class="type-badge" style="font-size:var(--text-sm);padding:5px 12px;background:${att.labPart.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.labPart.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">Lab ${att.labPart.pctLabel}% (${att.labPart.attended}/${att.labPart.total})</span>` : ''}
-            <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal('${subj.code || subj.name}')" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
+            <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal(${jsArg_cd(subj.code || subj.name)})" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
               ${icons.chartLine()} ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
             </button>
             ${att.projection || (att.labPart && att.labPart.projection) ? `<div style="flex-basis:100%;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5">${att.projection ? attV2ProjectionText(att, true) : ''}${att.projection && att.labPart && att.labPart.projection ? '<br>' : ''}${att.labPart && att.labPart.projection ? `Lab: ${attV2ProjectionText(att.labPart, true)}` : ''}</div>` : ''}
@@ -14321,17 +14321,17 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
         <!-- Quick Log Action Bar on Subject Hub -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
           <span style="font-size:var(--text-xs);font-weight:600;color:var(--text-muted);letter-spacing:-0.01em">Quick Log:</span>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction('${subj.code || subj.name}', 'present')" style="color:var(--status-success);border-color:color-mix(in srgb, var(--status-success) 35%, transparent)">
+          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)}, 'present')" style="color:var(--status-success);border-color:color-mix(in srgb, var(--status-success) 35%, transparent)">
             Present (+1)
           </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction('${subj.code || subj.name}', 'missed')" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">
+          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)}, 'missed')" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">
             Missed (+1)
           </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction('${subj.code || subj.name}', 'leave')" style="color:var(--status-warning);border-color:color-mix(in srgb, var(--status-warning) 35%, transparent)">
+          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)}, 'leave')" style="color:var(--status-warning);border-color:color-mix(in srgb, var(--status-warning) 35%, transparent)">
             Leave (+1)
           </button>
           ${(att.liveAdj.present > 0 || att.liveAdj.missed > 0 || att.liveAdj.leave > 0) ? `
-            <button class="btn btn-xs btn-secondary" onclick="undoSubjectAttendanceAction('${subj.code || subj.name}')" title="Reset live manual adjustments" style="color:var(--text-muted);font-size:var(--text-xs);padding:3px 7px">
+            <button class="btn btn-xs btn-secondary" onclick="undoSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)})" title="Reset live manual adjustments" style="color:var(--text-muted);font-size:var(--text-xs);padding:3px 7px">
               ↩ Reset Live Adjustments
             </button>
           ` : ''}
@@ -14383,7 +14383,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     <div style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="section-heading" style="margin-bottom:0">Tasks &amp; Deadlines</div>
-        <button class="btn btn-sm btn-primary" onclick="showAssignmentModal(null, '${subj.name}')" style="font-size:var(--text-sm);padding:3px 9px">+ Add Task</button>
+        <button class="btn btn-sm btn-primary" onclick="showAssignmentModal(null, ${jsArg_cd(subj.name)})" style="font-size:var(--text-sm);padding:3px 9px">+ Add Task</button>
       </div>
       ${tasksHTML}
     </div>
@@ -14892,7 +14892,7 @@ function renderAssignments() {
     // The old "Mission" category reads as General (missions are a Task Type now).
     const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
 
-    const bits = [`<span class="tk-subj" onclick="openSubjectHub('${a.subject}')" title="Open ${a.subject} Hub">${subjectText}</span>`];
+    const bits = [`<span class="tk-subj" onclick="openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} Hub">${escHtml_cd(subjectText)}</span>`];
     if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
     if (taskType !== 'assignment' && typeLabel(taskType).toLowerCase() !== String(subjectText).toLowerCase()) bits.push(`<span class="tk-type">${typeLabel(taskType)}</span>`);
     if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">High priority</span>`);
@@ -14910,9 +14910,9 @@ function renderAssignments() {
       <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
         ${leadBox}
         <div class="assignment-body">
-          <div class="assignment-title">${a.title}</div>
+          <div class="assignment-title">${escHtml_cd(a.title)}</div>
           <div class="tk-meta">${bits.join('')}</div>
-          ${(a.description || '').trim() && a.description.trim() !== '—' ? `<div class="assignment-desc">${a.description}</div>` : ''}
+          ${(a.description || '').trim() && a.description.trim() !== '—' ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
         </div>
         ${isCustom && !taskSelectMode ? `
           <details class="tk-more">
@@ -15045,7 +15045,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
   const subjectOptions = subjectsList.map(s => {
     const val = `${s.name}|||${s.code}`;
     const isSel = (editTask && (editTask.code === s.code || editTask.subject === s.name)) || (prefilledSubject && (prefilledSubject.toLowerCase() === s.name.toLowerCase() || prefilledSubject.toLowerCase() === s.code.toLowerCase()));
-    return `<option value="${val}" ${isSel ? 'selected' : ''}>${s.name} (${s.code})</option>`;
+    return `<option value="${escAttr_cd(val)}" ${isSel ? 'selected' : ''}>${escHtml_cd(s.name)} (${escHtml_cd(s.code)})</option>`;
   }).join('');
 
   // Subject / Category is subjects + one "General". A task saved under the
@@ -15937,7 +15937,7 @@ function renderNotices() {
   const cardsHtml = filtered.length ? filtered.map(n => `
     <div class="notice-card ${n.important?'important':''}" onclick="showNotice('${n.id}')">
       <div class="notice-header">
-        <div class="notice-title">${n.title}</div>
+        <div class="notice-title">${escHtml_cd(n.title)}</div>
         <span class="cat-badge cat-${n.category}">${n.category}</span>
       </div>
       <div class="notice-date">
@@ -17218,10 +17218,10 @@ function renderSummaryContent(container) {
         <div class="summary-icon" style="background:var(--accent-dim);color:var(--brand-primary)">${icons.timetable()}</div>
         <div style="flex:1;min-width:0">
           <div class="summary-text-main" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.subject}</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml_cd(c.subject)}</span>
             <span class="type-badge type-${c.type}">${c.type}</span>
           </div>
-          <div class="summary-text-sub">${formatDisplayTimeRange(c.time, c.end)} · ${c.room} · ${c.teacher}</div>
+          <div class="summary-text-sub">${formatDisplayTimeRange(c.time, c.end)} · ${escHtml_cd(c.room)} · ${escHtml_cd(c.teacher)}</div>
         </div>
       </div>`).join('')}
     ${doneCount ? `<div class="briefing-done">${remaining.length ? `${doneCount} class${doneCount !== 1 ? 'es' : ''} done earlier today` : `All ${doneCount} class${doneCount !== 1 ? 'es' : ''} done for today`}</div>` : ''}` : ''}
@@ -17232,8 +17232,8 @@ function renderSummaryContent(container) {
       <div class="summary-item">
         <div class="summary-icon" style="background:color-mix(in srgb, var(--status-warning) 12%, transparent);color:var(--status-warning)">${icons.assignments()}</div>
         <div style="flex:1;min-width:0">
-          <div class="summary-text-main">${a.title}</div>
-          <div class="summary-text-sub">${a.subject} · ${a.marks > 0 ? a.marks + ' marks' : 'Academic task'}</div>
+          <div class="summary-text-main">${escHtml_cd(a.title)}</div>
+          <div class="summary-text-sub">${escHtml_cd(a.subject)} · ${a.marks > 0 ? a.marks + ' marks' : 'Academic task'}</div>
         </div>
       </div>`).join('')}` : ''}
 
@@ -17243,8 +17243,8 @@ function renderSummaryContent(container) {
         <div class="summary-item" style="border-left:3px solid var(--brand-secondary)">
           <div class="summary-icon" style="background:color-mix(in srgb, var(--brand-secondary) 12%, transparent);color:var(--brand-secondary)">${icons.target()}</div>
           <div style="flex:1;min-width:0">
-            <div class="summary-text-main">${a.title}</div>
-            <div class="summary-text-sub">${a.subject} · Standing Goal · Active</div>
+            <div class="summary-text-main">${escHtml_cd(a.title)}</div>
+            <div class="summary-text-sub">${escHtml_cd(a.subject)} · Standing Goal · Active</div>
           </div>
         </div>`).join('')}` : ''}
 
@@ -17254,8 +17254,8 @@ function renderSummaryContent(container) {
         <div class="summary-item" style="border-left:3px solid var(--status-error)">
           <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.alert()}</div>
           <div style="flex:1;min-width:0">
-            <div class="summary-text-main">${a.title}</div>
-            <div class="summary-text-sub">${a.subject} · ${Math.abs(dueDaysLeft(a.dueDate) || 1)}d overdue</div>
+            <div class="summary-text-main">${escHtml_cd(a.title)}</div>
+            <div class="summary-text-sub">${escHtml_cd(a.subject)} · ${Math.abs(dueDaysLeft(a.dueDate) || 1)}d overdue</div>
           </div>
         </div>`).join('')}` : ''}
 
@@ -17265,7 +17265,7 @@ function renderSummaryContent(container) {
       <div class="summary-item" onclick="showNotice('${n.id}')" style="cursor:pointer">
         <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.notices()}</div>
         <div style="flex:1;min-width:0">
-          <div class="summary-text-main">${n.title}</div>
+          <div class="summary-text-main">${escHtml_cd(n.title)}</div>
           <div class="summary-text-sub">${formatDate(n.date)} · ${n.category}</div>
         </div>
       </div>`).join('')}` : ''}
@@ -18197,7 +18197,7 @@ function showNotice(id) {
         </div>
         <span style="font-size:var(--text-sm);color:var(--text-muted)">${formatDate(n.date)}</span>
       </div>
-      <h2 style="font-size:var(--text-lg);font-weight:700;margin-bottom:10px;line-height:1.4">${n.title}</h2>
+      <h2 style="font-size:var(--text-lg);font-weight:700;margin-bottom:10px;line-height:1.4">${escHtml_cd(n.title)}</h2>
       <p style="font-size:var(--text-md);line-height:1.7;color:var(--text-secondary);margin-bottom:20px;white-space:pre-line">${n.content}</p>
       
       <div class="modal-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
@@ -18620,6 +18620,13 @@ function escHtml_cd(s) {
 // Same as escHtml_cd, also safe inside a quoted attribute.
 function escAttr_cd(s) {
   return escHtml_cd(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// A text argument inside an inline handler: onclick="fn(${jsArg_cd(x)})".
+// A quoted JS string, attribute-escaped, so an apostrophe or quote in a
+// subject name no longer breaks the button (or runs as code).
+function jsArg_cd(s) {
+  return escAttr_cd(JSON.stringify(String(s == null ? '' : s)));
 }
 
 // An answer's button that opens a page or a form (Add task, Open DBMS,
