@@ -7292,3 +7292,7 @@ body.holiday-mode .holiday-banner {
   #page-timetable .tt-entry .tt-actions .icon-btn-sm { width: 36px; height: 36px; margin-left: auto; }
 }
 .briefing-stats .stat-card { flex-direction: row; }
+
+/* Pages stop stretching on wide screens: one comfortable reading width,
+   centred in the space beside the sidebar. Phones are unaffected. */
+.section-page { max-width: 1120px; margin-inline: auto; }
