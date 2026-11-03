@@ -3286,10 +3286,10 @@ function handleAuthError(err) {
     return;
   }
 
+  // In-app dialog: the native confirm() is auto-cancelled in installed apps,
+  // which left the sign-in tap doing nothing. Its button is a new tap too.
   if (code === 'auth/popup-blocked') {
-    if (confirm("Sign-in popup was blocked by your browser.\n\nClick OK to try signing in with redirect instead.")) {
-      loginWithGoogleRedirect();
-    }
+    appConfirm("Your browser blocked the Google sign-in window.\n\nSign in on Google's page instead? You'll come straight back here.", 'Continue', loginWithGoogleRedirect);
     return;
   }
 
@@ -10884,16 +10884,19 @@ window.deleteSubjectCard = function(subjectName, event) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
 
   const skipWarning = safeGetStorage(KEY_SUBJECT_DELETE_SILENT, false);
-  if (!skipWarning) {
-    const proceed = confirm(`Delete "${subjectName}" permanently?\n\nThis removes its timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`);
-    if (!proceed) return;
-    const stopAsking = confirm(`Skip this warning next time you delete a subject card?\n\nOK = don't ask again. Cancel = keep asking every time.`);
-    if (stopAsking) safeSetStorage(KEY_SUBJECT_DELETE_SILENT, true);
-  }
-
-  permanentlyDeleteSubject(subjectName);
-  renderPage(state.currentPage);
-  showToast(`"${subjectName}" deleted`, 'info');
+  const doDelete = () => {
+    permanentlyDeleteSubject(subjectName);
+    renderPage(state.currentPage);
+    showToast(`"${subjectName}" deleted`, 'info');
+  };
+  if (skipWarning) { doDelete(); return; }
+  // In-app dialogs (the native confirm() is auto-cancelled in installed apps).
+  // "Don't ask again" is offered after the delete instead of before it.
+  appConfirm(`Delete "${subjectName}" permanently?\n\nThis removes its timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`, 'Delete', () => {
+    doDelete();
+    appConfirm('Skip this warning next time you delete a subject card?', "Don't ask again",
+      () => safeSetStorage(KEY_SUBJECT_DELETE_SILENT, true));
+  });
 };
 
 function permanentlyDeleteSubject(subjectName) {
@@ -13379,15 +13382,15 @@ window.deleteSelectedSubjects = function() {
   const shown = new Set(Array.from(document.querySelectorAll('.subject-select-checkbox')).map(c => c.getAttribute('data-subject')));
   const names = [...subjectSelection].filter(n => shown.has(n));
   if (!names.length) return;
-  const proceed = confirm(`Delete ${names.length} subject${names.length !== 1 ? 's' : ''} permanently?\n\n${names.join(', ')}\n\nThis removes each one's timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`);
-  if (!proceed) return;
+  // In-app dialog: the native confirm() is auto-cancelled in installed apps.
+  appConfirm(`Delete ${names.length} subject${names.length !== 1 ? 's' : ''} permanently?\n\n${names.join(', ')}\n\nThis removes each one's timetable slots, tasks, quick links, and attendance baseline. This cannot be undone.`, 'Delete', () => {
+    names.forEach(n => permanentlyDeleteSubject(n));
 
-  names.forEach(n => permanentlyDeleteSubject(n));
-
-  subjectManageMode = false;
-  subjectSelection.clear();
-  renderPage(state.currentPage);
-  showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
+    subjectManageMode = false;
+    subjectSelection.clear();
+    renderPage(state.currentPage);
+    showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
+  });
 };
 
 // ── Syllabus tracker ──────────────────────────────────────────
@@ -18063,11 +18066,14 @@ function exportData() {
   // Files kept in IndexedDB go into the backup as data: URLs, up to a cap.
   const plan = vaultBackupPlan(data.customLinks);
   if (plan.any) {
-    if (plan.left.length && !confirm(`${plan.left.length} vault file${plan.left.length !== 1 ? 's' : ''} (${formatBytes(plan.leftBytes)}) won’t fit in the backup (it holds up to ${VAULT_BACKUP_FILE_CAP / 1048576} MB of files) and will be left out: ${plan.left.join(', ')}. They stay in the app. Download the backup anyway?`)) return;
-    vaultLinksForBackup(data.customLinks, plan).then(links => {
+    const go = () => vaultLinksForBackup(data.customLinks, plan).then(links => {
       data.customLinks = links;
       downloadBackupFile(data);
     }).catch(() => showToast('Backup failed. Please try again.', 'error'));
+    // In-app dialog: the native confirm() is auto-cancelled in installed apps,
+    // which used to cancel the whole backup without a word.
+    if (plan.left.length) appConfirm(`${plan.left.length} vault file${plan.left.length !== 1 ? 's' : ''} (${formatBytes(plan.leftBytes)}) won’t fit in the backup (it holds up to ${VAULT_BACKUP_FILE_CAP / 1048576} MB of files) and will be left out: ${plan.left.join(', ')}. They stay in the app. Download the backup anyway?`, 'Download anyway', go);
+    else go();
     return;
   }
   downloadBackupFile(data);

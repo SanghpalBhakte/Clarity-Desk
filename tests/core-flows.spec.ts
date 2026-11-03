@@ -200,6 +200,37 @@ test.describe('Clarity Desk core flows', () => {
     expect(errors, errors.join(' | ')).toEqual([]);
   });
 
+  test('deleting a subject uses the in-app dialog (installed apps auto-cancel native ones)', async ({ page }) => {
+    const errors: string[] = [];
+    const native: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('dialog', (d) => { native.push(d.message()); d.dismiss(); });   // what an installed app does
+    await page.clock.setFixedTime(new Date('2026-09-24T10:20:00'));
+    await open(page, {});
+    await page.evaluate(() => (window as any).navigate('subjects'));
+    const titles = page.locator('#page-subjects .sj-title');
+    const name = (await titles.first().textContent())!.trim();
+    const count = await titles.count();
+    const dialog = page.locator('#app-confirm-backdrop');
+
+    // Cancel keeps the subject.
+    await page.evaluate((n) => (window as any).deleteSubjectCard(n), name);
+    await expect(dialog).toContainText(`Delete "${name}" permanently?`);
+    await dialog.locator('[data-act="no"]').click();
+    await expect(titles).toHaveCount(count);
+
+    // Delete removes it, then "Don't ask again" is offered; Cancel keeps asking.
+    await page.evaluate((n) => (window as any).deleteSubjectCard(n), name);
+    await dialog.locator('[data-act="yes"]').click();
+    await expect(dialog).toContainText('Skip this warning next time');
+    await dialog.locator('[data-act="no"]').click();
+    await expect(titles).toHaveCount(count - 1);
+    await expect(page.locator('#page-subjects .sj-title', { hasText: name })).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('cos_subject_delete_silent'))).toBeNull();
+    expect(native, `native dialogs: ${native.join(' | ')}`).toEqual([]);
+    expect(errors, errors.join(' | ')).toEqual([]);
+  });
+
   test('a signed-out phone downloads no Firebase SDK until Settings (where sign-in is)', async ({ page }) => {
     const hits = await routeFirebase(page);
     await open(page, {});
