@@ -7175,3 +7175,120 @@ body.holiday-mode .holiday-banner {
 .att-gauge .att-gauge-safe { stroke: color-mix(in srgb, var(--status-success) 32%, var(--surface)); }
 .att-gauge .att-gauge-needle { stroke: var(--text-primary); stroke-width: 5; }
 .att-gauge-hub { fill: var(--surface); stroke: var(--color-action-primary); stroke-width: 4; }
+
+/* ── Calm app pass: quiet headings, ink selection ───────────────────────
+   Terracotta is kept for each screen's one main action; selected days and
+   tabs read as ink with a rule, and section heads match Today's. */
+.section-heading,
+.tk-group-head,
+.sj-tier,
+.type-badge,
+.tt-now {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.section-heading {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.tk-group-head { font-size: 0.8125rem; font-weight: 700; }
+
+.tt-tab { background: transparent; border-color: transparent; box-shadow: none; }
+.tt-tab:hover { transform: none; }
+.tt-tab.active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+  box-shadow: inset 0 -2px 0 var(--text-primary);
+  border-radius: 0;
+}
+.tt-tab.today.active::after { background: var(--color-action-primary); }
+
+.tk-seg-btn.active {
+  background: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  color: var(--text-primary);
+}
+
+.cal-cell.selected { background: transparent; border-color: transparent; box-shadow: inset 0 0 0 2px var(--text-primary); }
+.cal-cell.selected .cal-num,
+.cal-cell.selected .cal-more { color: var(--text-primary); font-weight: 700; }
+.cal-cell.today.selected { outline: 0; }
+.cal-cell.selected .cal-dot { box-shadow: none; }
+
+.rv-week-btn { background: transparent; border-color: transparent; color: var(--text-secondary); }
+.rv-week-btn[aria-pressed="true"] { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--text-primary); border-radius: 0; }
+
+.search-input-wrapper .s-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.search-input-wrapper .s-icon svg { width: 16px; height: 16px; }
+
+/* ── Calm app pass: lists are ruled lines, not stacks of cards ──────── */
+#page-timetable .tt-entry,
+#page-assignments .assignment-card.tk-card,
+#page-calendar .cal-item,
+#resources-subtab-content .summary-item,
+#page-review .rv-flat {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-rule);
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0;
+}
+#page-assignments .assignment-card.tk-card { padding-left: 4px; }
+#page-assignments .assignment-card.tk-card:hover,
+#page-timetable .tt-entry:hover { box-shadow: none; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
+#page-assignments .assignment-card.picked { background: color-mix(in srgb, var(--color-action-primary) 7%, transparent); outline: 0; }
+#page-calendar .cal-day-list { gap: 0; }
+
+/* The live class: one signal (the rule and "Now"), not border + tint + pill. */
+#page-timetable .tt-entry.current { background: transparent; border-color: var(--color-rule); }
+.tt-now { background: transparent; color: var(--color-action-primary); padding: 0; font-weight: 700; }
+
+/* Daily Briefing: a written summary, then plain lists. */
+.briefing-lead { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.briefing-headline { font-family: var(--font-display); font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); font-weight: 700; line-height: 1.25; color: var(--text-primary); }
+.briefing-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.briefing-stats .stat-card { display: inline-flex; align-items: baseline; gap: 6px; padding: 0; background: none; border: 0; box-shadow: none; min-height: 32px; }
+.briefing-stats .stat-value { font-size: var(--text-md); }
+.briefing-stats .stat-label { font-size: var(--text-sm); color: var(--text-secondary); }
+#resources-subtab-content .summary-item { padding-left: 0; padding-right: 0; }
+#resources-subtab-content .summary-icon { display: none; }
+
+/* Weekly reflection */
+.rv-sentence { margin: 0 0 8px; font-size: var(--text-md); line-height: 1.5; color: var(--text-primary); }
+.rv-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--color-rule); text-underline-offset: 3px; cursor: pointer; }
+.rv-link.is-alert { color: var(--status-error); }
+.rv-done { margin: 0 0 12px; font-size: var(--text-sm); color: var(--text-secondary); }
+.rv-rows { list-style: none; margin: 0 0 22px; padding: 0; border-top: 1px solid var(--color-rule); }
+.rv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--color-rule); }
+.rv-row-text { flex: 1 1 160px; min-width: 0; }
+.rv-row-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-row-sub { font-size: var(--text-sm); color: var(--status-error); }
+.rv-row-actions { display: flex; gap: 6px; margin-left: auto; }
+.rv-busy { font-size: var(--text-xs); font-weight: 700; color: var(--color-action-primary); }
+.rv-lookback { margin-bottom: 22px; }
+/* Present/Absent here match Today: sage outline when chosen, no solid fills. */
+.btn.att-week-btn { background: transparent; }
+.btn.att-week-btn.is-present[aria-pressed="true"] { background: color-mix(in srgb, var(--status-success) 12%, transparent); border-color: var(--status-success); color: var(--status-success); }
+.btn.att-week-btn.is-absent[aria-pressed="true"] { background: color-mix(in srgb, var(--status-error) 10%, transparent); border-color: var(--status-error); color: var(--status-error); }
+/* Notice Board: the source cards stop competing with the notices. */
+.notice-source-card.tint-devnotes { border-left: 1px solid var(--color-rule); }
+/* Timetable on phones: compact Present/Absent under the class, not a
+   full-width bar per row. */
+@media (max-width: 540px) {
+  #page-timetable .tt-entry .tt-actions.has-att { justify-content: flex-start; padding-left: 76px; }
+  #page-timetable .tt-entry .tt-att { flex: 0 0 auto; }
+  #page-timetable .tt-entry .tt-att .btn { flex: 0 0 auto; height: 36px !important; padding: 0 14px !important; }
+  #page-timetable .tt-entry .tt-actions .icon-btn-sm { width: 36px; height: 36px; margin-left: auto; }
+}
+.briefing-stats .stat-card { flex-direction: row; }

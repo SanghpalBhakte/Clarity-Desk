@@ -7445,7 +7445,10 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   if (fabEl) {
     // Calendar has its own "Add deadline for <date>" action, and the FAB
     // covered its empty state's "Set Up Timetable" button on phones.
-    fabEl.style.display = (page === 'assignments' || page === 'dashboard' || page === 'calendar') ? 'none' : '';
+    // Only pages where a quick add belongs keep it: Settings, Vault (own Add),
+    // Notices, Weekly Reflection and Links have no task or class to add, and the
+    // button covered their controls.
+    fabEl.style.display = ['timetable', 'subjects', 'summary'].includes(page) ? '' : 'none';
     // On the Timetable page the + adds a class; everywhere else it adds a task.
     const addsClass = page === 'timetable';
     fabEl.setAttribute('aria-label', addsClass ? 'Add class' : 'Add new task');
@@ -9011,7 +9014,7 @@ function renderReview() {
         const done = a.status === 'submitted';
         const taskType = a.taskType || 'assignment';
         return `
-          <div class="card card-sm assignment-card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px;padding:12px 14px">
+          <div class="card card-sm assignment-card rv-flat" style="margin-bottom:0;display:flex;align-items:center;gap:12px;padding:12px 4px">
             <div onclick="toggleAssignment('${a.id}')" title="Click to toggle status" style="width:18px;height:18px;border-radius:5px;border:2px solid ${done?'var(--green)':a.priority==='high'?'var(--red)':'var(--border)'};background:${done?'var(--green)':'transparent'};display:grid;place-items:center;flex-shrink:0;color:white;cursor:pointer">
               ${done ? icons.check() : ''}
             </div>
@@ -9027,7 +9030,7 @@ function renderReview() {
       } else {
         const n = it.data;
         return `
-          <div class="card card-sm notice-card" style="margin-bottom:8px;padding:12px 14px">
+          <div class="card card-sm notice-card rv-flat" style="margin-bottom:0;padding:12px 4px">
             <div style="font-weight:600;font-size:var(--text-md)">${escHtml_cd(n.title)}</div>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
           </div>
@@ -9041,7 +9044,7 @@ function renderReview() {
       <div style="margin-bottom:16px">
         <div style="font-size:var(--text-base);font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:8px">
           ${formatDate(dateStr)}
-          ${isBusy ? '<span class="type-badge" style="background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 6px;font-size:var(--text-2xs)">🔥 Busy Day</span>' : ''}
+          ${isBusy ? '<span class="rv-busy">Busy day</span>' : ''}
         </div>
         ${itemsHTML}
       </div>
@@ -9049,7 +9052,7 @@ function renderReview() {
   });
   
   if (!lookaheadHTML) {
-    lookaheadHTML = `<div class="card" style="padding:20px;text-align:center;color:var(--text-muted)">✨ Nothing major scheduled for the upcoming 7 days.</div>`;
+    lookaheadHTML = `<p class="rv-sentence" style="color:var(--text-muted)">Nothing major in the next 7 days.</p>`;
   }
 
   el.innerHTML = `
@@ -9057,90 +9060,59 @@ function renderReview() {
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
         <button class="btn btn-sm btn-secondary" style="flex-shrink:0" onclick="navigateTo('dashboard')">← Back to Today</button>
         <div>
-          <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">Weekly Reflection &amp; Reset</div>
+          <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">Weekly reflection</div>
           <div style="font-size:var(--text-sm);color:var(--text-muted)">Review last week's coursework and plan your next 7 days</div>
         </div>
       </div>
     </div>
     
-    <!-- 1. HIGH-VISIBILITY LAST WEEK LOOKBACK BANNER -->
-    <div class="card" style="padding:18px 20px;margin-bottom:22px;background:var(--surface);border-left:3px solid var(--accent-warm)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:var(--text-md);font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px">
-            <span>⏪ Last Week's Reflection</span>
-            <span class="type-badge" style="background:var(--accent-dim);color:var(--brand-primary);font-size:var(--text-xs);padding:2px 8px">${formatDate(lookbackStr)} – ${formatDate(todayS)}</span>
-          </div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Lookback summary of completed tasks, rollover items, and study momentum.</div>
-        </div>
-      </div>
-
-      <div class="stat-grid" style="margin-bottom:14px">
-        <div class="stat-card" onclick="filterAndNavigateToAssignments('submitted')" title="View completed coursework" style="cursor:pointer">
-          <div class="stat-value" style="color:var(--green)">${tasksCompleted.length}</div>
-          <div class="stat-label">Tasks Completed Last 7 Days →</div>
-        </div>
-        <div class="stat-card" onclick="filterAndNavigateToAssignments('overdue')" title="View rollover & overdue tasks" style="cursor:pointer">
-          <div class="stat-value" style="color:${tasksRolledOver.length > 0 ? 'var(--red)' : 'var(--green)'}">${tasksRolledOver.length}</div>
-          <div class="stat-label">Rollover / Overdue Tasks →</div>
-        </div>
-      </div>
-
-      ${tasksCompleted.length > 0 ? `
-        <div style="margin-bottom:14px">
-          <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--green);margin-bottom:6px">✓ Completed in this period:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${tasksCompleted.map(t => `
-              <span class="filter-chip" style="font-size:var(--text-sm);padding:3px 10px;background:color-mix(in srgb, var(--status-success) 10%, transparent);color:var(--status-success);border:1px solid color-mix(in srgb, var(--status-success) 25%, transparent)">
-                ✓ ${escHtml_cd(t.title)} (${escHtml_cd(t.subject || 'Task')})
-              </span>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
+    <section class="rv-lookback">
+      <div class="section-heading">Last week · ${formatDate(lookbackStr)} – ${formatDate(todayS)}</div>
+      <p class="rv-sentence">
+        You finished <button type="button" class="rv-link" onclick="filterAndNavigateToAssignments('submitted')">${tasksCompleted.length} task${tasksCompleted.length !== 1 ? 's' : ''}</button>${tasksRolledOver.length > 0
+          ? `, and <button type="button" class="rv-link is-alert" onclick="filterAndNavigateToAssignments('overdue')">${tasksRolledOver.length} ${tasksRolledOver.length !== 1 ? 'are' : 'is'} still open</button>.`
+          : '. Nothing rolled over.'}
+      </p>
+      ${tasksCompleted.length > 0 ? `<p class="rv-done">Done: ${tasksCompleted.map(t => `${escHtml_cd(t.title)} (${escHtml_cd(t.subject || 'Task')})`).join(', ')}</p>` : ''}
       ${tasksRolledOver.length > 0 ? `
-        <div>
-          <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:6px">⚠ Tasks needing attention / reschedule:</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            ${tasksRolledOver.map(a => `
-              <div class="card card-sm assignment-card" id="rollover-card-${a.id}" style="margin-bottom:0;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 14px;border-left:3px solid var(--red)">
-                <div style="flex:1 1 160px;min-width:0">
-                  <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml_cd(a.title)}</div>
-                  <div class="text-xs text-muted">${escHtml_cd(a.subject)} · Due: ${formatDate(a.dueDate)}</div>
-                </div>
-                <div style="display:flex;gap:6px;flex-shrink:0;margin-left:auto">
-                  <button class="btn btn-sm btn-secondary" style="color:var(--green);font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">${icons.check()} Done</button>
-                  <button class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:4px 10px" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">${icons.calendar()} Reschedule</button>
-                </div>
+        <ul class="rv-rows">
+          ${tasksRolledOver.map(a => `
+            <li class="rv-row" id="rollover-card-${a.id}">
+              <div class="rv-row-text">
+                <div class="rv-row-title">${escHtml_cd(a.title)}</div>
+                <div class="rv-row-sub">${escHtml_cd(a.subject)} · was due ${formatDate(a.dueDate)}</div>
               </div>
-            `).join('')}
-          </div>
-        </div>
+              <div class="rv-row-actions">
+                <button class="btn btn-sm btn-secondary" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">${icons.check()} Done</button>
+                <button class="btn btn-sm btn-secondary" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">${icons.calendar()} Reschedule</button>
+              </div>
+            </li>
+          `).join('')}
+        </ul>
       ` : ''}
-    </div>
+    </section>
 
-    <div class="section-heading">2. Weekly Class Attendance Tracker</div>
+    <div class="section-heading">Weekly class attendance</div>
     ${renderWeeklyAttendanceTracker()}
 
     ${recentNotices.length > 0 ? `
-      <div class="section-heading">3. Recent Important Notices (Past 7 Days)</div>
+      <div class="section-heading">Important notices this week</div>
       <div style="margin-bottom:22px">
         ${recentNotices.map(n => `
-          <div class="card card-sm notice-card" onclick="showNotice('${n.id}')" style="margin-bottom:8px;padding:12px 14px;cursor:pointer">
-            <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary)">${escHtml_cd(n.title)}</div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${formatDate(n.date)} · ${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
-          </div>
+          <button type="button" class="dash-notice-row${n.important ? ' is-important' : ''}" onclick="showNotice('${n.id}')">
+            <span class="dash-notice-title">${escHtml_cd(n.title)}</span>
+            <span class="dash-notice-date">${n.important ? 'Important · ' : ''}${formatDate(n.date)}</span>
+          </button>
         `).join('')}
       </div>
     ` : ''}
 
-    <div class="section-heading">4. Upcoming Week Lookahead (Next 7 Days)</div>
+    <div class="section-heading">The next 7 days</div>
     ${lookaheadHTML}
 
     <div style="margin-top:24px;margin-bottom:32px;text-align:center">
       <button class="btn btn-primary" onclick="completeWeeklyReset()" style="width:100%;max-width:400px;padding:12px;font-size:var(--text-md);font-weight:700">
-        ✓ Complete Weekly Reset &amp; Return to Today
+        Done reviewing, back to Today
       </button>
     </div>
   `;
@@ -9384,7 +9356,7 @@ function renderWeeklyAttendanceTracker() {
       }
 
       return `
-        <div class="card card-sm" style="margin-bottom:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div class="card card-sm rv-flat" style="margin-bottom:0;padding:10px 4px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
             <div style="font-weight:600;font-size:var(--text-md);display:flex;align-items:center;gap:6px">
               ${escHtml_cd(c.subject)}
@@ -9426,8 +9398,8 @@ function renderWeeklyAttendanceTracker() {
         ${formatDate(localDateKey(weekDays[0]))} – ${formatDate(localDateKey(weekDays[6]))}
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-sm ${weekOffset === 0 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(0)" aria-pressed="${weekOffset === 0}" style="padding:4px 12px;font-size:var(--text-sm)">This Week</button>
-        <button class="btn btn-sm ${weekOffset === -1 ? 'btn-primary' : ''}" onclick="setAttendanceWeekOffset(-1)" aria-pressed="${weekOffset === -1}" style="padding:4px 12px;font-size:var(--text-sm)">Last Week</button>
+        <button class="btn btn-sm rv-week-btn" onclick="setAttendanceWeekOffset(0)" aria-pressed="${weekOffset === 0}" style="padding:4px 12px;font-size:var(--text-sm)">This Week</button>
+        <button class="btn btn-sm rv-week-btn" onclick="setAttendanceWeekOffset(-1)" aria-pressed="${weekOffset === -1}" style="padding:4px 12px;font-size:var(--text-sm)">Last Week</button>
       </div>
     </div>
   `;
@@ -9464,14 +9436,14 @@ function renderWeeklyAttendanceTracker() {
       ${attendanceDaysHTML}
 
       <!-- Gamified Attendance & Safe Bunk Guidance Card -->
-      <div class="card" style="padding:16px;margin-bottom:16px;background:var(--surface-2);border-left:3px solid ${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">
+      <div class="rv-health" style="padding:16px 0;margin-bottom:16px;border-top:1px solid var(--color-rule)">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
           <div>
             <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);display:flex;align-items:center;gap:8px">
-              <span>Attendance Health &amp; Safe Skips</span>
-              ${streak > 0 ? `<span class="type-badge" style="background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 8px;font-size:var(--text-xs)">🔥 ${streak}-Class Streak</span>` : ''}
+              <span>Attendance and safe skips</span>
+              ${streak > 0 ? `<span class="rv-busy">${streak}-class streak</span>` : ''}
             </div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Target threshold: <strong>75%</strong> minimum required attendance</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Target: <strong>${getAttendanceTarget()}%</strong> minimum attendance</div>
           </div>
           <span class="type-badge" style="font-size:var(--text-sm);padding:3px 9px;background:${guidance.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${guidance.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
             ${guidance.badgeLabel}
@@ -10585,9 +10557,12 @@ function renderCalendar() {
     dayItems.forEach(it => { counts[it.type]++; });
     const parts = Object.keys(counts).filter(t => counts[t]).map(t => `${counts[t]} ${CAL_TYPE_LABELS[t][counts[t] === 1 ? 0 : 1]}`);
     const label = `${d} ${CAL_MONTH_LONG[m - 1]}${key === todayKey ? ', today' : ''}, ${parts.length ? parts.join(', ') : 'nothing scheduled'}`;
-    // One dot per item in the day's order, up to CAL_MAX_DOTS, then "+N".
-    const extra = dayItems.length - CAL_MAX_DOTS;
-    const dots = dayItems.slice(0, CAL_MAX_DOTS).map(it => `<span class="cal-dot cal-dot-${it.type}"></span>`).join('')
+    // One dot per deadline or task, up to CAL_MAX_DOTS, then "+N". Classes
+    // repeat every weekday, so a dot for them was noise; the day list and the
+    // label still include them.
+    const dotItems = dayItems.filter(it => it.type !== 'class');
+    const extra = dotItems.length - CAL_MAX_DOTS;
+    const dots = dotItems.slice(0, CAL_MAX_DOTS).map(it => `<span class="cal-dot cal-dot-${it.type}"></span>`).join('')
       + (extra > 0 ? `<span class="cal-more">+${extra}</span>` : '');
     const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : ''].filter(Boolean).join(' ');
     cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${dots}</span></button>`;
@@ -10657,7 +10632,6 @@ function renderCalendar() {
         ${cells}
       </div>
       <div class="cal-legend">
-        <span><span class="cal-dot cal-dot-class" aria-hidden="true"></span>Class</span>
         <span><span class="cal-dot cal-dot-deadline" aria-hidden="true"></span>Deadline</span>
         <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
       </div>
@@ -10830,14 +10804,14 @@ function renderTimetable() {
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')"
                   title="Mark ${escAttr_cd(c.subject)} Attended" aria-label="Mark ${escAttr_cd(c.subject)} as attended" aria-pressed="${isAttended}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
-                         ${isAttended ? 'background:var(--green);border-color:var(--green);color:var(--text-inverse);' : ''}">
+                         ${isAttended ? 'background:color-mix(in srgb, var(--status-success) 12%, transparent);border-color:var(--status-success);color:var(--status-success);' : ''}">
             ${icons.check()}<span class="tt-att-label">Present</span>
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
                   title="Mark ${escAttr_cd(c.subject)} as skipped" aria-label="Mark ${escAttr_cd(c.subject)} as skipped" aria-pressed="${isSkipped}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
-                         ${isSkipped ? 'background:var(--red);border-color:var(--red);color:var(--text-inverse);' : ''}">
+                         ${isSkipped ? 'background:color-mix(in srgb, var(--status-error) 10%, transparent);border-color:var(--status-error);color:var(--status-error);' : ''}">
             ${icons.x()}<span class="tt-att-label">Absent</span>
           </button>
           ${attStatusChipHTML(status)}
@@ -10849,7 +10823,7 @@ function renderTimetable() {
       const codeSuffix = codeInName ? '' : subjectCodeSuffix(c.subject, c.code);
       const metaBits = [
         c.type && c.type !== 'lecture' ? `<span class="type-badge type-${c.type}">${c.type}</span>` : '',
-        c.room ? `<span>Room <strong>${escHtml_cd(c.room)}</strong></span>` : '',
+        c.room ? `<span>${/^[a-z]/i.test(String(c.room).trim()) ? '' : 'Room '}<strong>${escHtml_cd(c.room)}</strong></span>` : '',
         c.teacher ? `<span><strong>${escHtml_cd(formatTeacherName(c.teacher))}</strong></span>` : '',
         c.notes ? `<span class="tt-note">${escHtml_cd(c.notes)}</span>` : ''
       ].filter(Boolean);
@@ -10897,7 +10871,7 @@ function renderTimetable() {
     ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Holiday mode is on. Classes are hidden from Today, Calendar and reminders.</span> <button type="button" class="holiday-note-action" onclick="resumeClasses()">Resume classes</button></p>` : ''}
     <div class="tt-day-tabs">${tabs}</div>
     ${content}
-    ${day===today&&classes.length?'<div class="text-xs text-muted" style="margin-top:12px;text-align:center">Highlighted = current session · Faded = completed · Tap subject to open notes &amp; syllabus</div>':''}
+
   `;
 }
 
@@ -16173,8 +16147,7 @@ function renderNotices() {
       <!-- Card 3: Dev Notes -->
       <div class="notice-source-card tint-devnotes" onclick="showDevNotesModal()" title="View recent updates and improvements">
         <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-devnotes">🛠️</div>
-          <span style="font-size:var(--text-2xs);font-weight:700;background:color-mix(in srgb, var(--status-warning) 14%, transparent);color:var(--status-warning);padding:2px 6px;border-radius:var(--radius-xs,4px)">v2.4</span>
+          <div class="notice-source-icon-wrap notice-source-icon-devnotes">${icons.code()}</div>
         </div>
         <div>
           <div class="notice-source-title">Dev Notes</div>
@@ -16188,7 +16161,7 @@ function renderNotices() {
 
     <div class="search-input-wrapper" style="position:relative;display:flex;align-items:center">
       <span class="s-icon">${icons.search()}</span>
-      <input type="text" placeholder="Search notices by title, category, or keyword…" value="${state.noticeSearch}"
+      <input type="text" placeholder="Search notices by title, category, or keyword…" value="${escAttr_cd(state.noticeSearch || '')}"
         oninput="filterNotices(this.value)" id="notice-search" style="flex:1">
       <button id="notice-search-clear" onclick="filterNotices('');document.getElementById('notice-search').value='';"
         style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:0;font-size:var(--text-md);display:${state.noticeSearch?'block':'none'}"
@@ -17415,7 +17388,7 @@ function renderSummaryContent(container) {
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml_cd(c.subject)}</span>
             <span class="type-badge type-${c.type}">${c.type}</span>
           </div>
-          <div class="summary-text-sub">${formatDisplayTimeRange(c.time, c.end)} · ${escHtml_cd(c.room)} · ${escHtml_cd(c.teacher)}</div>
+          <div class="summary-text-sub">${[formatDisplayTimeRange(c.time, c.end), escHtml_cd(c.room || ''), escHtml_cd(c.teacher || '')].filter(Boolean).join(' · ')}</div>
         </div>
       </div>`).join('')}
     ${doneCount ? `<div class="briefing-done">${remaining.length ? `${doneCount} class${doneCount !== 1 ? 'es' : ''} done earlier today` : `All ${doneCount} class${doneCount !== 1 ? 'es' : ''} done for today`}</div>` : ''}` : ''}
@@ -17434,7 +17407,7 @@ function renderSummaryContent(container) {
     ${ongoingMissions.length ? `
       <div class="section-heading" style="margin-top:20px;color:var(--brand-secondary)">Ongoing Missions</div>
       ${ongoingMissions.map(a => `
-        <div class="summary-item" style="border-left:3px solid var(--brand-secondary)">
+        <div class="summary-item">
           <div class="summary-icon" style="background:color-mix(in srgb, var(--brand-secondary) 12%, transparent);color:var(--brand-secondary)">${icons.target()}</div>
           <div style="flex:1;min-width:0">
             <div class="summary-text-main">${escHtml_cd(a.title)}</div>
@@ -17445,7 +17418,7 @@ function renderSummaryContent(container) {
     ${overdueItems.length ? `
       <div class="section-heading" style="margin-top:20px;color:var(--status-error)">Overdue Tasks</div>
       ${overdueItems.map(a => `
-        <div class="summary-item" style="border-left:3px solid var(--status-error)">
+        <div class="summary-item">
           <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.alert()}</div>
           <div style="flex:1;min-width:0">
             <div class="summary-text-main">${escHtml_cd(a.title)}</div>
@@ -17538,9 +17511,9 @@ function renderSettings() {
             `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
             `<div style="display:flex;flex-wrap:wrap;gap:8px">
               ${detectDevice().inApp
-                ? `<button class="btn btn-primary" onclick="showInAppBanner()" style="display:flex;align-items:center;gap:6px" title="Google blocks sign-in inside Instagram, Facebook and other apps">🌐 Google: open in browser first</button>`
-                : `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">🌐 Sign In with Google</button>`}
-              <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">✉️ Sign In with Email</button>
+                ? `<button class="btn btn-primary" onclick="showInAppBanner()" style="display:flex;align-items:center;gap:6px" title="Google blocks sign-in inside Instagram, Facebook and other apps">Google: open in browser first</button>`
+                : `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">Sign In with Google</button>`}
+              <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">Sign In with Email</button>
               <div style="flex-basis:100%;font-size:var(--text-xs);color:var(--text-muted)">Google lists the accounts this browser is signed into. No list? Enter your Google email, or use email sign-in.</div>
             </div>`
           }
