@@ -5440,6 +5440,7 @@ async function vaultViewInApp(blob, label, kind) {
     <div class="modal vault-view" role="dialog" aria-modal="true" aria-label="${vaultEsc(label)}" onclick="event.stopPropagation()">
       <div class="modal-header" style="gap:8px">
         <span class="modal-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${vaultEsc(label)}</span>
+        <button type="button" class="btn-secondary" id="vault-view-fs" aria-label="Hide the browser bars" title="Hide the browser bars" style="display:none;font-size:var(--text-base);white-space:nowrap">⛶</button>
         <button type="button" class="btn-secondary" id="vault-view-full" style="font-size:var(--text-base);white-space:nowrap"></button>
         <button type="button" class="btn-secondary" id="vault-view-dl" style="font-size:var(--text-base);white-space:nowrap">Download</button>
         <button class="modal-close" aria-label="Close" id="vault-view-close">${icons.x()}</button>
@@ -5473,28 +5474,38 @@ async function vaultViewInApp(blob, label, kind) {
     pre.textContent = await blob.text();
     body.appendChild(pre);
   }
-  // Full-screen is an in-app mode (iPhone Safari has no element fullscreen); real
-  // browser fullscreen is added where it exists. Choice is remembered per device.
+  // Full screen is an in-app mode (same everywhere, instant). A separate button also asks the
+  // browser to hide its own bars where that exists and there is room (not phones/iPhone).
   const fullBtn = backdrop.querySelector('#vault-view-full');
-  let real = false;
+  const fsBtn = backdrop.querySelector('#vault-view-fs');
+  const inBrowserFs = () => document.fullscreenElement === backdrop;
   const setFull = (on) => {
     backdrop.classList.toggle('vault-full', on);
     fullBtn.textContent = on ? 'Minimise' : 'Full screen';
     try { localStorage.setItem('cos_vault_view_full', on ? '1' : '0'); } catch (_) {}
-    if (on && backdrop.requestFullscreen && !document.fullscreenElement) { backdrop.requestFullscreen().then(() => { real = true; }).catch(() => {}); }
-    else if (!on && document.fullscreenElement) { real = false; document.exitFullscreen().catch(() => {}); }
+    if (!on && inBrowserFs()) document.exitFullscreen().catch(() => {});
   };
   let saved = null;
   try { saved = localStorage.getItem('cos_vault_view_full'); } catch (_) {}
-  const startFull = saved === null ? window.matchMedia('(max-width: 700px)').matches : saved === '1';
+  const narrow = window.matchMedia('(max-width: 700px)').matches;
+  const startFull = saved === null ? narrow : saved === '1';
   backdrop.classList.toggle('vault-full', startFull);
   fullBtn.textContent = startFull ? 'Minimise' : 'Full screen';
+  if (backdrop.requestFullscreen && document.fullscreenEnabled && !narrow) fsBtn.style.display = '';
   const isFull = () => backdrop.classList.contains('vault-full');
   fullBtn.onclick = () => setFull(!isFull());
-  const onFs = () => { if (real && !document.fullscreenElement) { real = false; setFull(false); } };
+  fsBtn.onclick = () => {
+    if (inBrowserFs()) { document.exitFullscreen().catch(() => {}); return; }
+    if (!isFull()) setFull(true);
+    backdrop.requestFullscreen().catch(() => {});
+  };
+  const onFs = () => { fsBtn.setAttribute('aria-pressed', inBrowserFs() ? 'true' : 'false'); };
   const onKey = (e) => {
     if (!backdrop.isConnected) { cleanup(); return; }
-    if (e.key === 'Escape') { if (isFull()) setFull(false); else close(); }
+    if (e.key !== 'Escape') return;
+    if (inBrowserFs()) document.exitFullscreen().catch(() => {});   // browsers usually take this Esc themselves
+    else if (isFull()) setFull(false);
+    else close();
   };
   const cleanup = () => {
     document.removeEventListener('keydown', onKey);
