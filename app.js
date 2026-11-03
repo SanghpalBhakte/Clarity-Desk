@@ -16756,12 +16756,12 @@ function showLinkResourceModal(si, ri, existing) {
         <div id="lrm-file-section" style="display:${isUpload ? 'block' : 'none'}">
           <label class="form-label">Attach File / Note (PDF, Doc, Image, Code)</label>
           <input type="file" id="lrm-file-input" style="display:none" onchange="handleVaultFileSelect(event)" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.zip,.py,.java,.cpp,.c,.js">
-          <div class="card" onclick="document.getElementById('lrm-file-input').click()" style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface-2)">
+          <div class="card" id="lrm-drop" onclick="document.getElementById('lrm-file-input').click()" style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface-2)">
             <div style="font-size:var(--text-2xl);margin-bottom:6px">📥</div>
             <div id="lrm-file-label" style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">
               ${existing?.label && isUpload ? `✓ <strong>${vaultEsc(existing.label)}</strong> (${vaultEsc(existing.fileSize || 'Attached File')})` : 'Click to select note, PDF, slide, or code file'}
             </div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Saved persistently to your local Study Vault</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Or drag and drop a file here. Saved persistently to your local Study Vault</div>
           </div>
         </div>
 
@@ -16793,6 +16793,20 @@ function showLinkResourceModal(si, ri, existing) {
   `;
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
+  const drop = document.getElementById('lrm-drop');
+  const fileInput = document.getElementById('lrm-file-input');
+  if (drop && fileInput) {
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('is-drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('is-drag'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault(); drop.classList.remove('is-drag');
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files.length) return;
+      if (files.length > 1) showToast('One file at a time here. Using the first one.', 'info');
+      fileInput.files = files;
+      handleVaultFileSelect({ target: fileInput });
+    });
+  }
 }
 
 window.saveLinkResource = function(si, ri) {
