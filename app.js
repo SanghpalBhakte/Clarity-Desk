@@ -5409,32 +5409,14 @@ function vaultIdbStart() {
   }).catch(() => {});
 }
 
-// Which uploads open in a tab instead of downloading: by extension.
+// Which uploads open instead of downloading: by extension. SVG is left out (can carry scripts).
 function vaultViewKind(name) {
-  const ext = (String(name).match(/\.([a-z0-9]+)$/i) || [])[1];
-  const e = (ext || '').toLowerCase();
+  const e = ((String(name).match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
   if (e === 'html' || e === 'htm') return 'html';
-  if (/^(pdf|png|jpe?g|gif|webp|svg|txt)$/.test(e)) return 'direct';
+  if (e === 'pdf') return 'pdf';
+  if (/^(png|jpe?g|gif|webp)$/.test(e)) return 'image';
+  if (e === 'txt') return 'text';
   return '';
-}
-
-// Opens a blob in the already-open tab `w`. HTML goes inside a sandboxed iframe
-// (scripts allowed, no same-origin) so the page can't read the app's localStorage.
-async function vaultShowBlob(w, blob, label, kind) {
-  let url;
-  if (kind === 'html') {
-    const esc = (await blob.text()).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-    const page = '<!doctype html><meta charset="utf-8"><title>' + vaultEsc(label) + '</title>' +
-      '<style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style>' +
-      '<iframe sandbox="allow-scripts allow-forms allow-popups allow-modals" srcdoc="' + esc + '"></iframe>';
-    url = URL.createObjectURL(new Blob([page], { type: 'text/html' }));
-  } else {
-    const ext = (String(label).match(/\.([a-z0-9]+)$/i) || [])[1].toLowerCase();
-    const mime = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', txt: 'text/plain' }[ext];
-    url = URL.createObjectURL(new Blob([blob], { type: mime }));
-  }
-  w.location.href = url;
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function vaultDownloadBlob(blob, label) {
@@ -5447,14 +5429,65 @@ function vaultDownloadBlob(blob, label) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-async function vaultOpenBlob(blob, label) {
+// In-app viewer: no popup, so Safari, installed PWAs and phones can't block it.
+// HTML runs in a sandboxed iframe (scripts allowed, no same-origin: it can't read app data).
+async function vaultViewInApp(blob, label, kind) {
+  document.getElementById('vault-view-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'vault-view-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:960px;width:96vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;padding:12px;overflow:hidden" role="dialog" aria-modal="true" aria-label="${vaultEsc(label)}" onclick="event.stopPropagation()">
+      <div class="modal-header" style="gap:8px">
+        <span class="modal-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${vaultEsc(label)}</span>
+        <button type="button" class="btn-secondary" id="vault-view-dl" style="font-size:var(--text-base);white-space:nowrap">Download</button>
+        <button class="modal-close" aria-label="Close" id="vault-view-close">${icons.x()}</button>
+      </div>
+      <div id="vault-view-body" style="flex:1;min-height:0;display:flex"></div>
+    </div>`;
+  const body = backdrop.querySelector('#vault-view-body');
+  let url = '';
+  if (kind === 'html') {
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
+    f.title = label;
+    f.style.cssText = 'flex:1;width:100%;border:0;background:#fff;border-radius:8px';
+    f.srcdoc = await blob.text();
+    body.appendChild(f);
+  } else if (kind === 'image') {
+    url = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+    img.src = url; img.alt = label;
+    img.style.cssText = 'max-width:100%;max-height:100%;margin:auto;object-fit:contain';
+    body.appendChild(img);
+  } else {
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'flex:1;margin:0;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:var(--text-base)';
+    pre.textContent = await blob.text();
+    body.appendChild(pre);
+  }
+  const close = () => { backdrop.remove(); if (url) URL.revokeObjectURL(url); };
+  backdrop.querySelector('#vault-view-close').onclick = close;
+  backdrop.querySelector('#vault-view-dl').onclick = () => vaultDownloadBlob(blob, label);
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+// PDFs use the browser's own viewer in a new tab; `w` was opened inside the click.
+function vaultShowPdf(w, blob) {
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+  w.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function vaultOpenBlob(blob, label, w) {
   const kind = vaultViewKind(label);
-  const isSvg = /\.svg$/i.test(label);
-  if (!kind || isSvg) { vaultDownloadBlob(blob, label); return; }
-  const w = window.open('', '_blank');   // opened in the click, before any await
-  if (!w) { vaultDownloadBlob(blob, label); return; }
-  try { await vaultShowBlob(w, blob, label, kind); }
-  catch (_) { w.close(); vaultDownloadBlob(blob, label); }
+  try {
+    if (kind === 'pdf' && w) { vaultShowPdf(w, blob); return; }
+    if (kind && kind !== 'pdf') { if (w) w.close(); await vaultViewInApp(blob, label, kind); return; }
+  } catch (_) {}
+  if (w) w.close();
+  vaultDownloadBlob(blob, label);
 }
 
 window.vaultOpenFile = async function(fileId) {
@@ -5462,13 +5495,10 @@ window.vaultOpenFile = async function(fileId) {
   (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
     if (isVaultIdbFile(r) && r.fileId === fileId) label = r.label || label;
   }));
-  const viewable = !!vaultViewKind(label) && !/\.svg$/i.test(label);
-  const w = viewable ? window.open('', '_blank') : null;
+  const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;   // before any await
   const blob = await vaultGetBlob(fileId);
   if (!blob) { if (w) w.close(); showToast(VAULT_MISSING_MESSAGE, 'error'); return; }
-  if (!w) { vaultDownloadBlob(blob, label); return; }
-  try { await vaultShowBlob(w, blob, label, vaultViewKind(label)); }
-  catch (_) { w.close(); vaultDownloadBlob(blob, label); }
+  vaultOpenBlob(blob, label, w);
 };
 
 // Small files stored as data: URLs.
@@ -5476,7 +5506,8 @@ window.vaultOpenDataUrl = function(el) {
   const label = el.getAttribute('download') || 'file';
   const dec = vaultDataUrlBytes(el.getAttribute('href'));
   if (!dec) return true;   // let the plain download link work
-  vaultOpenBlob(new Blob([dec.bytes], { type: dec.mime }), label);
+  const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;
+  vaultOpenBlob(new Blob([dec.bytes], { type: dec.mime }), label, w);
   return false;
 };
 
