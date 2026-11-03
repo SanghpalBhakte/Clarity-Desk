@@ -199,6 +199,66 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u151",
+    date: "2026-11-03",
+    title: "Fix the drop guard so it works where the page has no drag events",
+    category: "Fix",
+    tag: "Fix",
+    tagColor: "var(--red)",
+    summary: "Fix the drop guard so it works where the page has no drag events",
+    points: [
+
+    ]
+  },
+  {
+    id: "u150",
+    date: "2026-11-03",
+    title: "Dropping a file next to the Study Vault no longer makes the browser open it and leave the app",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Dropping a file next to the Study Vault no longer makes the browser open it and leave the app",
+    points: [
+
+    ]
+  },
+  {
+    id: "u149",
+    date: "2026-11-03",
+    title: "You can now drop files or whole folders anywhere on the Study Vault and review them before they are added",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "You can now drop files or whole folders anywhere on the Study Vault and review them before they are added",
+    points: [
+
+    ]
+  },
+  {
+    id: "u148",
+    date: "2026-11-03",
+    title: "You can now drop several files on a subject in the Vault and review them before they are added",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "You can now drop several files on a subject in the Vault and review them before they are added",
+    points: [
+
+    ]
+  },
+  {
+    id: "u147",
+    date: "2026-11-03",
+    title: "You can now drag and drop a file onto the upload box when adding vault material",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "You can now drag and drop a file onto the upload box when adding vault material",
+    points: [
+
+    ]
+  },
+  {
     id: "u146",
     date: "2026-11-03",
     title: "The sync status now shows when your phone last synced, and signing out clears any unanswered sign-in question",
