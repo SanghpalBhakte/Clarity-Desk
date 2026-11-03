@@ -9897,24 +9897,6 @@ window.handleAssistantQuestion = function() {
 // is what made the top of Today look like it kept refreshing.
 let dashboardSettled = false;
 
-// Today's attendance gauge: only when the % is within 5 points of the target,
-// where the margin matters. Otherwise the number and one sentence are enough.
-// Display only: draws the figure it is given.
-function attNearTargetGaugeHTML(pct, target) {
-  if (!Number.isFinite(pct) || !Number.isFinite(target) || Math.abs(pct - target) > 5) return '';
-  const pt = (v, r) => {
-    const a = Math.PI * (1 - Math.min(100, Math.max(0, v)) / 100);
-    return `${(90 + r * Math.cos(a)).toFixed(1)} ${(86 - r * Math.sin(a)).toFixed(1)}`;
-  };
-  return `
-    <svg class="att-gauge" viewBox="0 0 180 96" width="120" height="64" role="img" aria-label="${escAttr_cd(`${pct}% against a ${target}% target`)}">
-      <path d="M20 86 A70 70 0 0 1 ${pt(target, 70)}" class="att-gauge-low"></path>
-      <path d="M${pt(target, 70)} A70 70 0 0 1 160 86" class="att-gauge-safe"></path>
-      <path d="M90 86 L${pt(pct, 56)}" class="att-gauge-needle"></path>
-      <circle cx="90" cy="86" r="7" class="att-gauge-hub"></circle>
-    </svg>`;
-}
-
 function renderDashboard() {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
@@ -10312,14 +10294,6 @@ function renderDashboard() {
     .sort((a, b) => a.i - b.i)
     .map(x => x.c);
   const moreClasses = dayClasses.length - shownClasses.length;
-  // Ended classes that are already marked fold into one "Earlier" line, so the
-  // list shows what still needs you. Unmarked ones keep their buttons. If every
-  // shown class is done, the list stays whole (nothing left to fold under).
-  const isDoneSlot = (c) => currentMin >= timeToMinutes(c.end || '23:59')
-    && (attendanceData[dateStr]?.[attendanceKeyFor(c)] || 'unset') !== 'unset';
-  const doneSlots = shownClasses.filter(isDoneSlot);
-  const foldDone = doneSlots.length > 0 && doneSlots.length < shownClasses.length;
-  const listedClasses = foldDone ? shownClasses.filter(c => !isDoneSlot(c)) : shownClasses;
 
   // Latest notice
   const visibleNotices = getVisibleNotices();
@@ -10380,8 +10354,7 @@ function renderDashboard() {
           <!-- Open ledger: no card box -->
           ${dayClasses.length > 0 ? `
             <div class="schedule-ledger">
-              ${foldDone ? `<button type="button" class="schedule-earlier" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">Earlier: ${doneSlots.map(c => escHtml_cd(c.subject)).join(', ')} · marked</button>` : ''}
-              ${listedClasses.map(c => {
+              ${shownClasses.map(c => {
                 const classKey = attendanceKeyFor(c);
                 const status = attendanceData[dateStr]?.[classKey] || 'unset';
                 const isNow = (currentMin >= timeToMinutes(c.time || '00:00') && currentMin < timeToMinutes(c.end || '23:59'));
@@ -10480,7 +10453,12 @@ function renderDashboard() {
             </div>
             <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
             ${attendancePct !== null ? `
-              ${!onHoliday ? attNearTargetGaugeHTML(Number(attendancePct), attTarget) : ''}
+              <div style="margin-top:10px">
+                <div class="att-bar-wrap">
+                  <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
+                  <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
+                </div>
+              </div>
               <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
             ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
           </div>

@@ -7061,8 +7061,7 @@ body.holiday-mode .holiday-banner {
 
 /* ── Calm Today: one loud thing, quiet rows ─────────────────────────────
    The live class card and its "mark the class before" prompt read as one
-   surface; marked classes fold into an "Earlier" line; task labels and
-   later due dates go grey so only what needs you keeps colour. */
+   surface; task labels and later due dates go grey so only what needs you keeps colour. */
 #page-dashboard .chrono-beacon:has(+ .today-focus[data-mark]) {
   margin-bottom: 0;
   border-bottom: 0;
@@ -7097,22 +7096,6 @@ body.holiday-mode .holiday-banner {
 #page-dashboard #quick-add-input { background: transparent; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; }
 #page-dashboard #quick-add-input:focus { border-bottom-color: var(--color-focus-ring); }
 
-#page-dashboard .schedule-earlier {
-  display: block;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  text-align: left;
-  cursor: pointer;
-}
-#page-dashboard .schedule-earlier:hover { color: var(--text-secondary); }
-#page-dashboard .schedule-slot.is-now { background: transparent; }
-#page-dashboard .schedule-slot.is-now::before { background: var(--text-primary); border-color: var(--text-primary); }
 
 .dash-notice-row {
   display: flex;
@@ -7169,9 +7152,3 @@ body.holiday-mode .holiday-banner {
 #page-dashboard .att-stat-figure.is-safe + .att-stat-label { color: var(--status-success); }
 #page-dashboard .att-stat-figure.at-risk + .att-stat-label { color: var(--status-error); }
 
-.att-gauge { display: block; margin-top: 8px; }
-.att-gauge path { fill: none; stroke-width: 13; stroke-linecap: round; }
-.att-gauge .att-gauge-low { stroke: color-mix(in srgb, var(--color-action-primary) 22%, var(--surface)); }
-.att-gauge .att-gauge-safe { stroke: color-mix(in srgb, var(--status-success) 32%, var(--surface)); }
-.att-gauge .att-gauge-needle { stroke: var(--text-primary); stroke-width: 5; }
-.att-gauge-hub { fill: var(--surface); stroke: var(--color-action-primary); stroke-width: 4; }
