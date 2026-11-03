@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u155",
+    date: "2026-11-03",
+    title: "Vault viewer: make Full screen in-app only, add a separate button to hide the browser bars on desktop and tablets",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Vault viewer: make Full screen in-app only, add a separate button to hide the browser bars on desktop and tablets",
+    points: [
+
+    ]
+  },
+  {
+    id: "u154",
+    date: "2026-11-03",
+    title: "Add a Full screen / Minimise button to the Vault file viewer, open it full screen on phones, and tap images to zoom",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Add a Full screen / Minimise button to the Vault file viewer, open it full screen on phones, and tap images to zoom",
+    points: [
+
+    ]
+  },
+  {
     id: "u153",
     date: "2026-11-03",
     title: "Open Vault files inside the app so it works on Safari, installed PWAs and phones",
