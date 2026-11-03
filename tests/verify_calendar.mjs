@@ -211,7 +211,7 @@ check('B1: month arrows never overflow (31 Jan -> Feb, 31 Mar -> Feb)', () => {
   return a === '2027-02' && b === '2027-02' ? true : `${a}, ${b}`;
 });
 
-check('B2: the floating + is hidden on the Calendar page', () => {
+check('B2: the floating + is hidden on Calendar and Study Vault, shown on Subjects', () => {
   seed();
   const app = makeApp();
   const fab = { style: {}, setAttribute() {}, querySelector: () => null };
@@ -224,7 +224,10 @@ check('B2: the floating + is hidden on the Calendar page', () => {
   const onCal = fab.style.display;
   document.querySelector = (sel) => (sel === '.fab' ? fab : null);
   try { app.navigate('resources'); } finally { document.querySelector = realQS; }
-  return onCal === 'none' && fab.style.display === '' ? true : `calendar=${onCal}, resources=${fab.style.display}`;
+  const onVault = fab.style.display;
+  document.querySelector = (sel) => (sel === '.fab' ? fab : null);
+  try { app.navigate('subjects'); } finally { document.querySelector = realQS; }
+  return onCal === 'none' && onVault === 'none' && fab.style.display === '' ? true : `calendar=${onCal}, resources=${onVault}, subjects=${fab.style.display}`;
 });
 
 const AGENDA_TASKS = [...TASKS,
