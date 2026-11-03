@@ -5437,9 +5437,10 @@ async function vaultViewInApp(blob, label, kind) {
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'vault-view-backdrop';
   backdrop.innerHTML = `
-    <div class="modal" style="max-width:960px;width:96vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;padding:12px;overflow:hidden" role="dialog" aria-modal="true" aria-label="${vaultEsc(label)}" onclick="event.stopPropagation()">
+    <div class="modal vault-view" role="dialog" aria-modal="true" aria-label="${vaultEsc(label)}" onclick="event.stopPropagation()">
       <div class="modal-header" style="gap:8px">
         <span class="modal-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${vaultEsc(label)}</span>
+        <button type="button" class="btn-secondary" id="vault-view-full" style="font-size:var(--text-base);white-space:nowrap"></button>
         <button type="button" class="btn-secondary" id="vault-view-dl" style="font-size:var(--text-base);white-space:nowrap">Download</button>
         <button class="modal-close" aria-label="Close" id="vault-view-close">${icons.x()}</button>
       </div>
@@ -5457,8 +5458,14 @@ async function vaultViewInApp(blob, label, kind) {
   } else if (kind === 'image') {
     url = URL.createObjectURL(blob);
     const img = document.createElement('img');
-    img.src = url; img.alt = label;
-    img.style.cssText = 'max-width:100%;max-height:100%;margin:auto;object-fit:contain';
+    img.src = url; img.alt = label; img.title = 'Tap to zoom';
+    body.style.overflow = 'auto';
+    const fit = () => { img.style.cssText = 'max-width:100%;max-height:100%;margin:auto;object-fit:contain;cursor:zoom-in'; };
+    fit();
+    img.onclick = () => {
+      if (img.style.cursor === 'zoom-out') fit();
+      else img.style.cssText = 'max-width:none;max-height:none;margin:auto;cursor:zoom-out';
+    };
     body.appendChild(img);
   } else {
     const pre = document.createElement('pre');
@@ -5466,10 +5473,43 @@ async function vaultViewInApp(blob, label, kind) {
     pre.textContent = await blob.text();
     body.appendChild(pre);
   }
-  const close = () => { backdrop.remove(); if (url) URL.revokeObjectURL(url); };
+  // Full-screen is an in-app mode (iPhone Safari has no element fullscreen); real
+  // browser fullscreen is added where it exists. Choice is remembered per device.
+  const fullBtn = backdrop.querySelector('#vault-view-full');
+  let real = false;
+  const setFull = (on) => {
+    backdrop.classList.toggle('vault-full', on);
+    fullBtn.textContent = on ? 'Minimise' : 'Full screen';
+    try { localStorage.setItem('cos_vault_view_full', on ? '1' : '0'); } catch (_) {}
+    if (on && backdrop.requestFullscreen && !document.fullscreenElement) { backdrop.requestFullscreen().then(() => { real = true; }).catch(() => {}); }
+    else if (!on && document.fullscreenElement) { real = false; document.exitFullscreen().catch(() => {}); }
+  };
+  let saved = null;
+  try { saved = localStorage.getItem('cos_vault_view_full'); } catch (_) {}
+  const startFull = saved === null ? window.matchMedia('(max-width: 700px)').matches : saved === '1';
+  backdrop.classList.toggle('vault-full', startFull);
+  fullBtn.textContent = startFull ? 'Minimise' : 'Full screen';
+  const isFull = () => backdrop.classList.contains('vault-full');
+  fullBtn.onclick = () => setFull(!isFull());
+  const onFs = () => { if (real && !document.fullscreenElement) { real = false; setFull(false); } };
+  const onKey = (e) => {
+    if (!backdrop.isConnected) { cleanup(); return; }
+    if (e.key === 'Escape') { if (isFull()) setFull(false); else close(); }
+  };
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('fullscreenchange', onFs);
+    if (url) URL.revokeObjectURL(url);
+  };
+  const close = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    backdrop.remove(); cleanup();
+  };
+  document.addEventListener('keydown', onKey);
+  document.addEventListener('fullscreenchange', onFs);
   backdrop.querySelector('#vault-view-close').onclick = close;
   backdrop.querySelector('#vault-view-dl').onclick = () => vaultDownloadBlob(blob, label);
-  wireBackdropClickClose(backdrop);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
   document.body.appendChild(backdrop);
 }
 
