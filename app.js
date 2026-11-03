@@ -497,6 +497,7 @@ function onCloudPushOk() {
   localPushPendingAt = 0;
   resetPushBackoff();
   markSynced();
+  vaultCloudSweep();
   if (!cloudPushFailed) return;
   cloudPushFailed = null;
   updateSyncUI();
@@ -4937,6 +4938,154 @@ function computeSyncDeletePaths(prev, cur) {
   return paths;
 }
 
+// ── Study Vault files in the account ─────────────────────────
+// So a file added on one device can be downloaded on another. The desk
+// record keeps the placeholder as before; the bytes go to
+// users/{uid}/vaultFiles/{fileId} (details) and .../parts/{n} (700 KB each:
+// Firestore allows 1 MiB a document; Firebase Storage needs the paid plan).
+// Parts are written first and the details last, so details mean the file is
+// complete. The free quota is shared by every student: each account keeps at
+// most VAULT_CLOUD_MAX_BYTES; bigger desks keep the rest on the device only.
+// A cloud copy is removed only when nothing here points at it and a
+// tombstone says a device deleted it (a phone that hasn't synced in a while
+// must not remove files it hasn't heard of yet).
+const VAULT_CLOUD_PART_BYTES = 700 * 1024;
+const VAULT_CLOUD_MAX_BYTES = 50 * 1024 * 1024;
+const VAULT_CLOUD_SWEEP_MS = 6 * 60 * 60 * 1000;
+let vaultCloudSweeping = false;
+let vaultCloudLastSweep = { uid: '', sig: '', at: 0 };
+let vaultCloudFullToastShown = false;
+
+function vaultCloudReady() {
+  return !!(currentUser && db && typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.Blob);
+}
+
+function vaultCloudFilesRef(uid) {
+  return db.collection('users').doc(uid).collection('vaultFiles');
+}
+
+// fileId -> record, for every file whose bytes are on this device.
+function vaultLocalFiles() {
+  const out = new Map();
+  (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultDeviceFile(r)) { const id = r.fileId || vaultFileId(r.url); if (!out.has(id)) out.set(id, r); }
+    else if (isVaultIdbFile(r) && !vaultIdbMissing(r) && !out.has(r.fileId)) out.set(r.fileId, r);
+  }));
+  return out;
+}
+
+function vaultLocalFileSize(r) {
+  return isVaultDeviceFile(r) ? Math.ceil(r.url.length * 0.75) : (r.bytes || 0);
+}
+
+async function vaultFileBytes(r) {
+  if (isVaultDeviceFile(r)) return vaultDataUrlBytes(r.url);
+  const blob = await vaultGetBlob(r.fileId);
+  return blob ? { bytes: new Uint8Array(await blob.arrayBuffer()), mime: blob.type || r.mime || '' } : null;
+}
+
+function vaultCloudTombstoned(fileId) {
+  const tombs = safeGetStorage(KEY_TOMBSTONES, []);
+  return (Array.isArray(tombs) ? tombs : []).some(t => t && String(t.id).includes(`|${fileId}|`));
+}
+
+async function vaultCloudUpload(uid, fileId, r) {
+  const got = await vaultFileBytes(r);
+  if (!got) return false;
+  const ref = vaultCloudFilesRef(uid).doc(fileId);
+  const P = VAULT_CLOUD_PART_BYTES;
+  const parts = Math.max(1, Math.ceil(got.bytes.length / P));
+  for (let i = 0; i < parts; i++) {
+    await ref.collection('parts').doc(String(i)).set({ d: firebase.firestore.Blob.fromUint8Array(got.bytes.subarray(i * P, (i + 1) * P)) });
+  }
+  await ref.set({ name: String(r.label || 'file'), mime: got.mime || '', bytes: got.bytes.length, parts, at: Date.now() });
+  return true;
+}
+
+async function vaultCloudDelete(uid, fileId, parts) {
+  const ref = vaultCloudFilesRef(uid).doc(fileId);
+  await ref.delete();   // details first: a half-deleted file never looks complete
+  for (let i = 0; i < (parts || 0); i++) await ref.collection('parts').doc(String(i)).delete();
+}
+
+// Runs after a good push: uploads this device's files the account lacks and
+// removes copies of deleted ones. Reads only the details list; skipped when
+// nothing changed in the last 6 hours. Never blocks or changes a local save.
+async function vaultCloudSweep() {
+  if (!vaultCloudReady() || vaultCloudSweeping || !navigator.onLine) return;
+  const uid = currentUser.uid;
+  const local = vaultLocalFiles();
+  const used = vaultReferencedIds();
+  const sig = `${[...local.keys()].sort().join()}|${[...used].sort().join()}`;
+  const last = vaultCloudLastSweep;
+  if (last.uid === uid && last.sig === sig && Date.now() - last.at < VAULT_CLOUD_SWEEP_MS) return;
+  vaultCloudSweeping = true;
+  try {
+    const snap = await vaultCloudFilesRef(uid).get({ source: 'server' });
+    const cloud = new Map();
+    snap.forEach(d => cloud.set(d.id, d.data() || {}));
+    for (const [id, meta] of [...cloud]) {
+      if (used.has(id) || !vaultCloudTombstoned(id)) continue;
+      await vaultCloudDelete(uid, id, meta.parts);
+      cloud.delete(id);
+    }
+    let total = 0;
+    cloud.forEach(m => { total += m.bytes || 0; });
+    let full = false;
+    for (const [id, r] of local) {
+      if (cloud.has(id)) continue;
+      if (!currentUser || currentUser.uid !== uid) return;
+      const size = vaultLocalFileSize(r);
+      if (total + size > VAULT_CLOUD_MAX_BYTES) { full = true; continue; }
+      if (await vaultCloudUpload(uid, id, r)) total += size;
+    }
+    if (full && !vaultCloudFullToastShown) {
+      vaultCloudFullToastShown = true;
+      showToast(`Your account holds up to ${VAULT_CLOUD_MAX_BYTES / 1048576} MB of vault files. Newer files stay on this device only; add big notes as Drive links to open them anywhere.`, 'info');
+    }
+    vaultCloudLastSweep = { uid, sig, at: Date.now() };
+  } catch (err) {
+    console.warn('Vault file sync error:', err);
+  } finally {
+    vaultCloudSweeping = false;
+  }
+}
+
+// "On another device" file: fetch it from the account, keep a copy here
+// (works offline after this) and open it.
+window.vaultGetCloudFile = async function(fileId) {
+  if (!/^[a-z0-9-]{1,40}$/i.test(String(fileId || ''))) return;
+  let label = 'file';
+  (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultPlaceholder(r) && r.fileId === fileId) label = r.label || label;
+  }));
+  const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;   // before any await
+  const fail = (msg) => { if (w) w.close(); showToast(msg, 'error'); };
+  if (!vaultCloudReady()) { fail('Sign in to download files added on your other devices.'); return; }
+  if (!navigator.onLine) { fail('You’re offline. Connect to the internet to download this file.'); return; }
+  showToast('Downloading…', 'info');
+  try {
+    const ref = vaultCloudFilesRef(currentUser.uid).doc(fileId);
+    const meta = await ref.get({ source: 'server' });
+    if (!meta.exists) { fail('This file isn’t in your account yet. Open Clarity Desk while online on the device that has it, then try again.'); return; }
+    const m = meta.data() || {};
+    const chunks = [];
+    for (let i = 0; i < (m.parts || 0); i++) {
+      const p = await ref.collection('parts').doc(String(i)).get({ source: 'server' });
+      const d = p.exists && p.data() && p.data().d;
+      if (!d || typeof d.toUint8Array !== 'function') { fail('This file couldn’t be downloaded completely. Try again later.'); return; }
+      chunks.push(d.toUint8Array());
+    }
+    const blob = new Blob(chunks, { type: m.mime || '' });
+    if (blob.size !== m.bytes) { fail('This file couldn’t be downloaded completely. Try again later.'); return; }
+    await vaultPutBlob(fileId, blob);   // a full phone just skips the copy
+    vaultOpenBlob(blob, label, w);
+  } catch (err) {
+    console.warn('Vault file download error:', err);
+    fail('Couldn’t download this file. Check your connection and try again.');
+  }
+};
+
 // ── Notice Channels (Official & WhatsApp Links) ───────────────
 // NOTE: the whatsappTitle/whatsappUrl field names predate this card's
 // current purpose (it used to open a WhatsApp class group; it's now the
@@ -5183,6 +5332,16 @@ function vaultFileMaxBytes() {
 
 function vaultIdbMissing(r) {
   return isVaultIdbFile(r) && !!_vaultBlobIds && !_vaultBlobIds.has(r.fileId);
+}
+
+// Placeholder files: one this device already downloaded (vaultGetCloudFile)
+// opens from here; any other with a usable id can be downloaded.
+function vaultPlaceholderHere(r) {
+  return isVaultPlaceholder(r) && !!_vaultBlobIds && _vaultBlobIds.has(r.fileId);
+}
+
+function vaultPlaceholderFetchable(r) {
+  return isVaultPlaceholder(r) && /^[a-z0-9-]{1,40}$/i.test(String(r.fileId || ''));
 }
 
 // Same FNV-1a, over the file's bytes (a data: URL is never built for it).
@@ -5578,7 +5737,7 @@ async function vaultOpenBlob(blob, label, w) {
 window.vaultOpenFile = async function(fileId) {
   let label = 'file';
   (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
-    if (isVaultIdbFile(r) && r.fileId === fileId) label = r.label || label;
+    if ((isVaultIdbFile(r) || isVaultPlaceholder(r)) && r.fileId === fileId) label = r.label || label;
   }));
   const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;   // before any await
   const blob = await vaultGetBlob(fileId);
@@ -14265,7 +14424,9 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
           ${r.fileSize ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${vaultEsc(r.fileSize)}</div>` : ''}
         </div>
       </div>
-      ${isVaultPlaceholder(r)
+      ${vaultPlaceholderFetchable(r)
+        ? `<button type="button" onclick="${vaultPlaceholderHere(r) ? 'vaultOpenFile' : 'vaultGetCloudFile'}(${jsArg_cd(r.fileId)})" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px" title="${vaultPlaceholderHere(r) ? '' : 'Added on another device. Download it here.'}">Download 📥</button>`
+        : isVaultPlaceholder(r)
         ? `<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span>`
         : vaultIdbMissing(r)
         ? `<span class="vault-on-device" title="${vaultEsc(VAULT_MISSING_MESSAGE)}">Missing on this device</span>`
@@ -16198,6 +16359,18 @@ function vaultResourceRow(si, ri, r) {
               <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
               <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
             </div>`;
+  if (vaultPlaceholderFetchable(r)) {
+    const here = vaultPlaceholderHere(r);
+    return `
+          <div class="resource-item-row">
+            <a class="resource-link" href="#" onclick="${here ? 'vaultOpenFile' : 'vaultGetCloudFile'}(${jsArg_cd(r.fileId)});return false" title="${here ? 'Click to open ' + label : 'Added on another device. Click to download it here.'}">
+              <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
+              <span class="resource-label" title="${label}">${label}</span>${badge}
+              ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${vaultEsc(r.fileSize)}</span>` : ''}
+              ${here ? `<span style="font-size:var(--text-sm);margin-left:auto;color:var(--accent)">📥</span>` : `<span class="vault-on-device">Download 📥</span>`}
+            </a>${actions}
+          </div>`;
+  }
   if (isVaultPlaceholder(r)) return `
           <div class="resource-item-row">
             <div class="resource-link is-on-device" title="This file was added on another device. Open it there.">
