@@ -8,6 +8,8 @@
 //  - a cloud copy is removed only when nothing points at it and a
 //    tombstone says a device deleted it;
 //  - the synced desk record is unchanged (plain placeholders);
+//  - files already on a phone upload after its first look at the account;
+//    nothing uploads in the background while data saver is on;
 //  - "On another device" rows download the file, keep it here, open it;
 //  - offline, signed out, missing or broken copies say why, save nothing.
 // ==================================================================
@@ -281,6 +283,19 @@ await check('Signed out or offline: the sweep does nothing', async () => {
   await app.vaultCloudSweep();
   app.setCloud({ uid: 'u1' }, fakeFs);
   return fsLog.length === 0 && fsReads === 0 ? true : `writes=${fsLog.length} reads=${fsReads}`;
+});
+
+await check('Data saver on: the sweep waits (no read, no upload)', async () => {
+  seed({ cos_custom_links: JSON.stringify(vault(dataRec)) });
+  app.resetSweep(); navigator.connection = { saveData: true };
+  await app.vaultCloudSweep();
+  delete navigator.connection;
+  return fsLog.length === 0 && fsReads === 0 ? true : `writes=${fsLog.length} reads=${fsReads}`;
+});
+
+await check('Files already on the phone upload after the first look at the account, without an edit', () => {
+  const i = appSrc.indexOf('function markSigninSeen('), j = appSrc.indexOf('function unmarkSigninSeen(', i);
+  return i > 0 && /setTimeout\(vaultCloudSweep,/.test(appSrc.slice(i, j)) ? true : 'markSigninSeen does not start a sweep';
 });
 
 // ── The other device ──
