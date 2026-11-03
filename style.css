@@ -169,7 +169,7 @@
   --font-sans:     'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-display:  'Quicksand', var(--font-sans);
   --font-editorial:'Quicksand', 'Source Serif 4', Georgia, serif;
-  --font-mono:     'Spline Sans Mono', 'JetBrains Mono', 'SF Mono', Consolas, Monaco, monospace;
+  --font-mono:     'Spline Sans Mono', 'SF Mono', Consolas, Monaco, monospace;
   --font:          var(--font-sans);
 
   /* Type scale: 9 canonical steps, replacing ~40 ad-hoc inline
