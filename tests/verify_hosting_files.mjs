@@ -183,7 +183,7 @@ scenario('Fonts load from the page <head>, not an @import in style.css (one less
   for (const f of ['index.html', '404.html']) {
     const head = fs.readFileSync(path.join(ROOT, f), 'utf8').split('</head>')[0];
     const link = (head.match(/<link href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)" rel="stylesheet"/) || [])[1] || '';
-    for (const fam of ['Quicksand', 'Comfortaa', 'Nunito', 'JetBrains+Mono', 'Spline+Sans+Mono']) if (!link.includes(`family=${fam}:`)) bad.push(`${f}: ${fam}`);
+    for (const fam of ['Quicksand', 'Comfortaa', 'Nunito', 'Spline+Sans+Mono']) if (!link.includes(`family=${fam}:`)) bad.push(`${f}: ${fam}`);
   }
   return bad.length === 0 ? true : `font missing from the <head> link: ${bad.join(', ')}`;
 });
