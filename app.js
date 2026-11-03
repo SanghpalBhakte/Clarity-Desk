@@ -9897,6 +9897,24 @@ window.handleAssistantQuestion = function() {
 // is what made the top of Today look like it kept refreshing.
 let dashboardSettled = false;
 
+// Today's attendance gauge: only when the % is within 5 points of the target,
+// where the margin matters. Otherwise the number and one sentence are enough.
+// Display only: draws the figure it is given.
+function attNearTargetGaugeHTML(pct, target) {
+  if (!Number.isFinite(pct) || !Number.isFinite(target) || Math.abs(pct - target) > 5) return '';
+  const pt = (v, r) => {
+    const a = Math.PI * (1 - Math.min(100, Math.max(0, v)) / 100);
+    return `${(90 + r * Math.cos(a)).toFixed(1)} ${(86 - r * Math.sin(a)).toFixed(1)}`;
+  };
+  return `
+    <svg class="att-gauge" viewBox="0 0 180 96" width="120" height="64" role="img" aria-label="${escAttr_cd(`${pct}% against a ${target}% target`)}">
+      <path d="M20 86 A70 70 0 0 1 ${pt(target, 70)}" class="att-gauge-low"></path>
+      <path d="M${pt(target, 70)} A70 70 0 0 1 160 86" class="att-gauge-safe"></path>
+      <path d="M90 86 L${pt(pct, 56)}" class="att-gauge-needle"></path>
+      <circle cx="90" cy="86" r="7" class="att-gauge-hub"></circle>
+    </svg>`;
+}
+
 function renderDashboard() {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
@@ -10294,6 +10312,14 @@ function renderDashboard() {
     .sort((a, b) => a.i - b.i)
     .map(x => x.c);
   const moreClasses = dayClasses.length - shownClasses.length;
+  // Ended classes that are already marked fold into one "Earlier" line, so the
+  // list shows what still needs you. Unmarked ones keep their buttons. If every
+  // shown class is done, the list stays whole (nothing left to fold under).
+  const isDoneSlot = (c) => currentMin >= timeToMinutes(c.end || '23:59')
+    && (attendanceData[dateStr]?.[attendanceKeyFor(c)] || 'unset') !== 'unset';
+  const doneSlots = shownClasses.filter(isDoneSlot);
+  const foldDone = doneSlots.length > 0 && doneSlots.length < shownClasses.length;
+  const listedClasses = foldDone ? shownClasses.filter(c => !isDoneSlot(c)) : shownClasses;
 
   // Latest notice
   const visibleNotices = getVisibleNotices();
@@ -10354,7 +10380,8 @@ function renderDashboard() {
           <!-- Open ledger: no card box -->
           ${dayClasses.length > 0 ? `
             <div class="schedule-ledger">
-              ${shownClasses.map(c => {
+              ${foldDone ? `<button type="button" class="schedule-earlier" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">Earlier: ${doneSlots.map(c => escHtml_cd(c.subject)).join(', ')} · marked</button>` : ''}
+              ${listedClasses.map(c => {
                 const classKey = attendanceKeyFor(c);
                 const status = attendanceData[dateStr]?.[classKey] || 'unset';
                 const isNow = (currentMin >= timeToMinutes(c.time || '00:00') && currentMin < timeToMinutes(c.end || '23:59'));
@@ -10417,7 +10444,7 @@ function renderDashboard() {
                   <div style="flex:1;min-width:0;cursor:pointer" onclick="navigateTo('assignments')">
                     <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${escHtml_cd(a.title)}</div>
                     <div class="task-ledger-meta" style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
-                      <span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--accent);font-weight:600;cursor:pointer">${escHtml_cd(a.subject || 'General')}</span>
+                      <span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(a.subject || 'General')}</span>
                       <span>·</span>
                       <span>${isOngoing ? 'Standing' : formatDate(a.dueDate)}</span>
                     </div>
@@ -10453,12 +10480,7 @@ function renderDashboard() {
             </div>
             <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
             ${attendancePct !== null ? `
-              <div style="margin-top:10px">
-                <div class="att-bar-wrap">
-                  <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
-                  <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
-                </div>
-              </div>
+              ${!onHoliday ? attNearTargetGaugeHTML(Number(attendancePct), attTarget) : ''}
               <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
             ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
           </div>
@@ -10471,19 +10493,10 @@ function renderDashboard() {
               <div class="panel-title">Notice Board</div>
               <button class="panel-action" onclick="navigateTo('notices')">All Notices →</button>
             </div>
-            <div class="card card-sm notice-card ${latestNotice.important ? 'important' : ''}" onclick="navigateTo('notices')" style="padding:12px 14px;cursor:pointer">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-                <div style="font-weight:700;font-size:var(--text-base);color:var(--text-primary)">${latestNotice.title}</div>
-                <span class="cat-badge cat-${latestNotice.category}" style="font-size:var(--text-2xs)">${latestNotice.category}</span>
-              </div>
-              <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;line-height:1.4">
-                ${latestNotice.content.length > 95 ? latestNotice.content.slice(0, 92) + '…' : latestNotice.content}
-              </div>
-              <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:6px;display:flex;align-items:center;justify-content:space-between">
-                <span>${formatDate(latestNotice.date)}</span>
-                <span style="color:var(--accent);font-weight:600">Read Notice →</span>
-              </div>
-            </div>
+            <button type="button" class="dash-notice-row${latestNotice.important ? ' is-important' : ''}" onclick="navigateTo('notices')">
+              <span class="dash-notice-title">${escHtml_cd(latestNotice.title)}</span>
+              <span class="dash-notice-date">${latestNotice.important ? 'Important · ' : ''}${formatDate(latestNotice.date)}</span>
+            </button>
           </div>
         ` : ''}
 

@@ -7056,3 +7056,87 @@ body.holiday-mode .holiday-banner {
 .btn.att-week-btn { padding: 5px 12px; font-size: var(--text-sm); font-weight: 700; border-radius: var(--radius-xs, 6px); background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border); cursor: pointer; transition: transform 0.1s ease; }
 .btn.att-week-btn.is-present[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: white; }
 .btn.att-week-btn.is-absent[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: white; }
+
+/* ── Calm Today: one loud thing, quiet rows ─────────────────────────────
+   The live class card and its "mark the class before" prompt read as one
+   surface; marked classes fold into an "Earlier" line; task labels and
+   later due dates go grey so only what needs you keeps colour. */
+#page-dashboard .chrono-beacon:has(+ .today-focus[data-mark]) {
+  margin-bottom: 0;
+  border-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#page-dashboard .chrono-beacon + .today-focus[data-mark] {
+  margin-top: 0;
+  border-top: 1px solid var(--color-rule);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: var(--shadow-sm);
+}
+#page-dashboard .today-focus[data-mark] .today-focus-title { color: var(--color-action-primary); }
+
+#page-dashboard .task-ledger-item::before { display: none; }
+/* Due dates read as words, not pills. Overdue keeps red; due today takes the
+   brand colour (the amber failed 4.5:1 as small text); the rest go grey. */
+#page-dashboard .due-badge { background: transparent; border: 0; color: var(--text-muted); }
+#page-dashboard .due-badge.overdue { color: var(--status-error); font-weight: 700; }
+#page-dashboard .due-badge.today { color: var(--color-action-primary); font-weight: 700; }
+
+/* Present is the expected answer, so it carries the sage; Absent stays neutral. */
+#page-dashboard .chrono-beacon .beacon-att.is-present:not([aria-pressed="true"]),
+#page-dashboard .today-focus-mark .beacon-att:first-child,
+#page-dashboard .slot-att.is-present:not([aria-pressed="true"]) {
+  border-color: var(--status-success);
+  color: var(--status-success);
+}
+
+/* Quick add: a quiet line under the tasks instead of a boxed field. */
+#page-dashboard #quick-add-input { background: transparent; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; }
+#page-dashboard #quick-add-input:focus { border-bottom-color: var(--color-focus-ring); }
+
+#page-dashboard .schedule-earlier {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+#page-dashboard .schedule-earlier:hover { color: var(--text-secondary); }
+#page-dashboard .schedule-slot.is-now { background: transparent; }
+#page-dashboard .schedule-slot.is-now::before { background: var(--text-primary); border-color: var(--text-primary); }
+
+.dash-notice-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+  background: none;
+  font: inherit;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.dash-notice-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); font-weight: 600; }
+.dash-notice-date { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
+.dash-notice-row.is-important .dash-notice-date { color: var(--color-action-primary); font-weight: 600; }
+.dash-notice-row:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
+
+.att-gauge { display: block; margin-top: 8px; }
+.att-gauge path { fill: none; stroke-width: 13; stroke-linecap: round; }
+.att-gauge .att-gauge-low { stroke: color-mix(in srgb, var(--color-action-primary) 22%, var(--surface)); }
+.att-gauge .att-gauge-safe { stroke: color-mix(in srgb, var(--status-success) 32%, var(--surface)); }
+.att-gauge .att-gauge-needle { stroke: var(--text-primary); stroke-width: 5; }
+.att-gauge-hub { fill: var(--surface); stroke: var(--color-action-primary); stroke-width: 4; }
