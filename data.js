@@ -199,6 +199,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u160",
+    date: "2026-11-03",
+    title: "Vault files already on your phone now reach your other devices without waiting for an edit, and wait while data saver is on",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Vault files already on your phone now reach your other devices without waiting for an edit, and wait while data saver is on",
+    points: [
+
+    ]
+  },
+  {
+    id: "u159",
+    date: "2026-11-03",
+    title: "Vault files added on one device can now be downloaded on your other devices when you're signed in",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Vault files added on one device can now be downloaded on your other devices when you're signed in",
+    points: [
+
+    ]
+  },
+  {
     id: "u158",
     date: "2026-11-03",
     title: "Google sign-in, backups with many Vault files and deleting subjects now work in the installed app",
