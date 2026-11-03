@@ -16199,32 +16199,64 @@ function renderVaultGrid() {
 }
 
 // ── Study Vault: add several files and links at once ─────────
-// Drop files on a subject card: opens the bulk dialog for that subject
-// with the files already added (it reviews before anything is saved).
+// Files from a drop. Folders are walked (max 100 files, 4 levels deep,
+// dot-files skipped); each file keeps its folder path in `vaultCtx` so the
+// subject guess can use the folder name. The dropped items are read
+// before the first await because the browser empties them after the event.
+function vaultDroppedFiles(dt) {
+  const plain = Array.from((dt && dt.files) || []);
+  const entries = Array.from((dt && dt.items) || [])
+    .map(i => (i.kind === 'file' && i.webkitGetAsEntry) ? i.webkitGetAsEntry() : null);
+  if (!entries.some(en => en && en.isDirectory)) return Promise.resolve(plain);
+  const out = [];
+  const readAll = r => new Promise(res => {
+    const acc = [];
+    const next = () => r.readEntries(b => { if (!b.length) res(acc); else { acc.push(...b); next(); } }, () => res(acc));
+    next();
+  });
+  const walk = async (en, path, depth) => {
+    if (!en || out.length >= 100 || en.name.startsWith('.')) return;
+    if (en.isFile) {
+      await new Promise(res => en.file(f => { f.vaultCtx = path + f.name; out.push(f); res(); }, res));
+    } else if (en.isDirectory && depth < 4) {
+      for (const child of await readAll(en.createReader())) await walk(child, path + en.name + ' ', depth + 1);
+    }
+  };
+  return (async () => {
+    for (const en of entries) await walk(en, '', 0);
+    return out.length ? out : plain;
+  })();
+}
+
+// Drop files on the Study Vault: on a subject card they go to that subject,
+// anywhere else on the page each file gets a guessed subject. Both open the
+// bulk dialog, which reviews before anything is saved.
 function vaultWireCardDrop(grid) {
-  if (!grid || grid._dropWired) return;
-  grid._dropWired = true;
-  const cardOf = e => e.target && e.target.closest ? e.target.closest('.link-subject-card') : null;
+  const page = grid && grid.closest ? grid.closest('.section-page') : null;
+  if (!page || page._dropWired) return;
+  page._dropWired = true;
   const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  const cardOf = e => e.target && e.target.closest ? e.target.closest('.link-subject-card') : null;
   let hot = null;
   const clear = () => { if (hot) hot.classList.remove('is-drag'); hot = null; };
-  grid.addEventListener('dragover', e => {
-    const c = cardOf(e);
-    if (!c || !hasFiles(e)) return;
+  page.addEventListener('dragover', e => {
+    if (!hasFiles(e)) return;
     e.preventDefault();
-    if (hot !== c) { clear(); hot = c; c.classList.add('is-drag'); }
+    const t = cardOf(e) || document.getElementById('vault-grid');
+    if (hot !== t) { clear(); hot = t; if (t) t.classList.add('is-drag'); }
   });
-  grid.addEventListener('dragleave', e => { if (!grid.contains(e.relatedTarget)) clear(); });
-  grid.addEventListener('drop', e => {
-    const c = cardOf(e);
-    clear();
-    if (!c || !hasFiles(e)) return;
+  page.addEventListener('dragleave', e => { if (!page.contains(e.relatedTarget)) clear(); });
+  page.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
     e.preventDefault();
-    const si = Number(String(c.id).replace('link-card-', ''));
-    const dropped = Array.from(e.dataTransfer.files || []);
-    if (!dropped.length || isNaN(si)) return;
-    openVaultBulk(si);
-    vbAddFiles(dropped);
+    clear();
+    const c = cardOf(e);
+    const si = c ? Number(String(c.id).replace('link-card-', '')) : null;
+    vaultDroppedFiles(e.dataTransfer).then(dropped => {
+      if (!dropped.length) return;
+      openVaultBulk(si === null || isNaN(si) ? null : si);
+      vbAddFiles(dropped);
+    });
   });
 }
 
@@ -16345,7 +16377,7 @@ window.vbAddFiles = function(fileList) {
         catch (_) { vb.skipped.push(`${f.name} (couldn’t be read)`); }
       }
       if (_vb !== vb) return;
-      done.forEach(({ f, key }) => vbAddRow({ kind: 'file', label: f.name, url: '', key, file: f, icon: vaultIconForFile(f.name), size: f.size, context: f.name }));
+      done.forEach(({ f, key }) => vbAddRow({ kind: 'file', label: f.name, url: '', key, file: f, icon: vaultIconForFile(f.name), size: f.size, context: f.vaultCtx || f.name }));
       vbRender();
     })();
     return;
@@ -16361,7 +16393,7 @@ window.vbAddFiles = function(fileList) {
   vbRender();
   Promise.all(jobs).then(done => {
     if (_vb !== vb) return;
-    done.filter(Boolean).forEach(({ f, url }) => vbAddRow({ kind: 'file', label: f.name, url, icon: vaultIconForFile(f.name), size: f.size, context: f.name }));
+    done.filter(Boolean).forEach(({ f, url }) => vbAddRow({ kind: 'file', label: f.name, url, icon: vaultIconForFile(f.name), size: f.size, context: f.vaultCtx || f.name }));
     vbRender();
   });
 };
@@ -16824,25 +16856,23 @@ function showLinkResourceModal(si, ri, existing) {
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
   const drop = document.getElementById('lrm-drop');
-  const fileInput = document.getElementById('lrm-file-input');
-  if (drop && fileInput) {
+  if (drop) {
     drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('is-drag'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('is-drag'));
     drop.addEventListener('drop', e => {
       e.preventDefault(); drop.classList.remove('is-drag');
-      const files = e.dataTransfer && e.dataTransfer.files;
-      if (!files || !files.length) return;
-      if (files.length > 1 && isNew && si !== null && si !== undefined) {
-        // Several files: the bulk dialog already reviews, skips duplicates and caps size.
-        const dropped = Array.from(files);
-        document.getElementById('link-resource-modal-backdrop')?.remove();
-        openVaultBulk(si);
-        vbAddFiles(dropped);
-        return;
-      }
-      if (files.length > 1) showToast('One file per material when editing. Using the first one.', 'info');
-      fileInput.files = files;
-      handleVaultFileSelect({ target: fileInput });
+      vaultDroppedFiles(e.dataTransfer).then(files => {
+        if (!files.length) return;
+        if (files.length > 1 && isNew && si !== null && si !== undefined) {
+          // Several files: the bulk dialog already reviews, skips duplicates and caps size.
+          document.getElementById('link-resource-modal-backdrop')?.remove();
+          openVaultBulk(si);
+          vbAddFiles(files);
+          return;
+        }
+        if (files.length > 1) showToast('One file per material when editing. Using the first one.', 'info');
+        handleVaultFileSelect({ target: { files: [files[0]], value: '' } });
+      });
     });
   }
 }
