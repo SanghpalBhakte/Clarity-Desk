@@ -199,6 +199,42 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u158",
+    date: "2026-11-03",
+    title: "Google sign-in, backups with many Vault files and deleting subjects now work in the installed app",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "These used the browser's own pop-up question, which the installed app cancels on its own, so the button did nothing (and a backup with too many Vault files was never made).",
+    points: [
+      "They now ask with Clarity Desk's own dialog."
+    ]
+  },
+  {
+    id: "u157",
+    date: "2026-11-03",
+    title: "Task names, subjects and timetable notes always show as plain text, and subjects with an apostrophe open again",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Text from typing, WhatsApp imports, photo scans, backups and other devices is now escaped everywhere it is shown, so it can never be read as page code.",
+    points: [
+      "Buttons for a subject like \"Women's Studies\" no longer break."
+    ]
+  },
+  {
+    id: "u156",
+    date: "2026-11-03",
+    title: "Faster first load: the sign-in and sync code now loads only for students who use sync",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Signed-out students no longer download the ~150 KB Firebase SDK on every visit.",
+    points: [
+      "Signed-in phones start it alongside app.js as before; sign-in loads it on demand, and the service worker keeps the saved copy across updates so sync still works offline."
+    ]
+  },
+  {
     id: "u155",
     date: "2026-11-03",
     title: "Vault viewer: make Full screen in-app only, add a separate button to hide the browser bars on desktop and tablets",
