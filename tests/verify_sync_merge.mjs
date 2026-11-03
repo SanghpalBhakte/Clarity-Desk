@@ -206,7 +206,10 @@ check('Far-future tombstone (now + 365 days) is stored as <= now and a later edi
   const t = app.mergeTombstones([{ id: 'a', deletedAt: now + 365 * DAY }], []);
   const p = app.pruneTombstones([{ id: 'a', deletedAt: now + 365 * DAY }], now);
   const r = app.mergeRecords([{ id: 'a', updatedAt: now + 1000 }], [], t, keyOf);
-  return t[0].deletedAt <= now && p[0].deletedAt <= now && r.merged.length === 1 ? true : JSON.stringify({ t, p, r });
+  // mergeTombstones clamps to its own Date.now(), which can be a millisecond
+  // past `now`; "not in the future" means not later than the clock after the calls.
+  const after = Date.now();
+  return t[0].deletedAt <= after && p[0].deletedAt <= after && r.merged.length === 1 ? true : JSON.stringify({ t, p, r });
 });
 
 check('A corrupt cos_sync_clock value does not break nextStamp', () => {
