@@ -16231,7 +16231,24 @@ function vaultDroppedFiles(dt) {
 // Drop files on the Study Vault: on a subject card they go to that subject,
 // anywhere else on the page each file gets a guessed subject. Both open the
 // bulk dialog, which reviews before anything is saved.
+let _vaultGuardWired = false;
+// A file dropped outside any drop area would make the browser open it and
+// leave the app. While the Vault is on screen, stop that (zones that handle
+// the drop have already cancelled it, so they are untouched).
+function vaultWireDropGuard() {
+  if (_vaultGuardWired) return;
+  _vaultGuardWired = true;
+  const guard = e => {
+    if (e.defaultPrevented || !e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+    const grid = document.getElementById('vault-grid');
+    if (grid && grid.offsetParent) e.preventDefault();
+  };
+  window.addEventListener('dragover', guard);
+  window.addEventListener('drop', guard);
+}
+
 function vaultWireCardDrop(grid) {
+  vaultWireDropGuard();
   const page = grid && grid.closest ? grid.closest('.section-page') : null;
   if (!page || page._dropWired) return;
   page._dropWired = true;
