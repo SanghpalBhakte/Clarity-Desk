@@ -172,7 +172,9 @@
   --font-sans:     'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-display:  'Quicksand', var(--font-sans);
   --font-editorial:'Quicksand', 'Source Serif 4', Georgia, serif;
-  --font-mono:     'Spline Sans Mono', 'SF Mono', Consolas, Monaco, monospace;
+  /* Numbers use the display face with tabular digits (set below), not a
+     coding mono: the mono read as a terminal next to Quicksand/Nunito. */
+  --font-mono:     'Quicksand', var(--font-sans);
   --font:          var(--font-sans);
 
   /* Type scale: 9 canonical steps, replacing ~40 ad-hoc inline
@@ -7133,6 +7135,39 @@ body.holiday-mode .holiday-banner {
 .dash-notice-date { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
 .dash-notice-row.is-important .dash-notice-date { color: var(--color-action-primary); font-weight: 600; }
 .dash-notice-row:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
+
+/* Figures: fixed-width digits so live timers and percentages don't jiggle. */
+.vitals-value, .chrono-beacon-time, .chrono-beacon-count-num, .schedule-slot-time,
+.att-stat-figure, .setup-guide-count, .tk-seg-n, .tk-progress strong, .sj-pct, .tt-tab-n {
+  font-variant-numeric: tabular-nums;
+}
+#page-dashboard .chrono-beacon-count-num { font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
+#page-dashboard .chrono-beacon-title { font-size: clamp(1.3rem, 1.05rem + 0.9vw, 1.7rem); font-weight: 700; letter-spacing: -0.01em; }
+#page-dashboard .chrono-beacon-badge,
+#page-dashboard .chrono-beacon-meta,
+#page-dashboard .chrono-beacon-count-label { font-size: 0.8125rem; color: var(--text-secondary); }
+/* The class progress reads as a small meter, not a broken divider. */
+#page-dashboard .chrono-beacon-progress { height: 3px; left: 20px; right: 20px; bottom: 12px; border-radius: 3px; background: var(--color-rule); overflow: hidden; }
+#page-dashboard .chrono-beacon[data-beacon="live"] { padding-bottom: 30px; }
+/* The "mark the class before" prompt is secondary: compact buttons, so the
+   live class keeps the only full-size pair. */
+#page-dashboard .chrono-beacon + .today-focus[data-mark] .today-focus-mark .btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: var(--text-sm);
+}
+/* Past rows stay readable; the unmarked one still needs reading. */
+#page-dashboard .schedule-slot.is-past { opacity: 0.62; }
+/* Ledger rows are ruled lines; a radius bent the row divider into a box. */
+#page-dashboard .schedule-slot { border-radius: 0; }
+
+/* Attendance figure in ink; the verdict word carries the colour. */
+#page-dashboard .att-stat-figure.is-safe { color: var(--text-primary); }
+#page-dashboard .att-stat-figure { font-weight: 700; letter-spacing: -0.02em; }
+#page-dashboard .att-stat-figure .att-dec { font-size: 0.55em; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
+#page-dashboard .att-stat-figure.is-safe + .att-stat-label { color: var(--status-success); }
+#page-dashboard .att-stat-figure.at-risk + .att-stat-label { color: var(--status-error); }
 
 .att-gauge { display: block; margin-top: 8px; }
 .att-gauge path { fill: none; stroke-width: 13; stroke-linecap: round; }

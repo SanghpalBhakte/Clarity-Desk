@@ -10476,7 +10476,7 @@ function renderDashboard() {
           </div>
           <div>
             <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : ''}" style="margin-bottom:2px">
-              ${attendancePct !== null ? `${attendancePctLabel}%` : '—'}
+              ${attendancePct !== null ? (() => { const [whole, dec] = String(attendancePctLabel).split('.'); return `${escHtml_cd(whole)}<span class="att-dec">${dec ? '.' + escHtml_cd(dec) : ''}%</span>`; })() : '—'}
             </div>
             <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
             ${attendancePct !== null ? `
