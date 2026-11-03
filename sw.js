@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clarity-desk-v267';
+const CACHE_NAME = 'clarity-desk-v268';
 // How long a page/script request waits for the network before the saved
 // copy is used (only when a saved copy exists).
 const NETWORK_WAIT_MS = 3000;
@@ -20,18 +20,18 @@ const PRECACHE_ASSETS = [
   './index.html',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/app.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/style.css',
-  'firebase-config.js?v=267',
+  'firebase-config.js?v=268',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/data.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/desk-assistant.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/scanners.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/timetable-ocr.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7f7bf68d7f86c141186f3da9a7ddc73d9d5401b6/welcome-tour.js',
   './manifest.json',
-  'favicon.ico?v=267',
-  'favicon.svg?v=267',
-  'favicon-32.png?v=267',
-  'favicon-16.png?v=267',
-  'apple-touch-icon.png?v=267',
+  'favicon.ico?v=268',
+  'favicon.svg?v=268',
+  'favicon-32.png?v=268',
+  'favicon-16.png?v=268',
+  'apple-touch-icon.png?v=268',
   './icon-192.png',
   './icon-192-maskable.png',
   './icon-512.png',
