@@ -199,6 +199,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u166",
+    date: "2026-11-04",
+    title: "Today keeps the attendance bar and shows every class in the schedule, with the class happening now highlighted",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today keeps the attendance bar and shows every class in the schedule, with the class happening now highlighted",
+    points: [
+
+    ]
+  },
+  {
+    id: "u165",
+    date: "2026-11-04",
+    title: "Pages no longer stretch across wide screens; Today and the rest sit at a comfortable reading width",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Pages no longer stretch across wide screens; Today and the rest sit at a comfortable reading width",
+    points: [
+
+    ]
+  },
+  {
+    id: "u164",
+    date: "2026-11-04",
+    title: "Calmer pages across the app: lists are simple lines, selected days and tabs are underlined, and the Daily Briefing and Weekly Reflection read as short summaries",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calmer pages across the app: lists are simple lines, selected days and tabs are underlined, and the Daily Briefing and Weekly Reflection read as short summaries",
+    points: [
+
+    ]
+  },
+  {
+    id: "u163",
+    date: "2026-11-04",
+    title: "Today's numbers now use the app's rounded font instead of a coding font, the second Present/Absent pair is smaller, and small labels are easier to read",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today's numbers now use the app's rounded font instead of a coding font, the second Present/Absent pair is smaller, and small labels are easier to read",
+    points: [
+
+    ]
+  },
+  {
+    id: "u162",
+    date: "2026-11-03",
+    title: "Today is calmer: the class to mark sits with the class you're in, marked classes fold into one line, and due dates are plain words",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today is calmer: the class to mark sits with the class you're in, marked classes fold into one line, and due dates are plain words",
+    points: [
+
+    ]
+  },
+  {
+    id: "u161",
+    date: "2026-11-03",
+    title: "Light mode now sits on a warm paper background instead of pale green, so pages feel calmer and easier on the eyes",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Light mode now sits on a warm paper background instead of pale green, so pages feel calmer and easier on the eyes",
+    points: [
+
+    ]
+  },
+  {
     id: "u160",
     date: "2026-11-03",
     title: "Vault files already on your phone now reach your other devices without waiting for an edit, and wait while data saver is on",
