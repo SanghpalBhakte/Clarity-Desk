@@ -16146,6 +16146,7 @@ window.vaultSearch = function(value) {
 function renderVaultGrid() {
   const grid = document.getElementById('vault-grid');
   if (!grid) return;
+  vaultWireCardDrop(grid);
   const links = loadCustomLinks();
   const tokens = _vaultQuery.toLowerCase().split(/\s+/).filter(Boolean);
   let shown = 0, files = 0;
@@ -16198,6 +16199,67 @@ function renderVaultGrid() {
 }
 
 // ── Study Vault: add several files and links at once ─────────
+// Files from a drop. Folders are walked (max 100 files, 4 levels deep,
+// dot-files skipped); each file keeps its folder path in `vaultCtx` so the
+// subject guess can use the folder name. The dropped items are read
+// before the first await because the browser empties them after the event.
+function vaultDroppedFiles(dt) {
+  const plain = Array.from((dt && dt.files) || []);
+  const entries = Array.from((dt && dt.items) || [])
+    .map(i => (i.kind === 'file' && i.webkitGetAsEntry) ? i.webkitGetAsEntry() : null);
+  if (!entries.some(en => en && en.isDirectory)) return Promise.resolve(plain);
+  const out = [];
+  const readAll = r => new Promise(res => {
+    const acc = [];
+    const next = () => r.readEntries(b => { if (!b.length) res(acc); else { acc.push(...b); next(); } }, () => res(acc));
+    next();
+  });
+  const walk = async (en, path, depth) => {
+    if (!en || out.length >= 100 || en.name.startsWith('.')) return;
+    if (en.isFile) {
+      await new Promise(res => en.file(f => { f.vaultCtx = path + f.name; out.push(f); res(); }, res));
+    } else if (en.isDirectory && depth < 4) {
+      for (const child of await readAll(en.createReader())) await walk(child, path + en.name + ' ', depth + 1);
+    }
+  };
+  return (async () => {
+    for (const en of entries) await walk(en, '', 0);
+    return out.length ? out : plain;
+  })();
+}
+
+// Drop files on the Study Vault: on a subject card they go to that subject,
+// anywhere else on the page each file gets a guessed subject. Both open the
+// bulk dialog, which reviews before anything is saved.
+function vaultWireCardDrop(grid) {
+  const page = grid && grid.closest ? grid.closest('.section-page') : null;
+  if (!page || page._dropWired) return;
+  page._dropWired = true;
+  const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  const cardOf = e => e.target && e.target.closest ? e.target.closest('.link-subject-card') : null;
+  let hot = null;
+  const clear = () => { if (hot) hot.classList.remove('is-drag'); hot = null; };
+  page.addEventListener('dragover', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    const t = cardOf(e) || document.getElementById('vault-grid');
+    if (hot !== t) { clear(); hot = t; if (t) t.classList.add('is-drag'); }
+  });
+  page.addEventListener('dragleave', e => { if (!page.contains(e.relatedTarget)) clear(); });
+  page.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    clear();
+    const c = cardOf(e);
+    const si = c ? Number(String(c.id).replace('link-card-', '')) : null;
+    vaultDroppedFiles(e.dataTransfer).then(dropped => {
+      if (!dropped.length) return;
+      openVaultBulk(si === null || isNaN(si) ? null : si);
+      vbAddFiles(dropped);
+    });
+  });
+}
+
 // Everything is shown in a list first. Nothing is saved until "Add".
 // One save, so one sync, however many items are added.
 let _vb = null;
@@ -16315,7 +16377,7 @@ window.vbAddFiles = function(fileList) {
         catch (_) { vb.skipped.push(`${f.name} (couldn’t be read)`); }
       }
       if (_vb !== vb) return;
-      done.forEach(({ f, key }) => vbAddRow({ kind: 'file', label: f.name, url: '', key, file: f, icon: vaultIconForFile(f.name), size: f.size, context: f.name }));
+      done.forEach(({ f, key }) => vbAddRow({ kind: 'file', label: f.name, url: '', key, file: f, icon: vaultIconForFile(f.name), size: f.size, context: f.vaultCtx || f.name }));
       vbRender();
     })();
     return;
@@ -16331,7 +16393,7 @@ window.vbAddFiles = function(fileList) {
   vbRender();
   Promise.all(jobs).then(done => {
     if (_vb !== vb) return;
-    done.filter(Boolean).forEach(({ f, url }) => vbAddRow({ kind: 'file', label: f.name, url, icon: vaultIconForFile(f.name), size: f.size, context: f.name }));
+    done.filter(Boolean).forEach(({ f, url }) => vbAddRow({ kind: 'file', label: f.name, url, icon: vaultIconForFile(f.name), size: f.size, context: f.vaultCtx || f.name }));
     vbRender();
   });
 };
@@ -16756,12 +16818,12 @@ function showLinkResourceModal(si, ri, existing) {
         <div id="lrm-file-section" style="display:${isUpload ? 'block' : 'none'}">
           <label class="form-label">Attach File / Note (PDF, Doc, Image, Code)</label>
           <input type="file" id="lrm-file-input" style="display:none" onchange="handleVaultFileSelect(event)" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.zip,.py,.java,.cpp,.c,.js">
-          <div class="card" onclick="document.getElementById('lrm-file-input').click()" style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface-2)">
+          <div class="card" id="lrm-drop" onclick="document.getElementById('lrm-file-input').click()" style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface-2)">
             <div style="font-size:var(--text-2xl);margin-bottom:6px">📥</div>
             <div id="lrm-file-label" style="font-size:var(--text-base);font-weight:600;color:var(--text-primary)">
               ${existing?.label && isUpload ? `✓ <strong>${vaultEsc(existing.label)}</strong> (${vaultEsc(existing.fileSize || 'Attached File')})` : 'Click to select note, PDF, slide, or code file'}
             </div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Saved persistently to your local Study Vault</div>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Or drag and drop a file here. Saved persistently to your local Study Vault</div>
           </div>
         </div>
 
@@ -16793,6 +16855,26 @@ function showLinkResourceModal(si, ri, existing) {
   `;
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
+  const drop = document.getElementById('lrm-drop');
+  if (drop) {
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('is-drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('is-drag'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault(); drop.classList.remove('is-drag');
+      vaultDroppedFiles(e.dataTransfer).then(files => {
+        if (!files.length) return;
+        if (files.length > 1 && isNew && si !== null && si !== undefined) {
+          // Several files: the bulk dialog already reviews, skips duplicates and caps size.
+          document.getElementById('link-resource-modal-backdrop')?.remove();
+          openVaultBulk(si);
+          vbAddFiles(files);
+          return;
+        }
+        if (files.length > 1) showToast('One file per material when editing. Using the first one.', 'info');
+        handleVaultFileSelect({ target: { files: [files[0]], value: '' } });
+      });
+    });
+  }
 }
 
 window.saveLinkResource = function(si, ri) {
