@@ -4405,6 +4405,9 @@ function markSigninSeen(uid) {
   if (!list.includes(uid)) safeSetStorage(KEY_SIGNIN_SEEN, [...list, uid]);
   // Send the change that waited for this first look.
   if (signinPushWaiting) { signinPushWaiting = false; syncToCloud(); }
+  // Vault files already on this phone reach the account without waiting
+  // for an edit (cheap when nothing changed: the sweep then reads nothing).
+  setTimeout(vaultCloudSweep, 3000);
 }
 function unmarkSigninSeen(uid) {
   signinSeenNow.delete(uid);
@@ -5011,8 +5014,10 @@ async function vaultCloudDelete(uid, fileId, parts) {
 // Runs after a good push: uploads this device's files the account lacks and
 // removes copies of deleted ones. Reads only the details list; skipped when
 // nothing changed in the last 6 hours. Never blocks or changes a local save.
+// Waits while data saver is on (a tapped Download still works).
 async function vaultCloudSweep() {
   if (!vaultCloudReady() || vaultCloudSweeping || !navigator.onLine) return;
+  if (navigator.connection && navigator.connection.saveData) return;
   const uid = currentUser.uid;
   const local = vaultLocalFiles();
   const used = vaultReferencedIds();
