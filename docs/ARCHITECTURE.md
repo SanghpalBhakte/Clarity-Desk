@@ -29,6 +29,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - Settings: `cos_theme`, `cos_accent`, `cos_notif_prefs`, `cos_usage`, install/push/moved prompt flags.
 - Backups: `cos_cleanup_backup`, `cos_att_datefix_backup` (snapshot + undo for cleanup/migrations).
 - Vault files: IndexedDB `cos_vault` (db version 1), links keep a `fileId`; small files may be data URLs in the record.
+- Vault files in the account (signed in only): Firestore `users/{uid}/vaultFiles/{fileId}` holds `{name, mime, bytes, parts, at}` and `.../parts/{n}` holds `{d: Bytes}` (700 KB each). `vaultCloudSweep` runs after each good push (skipped when the local files and referenced ids haven't changed for 6 h): it uploads this device's files the account lacks (parts first, details last; at most 50 MB per account, one toast past that) and deletes a copy only when `vaultReferencedIds` lacks it and a `cos_tombstones` id names it. The synced desk record is unchanged (placeholders). On another device, a placeholder row's Download calls `vaultGetCloudFile`: reads the parts from the server, checks the size, keeps the blob in IndexedDB under the same `fileId` (then the row opens it offline via `vaultOpenFile`) and opens it. No new `cos_*` key.
 - Helpers: `safeGetStorage(key, fallback)` for reads; in-memory `state` object holds tasks etc.
 
 ## Rendering and navigation
