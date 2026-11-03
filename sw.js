@@ -54,11 +54,29 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
+// The Firebase SDK is saved on first use (only phones that use sync load it),
+// not precached. Carry it into the new cache before the old ones go, so a
+// signed-in phone still syncs from its offline copy after an update.
+const isFirebaseSdk = (url) => url.startsWith('https://www.gstatic.com/firebasejs/');
+async function carryFirebaseSdk(oldKeys) {
+  const fresh = await caches.open(CACHE_NAME);
+  for (const k of oldKeys) {
+    const old = await caches.open(k);
+    for (const req of await old.keys()) {
+      if (isFirebaseSdk(req.url) && !(await fresh.match(req))) {
+        const res = await old.match(req);
+        if (res) await fresh.put(req, res);
+      }
+    }
+  }
+}
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then(async (keys) => {
+      const old = keys.filter((k) => k !== CACHE_NAME);
+      await carryFirebaseSdk(old).catch(() => {});
+      await Promise.all(old.map((k) => caches.delete(k)));
+    })
   );
   self.clients.claim();
 });

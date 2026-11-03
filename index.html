@@ -436,10 +436,38 @@
 
 </aside>
 
-<!-- Firebase Web SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<!-- Firebase Web SDK (~150 KB), only for phones that use cloud sync. Started
+     here, alongside app.js, when this phone was signed in (cos_cloud_signed_in,
+     written by app.js; before that key existed: signs an older version left),
+     or when the page is an email sign-in link or a Google redirect coming back.
+     Otherwise app.js calls cdLoadFirebaseSdk when sign-in is opened. Keep in
+     sync with 404.html. -->
+<script>
+  window.cdLoadFirebaseSdk = function () {
+    if (window.cdFirebaseSdk) return window.cdFirebaseSdk;
+    var p = Promise.all(['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-firestore-compat.js'].map(function (f) {
+      return new Promise(function (ok, fail) {
+        var s = document.createElement('script');
+        s.src = 'https://www.gstatic.com/firebasejs/10.8.0/' + f;
+        s.async = false; // run in this order
+        s.onload = ok; s.onerror = fail;
+        document.body.appendChild(s);
+      });
+    }));
+    window.cdFirebaseSdk = p;
+    p.catch(function () { if (window.cdFirebaseSdk === p) window.cdFirebaseSdk = null; }); // a later call tries again
+    return p;
+  };
+  (function () {
+    try {
+      var ls = localStorage, on = ls.getItem('cos_cloud_signed_in');
+      window.cdFirebaseWanted = on === 'true' || (on !== 'false' && !!(ls.getItem('cos_sync_last_pushed') || ls.getItem('cos_signin_seen') ||
+        Object.keys(ls).some(function (k) { return k.indexOf('firebase:authUser:') === 0; }))) ||
+        /[?&]oobCode=/.test(location.search) || sessionStorage.getItem('cos_auth_redirect') === '1';
+    } catch (e) { window.cdFirebaseWanted = true; }
+    if (window.cdFirebaseWanted) window.cdLoadFirebaseSdk();
+  })();
+</script>
 
 <!-- Firebase Config & App Script -->
 <!-- Optional local-only file (gitignored and in firebase.json's hosting

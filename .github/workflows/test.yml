@@ -35,6 +35,9 @@ jobs:
 
       - run: npm run test:onboarding
 
+      # Sign-in startup and offline sync in a real browser (fake Firebase, no network).
+      - run: npm run test:sync-flows
+
       # Screenshots compare against the *-linux.png files; refresh them with
       # the "Refresh Linux screenshots" workflow after a deliberate UI change.
       - run: npm run test:visual

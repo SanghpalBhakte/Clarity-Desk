@@ -34,6 +34,9 @@ const KEY_SIGNIN_SEEN         = 'cos_signin_seen';
 // Local-only: this phone's data (vault without file bytes) right before the
 // first sign-in choice was applied. For Undo.
 const KEY_SIGNIN_BACKUP       = 'cos_signin_backup';
+// Local-only: true/false = signed in when this phone last checked. index.html
+// reads it to decide whether to load the Firebase SDK at startup.
+const KEY_CLOUD_SIGNED_IN     = 'cos_cloud_signed_in';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
@@ -246,6 +249,23 @@ let currentUser = null;
 let cloudUnsubscribe = null;
 let firebaseInitError = null;
 
+// index.html no longer loads the Firebase SDK for every visit: it starts
+// cdLoadFirebaseSdk only for phones that use sync. Resolves when the download
+// is over, loaded or not (initFirebase reports a failed load).
+function loadFirebaseSdk() {
+  if (typeof firebase !== 'undefined' && firebase.apps) return Promise.resolve();
+  if (typeof window.cdLoadFirebaseSdk !== 'function') return Promise.resolve();
+  return window.cdLoadFirebaseSdk().catch(() => {});
+}
+
+// Fetches the SDK ahead of a likely sign-in tap, so Google's popup can still
+// open inside the tap. Not offline or on data saver.
+function warmFirebaseSdk() {
+  if (auth || currentUser) return;
+  if (!navigator.onLine || (navigator.connection && navigator.connection.saveData)) return;
+  loadFirebaseSdk();
+}
+
 function initFirebase() {
   firebaseInitError = null;
   const cfg = getFirebaseConfig();
@@ -275,6 +295,7 @@ function initFirebase() {
 
       // Process redirect authentication result if Returning from redirect sign-in
       auth.getRedirectResult().then(result => {
+        try { sessionStorage.removeItem('cos_auth_redirect'); } catch (_) {}
         if (result && result.user) {
           trackUsage('signin_done', 'google');
           currentUser = result.user;
@@ -282,6 +303,7 @@ function initFirebase() {
           if (state.currentPage === 'settings') renderPage('settings');
         }
       }).catch(err => {
+        try { sessionStorage.removeItem('cos_auth_redirect'); } catch (_) {}
         console.warn("Firebase redirect auth result error:", err);
         handleAuthError(err);
       });
@@ -291,6 +313,7 @@ function initFirebase() {
 
       auth.onAuthStateChanged(user => {
         currentUser = user;
+        safeSetStorage(KEY_CLOUD_SIGNED_IN, !!user);
         updateSyncUI();
         if (user) {
           subscribeUserCloudData(user.uid);
@@ -3294,9 +3317,15 @@ function handleAuthError(err) {
   alert(`Google Sign-In Error (${code || 'unknown'}):\n${msg || 'An unexpected authentication error occurred.'}`);
 }
 
-function loginWithGoogle() {
+function loginWithGoogle(sdkTried = false) {
   // Google refuses sign-in inside Instagram/Facebook browsers.
   if (detectDevice().inApp) { showInAppBanner(); return; }
+  // SDK not here yet (signed-out phones skip it): fetch it, then go on. If the
+  // wait cost the popup its tap, handleAuthError offers the redirect.
+  if (!auth && !sdkTried && typeof firebase === 'undefined') {
+    loadFirebaseSdk().then(() => loginWithGoogle(true));
+    return;
+  }
   if (!auth) {
     initFirebase();
   }
@@ -3326,6 +3355,8 @@ function loginWithGoogleRedirect() {
   if (!auth) return;
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+  // index.html loads the SDK when the page comes back from Google.
+  try { sessionStorage.setItem('cos_auth_redirect', '1'); } catch (_) {}
   auth.signInWithRedirect(provider).catch(err => {
     handleAuthError(err);
   });
@@ -3407,7 +3438,11 @@ function handleEmailAuthError(err) {
   showToast(msg, 'error');
 }
 
-function showEmailSignInModal(step = 'email') {
+function showEmailSignInModal(step = 'email', sdkTried = false) {
+  if (!auth && !sdkTried && typeof firebase === 'undefined') {
+    loadFirebaseSdk().then(() => showEmailSignInModal(step, true));
+    return;
+  }
   if (!auth) initFirebase();
   if (!auth) {
     alert(`Email Sign-In Unavailable:\n\n${firebaseInitError || 'Firebase Auth service is not loaded.'}`);
@@ -5959,7 +5994,7 @@ const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', '
 // Preferences, and bookkeeping the app writes on its own during any visit,
 // that are no loss to leave behind. Any other cos_* key counts as desk data.
 const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,
-  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE];
+  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN];
 const MOVED_SNOOZE_MS = 3 * 86400000;
 
 function isOldAddress(hostname) {
@@ -9549,6 +9584,7 @@ window.dismissOnboarding = function() {
 // (setupScanTimetable and friends) with the same welcome_choice events.
 window.onboardingLogin = function() {
   trackUsage('welcome_choice', 'login');
+  warmFirebaseSdk();
   const step = document.getElementById('onboarding-step-1');
   if (!step) return;
   step.innerHTML = `
@@ -17276,6 +17312,7 @@ function briefingTomorrow(today = new Date()) {
 function renderSettings() {
   const el = document.getElementById('page-settings');
   if (!el) return;
+  warmFirebaseSdk(); // the sign-in buttons live here
   const p  = liveProfile || loadProfile() || {};
   const nPrefs = loadNotifPrefs() || {};
   const channels = loadNoticeChannels() || {};
@@ -18980,8 +19017,15 @@ function init() {
   window.addEventListener('pageshow', catchUpClock);
   scheduleBeaconTick();
 
-  // Initialize Firebase Auth & Firestore sync
-  initFirebase();
+  // Initialize Firebase Auth & Firestore sync once its SDK is here. index.html
+  // starts the download only for phones that use sync (cdFirebaseWanted); a
+  // phone that opened offline without a saved SDK tries again when online.
+  if (window.cdFirebaseWanted) {
+    loadFirebaseSdk().then(initFirebase);
+    window.addEventListener('online', () => { if (!auth) loadFirebaseSdk().then(initFirebase); });
+  } else if (typeof firebase !== 'undefined') {
+    initFirebase();
+  }
 
   // Register PWA Service Worker for offline support
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
