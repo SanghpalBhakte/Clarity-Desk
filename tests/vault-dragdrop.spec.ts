@@ -85,3 +85,17 @@ test('Add Material box: one file attaches, several go to review', async ({ page 
   await expect(page.locator('#vb-title')).toContainText('Data Structures');
   await expect(page.locator('.vault-bulk-row')).toHaveCount(2);
 });
+
+test('a file dropped outside any drop area is cancelled on the Vault only', async ({ page }) => {
+  await openVault(page);
+  const drop = () => page.evaluate(() => {
+    const dt = new DataTransfer(); dt.items.add(new File(['x'], 'stray.txt'));
+    const ev = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt });
+    document.querySelector('.topbar, header, body')!.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  });
+  expect(await drop()).toBe(true);
+  await page.goto('/#settings');
+  await page.waitForFunction(() => !document.getElementById('vault-grid')?.offsetParent);
+  expect(await drop()).toBe(false);
+});
