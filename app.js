@@ -5409,13 +5409,17 @@ function vaultIdbStart() {
   }).catch(() => {});
 }
 
-window.vaultOpenFile = async function(fileId) {
-  let label = 'file';
-  (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
-    if (isVaultIdbFile(r) && r.fileId === fileId) label = r.label || label;
-  }));
-  const blob = await vaultGetBlob(fileId);
-  if (!blob) { showToast(VAULT_MISSING_MESSAGE, 'error'); return; }
+// Which uploads open instead of downloading: by extension. SVG is left out (can carry scripts).
+function vaultViewKind(name) {
+  const e = ((String(name).match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  if (e === 'html' || e === 'htm') return 'html';
+  if (e === 'pdf') return 'pdf';
+  if (/^(png|jpe?g|gif|webp)$/.test(e)) return 'image';
+  if (e === 'txt') return 'text';
+  return '';
+}
+
+function vaultDownloadBlob(blob, label) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = label;
@@ -5423,6 +5427,88 @@ window.vaultOpenFile = async function(fileId) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// In-app viewer: no popup, so Safari, installed PWAs and phones can't block it.
+// HTML runs in a sandboxed iframe (scripts allowed, no same-origin: it can't read app data).
+async function vaultViewInApp(blob, label, kind) {
+  document.getElementById('vault-view-backdrop')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'vault-view-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:960px;width:96vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;padding:12px;overflow:hidden" role="dialog" aria-modal="true" aria-label="${vaultEsc(label)}" onclick="event.stopPropagation()">
+      <div class="modal-header" style="gap:8px">
+        <span class="modal-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${vaultEsc(label)}</span>
+        <button type="button" class="btn-secondary" id="vault-view-dl" style="font-size:var(--text-base);white-space:nowrap">Download</button>
+        <button class="modal-close" aria-label="Close" id="vault-view-close">${icons.x()}</button>
+      </div>
+      <div id="vault-view-body" style="flex:1;min-height:0;display:flex"></div>
+    </div>`;
+  const body = backdrop.querySelector('#vault-view-body');
+  let url = '';
+  if (kind === 'html') {
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
+    f.title = label;
+    f.style.cssText = 'flex:1;width:100%;border:0;background:#fff;border-radius:8px';
+    f.srcdoc = await blob.text();
+    body.appendChild(f);
+  } else if (kind === 'image') {
+    url = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+    img.src = url; img.alt = label;
+    img.style.cssText = 'max-width:100%;max-height:100%;margin:auto;object-fit:contain';
+    body.appendChild(img);
+  } else {
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'flex:1;margin:0;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:var(--text-base)';
+    pre.textContent = await blob.text();
+    body.appendChild(pre);
+  }
+  const close = () => { backdrop.remove(); if (url) URL.revokeObjectURL(url); };
+  backdrop.querySelector('#vault-view-close').onclick = close;
+  backdrop.querySelector('#vault-view-dl').onclick = () => vaultDownloadBlob(blob, label);
+  wireBackdropClickClose(backdrop);
+  document.body.appendChild(backdrop);
+}
+
+// PDFs use the browser's own viewer in a new tab; `w` was opened inside the click.
+function vaultShowPdf(w, blob) {
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+  w.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function vaultOpenBlob(blob, label, w) {
+  const kind = vaultViewKind(label);
+  try {
+    if (kind === 'pdf' && w) { vaultShowPdf(w, blob); return; }
+    if (kind && kind !== 'pdf') { if (w) w.close(); await vaultViewInApp(blob, label, kind); return; }
+  } catch (_) {}
+  if (w) w.close();
+  vaultDownloadBlob(blob, label);
+}
+
+window.vaultOpenFile = async function(fileId) {
+  let label = 'file';
+  (safeGetStorage(KEY_CUSTOM_LINKS, null) || []).forEach(s => (s && Array.isArray(s.resources) ? s.resources : []).forEach(r => {
+    if (isVaultIdbFile(r) && r.fileId === fileId) label = r.label || label;
+  }));
+  const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;   // before any await
+  const blob = await vaultGetBlob(fileId);
+  if (!blob) { if (w) w.close(); showToast(VAULT_MISSING_MESSAGE, 'error'); return; }
+  vaultOpenBlob(blob, label, w);
+};
+
+// Small files stored as data: URLs.
+window.vaultOpenDataUrl = function(el) {
+  const label = el.getAttribute('download') || 'file';
+  const dec = vaultDataUrlBytes(el.getAttribute('href'));
+  if (!dec) return true;   // let the plain download link work
+  const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;
+  vaultOpenBlob(new Blob([dec.bytes], { type: dec.mime }), label, w);
+  return false;
 };
 
 // Circuit breaker (free-tier write quota): pushes started while applying
@@ -16041,7 +16127,7 @@ function vaultResourceRow(si, ri, r) {
             </div>${actions}
           </div>` : `
           <div class="resource-item-row">
-            <a class="resource-link" href="#" onclick="vaultOpenFile('${vaultEsc(r.fileId)}');return false" title="Click to download ${label}">
+            <a class="resource-link" href="#" onclick="vaultOpenFile('${vaultEsc(r.fileId)}');return false" title="Click to open ${label}">
               <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
               <span class="resource-label" title="${label}">${label}</span>${badge}
               ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${vaultEsc(r.fileSize)}</span>` : ''}
@@ -16060,7 +16146,7 @@ function vaultResourceRow(si, ri, r) {
   const isUploaded = r.isUpload || /^data:/i.test(href);
   return `
           <div class="resource-item-row">
-            <a class="resource-link" href="${vaultEsc(href)}" ${isUploaded ? `download="${label}"` : 'target="_blank" rel="noopener"'} title="${isUploaded ? 'Click to download ' + label : vaultEsc(href)}">
+            <a class="resource-link" href="${vaultEsc(href)}" ${isUploaded ? `download="${label}"${vaultViewKind(r.label) ? ' onclick="return vaultOpenDataUrl(this)"' : ''}` : 'target="_blank" rel="noopener"'} title="${isUploaded ? 'Click to open ' + label : vaultEsc(href)}">
               <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
               <span class="resource-label" title="${label}">${label}</span>${badge}
               ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${vaultEsc(r.fileSize)}</span>` : ''}
