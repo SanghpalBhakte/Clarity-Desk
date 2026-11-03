@@ -16146,6 +16146,7 @@ window.vaultSearch = function(value) {
 function renderVaultGrid() {
   const grid = document.getElementById('vault-grid');
   if (!grid) return;
+  vaultWireCardDrop(grid);
   const links = loadCustomLinks();
   const tokens = _vaultQuery.toLowerCase().split(/\s+/).filter(Boolean);
   let shown = 0, files = 0;
@@ -16198,6 +16199,35 @@ function renderVaultGrid() {
 }
 
 // ── Study Vault: add several files and links at once ─────────
+// Drop files on a subject card: opens the bulk dialog for that subject
+// with the files already added (it reviews before anything is saved).
+function vaultWireCardDrop(grid) {
+  if (!grid || grid._dropWired) return;
+  grid._dropWired = true;
+  const cardOf = e => e.target && e.target.closest ? e.target.closest('.link-subject-card') : null;
+  const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  let hot = null;
+  const clear = () => { if (hot) hot.classList.remove('is-drag'); hot = null; };
+  grid.addEventListener('dragover', e => {
+    const c = cardOf(e);
+    if (!c || !hasFiles(e)) return;
+    e.preventDefault();
+    if (hot !== c) { clear(); hot = c; c.classList.add('is-drag'); }
+  });
+  grid.addEventListener('dragleave', e => { if (!grid.contains(e.relatedTarget)) clear(); });
+  grid.addEventListener('drop', e => {
+    const c = cardOf(e);
+    clear();
+    if (!c || !hasFiles(e)) return;
+    e.preventDefault();
+    const si = Number(String(c.id).replace('link-card-', ''));
+    const dropped = Array.from(e.dataTransfer.files || []);
+    if (!dropped.length || isNaN(si)) return;
+    openVaultBulk(si);
+    vbAddFiles(dropped);
+  });
+}
+
 // Everything is shown in a list first. Nothing is saved until "Add".
 // One save, so one sync, however many items are added.
 let _vb = null;
@@ -16802,7 +16832,15 @@ function showLinkResourceModal(si, ri, existing) {
       e.preventDefault(); drop.classList.remove('is-drag');
       const files = e.dataTransfer && e.dataTransfer.files;
       if (!files || !files.length) return;
-      if (files.length > 1) showToast('One file at a time here. Using the first one.', 'info');
+      if (files.length > 1 && isNew && si !== null && si !== undefined) {
+        // Several files: the bulk dialog already reviews, skips duplicates and caps size.
+        const dropped = Array.from(files);
+        document.getElementById('link-resource-modal-backdrop')?.remove();
+        openVaultBulk(si);
+        vbAddFiles(dropped);
+        return;
+      }
+      if (files.length > 1) showToast('One file per material when editing. Using the first one.', 'info');
       fileInput.files = files;
       handleVaultFileSelect({ target: fileInput });
     });
