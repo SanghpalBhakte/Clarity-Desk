@@ -46,6 +46,8 @@ test('first sign-in review: 3 choices + Decide later, fits 360px, keyboard reach
   await page.addInitScript(() => {
     localStorage.setItem('cos_onboarding_dismissed', 'true');
     localStorage.setItem('cos_onboarding_done', '1');
+    // A phone that signs in at startup: index.html then loads the (fake) SDK.
+    localStorage.setItem('cos_cloud_signed_in', 'true');
     localStorage.setItem('cos_custom_tasks', JSON.stringify([{ id: 'phone-1', subject: 'General', code: 'GEN', title: 'Phone task', taskType: 'general', noDeadline: true, dueDate: '', priority: 'medium', status: 'pending', marks: 0, isCustom: true }]));
   });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
