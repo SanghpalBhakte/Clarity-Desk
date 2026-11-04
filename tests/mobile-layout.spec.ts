@@ -288,3 +288,20 @@ test.describe('Subject hub: one home per subject', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth), 'no sideways scroll').toBeLessThanOrEqual(360);
   });
 });
+
+test.describe('Tasks: empty page quick add', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('typing a task opens the Add Task form with its title and date filled in', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('assignments'));
+    const box = page.getByRole('textbox', { name: 'Type a task and press Enter' });
+    await expect(box).toBeVisible();
+    await expect(page.locator('#page-assignments [data-testid="wa-import-button"]')).toHaveCount(0);
+    await box.fill('Lab record by 30 Sep');
+    await box.press('Enter');
+    await expect(page.locator('#task-title')).toHaveValue('Lab record by 30 Sep');
+    expect(await page.evaluate(() => [...document.querySelectorAll('input[type=date]')].map(i => (i as HTMLInputElement).value))).toContain('2026-09-30');
+    expect((await horizontalOverflow(page)).wide).toEqual([]);
+  });
+});
