@@ -8360,7 +8360,7 @@ function getCalendarItems(startKey, endKey, src = {}) {
     const dayItems = [];
     // Holiday mode hides classes on its dates only; tasks always show.
     if (!isHolidayActive(key, holiday)) classesByDay[dayIdx].forEach(c => {
-      dayItems.push({ min: timeToMinutes(c.time), item: { date: key, time: formatDisplayTime(c.time || ''), title: c.subject || 'Class', type: 'class', sourceId: String(dayIdx) } });
+      dayItems.push({ min: timeToMinutes(c.time), item: { date: key, time: formatDisplayTime(c.time || ''), title: c.subject || 'Class', type: 'class', sourceId: String(dayIdx), short: dayBarShortName(c), ...(c.type === 'lab' ? { lab: true } : {}) } });
     });
     (tasksByDate[key] || []).forEach(t => {
       const item = {
@@ -10681,6 +10681,9 @@ function renderCalendar() {
   const monthName = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long' });
   const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;   // Monday first, like the Timetable tabs
 
+  const holiday = loadHoliday();
+  const examKey = ((liveProfile && liveProfile.examDate) || '').trim();
+  const isBreak = (key) => !!holiday && isHolidayActive(key, holiday);
   let cells = '<span class="cal-cell cal-cell-pad" aria-hidden="true"></span>'.repeat(lead);
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${state.calMonth}-${String(d).padStart(2, '0')}`;
@@ -10688,7 +10691,7 @@ function renderCalendar() {
     const counts = { deadline: 0, task: 0, class: 0 };
     dayItems.forEach(it => { counts[it.type]++; });
     const parts = Object.keys(counts).filter(t => counts[t]).map(t => `${counts[t]} ${CAL_TYPE_LABELS[t][counts[t] === 1 ? 0 : 1]}`);
-    const label = `${d} ${CAL_MONTH_LONG[m - 1]}${key === todayKey ? ', today' : ''}, ${parts.length ? parts.join(', ') : 'nothing scheduled'}`;
+    const label = `${d} ${CAL_MONTH_LONG[m - 1]}${key === todayKey ? ', today' : ''}, ${parts.length ? parts.join(', ') : 'nothing scheduled'}${isBreak(key) ? ', break' : ''}${key === examKey ? ', exams' : ''}`;
     // One dot per deadline or task, up to CAL_MAX_DOTS, then "+N". Classes
     // repeat every weekday, so a dot for them was noise; the day list and the
     // label still include them.
@@ -10696,8 +10699,15 @@ function renderCalendar() {
     const extra = dotItems.length - CAL_MAX_DOTS;
     const dots = dotItems.slice(0, CAL_MAX_DOTS).map(it => `<span class="cal-dot cal-dot-${it.type}"></span>`).join('')
       + (extra > 0 ? `<span class="cal-more">+${extra}</span>` : '');
-    const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : ''].filter(Boolean).join(' ');
-    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${dots}</span></button>`;
+    // Classes as short ticks (labs dark), so a teaching day reads at a glance.
+    const ticks = dayItems.filter(it => it.type === 'class').slice(0, CAL_MAX_DOTS)
+      .map(it => `<span class="cal-tick${it.lab ? ' is-lab' : ''}"></span>`).join('');
+    // Laptop only (CSS): the day's first two items as words.
+    const chipItems = dotItems.concat(dayItems.filter(it => it.type === 'class'));
+    const chips = chipItems.slice(0, 2).map(it => `<span class="cal-chip cal-chip-${it.type}${it.lab ? ' is-lab' : ''}">${it.type === 'class' ? escAttr_cd(it.short || it.title) + (it.lab && it.short !== 'Lab' ? ' lab' : '') : 'Due · ' + escAttr_cd(it.title)}</span>`).join('')
+      + (chipItems.length > 2 ? `<span class="cal-chip">+${chipItems.length - 2} more</span>` : '');
+    const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : '', isBreak(key) ? 'is-break' : '', key === examKey ? 'is-exam' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${ticks}${dots}</span><span class="cal-chips" aria-hidden="true">${chips}</span></button>`;
   }
 
   const hasData = hasAnyTimetable() || allTasks().some(t => t && t.dueDate && !t.noDeadline);
@@ -10718,9 +10728,13 @@ function renderCalendar() {
         </div>
       </div>`;
   } else if (!selItems.length) {
-    dayList = `<p class="cal-day-empty">Nothing on this day.</p>`;
+    dayList = `<p class="cal-day-empty">${isBreak(state.calSelected) ? 'On your break. No classes.' : 'Nothing on this day.'}</p>`;
   } else {
     dayList = `<ul class="cal-day-list">${selItems.map(it => calItemHtml(it)).join('')}</ul>`;
+  }
+  if (hasData && state.calSelected === examKey) {
+    const left = Math.round((new Date(examKey + 'T00:00:00') - new Date(todayKey + 'T00:00:00')) / 86400000);
+    dayList = `<p class="cal-day-note">Exams start${left > 0 ? ` · ${left} day${left !== 1 ? 's' : ''} to go` : ''}</p>` + dayList;
   }
   // Quick-add opens the existing Add Task form with this date filled in.
   if (hasData) {
@@ -10745,34 +10759,55 @@ function renderCalendar() {
     </section>`;
   }
 
+  // One line about the month: what's still ahead in it.
+  const monthKeys = Array.from({ length: daysInMonth }, (_, i) => `${state.calMonth}-${String(i + 1).padStart(2, '0')}`);
+  const dueAhead = items.filter(it => it.type === 'deadline' && !it.done && it.date >= todayKey).length;
+  const breakDays = monthKeys.filter(isBreak).length;
+  const examHere = !!examKey && examKey.slice(0, 7) === state.calMonth;
+  const examDay = examHere ? Number(examKey.slice(8)) : 0;
+  const ord = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+  const summary = [
+    dueAhead ? `${dueAhead} deadline${dueAhead !== 1 ? 's' : ''} ahead` : '',
+    breakDays ? `${breakDays === 1 ? 'a day' : `a ${breakDays}-day`} break` : '',
+    examHere ? `exams on the ${ord(examDay)}` : ''
+  ].filter(Boolean).join(', ');
+  const hasTicks = items.some(it => it.type === 'class');
+
   el.innerHTML = `
-    <div class="page-header">
+    <div class="cal-top">
       <div>
-        <div class="page-title">Calendar</div>
-        <div class="page-subtitle">Your classes, deadlines and tasks by date</div>
+        <div class="cal-kicker">Calendar</div>
+        <h1 class="cal-month" aria-live="polite">${monthName} ${y}</h1>
+      </div>
+      <div class="cal-nav">
+        <button type="button" class="cal-nav-btn" onclick="calShiftMonth(-1)" aria-label="Previous month">${svg('<polyline points="15 18 9 12 15 6"/>', 20)}</button>
+        <button type="button" class="cal-nav-btn" onclick="calShiftMonth(1)" aria-label="Next month">${svg('<polyline points="9 18 15 12 9 6"/>', 20)}</button>
+        <button type="button" class="cal-today-btn" onclick="calGoToday()">Today</button>
       </div>
     </div>
-    <div class="card cal-card">
-      <div class="cal-head">
-        <button type="button" class="icon-btn-sm" onclick="calShiftMonth(-1)" aria-label="Previous month">${svg('<polyline points="15 18 9 12 15 6"/>')}</button>
-        <div class="cal-month" aria-live="polite">${monthName} ${y}</div>
-        <button type="button" class="icon-btn-sm" onclick="calShiftMonth(1)" aria-label="Next month">${svg('<polyline points="9 18 15 12 9 6"/>')}</button>
-        <button type="button" class="btn-secondary cal-today-btn" onclick="calGoToday()">Today</button>
+    ${hasData ? `<p class="cal-summary">${summary ? escHtml_cd(summary.charAt(0).toUpperCase() + summary.slice(1)) + '.' : 'A quiet month.'}</p>` : ''}
+    <div class="cal-layout">
+      <div class="cal-sheet">
+        <div class="cal-grid" role="group" aria-label="${monthName} ${y}">
+          ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(n => `<span class="cal-wd" aria-hidden="true">${n}</span>`).join('')}
+          ${cells}
+        </div>
+        <div class="cal-legend">
+          ${hasTicks ? `<span><span class="cal-tick" aria-hidden="true"></span>Class</span><span><span class="cal-tick is-lab" aria-hidden="true"></span>Lab</span>` : ''}
+          <span><span class="cal-dot cal-dot-deadline" aria-hidden="true"></span>Deadline</span>
+          <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
+          ${breakDays ? `<span><span class="cal-key-break" aria-hidden="true"></span>Break</span>` : ''}
+          ${examHere ? `<span><span class="cal-key-exam" aria-hidden="true"></span>Exams</span>` : ''}
+        </div>
       </div>
-      <div class="cal-grid" role="group" aria-label="${monthName} ${y}">
-        ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(n => `<span class="cal-wd" aria-hidden="true">${n}</span>`).join('')}
-        ${cells}
+      <div class="cal-side">
+        ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Classes hidden during holiday mode</span></p>` : ''}
+        <section class="cal-day" aria-label="${selTitle}">
+          <h2 class="cal-day-title">${selTitle}</h2>
+          ${dayList}
+        </section>${agenda}
       </div>
-      <div class="cal-legend">
-        <span><span class="cal-dot cal-dot-deadline" aria-hidden="true"></span>Deadline</span>
-        <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
-      </div>
-    </div>
-    ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Classes hidden during holiday mode</span></p>` : ''}
-    <section class="cal-day" aria-label="${selTitle}">
-      <h2 class="cal-day-title">${selTitle}</h2>
-      ${dayList}
-    </section>${agenda}`;
+    </div>`;
   wireCalendarSwipe(el);
 }
 
@@ -15236,13 +15271,21 @@ function renderAssignments() {
     }).join('');
   };
 
-  const cards = filtered.length ? renderGroupedTasks() : (all.length === 0 
-    ? `<div class="empty-state-card" style="margin-top:14px">
-        <span class="empty-state-icon">${icons.assignments()}</span>
-        <div class="empty-state-title">No Tasks Yet</div>
-        <div class="empty-state-desc">Stay on top of coursework, deadlines, and project milestones. Tap Add Task to get started.</div>
-        <button class="btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-base);padding:7px 16px">+ Add Task</button>
-        <button class="btn-secondary" onclick="showWhatsAppImport()" style="font-size:var(--text-base);padding:7px 16px;margin-top:8px">Import from WhatsApp</button>
+  // Empty: one faded example and a line to type into, no box of buttons.
+  const cards = filtered.length ? renderGroupedTasks() : (all.length === 0
+    ? `<div class="tk-empty">
+        <div class="tk-empty-list">
+          <div class="tk-empty-row is-example" aria-hidden="true"><span class="tk-empty-box"></span><span class="tk-empty-text">DS lab record due Friday</span><span class="tk-empty-tag">example</span></div>
+          <form class="tk-empty-row is-input" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
+            <span class="tk-empty-plus" aria-hidden="true">+</span>
+            <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="Type a task. &quot;WD assignment 2 by 13 Nov&quot;">
+          </form>
+        </div>
+        <p class="tk-empty-hint">Dates and subjects are picked up as you type. You check them before saving.</p>
+        <div class="tk-empty-more">
+          <button type="button" onclick="showWhatsAppImport()"><span>Paste from WhatsApp</span><span class="tk-empty-sub">class group deadlines →</span></button>
+          <button type="button" onclick="showAddTaskModal(null, null, 'mission')"><span>Ongoing goal</span><span class="tk-empty-sub">"one paper a week" →</span></button>
+        </div>
       </div>`
     : (state.assignFilter === 'ongoing' || state.assignFilter === 'missions')
     ? `<div class="empty-state-card" style="margin-top:14px">
@@ -15262,11 +15305,11 @@ function renderAssignments() {
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="page-title">Tasks &amp; Deadlines</div>
-        <div class="page-subtitle">${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed</div>
+        <div class="page-subtitle">${all.length ? `${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed` : 'A clean slate. What you add shows on Today, the Calendar and each subject.'}</div>
       </div>
       <div class="tk-header-actions">
         ${all.some(a => a.isCustom) && !taskSelectMode ? `<button class="btn-secondary" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
-        <button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>
+        ${all.length ? `<button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>` : ''}
         <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
       </div>
     </div>
@@ -15295,6 +15338,27 @@ function renderAssignments() {
     ${cards}
   `;
 }
+
+// Empty Tasks page: "WD assignment 2 by 13 Nov" + Enter opens the usual
+// Add Task form with the title, a date and a subject filled in from the
+// text (the WhatsApp import's date reader), so nothing saves unchecked.
+async function tkQuickAdd(input) {
+  const text = String(input && input.value || '').trim();
+  if (!text) { input && input.focus(); return; }
+  let dateKey = null;
+  try {
+    const P = await loadWaParser();
+    const d = P.findDate(P.findTimes(text).masked, new Date());
+    if (d) dateKey = localDateKey(d);
+  } catch (e) { /* offline before the parser was cached: the form still opens */ }
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const subj = getSubjectList().find(sj => (sj.code && words.includes(String(sj.code).toLowerCase()))
+    || (sj.name && text.toLowerCase().includes(String(sj.name).toLowerCase())));
+  showAddTaskModal(null, subj ? subj.name : null, null, dateKey);
+  const t = document.getElementById('task-title');
+  if (t) t.value = text;
+}
+window.tkQuickAdd = tkQuickAdd;
 
 // ── Add / Edit Task Modal ──────────────────────────────────────
 window.showAssignmentModal = function(id = null, prefilledSubject = null, defaultType = null) {
