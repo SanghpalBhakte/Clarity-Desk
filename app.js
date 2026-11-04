@@ -9286,6 +9286,17 @@ window.setAttendance = function(dateStr, classKey, status) {
   const wasOnTarget = isOverallAttendanceOnTarget();
   const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   if (!data[dateStr]) data[dateStr] = {};
+  const prev = data[dateStr][classKey];
+  // A mis-tap is one tap to take back: Undo puts the earlier mark (or none) back.
+  const undo = () => {
+    const d = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+    if (!d[dateStr]) d[dateStr] = {};
+    if (prev === undefined) delete d[dateStr][classKey]; else d[dateStr][classKey] = prev;
+    if (!Object.keys(d[dateStr]).length) delete d[dateStr];
+    safeSetStorage(KEY_ATTENDANCE, d);
+    syncToCloud();
+    rerenderAttendancePages();
+  };
   
   if (data[dateStr][classKey] === status) {
     delete data[dateStr][classKey];
@@ -9294,20 +9305,59 @@ window.setAttendance = function(dateStr, classKey, status) {
     data[dateStr][classKey] = status;
     if (status === 'attended') {
       const streak = calculateAttendanceStreak();
-      showToast(streak >= 3 ? `Attendance logged: Attended ✓ (Streak: ${streak})` : 'Attendance logged: Attended ✓', 'success');
+      showUndoToast(streak >= 3 ? `Attendance logged: Attended ✓ (Streak: ${streak})` : 'Attendance logged: Attended ✓', undo, 'success');
     } else if (ATT_STATUS_LABEL[status]) {
-      showToast(`Attendance logged: ${ATT_STATUS_LABEL[status]}`, 'info');
+      showUndoToast(`Attendance logged: ${ATT_STATUS_LABEL[status]}`, undo, 'info');
     } else {
-      showToast('Attendance logged: Skipped', 'info');
+      showUndoToast('Attendance logged: Skipped', undo, 'info');
     }
   }
   
   safeSetStorage(KEY_ATTENDANCE, data);
   maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
+  rerenderAttendancePages();
+};
+
+function rerenderAttendancePages() {
   if (['timetable', 'review', 'dashboard', 'resources', 'links'].includes(state.currentPage)) {
     renderPage(state.currentPage);
   }
+}
+
+// Classes on today's timetable that have ended and have no mark yet.
+function endedUnmarkedClassKeys(dateStr) {
+  const now = new Date();
+  if (dateStr !== localDateKey(now)) return [];
+  const todayAtt = (safeGetStorage(KEY_ATTENDANCE, {}) || {})[dateStr] || {};
+  const nowMin = currentTimeMinutes();
+  return ((loadTimetable() || {})[now.getDay()] || [])
+    .filter(c => isTeachingClass(c) && c.end && nowMin >= timeToMinutes(c.end))
+    .map(c => attendanceKeyFor(c))
+    .filter((k, i, all) => !todayAtt[k] && all.indexOf(k) === i);
+}
+
+// One tap for the usual day: every ended, unmarked class becomes Present.
+// Undo puts all of them back to unmarked.
+window.markEndedPresent = function(dateStr) {
+  const keys = endedUnmarkedClassKeys(dateStr);
+  if (!keys.length) { showToast('Nothing left to mark.', 'info'); return; }
+  const wasOnTarget = isOverallAttendanceOnTarget();
+  const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  if (!data[dateStr]) data[dateStr] = {};
+  keys.forEach(k => { data[dateStr][k] = 'attended'; });
+  safeSetStorage(KEY_ATTENDANCE, data);
+  maybeCelebrateAttendanceTarget(wasOnTarget);
+  syncToCloud();
+  showUndoToast(`${keys.length} classes marked Present ✓`, () => {
+    const d = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+    keys.forEach(k => { if (d[dateStr]) delete d[dateStr][k]; });
+    if (d[dateStr] && !Object.keys(d[dateStr]).length) delete d[dateStr];
+    safeSetStorage(KEY_ATTENDANCE, d);
+    syncToCloud();
+    rerenderAttendancePages();
+  }, 'success');
+  rerenderAttendancePages();
 };
 
 // Step 4: OD and "didn't happen" on the attendance page. The chip shows a
@@ -10875,6 +10925,7 @@ function renderTimetable() {
     </div>
     ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Holiday mode is on. Classes are hidden from Today, Calendar and reminders.</span> <button type="button" class="holiday-note-action" onclick="resumeClasses()">Resume classes</button></p>` : ''}
     <div class="tt-day-tabs">${tabs}</div>
+    ${(() => { const n = endedUnmarkedClassKeys(dateStr).length; return n >= 2 ? `<button type="button" class="tt-markall" onclick="markEndedPresent('${dateStr}')">${icons.check()} Mark all ${n} ended classes Present</button>` : ''; })()}
     ${content}
 
   `;
