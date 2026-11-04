@@ -40,7 +40,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan, classesAttendedThisWeek, sanitizeTask, goalCheckinsThisWeek, rhythmAimStatus, state };`)();
+const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan, classesAttendedThisWeek, sanitizeTask, goalCheckinsThisWeek, rhythmAimStatus, state, finishAimStatus, finishAimLine };`)();
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -199,6 +199,45 @@ check('A rhythm aim with no goal or a bad count reads as the line aim', () => {
   const a1 = app.loadAims().kind;
   store.cos_aims = JSON.stringify({ v: 1, kind: 'rhythm', goal: 'g1', times: 40, line: 75 });
   return a1 === 'line' && app.loadAims().kind === 'line' ? true : JSON.stringify([a1, app.loadAims()]);
+});
+
+const SYL = JSON.stringify([
+  { subjectName: 'Data Structures', topics: [{ id: 'a', title: 'Trees', status: 'done' }, { id: 'b', title: 'Graphs', status: 'todo' }, { id: 'c', title: 'Heaps', status: 'todo' }] },
+  { subjectName: 'Probability', topics: [{ id: 'd', title: 'Bayes', status: 'todo' }] }
+]);
+const NOW = new Date('2026-11-05T12:00:00');
+
+check('Finish by a date: counts unticked topics and tasks due by then, with a pace', () => {
+  reset({ cos_att_target: '75', cos_syllabus: SYL, cos_aims: JSON.stringify({ v: 1, kind: 'finish', by: '2026-11-08', scope: '', line: 75, subjects: {} }) });
+  app.state.assignments = [];
+  app.state.customTasks = [
+    { id: 't1', title: 'DS lab', subject: 'Data Structures', dueDate: '2026-11-07', status: 'pending' },
+    { id: 't2', title: 'Late', subject: 'Probability', dueDate: '2026-11-20', status: 'pending' },
+    { id: 't3', title: 'Done', subject: 'Probability', dueDate: '2026-11-06', status: 'submitted' },
+    { id: 'g1', title: 'Goal', taskType: 'mission', noDeadline: true, status: 'pending' }
+  ];
+  const f = app.finishAimStatus(NOW);
+  const line = app.finishAimLine(f).replace(/<[^>]+>/g, '');
+  return f.topicsLeft === 3 && f.tasksLeft === 1 && f.days === 3 && line === 'Finish by 8 Nov: 3 topics and 1 task left in 3 days, about 1 topic a day.' ? true : JSON.stringify([f, line]);
+});
+
+check('Finish by a date for one subject counts only that subject', () => {
+  reset({ cos_att_target: '75', cos_syllabus: SYL, cos_aims: JSON.stringify({ v: 1, kind: 'finish', by: '2026-11-08', scope: 'probability', line: 75, subjects: {} }) });
+  const f = app.finishAimStatus(NOW);
+  if (!f) return 'no status';
+  const scoped = { ...f };
+  return scoped.topicsLeft === 1 && scoped.tasksLeft === 0 ? true : JSON.stringify(f);
+});
+
+check('Finish aim: nothing left says nothing; a passed date says so', () => {
+  const none = app.finishAimLine({ by: '2026-11-08', days: 3, topicsLeft: 0, tasksLeft: 0, name: '' });
+  const passed = app.finishAimLine({ by: '2026-11-01', days: -4, topicsLeft: 2, tasksLeft: 0, name: '' }).replace(/<[^>]+>/g, '');
+  return none === '' && passed === 'Finish by 1 Nov has passed with 2 topics left. Pick a new date in Settings.' ? true : JSON.stringify([none, passed]);
+});
+
+check('A finish aim with no valid date reads as the line aim', () => {
+  reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'finish', by: '8 Nov', line: 75 }) });
+  return app.loadAims().kind === 'line' && app.finishAimStatus(NOW) === null ? true : JSON.stringify(app.loadAims());
 });
 
 console.log(`\n========================================\nTOTAL SCENARIOS CHECKED: ${total}\nPASSED: ${passed}\nFAILED: ${total - passed}\n========================================`);
