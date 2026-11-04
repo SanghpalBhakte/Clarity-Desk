@@ -7704,6 +7704,19 @@ body.holiday-mode .holiday-banner {
 .bw-key i { display: inline-block; width: 10px; height: 10px; margin: 0 2px -1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 .bw-key i.is-lab { background: var(--text-primary); }
 
+/* ── Notices: quiet board and the portal row ──────────────────────── */
+.nt-quiet { margin-top: 14px; padding-top: 36px; border-top: 2px solid var(--text-primary); text-align: center; color: var(--text-primary); }
+.nt-quiet svg { display: block; margin: 0 auto; }
+.nt-pin { fill: var(--color-thread, var(--accent)); }
+.nt-quiet-title { margin-top: 14px; font-family: var(--font-display, var(--font)); font-size: 1.25rem; font-weight: 700; }
+.nt-quiet-text { max-width: 300px; margin: 6px auto 0; font-size: 0.95rem; line-height: 1.45; color: var(--text-secondary); }
+.nt-portal { display: flex; align-items: center; gap: 8px; margin-top: 36px; border-top: 1px solid var(--color-rule, var(--border)); border-bottom: 1px solid var(--color-rule, var(--border)); }
+.nt-portal-main { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border: 0; background: none; font: inherit; text-align: left; color: var(--text-primary); cursor: pointer; }
+.nt-portal-title { display: block; font-size: 0.95rem; font-weight: 600; }
+.nt-portal-sub { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.nt-portal-act { flex: none; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); }
+.nt-portal-edit { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
+
 /* ── Tasks, empty: a faded example and a line to type into ─────────── */
 .tk-empty { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
 .tk-empty-list { border-top: 2px solid var(--text-primary); }

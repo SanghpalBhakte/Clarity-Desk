@@ -16268,10 +16268,11 @@ function renderNotices() {
     n.category.toLowerCase().includes(q)
   );
 
-  const noNoticesHtml = `<div class="empty-state-card" style="margin-top:14px">
-    <span class="empty-state-icon">${icons.check()}</span>
-    <div class="empty-state-title">No notices right now</div>
-    <div class="empty-state-desc">New announcements will show up here.</div>
+  const allNotices = getVisibleNotices();
+  const noNoticesHtml = `<div class="nt-quiet">
+    <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="10" width="40" height="46" rx="6" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-width="2"/><line x1="20" y1="24" x2="44" y2="24" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><line x1="20" y1="32" x2="40" y2="32" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><line x1="20" y1="40" x2="36" y2="40" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><circle class="nt-pin" cx="32" cy="10" r="4"/></svg>
+    <div class="nt-quiet-title">Quiet board.</div>
+    <p class="nt-quiet-text">Nothing posted right now. When there's something for you, it lands here.</p>
   </div>`;
   const cardsHtml = filtered.length ? filtered.map(n => `
     <div class="notice-card ${n.important?'important':''}" onclick="showNotice('${n.id}')">
@@ -16300,48 +16301,17 @@ function renderNotices() {
     return;
   }
 
+  // The portal link sits at the bottom as one row; Dev Notes live in
+  // Settings → About. Search shows only once there is something to search.
   el.innerHTML = `
     <div class="page-header">
       <div>
         <div class="page-title">Notices</div>
-        <div class="page-subtitle">${getVisibleNotices().filter(n=>n.important).length} pinned announcements · official campus circulars</div>
+        <div class="page-subtitle">Circulars, exam forms, timetable changes.</div>
       </div>
     </div>
 
-    <!-- ── Quick-Access Notice Sources (3 Soft Linked Cards) ── -->
-    <div class="notice-sources-grid">
-      <!-- ERP Portal (configurable link) -->
-      <div class="notice-source-card tint-erp" onclick="handleNoticeSourceClick('whatsapp')" title="Open your college ERP portal">
-        <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-erp">${icons.graduation()}</div>
-          <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit ERP portal link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit ERP portal link">
-            ${icons.edit()}
-          </button>
-        </div>
-        <div>
-          <div class="notice-source-title">${escHtml_cd(channels.whatsappTitle || 'ERP Portal')}</div>
-          <div class="notice-source-sub">Your student login for attendance, marks &amp; fees</div>
-        </div>
-        <div class="notice-source-action" style="color:var(--blue)">
-          <span>${channels.whatsappUrl ? 'Open ERP Portal ↗' : '+ Set Portal Link'}</span>
-        </div>
-      </div>
-
-      <!-- Card 3: Dev Notes -->
-      <div class="notice-source-card tint-devnotes" onclick="showDevNotesModal()" title="View recent updates and improvements">
-        <div class="notice-source-top">
-          <div class="notice-source-icon-wrap notice-source-icon-devnotes">${icons.code()}</div>
-        </div>
-        <div>
-          <div class="notice-source-title">Dev Notes</div>
-          <div class="notice-source-sub">See recent fixes, updates, and improvements</div>
-        </div>
-        <div class="notice-source-action" style="color:var(--yellow)">
-          <span>View Updates ↗</span>
-        </div>
-      </div>
-    </div>
-
+    ${allNotices.length ? `
     <div class="search-input-wrapper" style="position:relative;display:flex;align-items:center">
       <span class="s-icon">${icons.search()}</span>
       <input type="text" placeholder="Search notices by title, category, or keyword…" value="${escAttr_cd(state.noticeSearch || '')}"
@@ -16349,8 +16319,16 @@ function renderNotices() {
       <button id="notice-search-clear" onclick="filterNotices('');document.getElementById('notice-search').value='';"
         style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:0;font-size:var(--text-md);display:${state.noticeSearch?'block':'none'}"
         title="Clear search">×</button>
-    </div>
+    </div>` : ''}
     <div id="notices-list-container">${cardsHtml}</div>
+
+    <div class="nt-portal">
+      <button type="button" class="nt-portal-main" onclick="handleNoticeSourceClick('whatsapp')">
+        <span><span class="nt-portal-title">${escHtml_cd(channels.whatsappTitle || 'College portal')}</span><span class="nt-portal-sub">Attendance, marks and fees, one tap away</span></span>
+        <span class="nt-portal-act">${channels.whatsappUrl ? 'Open ↗' : 'Add link'}</span>
+      </button>
+      ${channels.whatsappUrl ? `<button type="button" class="nt-portal-edit" onclick="showNoticeChannelModal('whatsapp')" aria-label="Edit portal link">${icons.edit()}</button>` : ''}
+    </div>
   `;
 }
 
@@ -18109,6 +18087,12 @@ function renderSettings() {
           Clear All Custom Tasks
         </button>
       </div>
+    </div>
+
+    <div class="section-heading">${icons.code()} About</div>
+    <div class="card" style="padding:18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-size:var(--text-base);color:var(--text-secondary)">Dev Notes: what changed in each update.</div>
+      <button class="btn-secondary" onclick="showDevNotesModal()">See what's new</button>
     </div>
 
     <div class="section-heading">${icons.bell()} Tell me what breaks</div>
