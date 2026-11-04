@@ -15,8 +15,8 @@
 //     For when Chromium can't start here (the Claude Code Bash sandbox):
 //     writes <dir>/mcp-job.js for the Playwright MCP tool
 //     (browser_run_code_unsafe with `filename`). Start the server first:
-//     PORT=4179 node tests/serve.mjs. The tool returns the checks; save
-//     them as <dir>/checks.json.
+//     PORT=4179 node tests/serve.mjs. The tool returns only the failed
+//     checks (clean views as one "ok" line); save that as <dir>/checks.json.
 //
 // Each view gets a fresh browser context, so nothing touches real storage.
 // =====================================================================
@@ -223,7 +223,15 @@ async function main() {
 
   if (args.mcp) {
     const job = path.join(OUT, 'mcp-job.js');
-    fs.writeFileSync(job, `async (page) => (${runShots.toString()})(page.context().browser(), ${JSON.stringify(cfg)})\n`);
+    // The MCP tool echoes the job back into the conversation, so the job is
+    // a tiny loader: the code and config sit beside it and are fetched from
+    // the 4179 server. It returns only failures; a clean view is one line.
+    const rel = path.relative(ROOT, OUT).split(path.sep).join('/');
+    fs.writeFileSync(path.join(OUT, 'run-shots.js'), `(${runShots.toString()})`);
+    fs.writeFileSync(path.join(OUT, 'cfg.json'), JSON.stringify(cfg));
+    fs.writeFileSync(job, `async (page) => { const get = (f) => fetch('${BASE}/${rel}/' + f).then((r) => r.text());
+const c = await eval(await get('run-shots.js'))(page.context().browser(), JSON.parse(await get('cfg.json')));
+return Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v.contrast.length || v.tapTargets.length ? v : 'ok: ' + v.measured + ' measured, ' + v.skipped + ' skipped, ' + v.tapComfort.length + ' under 44px'])); }\n`);
     console.log(job);
     return;
   }
