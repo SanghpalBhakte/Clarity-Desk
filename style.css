@@ -221,33 +221,121 @@
   --space-section-gap:  var(--space-24);
 }
 
-/* ── 1b) Accents (light mode) — mode is paper-slate/midnight-ink;
-   accent is an independent axis layered on top via [data-accent].
-   Terracotta is the default brand already set above, so it needs
-   no override block here. ── */
-:root[data-theme="paper-slate"][data-accent="rose"] {
-  --raw-brand-1: #9e4a5c;
-  --raw-brand-2: #843c4c;
-  --raw-brand-3: #f3dde0;
-  --color-focus-ring: #843c4c;
-  --color-hover-fill: rgba(132, 60, 76, 0.06);
-  --color-pressed-fill: rgba(132, 60, 76, 0.10);
-}
+/* ── 1b) Palettes (light mode) — mode is paper-slate/midnight-ink;
+   the palette rides on the stored accent value via [data-accent], so
+   backups and sync are unchanged: terracotta = Rikyū (the default set
+   above), rose = Azuki & Matcha, lavender = Ai & Kaki, apricot = Tetsu
+   lamp. Each palette sets the whole paper, ink and brand, not just a hue. ── */
+/* Ai & Kaki: indigo ink with persimmon */
 :root[data-theme="paper-slate"][data-accent="lavender"] {
-  --raw-brand-1: #6b5a7e;
-  --raw-brand-2: #52415f;
-  --raw-brand-3: #e6dfec;
-  --color-focus-ring: #52415f;
-  --color-hover-fill: rgba(82, 65, 95, 0.06);
-  --color-pressed-fill: rgba(82, 65, 95, 0.10);
+  --raw-bg-0: #e8ebe8;
+  --raw-bg-1: #f9f9f6;
+  --raw-bg-2: #f0f2ef;
+  --raw-bg-3: #e0e5e2;
+  --raw-ink-1: #1f3a3f;
+  --raw-ink-2: #435a5e;
+  --raw-ink-3: #53686b;
+  --raw-ink-inverse: #f9f9f6;
+  --raw-brand-1: #a94a2a;
+  --raw-brand-2: #923f23;
+  --raw-brand-3: #f2d6c9;
+  --raw-accent-1: #b07a45;
+  --raw-accent-2: #8a5530;
+  --raw-accent-3: #f1e2d2;
+  --raw-success: #3d6b67;
+  --raw-warning: #8a5530;
+  --raw-error: #a63a3a;
+  --raw-info: #4f6a70;
+  --raw-rule: #d5dcd9;
+  --raw-border-soft: rgba(31, 58, 63, 0.10);
+  --raw-border-strong: rgba(31, 58, 63, 0.18);
+  --raw-shadow-sm: 0 1px 2px rgba(31, 58, 63, 0.05);
+  --raw-shadow-md: 0 10px 24px -8px rgba(31, 58, 63, 0.14);
+  --raw-shadow-lg: 0 18px 40px -10px rgba(31, 58, 63, 0.18);
+  --shadow-paper-sm: 0 1px 2px rgba(31, 58, 63, 0.07), 0 1px 1px rgba(31, 58, 63, 0.05);
+  --shadow-paper-md: 0 2px 5px rgba(31, 58, 63, 0.08), 0 10px 24px -8px rgba(31, 58, 63, 0.16);
+  --shadow-paper-lg: 0 6px 14px rgba(31, 58, 63, 0.10), 0 24px 48px -14px rgba(31, 58, 63, 0.22);
+  --sheen-bottom: rgba(31, 58, 63, 0.14);
+  --color-action-secondary-hover: #e6dccf;
+  --color-accent-text: #8a5530;
+  --color-surface-overlay: #fbfbf9;
+  --color-focus-ring: #923f23;
+  --color-hover-fill: rgba(146, 63, 35, 0.06);
+  --color-pressed-fill: rgba(146, 63, 35, 0.10);
 }
+/* Tetsu lamp: iron teal with amber light */
 :root[data-theme="paper-slate"][data-accent="apricot"] {
-  --raw-brand-1: #965c1a;
-  --raw-brand-2: #7f4d15;
-  --raw-brand-3: #f5e2cd;
-  --color-focus-ring: #7f4d15;
-  --color-hover-fill: rgba(127, 77, 21, 0.06);
-  --color-pressed-fill: rgba(127, 77, 21, 0.10);
+  --raw-bg-0: #ebe7dc;
+  --raw-bg-1: #f8f5ee;
+  --raw-bg-2: #f1ede3;
+  --raw-bg-3: #e4e0d5;
+  --raw-ink-1: #2b3736;
+  --raw-ink-2: #4b5756;
+  --raw-ink-3: #55615f;
+  --raw-ink-inverse: #f8f5ee;
+  --raw-brand-1: #a5482a;
+  --raw-brand-2: #8e3d23;
+  --raw-brand-3: #f2dacf;
+  --raw-accent-1: #c79a4a;
+  --raw-accent-2: #7c5719;
+  --raw-accent-3: #f3e5c8;
+  --raw-success: #38625d;
+  --raw-warning: #7c5719;
+  --raw-error: #a63a3a;
+  --raw-info: #4f6a70;
+  --raw-rule: #d9d3c6;
+  --raw-border-soft: rgba(43, 55, 54, 0.10);
+  --raw-border-strong: rgba(43, 55, 54, 0.18);
+  --raw-shadow-sm: 0 1px 2px rgba(43, 55, 54, 0.05);
+  --raw-shadow-md: 0 10px 24px -8px rgba(43, 55, 54, 0.14);
+  --raw-shadow-lg: 0 18px 40px -10px rgba(43, 55, 54, 0.18);
+  --shadow-paper-sm: 0 1px 2px rgba(43, 55, 54, 0.07), 0 1px 1px rgba(43, 55, 54, 0.05);
+  --shadow-paper-md: 0 2px 5px rgba(43, 55, 54, 0.08), 0 10px 24px -8px rgba(43, 55, 54, 0.16);
+  --shadow-paper-lg: 0 6px 14px rgba(43, 55, 54, 0.10), 0 24px 48px -14px rgba(43, 55, 54, 0.22);
+  --sheen-bottom: rgba(43, 55, 54, 0.14);
+  --color-action-secondary-hover: #e9dcc6;
+  --color-accent-text: #7c5719;
+  --color-surface-overlay: #faf8f2;
+  --color-focus-ring: #8e3d23;
+  --color-hover-fill: rgba(142, 61, 35, 0.06);
+  --color-pressed-fill: rgba(142, 61, 35, 0.10);
+}
+/* Azuki & Matcha: red bean and tea leaf */
+:root[data-theme="paper-slate"][data-accent="rose"] {
+  --raw-bg-0: #ecebe2;
+  --raw-bg-1: #fbfaf4;
+  --raw-bg-2: #f2f0e7;
+  --raw-bg-3: #e2e0d5;
+  --raw-ink-1: #2f3437;
+  --raw-ink-2: #4f5456;
+  --raw-ink-3: #5f6466;
+  --raw-ink-inverse: #fbfaf4;
+  --raw-brand-1: #864944;
+  --raw-brand-2: #703b37;
+  --raw-brand-3: #ecd3cf;
+  --raw-accent-1: #b59a4a;
+  --raw-accent-2: #735a1b;
+  --raw-accent-3: #f0e8cc;
+  --raw-success: #4f6a3f;
+  --raw-warning: #735a1b;
+  --raw-error: #a63a3a;
+  --raw-info: #4f6a70;
+  --raw-rule: #dbd9cd;
+  --raw-border-soft: rgba(47, 52, 55, 0.10);
+  --raw-border-strong: rgba(47, 52, 55, 0.18);
+  --raw-shadow-sm: 0 1px 2px rgba(47, 52, 55, 0.05);
+  --raw-shadow-md: 0 10px 24px -8px rgba(47, 52, 55, 0.14);
+  --raw-shadow-lg: 0 18px 40px -10px rgba(47, 52, 55, 0.18);
+  --shadow-paper-sm: 0 1px 2px rgba(47, 52, 55, 0.07), 0 1px 1px rgba(47, 52, 55, 0.05);
+  --shadow-paper-md: 0 2px 5px rgba(47, 52, 55, 0.08), 0 10px 24px -8px rgba(47, 52, 55, 0.16);
+  --shadow-paper-lg: 0 6px 14px rgba(47, 52, 55, 0.10), 0 24px 48px -14px rgba(47, 52, 55, 0.22);
+  --sheen-bottom: rgba(47, 52, 55, 0.14);
+  --color-action-secondary-hover: #e5e1cf;
+  --color-accent-text: #735a1b;
+  --color-surface-overlay: #fcfbf7;
+  --color-focus-ring: #703b37;
+  --color-hover-fill: rgba(112, 59, 55, 0.06);
+  --color-pressed-fill: rgba(112, 59, 55, 0.10);
 }
 
 /* ── 2) Midnight Ink — Canonical Night Study Theme ─────────── */
@@ -407,31 +495,87 @@
   --focus-ring: var(--color-focus-ring);
 }
 
-/* ── 2b) Accents (dark mode) — Rose reuses Midnight Ink's original
-   pink hue verbatim; Lavender/Apricot are new dark-tuned values. ── */
-:root[data-theme="midnight-ink"][data-accent="rose"] {
-  --raw-brand-1: #c97e8c;
-  --raw-brand-2: #d494a0;
-  --raw-brand-3: #3a2229;
-  --color-focus-ring: #c97e8c;
-  --color-hover-fill: rgba(201, 126, 140, 0.10);
-  --color-pressed-fill: rgba(201, 126, 140, 0.16);
-}
+/* ── 2b) Palettes (dark mode) — each palette's night twin. ── */
+/* Ai & Kaki: indigo ink with persimmon */
 :root[data-theme="midnight-ink"][data-accent="lavender"] {
-  --raw-brand-1: #b49bc7;
-  --raw-brand-2: #c7b3d6;
-  --raw-brand-3: #2e2635;
-  --color-focus-ring: #b49bc7;
-  --color-hover-fill: rgba(180, 155, 199, 0.10);
-  --color-pressed-fill: rgba(180, 155, 199, 0.16);
+  --raw-bg-0: #16252a;
+  --raw-bg-1: #1f3237;
+  --raw-bg-2: #243a40;
+  --raw-bg-3: #2a4148;
+  --raw-ink-1: #e9efee;
+  --raw-ink-2: #bccbcb;
+  --raw-ink-3: #9cb0b1;
+  --raw-ink-inverse: #16252a;
+  --raw-brand-1: #f29372;
+  --raw-brand-2: #f6aa8e;
+  --raw-brand-3: #3a2a24;
+  --raw-accent-1: #d9a46f;
+  --raw-accent-2: #e6b98c;
+  --raw-accent-3: #33302a;
+  --raw-success: #90b6b0;
+  --raw-warning: #d9a46f;
+  --raw-error: #f0948a;
+  --raw-info: #8fb0c0;
+  --raw-rule: #2f454b;
+  --color-surface-overlay: #22373c;
+  --color-focus-ring: #f29372;
+  --color-hover-fill: rgba(242, 147, 114, 0.10);
+  --color-pressed-fill: rgba(242, 147, 114, 0.16);
+  --color-accent-text: #d9a46f;
 }
+/* Tetsu lamp: iron teal with amber light */
 :root[data-theme="midnight-ink"][data-accent="apricot"] {
-  --raw-brand-1: #e6b478;
-  --raw-brand-2: #efc797;
-  --raw-brand-3: #362a1c;
-  --color-focus-ring: #e6b478;
-  --color-hover-fill: rgba(230, 180, 120, 0.10);
-  --color-pressed-fill: rgba(230, 180, 120, 0.16);
+  --raw-bg-0: #2b3736;
+  --raw-bg-1: #34413f;
+  --raw-bg-2: #3a4745;
+  --raw-bg-3: #26302f;
+  --raw-ink-1: #efe9dc;
+  --raw-ink-2: #c9cdc4;
+  --raw-ink-3: #b0b8b1;
+  --raw-ink-inverse: #1d2625;
+  --raw-brand-1: #e3a66f;
+  --raw-brand-2: #ecbb8c;
+  --raw-brand-3: #45392c;
+  --raw-accent-1: #d8b45f;
+  --raw-accent-2: #e5c681;
+  --raw-accent-3: #423b2a;
+  --raw-success: #9cc1ba;
+  --raw-warning: #d8b45f;
+  --raw-error: #f5a193;
+  --raw-info: #a3bec6;
+  --raw-rule: #45524f;
+  --color-surface-overlay: #3a4745;
+  --color-focus-ring: #e3a66f;
+  --color-hover-fill: rgba(227, 166, 111, 0.10);
+  --color-pressed-fill: rgba(227, 166, 111, 0.16);
+  --color-accent-text: #d8b45f;
+}
+/* Azuki & Matcha: red bean and tea leaf */
+:root[data-theme="midnight-ink"][data-accent="rose"] {
+  --raw-bg-0: #1e2224;
+  --raw-bg-1: #2a2f31;
+  --raw-bg-2: #30363a;
+  --raw-bg-3: #353b3e;
+  --raw-ink-1: #eceae2;
+  --raw-ink-2: #c3c6c0;
+  --raw-ink-3: #a8ada9;
+  --raw-ink-inverse: #1e2224;
+  --raw-brand-1: #dc9a92;
+  --raw-brand-2: #e6b2ab;
+  --raw-brand-3: #3a2a29;
+  --raw-accent-1: #c9b56b;
+  --raw-accent-2: #d8c78a;
+  --raw-accent-3: #38352a;
+  --raw-success: #9db58a;
+  --raw-warning: #c9b56b;
+  --raw-error: #ea958a;
+  --raw-info: #8fb0c0;
+  --raw-rule: #3a4043;
+  --color-surface-overlay: #30363a;
+  --color-focus-ring: #dc9a92;
+  --color-hover-fill: rgba(220, 154, 146, 0.10);
+  --color-pressed-fill: rgba(220, 154, 146, 0.16);
+  --color-accent-text: #c9b56b;
 }
 
 /* ── Theme-switch wipe — consumed by setTheme() in app.js ────
