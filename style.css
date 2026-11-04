@@ -5480,8 +5480,11 @@ body::before {
   color: var(--color-text-secondary);
 }
 
-.tk-subj { font-weight: 700; cursor: pointer; }
+.tk-subj { position: relative; font-weight: 700; cursor: pointer; }
+/* Bigger thumb target than the 18px text, kept short of the title above. */
+.tk-subj::after { content: ""; position: absolute; inset: -8px -6px; }
 .tk-subj:hover { color: var(--color-action-primary); text-decoration: underline; }
+.tk-subj:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 2px; }
 .tk-due.today { color: var(--color-accent-text); font-weight: 700; }
 .tk-due.soon { color: var(--color-text-primary); font-weight: 600; }
 .tk-prio { color: var(--color-error); font-weight: 700; }
@@ -7603,7 +7606,7 @@ body.holiday-mode .holiday-banner {
 .tk-card.is-late .tk-day-name { color: var(--status-error, var(--color-error)); }
 #page-assignments .tk-card .assignment-body { flex: 1 1 0; min-width: 0; padding: 6px 0; cursor: pointer; border-radius: 6px; }
 #page-assignments .tk-card .assignment-body:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
-#page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 1; }
+#page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 2; }
 #page-assignments .tk-meta { gap: 0; font-size: 0.8125rem; }
 #page-assignments .tk-meta > span + span::before { content: '·'; margin: 0 5px; color: var(--text-secondary); font-weight: 400; }
 #page-assignments .tk-due.overdue { display: inline; color: var(--status-error, var(--color-error)); }
@@ -7625,8 +7628,9 @@ body.holiday-mode .holiday-banner {
 .tk-fold-name { flex: none; width: 48px; font-family: var(--font-display); font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
 .tk-fold-sum { flex: 1; min-width: 0; font-size: 0.875rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tk-fold-sign { flex: none; width: 24px; text-align: center; color: var(--text-secondary); }
-.tk-fold-sign::before { content: '+'; }
-.tk-fold[open] > .tk-fold-head .tk-fold-sign::before { content: '–'; }
+/* A chevron, not '+': next to the add bar a '+' read as "add a goal". */
+.tk-fold-sign::before { content: ''; display: inline-block; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-3px) rotate(45deg); }
+.tk-fold[open] > .tk-fold-head .tk-fold-sign::before { transform: translateY(1px) rotate(-135deg); }
 .tk-fold-head:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 #page-assignments .tk-fold > .tk-card:last-child { border-bottom: 0; }
 
@@ -7660,12 +7664,22 @@ body.holiday-mode .holiday-banner {
 .tk-tick { overflow: hidden; padding-left: 6px; border-left: 3px solid currentColor; font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; line-height: 18px; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
 .tk-tick.is-exam { border-left-width: 6px; }
 .tk-tick.is-late { color: var(--status-error, var(--color-error)); }
+/* A '!' as well as red, so late doesn't rely on colour alone. */
+.tk-tick.is-late::before, .tk-strip-key b::before { content: '! '; }
 .tk-tick.is-done { color: var(--text-muted); text-decoration: line-through; }
 .tk-tick.is-dim { opacity: 0.25; }
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
 
 @media (max-width: 767px) {
-  #page-assignments .tk-add { position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; order: 10; box-shadow: 0 -10px 0 var(--color-canvas); }
+  /* Fixed, not sticky: .content-area is overflow:auto but grows with its
+     content, so a sticky bar pins to it, not the screen, and opens half
+     under the nav. */
+  #page-assignments .tk-add { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; }
+  /* Square page-colour band behind the bar: rows scroll under it cleanly
+     (a rounded shadow let a rule's corner peek out above the bar). */
+  #page-assignments .tk-page::after { content: ''; position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); height: 72px; background: var(--color-canvas); z-index: 4; pointer-events: none; }
+  /* Room for the bar, so the last row (Done) scrolls clear of it. */
+  #page-assignments .tk-page { padding-bottom: 16px; }
 }
 
 /* Laptops: headline beside the add line, list beside the subject index. */
