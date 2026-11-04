@@ -15271,13 +15271,21 @@ function renderAssignments() {
     }).join('');
   };
 
-  const cards = filtered.length ? renderGroupedTasks() : (all.length === 0 
-    ? `<div class="empty-state-card" style="margin-top:14px">
-        <span class="empty-state-icon">${icons.assignments()}</span>
-        <div class="empty-state-title">No Tasks Yet</div>
-        <div class="empty-state-desc">Stay on top of coursework, deadlines, and project milestones. Tap Add Task to get started.</div>
-        <button class="btn-primary" onclick="showAddTaskModal()" style="font-size:var(--text-base);padding:7px 16px">+ Add Task</button>
-        <button class="btn-secondary" onclick="showWhatsAppImport()" style="font-size:var(--text-base);padding:7px 16px;margin-top:8px">Import from WhatsApp</button>
+  // Empty: one faded example and a line to type into, no box of buttons.
+  const cards = filtered.length ? renderGroupedTasks() : (all.length === 0
+    ? `<div class="tk-empty">
+        <div class="tk-empty-list">
+          <div class="tk-empty-row is-example" aria-hidden="true"><span class="tk-empty-box"></span><span class="tk-empty-text">DS lab record due Friday</span><span class="tk-empty-tag">example</span></div>
+          <form class="tk-empty-row is-input" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
+            <span class="tk-empty-plus" aria-hidden="true">+</span>
+            <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="Type a task. &quot;WD assignment 2 by 13 Nov&quot;">
+          </form>
+        </div>
+        <p class="tk-empty-hint">Dates and subjects are picked up as you type. You check them before saving.</p>
+        <div class="tk-empty-more">
+          <button type="button" onclick="showWhatsAppImport()"><span>Paste from WhatsApp</span><span class="tk-empty-sub">class group deadlines →</span></button>
+          <button type="button" onclick="showAddTaskModal(null, null, 'mission')"><span>Ongoing goal</span><span class="tk-empty-sub">"one paper a week" →</span></button>
+        </div>
       </div>`
     : (state.assignFilter === 'ongoing' || state.assignFilter === 'missions')
     ? `<div class="empty-state-card" style="margin-top:14px">
@@ -15297,11 +15305,11 @@ function renderAssignments() {
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div class="page-title">Tasks &amp; Deadlines</div>
-        <div class="page-subtitle">${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed</div>
+        <div class="page-subtitle">${all.length ? `${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed` : 'A clean slate. What you add shows on Today, the Calendar and each subject.'}</div>
       </div>
       <div class="tk-header-actions">
         ${all.some(a => a.isCustom) && !taskSelectMode ? `<button class="btn-secondary" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
-        <button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>
+        ${all.length ? `<button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>` : ''}
         <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
       </div>
     </div>
@@ -15330,6 +15338,27 @@ function renderAssignments() {
     ${cards}
   `;
 }
+
+// Empty Tasks page: "WD assignment 2 by 13 Nov" + Enter opens the usual
+// Add Task form with the title, a date and a subject filled in from the
+// text (the WhatsApp import's date reader), so nothing saves unchecked.
+async function tkQuickAdd(input) {
+  const text = String(input && input.value || '').trim();
+  if (!text) { input && input.focus(); return; }
+  let dateKey = null;
+  try {
+    const P = await loadWaParser();
+    const d = P.findDate(P.findTimes(text).masked, new Date());
+    if (d) dateKey = localDateKey(d);
+  } catch (e) { /* offline before the parser was cached: the form still opens */ }
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const subj = getSubjectList().find(sj => (sj.code && words.includes(String(sj.code).toLowerCase()))
+    || (sj.name && text.toLowerCase().includes(String(sj.name).toLowerCase())));
+  showAddTaskModal(null, subj ? subj.name : null, null, dateKey);
+  const t = document.getElementById('task-title');
+  if (t) t.value = text;
+}
+window.tkQuickAdd = tkQuickAdd;
 
 // ── Add / Edit Task Modal ──────────────────────────────────────
 window.showAssignmentModal = function(id = null, prefilledSubject = null, defaultType = null) {
