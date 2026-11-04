@@ -249,11 +249,11 @@ export const DEV_UPDATES = [
   {
     id: "u162",
     date: "2026-11-03",
-    title: "Today is calmer: the class to mark sits with the class you're in, marked classes fold into one line, and due dates are plain words",
+    title: "Today is calmer: the class to mark sits with the class you're in, and due dates are plain words",
     category: "Update",
     tag: "Update",
     tagColor: "var(--blue)",
-    summary: "Today is calmer: the class to mark sits with the class you're in, marked classes fold into one line, and due dates are plain words",
+    summary: "Today is calmer: the class to mark sits with the class you're in, and due dates are plain words",
     points: [
 
     ]
