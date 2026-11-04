@@ -198,10 +198,10 @@ check('C1. The subject filter row does not show redundant General/Mission/Other 
   mod.renderAssignments();
   const html = domCache['page-assignments']?.innerHTML || '';
   if (!html) return 'renderAssignments did not write into #page-assignments';
-  if (/setAssignSubject\('(GEN|General|MIS|Mission|OTH|Other)'\)/i.test(html)) {
+  if (/setAssignSubject\((?:'|&quot;)(GEN|General|MIS|Mission|OTH|Other)(?:'|&quot;)\)/i.test(html)) {
     return `expected no redundant General/Mission/Other subject-filter chip, but found one in the rendered HTML`;
   }
-  if (!/setAssignSubject\('DS'\)/.test(html)) {
+  if (!/setAssignSubject\((?:'|&quot;)DS(?:'|&quot;)\)/.test(html)) {
     return `expected the real 'DS' subject-filter chip to still be present`;
   }
   return true;

@@ -14832,6 +14832,8 @@ window.handleTaskNoDeadlineToggle = function(checked) {
 let taskSelectMode = false;
 const taskSelection = new Set();
 let taskDoneOpen = false;      // "Completed (N)" section; closed by default
+let taskOpenFolds = { later: false, goals: false }; // the other folded sections
+let taskOpenId = null;         // the row showing Edit · Open page · Delete
 let taskVisible = [];          // tasks on screen after filters; delete only touches these
 let _taskLongPressFired = false;
 
@@ -14860,6 +14862,16 @@ window.toggleTaskSelect = (id) => {
 window.toggleTaskDoneSection = (open) => {
   if (state.assignFilter === 'submitted' || taskSelectMode) return;
   taskDoneOpen = !!open;
+};
+
+window.toggleTaskFold = (key, open) => {
+  if (key in taskOpenFolds) taskOpenFolds[key] = !!open;
+};
+
+window.toggleTaskRow = (id) => {
+  if (taskSelectMode) return;
+  taskOpenId = taskOpenId === id ? null : id;
+  renderAssignments();
 };
 
 window.selectAllCompletedTasks = () => {
@@ -14986,30 +14998,6 @@ function renderAssignments() {
     all.map(a => a.code || a.subject).filter(s => s && !NON_SUBJECT_FILTER_VALUES.includes(String(s).toLowerCase()))
   )];
 
-  const chipLabel = (iconSvg, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${iconSvg}${text}</span>`;
-
-  const statusFilters = [
-    { key:'all',       label:'All Tasks' },
-    { key:'today',     label: chipLabel(icons.clock(), 'Due today') },
-    { key:'upcoming',  label: chipLabel(icons.calendar(), 'Upcoming') },
-    { key:'ongoing',   label: chipLabel(icons.target(), 'Ongoing Missions') },
-    { key:'overdue',   label: chipLabel(icons.alert(), 'Overdue') },
-    { key:'exams',     label: chipLabel(icons.graduation(), 'Exams & Tests') },
-    { key:'submitted', label: chipLabel(icons.check(), 'Completed') },
-  ];
-
-  const typeFilters = [
-    { key:'all',        label:'All Types' },
-    { key:'assignment', label: chipLabel(icons.filetext(), 'Assignments') },
-    { key:'mission',    label: chipLabel(icons.target(), 'Missions') },
-    { key:'general',    label: chipLabel(icons.list(), 'Other') },
-    { key:'quiz',       label: chipLabel(icons.calculator(), 'Quizzes') },
-    { key:'lab',        label: chipLabel(icons.cpu(), 'Labs') },
-    { key:'project',    label: chipLabel(icons.code(), 'Projects') },
-    { key:'exam',       label: chipLabel(icons.graduation(), 'Exams') },
-    { key:'study',      label: chipLabel(icons.book(), 'Self Study') },
-  ];
-
   let filtered = all;
 
   // Filter by status/deadline
@@ -15049,220 +15037,204 @@ function renderAssignments() {
   });
   taskVisible = filtered;
 
-  // Both filter rows list every possible category regardless of whether
-  // the user has any tasks in it -- for a lightly-used account that's up
-  // to 16 chips (7 status + 9 type) standing between the page title and a
-  // single task. Count against the unfiltered list and only show a chip
-  // when it would actually narrow something down, or when it's already
-  // selected (so picking a filter never makes its own chip disappear).
-  const statusCounts = {
-    today:     all.filter(a => a.status === 'pending' && !a.noDeadline && a.dueDate === today).length,
-    upcoming:  all.filter(a => a.status === 'pending' && !a.noDeadline && a.dueDate && a.dueDate >= today).length,
-    ongoing:   all.filter(a => a.status === 'pending' && (a.taskType === 'mission' || !!a.noDeadline)).length,
-    overdue:   all.filter(a => isTaskOverdue(a)).length,
-    exams:     all.filter(a => (a.taskType === 'exam' || a.taskType === 'quiz') && a.status === 'pending').length,
-    submitted: all.filter(a => a.status === 'submitted').length,
+  const typeLabel = (t) => t === 'mission' ? 'Goal' : t === 'general' ? 'Other' : t.charAt(0).toUpperCase() + t.slice(1);
+  const isOngoingTaskRow = (a) => !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
+  const thisYear = new Date().getFullYear();
+  const shortDate = (ds) => {
+    const d = new Date(ds + 'T00:00:00');
+    if (isNaN(d.getTime())) return String(ds || '');
+    return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}${d.getFullYear() === thisYear ? '' : ' ' + d.getFullYear()}`;
   };
-  const typeCounts = {};
-  typeFilters.forEach(f => { if (f.key !== 'all') typeCounts[f.key] = all.filter(a => (a.taskType || 'assignment') === f.key).length; });
 
-  const visibleStatusFilters = statusFilters.filter(f => f.key === 'all' || f.key === state.assignFilter || statusCounts[f.key] > 0);
-  const visibleTypeFilters   = typeFilters.filter(f => f.key === 'all' || f.key === state.assignTypeFilter || typeCounts[f.key] > 0);
+  // Headline in the Briefing's voice: how much is left, then what is late.
+  const NUM_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const numWord = (n) => n < NUM_WORDS.length ? NUM_WORDS[n] : String(n);
+  const dueLeft = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a)).length;
+  const lateN = all.filter(a => isTaskOverdue(a)).length;
+  const headA = !all.length ? 'A clean slate.' : dueLeft ? `${numWord(dueLeft)} to do.` : 'All clear.';
+  const headB = !all.length ? '' : lateN ? (lateN === 1 ? 'One is late.' : `${numWord(lateN)} are late.`) : (dueLeft ? 'Nothing late.' : 'Books down, feet up.');
 
-  // Design pass: the four filters people use most become one segmented control
-  // with live counts. The rest (Ongoing, Exams, Completed, type, subject) sit in
-  // a Filter panel that opens on demand, with the same handlers as before.
-  const PRIMARY_STATUS = ['all', 'overdue', 'today', 'upcoming'];
-  const statusBar  = visibleStatusFilters.filter(f => !PRIMARY_STATUS.includes(f.key)).map(f => `<button class="filter-chip ${(f.key===state.assignFilter || (f.key==='ongoing' && state.assignFilter==='missions'))?'active':''}" onclick="setAssignFilter('${f.key}')">${f.label}</button>`).join('');
-  const segDefs = [
-    { key: 'all',      label: 'All',      n: all.length },
-    { key: 'overdue',  label: 'Overdue',  n: statusCounts.overdue },
-    { key: 'today',    label: 'Today',    n: statusCounts.today },
-    { key: 'upcoming', label: 'Upcoming', n: statusCounts.upcoming },
-  ];
-  const segBar = segDefs.map(sg => `<button type="button" class="tk-seg-btn ${state.assignFilter === sg.key ? 'active' : ''}" aria-pressed="${state.assignFilter === sg.key}" onclick="setAssignFilter('${sg.key}')"><span>${sg.label}</span><span class="tk-seg-n">${sg.n}</span></button>`).join('');
-  const panelActive = (PRIMARY_STATUS.includes(state.assignFilter) ? 0 : 1) + (state.assignTypeFilter !== 'all' ? 1 : 0) + (state.assignSubjectFilter !== 'all' ? 1 : 0);
-  const doneCount = all.filter(a => a.status === 'submitted').length;
-  const donePct = all.length ? Math.round((doneCount / all.length) * 100) : 0;
-  const typeBar    = visibleTypeFilters.map(f => `<button class="filter-chip ${f.key===state.assignTypeFilter?'active':''}" onclick="setAssignTypeFilter('${f.key}')">${f.label}</button>`).join('');
-  const subjectBar = subjects.map(s => `<button class="filter-chip ${s===state.assignSubjectFilter?'active':''}" onclick="setAssignSubject('${s}')">${s==='all'?'All Subjects':s}</button>`).join('');
+  // Filters opened from elsewhere (Today's "late" line, the Calendar) still
+  // apply. One plain line says so, with the way back.
+  const FILTER_WORDS = { today: 'due today', upcoming: 'upcoming', ongoing: 'ongoing goals', missions: 'ongoing goals', overdue: 'late', exams: 'exams and quizzes', submitted: 'completed' };
+  const narrowing = [
+    state.assignFilter && state.assignFilter !== 'all' ? (FILTER_WORDS[state.assignFilter] || '') : '',
+    state.assignTypeFilter !== 'all' ? typeLabel(state.assignTypeFilter).toLowerCase() : '',
+  ].filter(Boolean);
 
-  const typeLabel = (t) => t === 'mission' ? 'Mission' : t === 'general' ? 'Other' : t.charAt(0).toUpperCase() + t.slice(1);
+  // "By subject": each subject with its next deadline. Picking one shows only
+  // its tasks; it replaces the old Filter panel.
+  const nextDueFor = (s) => {
+    const n = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a) && a.dueDate && (a.code === s || a.subject === s))
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    return n ? `${n.title} · ${shortDate(n.dueDate)}` : 'nothing due';
+  };
+  const subjIndex = subjects.length > 1 ? `
+    <nav class="tk-subjects" aria-label="Show one subject">
+      <h2 class="tk-side-head">By subject</h2>
+      ${subjects.map(s => `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name">${s === 'all' ? 'All' : escHtml_cd(s)}</span>${s === 'all' ? '' : `<span class="tk-subj-next">${escHtml_cd(nextDueFor(s))}</span>`}</button>`).join('')}
+    </nav>` : '';
 
-  // One title line + one meta line per task: subject, when, type, priority, marks.
+  // One row per task: a day column, the title and one meta line, the check
+  // on the right. Tapping the row shows Edit · Open page · Delete under it.
   const renderTaskCard = (a) => {
     const isMission = a.taskType === 'mission';
-    const isOngoing = !!a.noDeadline || (isMission && !a.dueDate);
+    const isOngoing = isOngoingTaskRow(a);
     const days = isOngoing ? null : dueDaysLeft(a.dueDate);
     const done = a.status === 'submitted';
     const isCustom = !!a.isCustom;
     const taskType = a.taskType || 'assignment';
+    const late = !done && days !== null && days < 0;
 
-    const thisYear = new Date().getFullYear();
-    const shortDate = (ds) => {
-      const d = new Date(ds + 'T00:00:00');
-      if (isNaN(d.getTime())) return String(ds || '');
-      return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}${d.getFullYear() === thisYear ? '' : ' ' + d.getFullYear()}`;
-    };
+    let dayName = '', dayDate = '';
+    if (isOngoing) dayName = 'Goal';
+    else if (a.dueDate && days !== null) {
+      const d = new Date(a.dueDate + 'T00:00:00');
+      dayName = days === 0 ? 'Today' : DAY_SHORT[d.getDay()];
+      dayDate = shortDate(a.dueDate);
+    }
+
     let when = '', whenCls = '';
-    if (done) {
-      when = 'Completed';
-    } else if (isOngoing) {
-      when = isTaskPausedForHoliday(a) ? 'Ongoing · resting for the holiday' : 'Ongoing · no deadline'; whenCls = 'ongoing';
-    } else if (days !== null) {
-      const dateText = shortDate(a.dueDate);
-      if (days < 0)        { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} overdue · ${dateText}`; whenCls = 'overdue'; }
-      else if (days === 0) { when = 'Due today'; whenCls = 'today'; }
-      else if (days === 1) { when = `Due tomorrow · ${dateText}`; whenCls = 'soon'; }
-      else                 { when = `${dateText} · ${days} days left`; whenCls = days <= 3 ? 'soon' : ''; }
+    if (done) when = 'done';
+    else if (isOngoing) { when = isTaskPausedForHoliday(a) ? 'resting for the holiday' : 'keeps going'; whenCls = 'ongoing'; }
+    else if (days !== null) {
+      if (days < 0)        { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
+      else if (days === 0) { when = 'due today'; whenCls = 'today'; }
+      else if (days === 1) { when = 'tomorrow'; whenCls = 'soon'; }
+      else                 { when = `in ${days} days`; whenCls = days <= 3 ? 'soon' : ''; }
     }
     const isCategory = ['GEN', 'MIS', 'OTH'].includes(String(a.code || '').toUpperCase());
     // The old "Mission" category reads as General (missions are a Task Type now).
     const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
 
-    const bits = [`<span class="tk-subj" onclick="openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} Hub">${escHtml_cd(subjectText)}</span>`];
-    if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
+    const bits = [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page">${escHtml_cd(subjectText)}</span>`];
     if (taskType !== 'assignment' && typeLabel(taskType).toLowerCase() !== String(subjectText).toLowerCase()) bits.push(`<span class="tk-type">${typeLabel(taskType)}</span>`);
-    if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">High priority</span>`);
+    if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
+    if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">high priority</span>`);
     if (a.marks > 0) bits.push(`<span class="tk-marks">${a.marks} marks</span>`);
 
     const picked = taskSelectMode && taskSelection.has(a.id);
-    const leadBox = taskSelectMode
+    const rowOpen = !taskSelectMode && taskOpenId === a.id;
+    const tail = taskSelectMode
       ? (isCustom
           ? `<div class="tk-pick ${picked ? 'on' : ''}" role="checkbox" aria-checked="${picked}" aria-label="Select task">${picked ? icons.check() : ''}</div>`
           : `<div class="tk-pick off" aria-hidden="true"></div>`)
-      : `<div class="assignment-checkbox" onclick="toggleAssignment('${a.id}')">
+      : `<div class="assignment-checkbox" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}">
           ${done ? icons.check() : ''}
         </div>`;
+    const hubName = isCategory ? '' : ((a.code || '').trim() || a.subject);
+    const actions = rowOpen ? `
+      <div class="tk-row-actions">
+        ${isCustom ? `<button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">Edit</button>` : ''}
+        ${hubName ? `<button type="button" onclick="openSubjectHub(${jsArg_cd(a.subject)})">Open ${escHtml_cd(hubName)} page</button>` : ''}
+        ${isCustom ? `<button type="button" class="task-delete-btn" onclick="deleteCustomTask('${a.id}')">Delete</button>` : ''}
+      </div>` : '';
+    const bodyAttrs = taskSelectMode ? '' : ` role="button" tabindex="0" aria-expanded="${rowOpen}" onclick="toggleTaskRow('${a.id}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();toggleTaskRow('${a.id}')}"`;
     return `
-      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
-        ${leadBox}
-        <div class="assignment-body">
+      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${late ? 'is-late' : ''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
+        <span class="tk-day" aria-hidden="${dayName ? 'false' : 'true'}"><span class="tk-day-name">${dayName}</span>${dayDate ? `<span class="tk-day-date">${dayDate}</span>` : ''}</span>
+        <div class="assignment-body"${bodyAttrs}>
           <div class="assignment-title">${escHtml_cd(a.title)}</div>
           <div class="tk-meta">${bits.join('')}</div>
           ${(a.description || '').trim() && a.description.trim() !== '—' ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
         </div>
-        ${isCustom && !taskSelectMode ? `
-          <details class="tk-more">
-            <summary aria-label="More actions" title="More actions">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 20)}</summary>
-            <div class="tk-more-menu">
-              <button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">${icons.edit()} Edit</button>
-              <button type="button" class="task-delete-btn" onclick="deleteCustomTask('${a.id}')">${icons.trash()} Delete</button>
-            </div>
-          </details>
-        ` : ''}
+        ${tail}
+        ${actions}
       </div>`;
   };
 
-  // Group by urgency so overdue work never hides in a flat list.
-  const TASK_GROUPS = [
-    { key: 'overdue', label: 'Overdue' },
-    { key: 'today',   label: 'Today' },
-    { key: 'week',    label: 'This week' },
-    { key: 'later',   label: 'Later' },
-    { key: 'ongoing', label: 'Ongoing' },
-    { key: 'done',    label: 'Completed' },
-  ];
+  // Now (late + today) and This week stay open; Later, Goals and Completed
+  // fold to one line each so the page fits a phone screen.
   const taskGroupOf = (a) => {
     if (a.status === 'submitted') return 'done';
-    if (a.noDeadline || (a.taskType === 'mission' && !a.dueDate)) return 'ongoing';
+    if (isOngoingTaskRow(a)) return 'goals';
     const d = dueDaysLeft(a.dueDate);
     if (d === null) return 'later';
-    if (d < 0) return 'overdue';
-    if (d === 0) return 'today';
+    if (d <= 0) return 'now';
     return d <= 7 ? 'week' : 'later';
   };
   const renderGroupedTasks = () => {
     const buckets = {};
     filtered.forEach(a => { const k = taskGroupOf(a); (buckets[k] = buckets[k] || []).push(a); });
-    const present = TASK_GROUPS.filter(g => buckets[g.key]);
-    // Completed tasks fold away (closed by default) unless the Completed
-    // filter or select mode is on, so finished work stops crowding the list.
-    const foldDone = !!buckets.done && state.assignFilter !== 'submitted';
-    if (present.length <= 1 && !foldDone) return filtered.map(renderTaskCard).join('');
-    return present.map(g => {
-      if (g.key === 'done' && foldDone) {
-        const open = taskDoneOpen || taskSelectMode;
-        return `<details class="tk-group tk-group-done tk-fold" ${open ? 'open' : ''} ontoggle="toggleTaskDoneSection(this.open)"><summary class="tk-group-head">Completed (${buckets.done.length})</summary>${buckets.done.map(renderTaskCard).join('')}</details>`;
-      }
-      return `<section class="tk-group tk-group-${g.key}" aria-label="${g.label}"><h2 class="tk-group-head">${g.label} · ${buckets[g.key].length}</h2>${buckets[g.key].map(renderTaskCard).join('')}</section>`;
-    }).join('');
+    const openList = (key, label) => {
+      const list = buckets[key];
+      if (!list) return '';
+      const late = key === 'now' && list.some(a => isTaskOverdue(a));
+      return `<section class="tk-group tk-group-${key}${late ? ' has-late' : ''}" aria-label="${label}"><div class="tk-group-head"><h2>${label}</h2><span>${list.length} left</span></div>${list.map(renderTaskCard).join('')}</section>`;
+    };
+    // With nothing due soon, the folds open so the page is never blank.
+    const nothingSoon = !buckets.now && !buckets.week;
+    const fold = (key, label, summary, open, ontoggle) => {
+      const list = buckets[key];
+      if (!list) return '';
+      return `<details class="tk-group tk-group-${key} tk-fold" ${open ? 'open' : ''} ontoggle="${ontoggle}"><summary class="tk-fold-head"><span class="tk-fold-name">${label}</span><span class="tk-fold-sum">${summary}</span><span class="tk-fold-sign" aria-hidden="true"></span></summary>${list.map(renderTaskCard).join('')}</details>`;
+    };
+    const titles = (list) => `${list.length} · ${list.map(a => escHtml_cd(a.title)).join(', ')}`;
+    const doneOpen = state.assignFilter === 'submitted' || taskDoneOpen || taskSelectMode;
+    return [
+      openList('now', 'Now'),
+      openList('week', 'This week'),
+      buckets.later ? fold('later', 'Later', titles(buckets.later), nothingSoon || taskOpenFolds.later, "toggleTaskFold('later', this.open)") : '',
+      buckets.goals ? fold('goals', 'Goals', titles(buckets.goals), nothingSoon || taskOpenFolds.goals, "toggleTaskFold('goals', this.open)") : '',
+      buckets.done ? fold('done', 'Done', `Completed (${buckets.done.length})`, doneOpen, 'toggleTaskDoneSection(this.open)') : '',
+    ].join('');
   };
 
-  // Empty: one faded example and a line to type into, no box of buttons.
+  // Empty: one faded example; the add bar below is the place to type.
   const cards = filtered.length ? renderGroupedTasks() : (all.length === 0
     ? `<div class="tk-empty">
         <div class="tk-empty-list">
           <div class="tk-empty-row is-example" aria-hidden="true"><span class="tk-empty-box"></span><span class="tk-empty-text">DS lab record due Friday</span><span class="tk-empty-tag">example</span></div>
-          <form class="tk-empty-row is-input" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
-            <span class="tk-empty-plus" aria-hidden="true">+</span>
-            <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="Type a task. &quot;WD assignment 2 by 13 Nov&quot;">
-          </form>
         </div>
-        <p class="tk-empty-hint">Dates and subjects are picked up as you type. You check them before saving.</p>
+        <p class="tk-empty-hint">Type a task below. Dates and subjects are picked up as you type, and you check them before saving. What you add shows on Today, the Calendar and each subject.</p>
         <div class="tk-empty-more">
           <button type="button" onclick="showWhatsAppImport()"><span>Paste a message or circular</span><span class="tk-empty-sub">WhatsApp, notice or email →</span></button>
           <button type="button" onclick="showAddTaskModal(null, null, 'mission')"><span>Ongoing goal</span><span class="tk-empty-sub">"one paper a week" →</span></button>
         </div>
       </div>`
     : (state.assignFilter === 'ongoing' || state.assignFilter === 'missions')
-    ? `<div class="empty-state-card" style="margin-top:14px">
-        <span class="empty-state-icon">${icons.target()}</span>
-        <div class="empty-state-title">No Standing Missions</div>
-        <div class="empty-state-desc">Missions stay visible on your desk without rigid deadlines until you complete them.</div>
-        <button class="btn-primary" onclick="showAddTaskModal(null, null, 'mission')" style="font-size:var(--text-base);padding:7px 16px">+ Create Mission</button>
-      </div>`
-    : `<div class="empty-state-card" style="margin-top:14px">
-        <span class="empty-state-icon">${icons.search()}</span>
-        <div class="empty-state-title">No Matching Tasks</div>
-        <div class="empty-state-desc">No tasks found matching the selected filter. Try switching back to All Tasks or resetting your filters.</div>
-        <button class="btn-secondary" onclick="resetAssignmentFilters()" style="font-size:var(--text-base);padding:6px 14px">Reset Filters</button>
-      </div>`);
+    ? `<p class="tk-none">No ongoing goals yet. <button type="button" class="tk-link" onclick="showAddTaskModal(null, null, 'mission')">Add one</button></p>`
+    : `<p class="tk-none">Nothing here. <button type="button" class="tk-link" onclick="resetAssignmentFilters()">Show all tasks</button></p>`);
 
+  const selN = [...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length;
   el.innerHTML = `
-    <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <div class="page-title">Tasks &amp; Deadlines</div>
-        <div class="page-subtitle">${all.length ? `${pendingCount()} pending · ${all.filter(a=>a.status==='submitted').length} completed` : 'A clean slate. What you add shows on Today, the Calendar and each subject.'}</div>
+    <div class="tk-page${subjIndex ? ' has-side' : ''}">
+      <header class="tk-head">
+        <div class="tk-kicker"><span>${DAY_NAMES[new Date().getDay()]} · your tasks</span>
+          ${all.some(a => a.isCustom) && !taskSelectMode ? `<button type="button" class="tk-link" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
+        </div>
+        <h1 class="tk-headline">${headA}${headB ? ` <span class="tk-headline-late${lateN ? ' is-late' : ''}">${headB}</span>` : ''}</h1>
+      </header>
+      ${subjIndex ? `<aside class="tk-side">${subjIndex}</aside>` : ''}
+      <div class="tk-main">
+        ${taskSelectMode ? `
+          <div class="tk-selectbar" role="toolbar" aria-label="Select tasks" data-testid="task-selectbar">
+            <span class="tk-sel-count">${selN} selected</span>
+            <button type="button" class="btn-secondary btn-sm" onclick="selectAllCompletedTasks()">Select all completed</button>
+            <button type="button" class="btn-secondary btn-sm" onclick="selectOldCompletedTasks()">Older than 7 days</button>
+            <button type="button" class="btn-primary btn-sm tk-sel-delete" data-testid="delete-selected-tasks" onclick="deleteSelectedTasks()"${taskSelection.size ? '' : ' disabled'}>${icons.trash()} Delete (${selN})</button>
+            <button type="button" class="btn-secondary btn-sm" onclick="exitTaskSelect()">Cancel</button>
+            <span class="tk-sel-hint">Tap tasks to pick or unpick · Enter deletes · Esc cancels</span>
+          </div>` : ''}
+        ${narrowing.length ? `<p class="tk-narrow">Showing only ${narrowing.join(', ')}. <button type="button" class="tk-link" onclick="resetAssignmentFilters()">Show all</button></p>` : ''}
+        ${cards}
       </div>
-      <div class="tk-header-actions">
-        ${all.some(a => a.isCustom) && !taskSelectMode ? `<button class="btn-secondary" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
-        ${all.length ? `<button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Paste a message or circular">Paste a message or circular</button>` : ''}
-        <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
-      </div>
+      <form class="tk-add" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
+        <button type="submit" class="tk-add-plus" data-testid="add-task-button" aria-label="Add a task" title="Add a task">+</button>
+        <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="Type a task. &quot;CN quiz on 13 Nov&quot;">
+        ${all.length ? `<button type="button" class="tk-add-paste" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Paste a message or circular">Paste</button>` : ''}
+      </form>
     </div>
-    ${taskSelectMode ? `
-      <div class="tk-selectbar" role="toolbar" aria-label="Select tasks" data-testid="task-selectbar">
-        <span class="tk-sel-count">${[...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length} selected</span>
-        <button type="button" class="btn-secondary btn-sm" onclick="selectAllCompletedTasks()">Select all completed</button>
-        <button type="button" class="btn-secondary btn-sm" onclick="selectOldCompletedTasks()">Older than 7 days</button>
-        <button type="button" class="btn-primary btn-sm tk-sel-delete" data-testid="delete-selected-tasks" onclick="deleteSelectedTasks()"${taskSelection.size ? '' : ' disabled'}>${icons.trash()} Delete (${[...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length})</button>
-        <button type="button" class="btn-secondary btn-sm" onclick="exitTaskSelect()">Cancel</button>
-        <span class="tk-sel-hint">Tap tasks to pick or unpick · Enter deletes · Esc cancels</span>
-      </div>` : ''}
-    ${all.length ? `
-      <div class="tk-seg" role="group" aria-label="Show tasks">${segBar}</div>
-      <div class="tk-toolbar">
-        <div class="tk-progress"><span><strong>${doneCount} of ${all.length}</strong> done</span><span class="tk-progress-bar" style="--p:${donePct}%"><span></span></span></div>
-        <button type="button" class="tk-filter-btn ${panelActive ? 'has-active' : ''}" aria-expanded="${state.assignFiltersOpen ? 'true' : 'false'}" aria-controls="tk-filters" onclick="toggleAssignFilters()">${svg('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>', 16)} Filter${panelActive ? `<span class="tk-filter-n">${panelActive}</span>` : ''}</button>
-      </div>
-      <div class="tk-filters" id="tk-filters" ${state.assignFiltersOpen ? '' : 'hidden'}>
-        ${statusBar ? `<div class="tk-filter-row"><span class="tk-filter-label">Status</span><div class="filter-bar">${statusBar}</div></div>` : ''}
-        ${visibleTypeFilters.length > 1 ? `<div class="tk-filter-row"><span class="tk-filter-label">Type</span><div class="filter-bar">${typeBar}</div></div>` : ''}
-        ${subjects.length > 1 ? `<div class="tk-filter-row"><span class="tk-filter-label">Subject</span><div class="filter-bar">${subjectBar}</div></div>` : ''}
-        ${panelActive ? `<button type="button" class="btn-secondary tk-reset" onclick="resetAssignmentFilters()">Reset filters</button>` : ''}
-      </div>
-    ` : ''}
-    ${cards}
   `;
 }
 
-// Empty Tasks page: "WD assignment 2 by 13 Nov" + Enter opens the usual
+// Tasks add bar: "WD assignment 2 by 13 Nov" + Enter opens the usual
 // Add Task form with the title, a date and a subject filled in from the
 // text (the WhatsApp import's date reader), so nothing saves unchecked.
 async function tkQuickAdd(input) {
   const text = String(input && input.value || '').trim();
-  if (!text) { input && input.focus(); return; }
+  // The + with nothing typed opens the full Add Task form.
+  if (!text) { showAddTaskModal(); return; }
   let dateKey = null;
   try {
     const P = await loadWaParser();
