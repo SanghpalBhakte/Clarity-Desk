@@ -7598,6 +7598,9 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-group-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 #page-assignments .tk-group-head span { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
 #page-assignments .tk-group-now.has-late .tk-group-head h2 { color: var(--status-error, var(--color-error)); }
+/* Midnight Ink: small dates and counts need a little more size on dark. */
+:root[data-theme="midnight-ink"] #page-assignments .tk-group-head span,
+:root[data-theme="midnight-ink"] #page-assignments .tk-day-date { font-size: 0.8125rem; color: var(--text-secondary); }
 
 #page-assignments .assignment-card.tk-card { flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: 56px; padding: 6px 0; border-left: 0; }
 #page-assignments .assignment-card.tk-card:hover { background: transparent; }
@@ -7654,13 +7657,13 @@ body.holiday-mode .holiday-banner {
 .tk-strip-key .k-exam { width: 6px; }
 .tk-strip-key b { margin-left: 10px; color: var(--status-error, var(--color-error)); }
 .tk-strip-grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); border-bottom: 1.5px solid var(--text-primary); }
-.tk-strip-day { position: relative; display: flex; flex-direction: column; min-height: 96px; }
+.tk-strip-day { position: relative; display: flex; flex-direction: column; }
 .tk-strip-day.is-weekend { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
 .tk-strip-day.is-week2 { border-left: 1px solid var(--color-rule); }
 .tk-strip-date { padding: 4px 0 0 8px; font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
 .tk-strip-day.is-today .tk-strip-date { font-weight: 700; color: var(--color-thread, var(--accent)); }
 .tk-strip-day.is-today::before { content: ''; position: absolute; left: 8px; top: 22px; bottom: 0; width: 2px; background: var(--color-thread, var(--accent)); }
-.tk-strip-ticks { display: flex; flex-direction: column; gap: 3px; margin-top: auto; padding: 0 2px 6px 14px; min-width: 0; }
+.tk-strip-ticks { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; padding: 0 2px 6px 14px; min-width: 0; }
 .tk-tick { overflow: hidden; padding-left: 6px; border-left: 3px solid currentColor; font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; line-height: 18px; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
 .tk-tick.is-exam { border-left-width: 6px; }
 .tk-tick.is-late { color: var(--status-error, var(--color-error)); }
@@ -7671,6 +7674,7 @@ body.holiday-mode .holiday-banner {
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
 
 @media (max-width: 767px) {
+  #page-assignments .tk-group-head h2 { font-size: 1.125rem; }
   /* Fixed, not sticky: .content-area is overflow:auto but grows with its
      content, so a sticky bar pins to it, not the screen, and opens half
      under the nav. */
