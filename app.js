@@ -9367,6 +9367,7 @@ window.setAttendance = function(dateStr, classKey, status) {
     showToast('Attendance status cleared', 'info');
   } else {
     data[dateStr][classKey] = status;
+    haptic();
     if (status === 'attended') {
       const streak = calculateAttendanceStreak();
       showUndoToast(streak >= 3 ? `Attendance logged: Attended ✓ (Streak: ${streak})` : 'Attendance logged: Attended ✓', undo, 'success');
@@ -9411,6 +9412,7 @@ window.markEndedPresent = function(dateStr) {
   if (!data[dateStr]) data[dateStr] = {};
   keys.forEach(k => { data[dateStr][k] = 'attended'; });
   safeSetStorage(KEY_ATTENDANCE, data);
+  haptic();
   maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
   showUndoToast(`${keys.length} classes marked Present ✓`, () => {
@@ -11369,16 +11371,26 @@ function logSubjectAttendanceAction(subjectKey, action) {
     liveActions[storageKey] = { present: 0, missed: 0, leave: 0 };
   }
 
+  // Undo takes back just this one tap (the "Undo taps" link resets all).
+  const undoOne = () => {
+    const live = loadLiveAttendanceActions();
+    const row = live[storageKey];
+    if (!row || !(row[action] > 0)) return;
+    row[action] -= 1;
+    saveLiveAttendanceActions(live);
+    renderPage(state.currentPage);
+  };
   if (action === 'present') {
     liveActions[storageKey].present = (liveActions[storageKey].present || 0) + 1;
-    showToast(`Logged Present (+1) for ${subj.name} ✓`, 'success');
+    showUndoToast(`Logged Present (+1) for ${subj.name} ✓`, undoOne, 'success');
   } else if (action === 'missed') {
     liveActions[storageKey].missed = (liveActions[storageKey].missed || 0) + 1;
-    showToast(`Logged Missed (+1) for ${subj.name}`, 'info');
+    showUndoToast(`Logged Missed (+1) for ${subj.name}`, undoOne, 'info');
   } else if (action === 'leave') {
     liveActions[storageKey].leave = (liveActions[storageKey].leave || 0) + 1;
-    showToast(`Logged Leave (+1) for ${subj.name}`, 'info');
+    showUndoToast(`Logged Leave (+1) for ${subj.name}`, undoOne, 'info');
   }
+  haptic();
 
   saveLiveAttendanceActions(liveActions);
   maybeCelebrateAttendanceTarget(wasOnTarget);
@@ -12975,7 +12987,7 @@ function showDeclutterDeskModal() {
     <div class="modal declutter-dialog" onclick="event.stopPropagation()" style="max-width:540px;padding:26px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Declutter my desk</h2>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Tidy my subjects</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Tidy up your subjects so you only see your own classes, once each.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
@@ -15017,7 +15029,7 @@ window.taskCardClick = (e, id) => {
       timer = null;
       _taskLongPressFired = true;
       if (!task || !task.isCustom) { showToast('Built-in tasks cannot be deleted', 'info'); return; }
-      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+      haptic(15);
       enterTaskSelect(id);
     }, HOLD_MS);
   }, true);
@@ -16214,6 +16226,12 @@ function waSaveLinks() {
 
 // A toast with one action button (used for Undo). Stays a little longer
 // than showToast() so there is time to tap it.
+// A short tick under the finger when a mark or tick lands (phones that
+// support it; silently nothing elsewhere).
+function haptic(ms = 10) {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
+}
+
 function showUndoToast(msg, onUndo, type = 'success') {
   showToast(msg, type);
   const container = document.getElementById('toast-container');
@@ -17800,10 +17818,10 @@ function renderSettings() {
     <h3 class="st-sub">Starting attendance counts</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Started using Clarity Desk mid-semester? Manually enter your current college portal / ERP attendance counts per subject. Future attendance marked in your timetable will calculate continuously from this baseline.
+        Started mid-semester? Copy each subject's attended and total classes from your college portal once. Everything you mark from now on adds to those counts.
       </div>
       <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-        ${icons.chartLine()} Configure Attendance Baselines →
+        ${icons.chartLine()} Enter starting counts →
       </button>
       <label style="display:flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
         <input type="checkbox" id="s-att-v2" ${isAttendanceV2Active() ? 'checked' : ''} onchange="setAttendanceMathMode(this.checked)" style="margin-top:3px">
@@ -17816,18 +17834,18 @@ function renderSettings() {
     <h3 class="st-sub">Tidy duplicate subjects</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Did an earlier timetable import or photo scan create duplicate, noisy, or other-batch subject cards? Clean up and normalize your Subject Hubs, timetable slots, and attendance records to match your specific practical batch.
+        Seeing the same subject twice, or another batch's labs, after a scan or import? Tidy them up to match your batch. You see every change before it's made, and you can undo it.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px">
-          ${icons.declutter()} Declutter my desk →
+          ${icons.declutter()} Tidy my subjects →
         </button>
         ${(() => {
           const b = loadDeclutterBackup();
           if (b && b.timestamp) {
             return `
               <button class="btn-secondary" onclick="showRestoreDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px;color:var(--text-secondary)">
-                ↩ Restore Previous Desk (${new Date(b.timestamp).toLocaleDateString()})
+                ↩ Undo the last tidy (${new Date(b.timestamp).toLocaleDateString()})
               </button>
             `;
           }
@@ -18139,12 +18157,14 @@ const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branc
   'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts', 'np-new-notices',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
+let settingsPendingSave = null;
 function settingsAutoSave(e) {
   const t = e.target;
   if (!t || !SETTINGS_AUTOSAVE_IDS.has(t.id)) return;
   clearTimeout(settingsTypingTimer);
-  const save = () => saveSettings({ quiet: true, from: t });
-  if (e.type === 'input') settingsTypingTimer = setTimeout(save, 900);
+  settingsTypingTimer = null;
+  const save = () => { settingsTypingTimer = null; settingsPendingSave = null; saveSettings({ quiet: true, from: t }); };
+  if (e.type === 'input') { settingsPendingSave = save; settingsTypingTimer = setTimeout(save, 900); }
   else save();
 }
 function settingsWire(el) {
@@ -18152,6 +18172,11 @@ function settingsWire(el) {
     el.dataset.autosave = '1';
     el.addEventListener('change', settingsAutoSave);
     el.addEventListener('input', settingsAutoSave);
+    // Leaving within the typing pause (closing the app, switching apps)
+    // still saves what was typed.
+    const flush = () => { if (settingsTypingTimer) { clearTimeout(settingsTypingTimer); settingsTypingTimer = null; settingsPendingSave && settingsPendingSave(); } };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   }
   // The jump list follows the section in view.
   if (window.__stObserver) window.__stObserver.disconnect();
@@ -19216,9 +19241,24 @@ window.sendAssistantMessage  = sendAssistantMessage;
 window.clearAssistantChat    = clearAssistantChat;
 
 // The last pending task gets the "all caught up" card; any other gets the usual toast.
-function celebrateTaskDone() {
+function celebrateTaskDone(undo) {
+  haptic();
   if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
+  else if (undo) showUndoToast('Task marked completed ✓', undo, 'success');
   else showToast('Task marked completed ✓', 'success');
+}
+
+// Undo for a tick: the task goes back to pending, quietly. Looked up by
+// id when Undo is tapped, since saving replaces the task objects.
+function taskTickUndo(id, custom) {
+  return () => {
+    const task = (custom ? state.customTasks : state.assignments).find(x => x.id === id);
+    if (!task || task.status !== 'submitted') return;
+    task.status = 'pending';
+    custom ? saveCustomTasks() : saveAssignments();
+    renderPage(state.currentPage);
+    updateNavBadges();
+  };
 }
 
 window.toggleAssignment = (id) => {
@@ -19229,7 +19269,7 @@ window.toggleAssignment = (id) => {
     ct.status = isNowDone ? 'submitted' : 'pending';
     saveCustomTasks();
     if (isNowDone) {
-      celebrateTaskDone();
+      celebrateTaskDone(taskTickUndo(id, true));
     } else {
       showToast('Task moved back to pending', 'info');
     }
@@ -19244,7 +19284,7 @@ window.toggleAssignment = (id) => {
   a.status = isNowDone ? 'submitted' : 'pending';
   saveAssignments();
   if (isNowDone) {
-    celebrateTaskDone();
+    celebrateTaskDone(taskTickUndo(id, false));
   } else {
     showToast('Task moved back to pending', 'info');
   }
@@ -19275,6 +19315,13 @@ function updateNavBadges() {
 
   // Update browser tab title with pending count
   document.title = pending > 0 ? `(${pending}) Clarity Desk` : 'Clarity Desk';
+
+  // Installed app icon: how many tasks are due today or overdue.
+  if ('setAppBadge' in navigator) {
+    const today = todayStr();
+    const due = allTasks().filter(t => t.status === 'pending' && t.dueDate && !t.noDeadline && t.dueDate <= today).length;
+    try { (due ? navigator.setAppBadge(due) : navigator.clearAppBadge()).catch(() => {}); } catch (_) {}
+  }
 
   document.querySelectorAll('[data-nav="assignments"]').forEach(el => {
     // Sidebar: dot indicator (no badge number)

@@ -318,6 +318,10 @@ test.describe('Settings: sections that save as you go', () => {
     await roll.blur();
     await expect(page.locator('#st-profile .st-saved')).toHaveText('✓ Saved');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_profile') || '{}').rollNo)).toBe('2026/AI/042');
+    // Typed, then the app is closed before the pause ends: still saved.
+    await page.locator('#s-batch').pressSequentially('A2');
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_profile') || '{}').batch)).toBe('A2');
     await page.locator('#np-class-reminders').selectOption('30_min');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_notif_prefs') || '{}').classReminders)).toBe('30_min');
 
@@ -327,5 +331,31 @@ test.describe('Settings: sections that save as you go', () => {
     await expect(danger.getByRole('button', { name: 'Clear…' })).toHaveCount(2);
     await expect(page.locator('#st-data').getByRole('button', { name: /Clear/ })).toHaveCount(0);
     expect((await horizontalOverflow(page)).wide).toEqual([]);
+  });
+});
+
+test.describe('Undo on quick taps', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('a hub Present +1 and a task tick can each be taken back from the toast', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('subjects'));
+    await page.locator('#page-subjects .attendance-subject-card').first().click();
+    const live = () => page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('cos_attendance_live') || '{}')));
+    const before = await live();
+    await page.getByRole('button', { name: 'Present +1' }).click();
+    expect(await live()).not.toBe(before);
+    await page.locator('.toast-has-action button').last().click();
+    expect(await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('cos_attendance_live') || '{}')).every((r: any) => !r.present))).toBe(true);
+
+    await page.evaluate(() => {
+      const ws = (window as any);
+      ws.state.customTasks.push({ id: 't-undo', title: 'Lab record', status: 'pending', isCustom: true, dueDate: '2026-09-30' });
+      ws.state.customTasks.push({ id: 't-other', title: 'Essay', status: 'pending', isCustom: true, dueDate: '2026-10-02' });
+      ws.toggleAssignment('t-undo');
+    });
+    expect(await page.evaluate(() => (window as any).state.customTasks.find((t: any) => t.id === 't-undo').status)).toBe('submitted');
+    await page.locator('.toast-has-action button').last().click();
+    expect(await page.evaluate(() => (window as any).state.customTasks.find((t: any) => t.id === 't-undo').status)).toBe('pending');
   });
 });
