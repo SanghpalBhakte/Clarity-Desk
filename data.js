@@ -170,6 +170,66 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u207",
+    date: "2026-11-04",
+    title: "Pasted notices: number ranges like 3-5 are no longer read as dates",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Pasted notices: number ranges like 3-5 are no longer read as dates",
+    points: [
+
+    ]
+  },
+  {
+    id: "u206",
+    date: "2026-11-04",
+    title: "Pasted notices: more dates found, you choose which to keep",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Pasted notices: more dates found, you choose which to keep",
+    points: [
+
+    ]
+  },
+  {
+    id: "u205",
+    date: "2026-11-04",
+    title: "Paste a message or circular: you can now paste a plain notice or circular (no WhatsApp timestamps) and review the deadlines before anything is saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Paste a message or circular: you can now paste a plain notice or circular (no WhatsApp timestamps) and review the deadlines before anything is saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u204",
+    date: "2026-11-04",
+    title: "Laptop sidebar now has a College portal link; unused search styles removed",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Laptop sidebar now has a College portal link; unused search styles removed",
+    points: [
+
+    ]
+  },
+  {
+    id: "u203",
+    date: "2026-11-04",
+    title: "The empty Notices tab is gone; your college portal link now opens from the More menu",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The empty Notices tab is gone; your college portal link now opens from the More menu",
+    points: [
+
+    ]
+  },
+  {
     id: "u202",
     date: "2026-11-04",
     title: "Long-press the app icon to jump straight to Today, Tasks or Timetable",
