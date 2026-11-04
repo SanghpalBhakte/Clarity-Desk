@@ -11864,7 +11864,14 @@ function buildAttendanceV2FromV1(v1 = {}, timetable = {}, opts = {}) {
     const present = attV2Int(v.present), missed = attV2Int(v.missed), leave = attV2Int(v.leave);
     if (!present && !missed && !leave) return;
     v1Taps += present + missed + leave;
-    const id = resolveAlias(key);
+    // A tap from a subject card names the card ("DS"); when DS and its lab
+    // share that code, the card is the theory. Only a key that says "lab"
+    // goes to the lab. Dated marks keep the strict rule above.
+    const id = resolveAlias(key) || (() => {
+      if (/lab|practical/i.test(key)) return null;
+      const theory = [...(aliasToIds[attV2CleanKey(key)] || [])].filter(i => !i.endsWith('__lab'));
+      return theory.length === 1 ? theory[0] : null;
+    })();
     if (!id) { unmatchedTaps.push({ key, present, missed, leave }); return; }
     const a = adjustments[id] = adjustments[id] || { present: 0, missed: 0, leave: 0, source: 'live' };
     a.present += present; a.missed += missed; a.leave += leave;
