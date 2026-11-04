@@ -12987,7 +12987,7 @@ function showDeclutterDeskModal() {
     <div class="modal declutter-dialog" onclick="event.stopPropagation()" style="max-width:540px;padding:26px 22px">
       <div class="modal-header" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
         <div>
-          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Declutter my desk</h2>
+          <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Tidy my subjects</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Tidy up your subjects so you only see your own classes, once each.</div>
         </div>
         <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
@@ -17818,10 +17818,10 @@ function renderSettings() {
     <h3 class="st-sub">Starting attendance counts</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Started using Clarity Desk mid-semester? Manually enter your current college portal / ERP attendance counts per subject. Future attendance marked in your timetable will calculate continuously from this baseline.
+        Started mid-semester? Copy each subject's attended and total classes from your college portal once. Everything you mark from now on adds to those counts.
       </div>
       <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-        ${icons.chartLine()} Configure Attendance Baselines →
+        ${icons.chartLine()} Enter starting counts →
       </button>
       <label style="display:flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
         <input type="checkbox" id="s-att-v2" ${isAttendanceV2Active() ? 'checked' : ''} onchange="setAttendanceMathMode(this.checked)" style="margin-top:3px">
@@ -17834,18 +17834,18 @@ function renderSettings() {
     <h3 class="st-sub">Tidy duplicate subjects</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Did an earlier timetable import or photo scan create duplicate, noisy, or other-batch subject cards? Clean up and normalize your Subject Hubs, timetable slots, and attendance records to match your specific practical batch.
+        Seeing the same subject twice, or another batch's labs, after a scan or import? Tidy them up to match your batch. You see every change before it's made, and you can undo it.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px">
-          ${icons.declutter()} Declutter my desk →
+          ${icons.declutter()} Tidy my subjects →
         </button>
         ${(() => {
           const b = loadDeclutterBackup();
           if (b && b.timestamp) {
             return `
               <button class="btn-secondary" onclick="showRestoreDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px;color:var(--text-secondary)">
-                ↩ Restore Previous Desk (${new Date(b.timestamp).toLocaleDateString()})
+                ↩ Undo the last tidy (${new Date(b.timestamp).toLocaleDateString()})
               </button>
             `;
           }
@@ -18157,12 +18157,14 @@ const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branc
   'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts', 'np-new-notices',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
+let settingsPendingSave = null;
 function settingsAutoSave(e) {
   const t = e.target;
   if (!t || !SETTINGS_AUTOSAVE_IDS.has(t.id)) return;
   clearTimeout(settingsTypingTimer);
-  const save = () => saveSettings({ quiet: true, from: t });
-  if (e.type === 'input') settingsTypingTimer = setTimeout(save, 900);
+  settingsTypingTimer = null;
+  const save = () => { settingsTypingTimer = null; settingsPendingSave = null; saveSettings({ quiet: true, from: t }); };
+  if (e.type === 'input') { settingsPendingSave = save; settingsTypingTimer = setTimeout(save, 900); }
   else save();
 }
 function settingsWire(el) {
@@ -18170,6 +18172,11 @@ function settingsWire(el) {
     el.dataset.autosave = '1';
     el.addEventListener('change', settingsAutoSave);
     el.addEventListener('input', settingsAutoSave);
+    // Leaving within the typing pause (closing the app, switching apps)
+    // still saves what was typed.
+    const flush = () => { if (settingsTypingTimer) { clearTimeout(settingsTypingTimer); settingsTypingTimer = null; settingsPendingSave && settingsPendingSave(); } };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
   }
   // The jump list follows the section in view.
   if (window.__stObserver) window.__stObserver.disconnect();
