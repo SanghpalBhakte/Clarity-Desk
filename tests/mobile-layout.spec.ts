@@ -269,22 +269,22 @@ test.describe('Subject Hubs: Select to remove', () => {
   });
 });
 
-test.describe('Subject hub: Study Resources tile', () => {
+test.describe('Subject hub: one home per subject', () => {
   test.use({ viewport: { width: 360, height: 640 } });
 
-  test('tapping it brings the subject\'s links on screen', async ({ page }) => {
+  test('the hub fits the phone and its shelf action is reachable', async ({ page }) => {
     await openApp(page);
     await page.evaluate(() => (window as any).navigate('subjects'));
     await page.waitForTimeout(80);
     await page.locator('#page-subjects .attendance-subject-card').first().click();
+    await expect(page.locator('.hub-head')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Present +1' })).toBeVisible();
     const section = page.locator('#hub-study-links');
-    await expect(section).toBeVisible();
-    expect(await section.evaluate(el => el.getBoundingClientRect().top), 'links start below the first screen').toBeGreaterThan(640);
-
-    await page.locator('.hub-links-tile').click();
-    // It is the last section, so the page may stop scrolling before it reaches the top.
-    await expect(section.locator('.section-heading')).toBeInViewport({ ratio: 1 });
-    await expect(section.getByRole('button', { name: '+ Add Link' })).toBeInViewport({ ratio: 1 });
-    expect(await section.evaluate(el => el.getBoundingClientRect().top), 'heading not hidden under the top bar').toBeGreaterThanOrEqual(56);
+    const add = section.getByRole('button', { name: '+ Link or file' });
+    await add.scrollIntoViewIfNeeded();
+    await expect(add).toBeInViewport({ ratio: 1 });
+    const box = await add.boundingBox();
+    expect(box!.height, 'shelf action is a real tap target').toBeGreaterThanOrEqual(40);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), 'no sideways scroll').toBeLessThanOrEqual(360);
   });
 });

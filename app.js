@@ -14499,8 +14499,6 @@ function renderSubjectsOverview(el, subjects) {
 function renderSingleSubjectHub(el, subj, allSubjects) {
   const att = getSubjectAttendance(subj);
   const tasks = allTasks().filter(t => (t.subject || '').toLowerCase() === subj.name.toLowerCase() || (t.subject || '').toLowerCase() === subj.code.toLowerCase());
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const doneTasks = tasks.filter(t => t.status === 'submitted');
 
   const subjectVaults = loadCustomLinks().filter(l => 
     (l.subject || '').toLowerCase() === subj.name.toLowerCase() || 
@@ -14514,187 +14512,158 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     }
   });
 
-  // Timetable slots
-  const slotsHTML = subj.slots.length > 0 ? subj.slots.map(sl => `
-    <div class="card card-sm" style="margin-bottom:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <div>
-        <div style="font-weight:600;font-size:var(--text-base)">${DAY_NAMES[sl.day]} · ${formatDisplayTimeRange(sl.time, sl.end)}</div>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">${escHtml_cd(sl.room || subj.room || 'Classroom')} ${escHtml_cd(sl.teacher ? '· ' + sl.teacher : subj.teacher ? '· ' + subj.teacher : '')} ${sl.batches && sl.batches.length > 0 ? '· Batch ' + sl.batches.join(', ') : ''}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span class="type-badge" style="font-size:var(--text-xs);text-transform:capitalize">${sl.type || 'lecture'}</span>
-        <span class="type-badge">${escHtml_cd(sl.code || subj.code)}</span>
-      </div>
-    </div>
-  `).join('') : `<div style="font-size:var(--text-base);color:var(--text-muted);padding:10px 0">No weekly timetable slots assigned to this subject yet.</div>`;
+  const code = String(subj.code || '').trim();
+  const short = code || subj.name;
+  const ringCode = code.slice(0, 5);
+  const subjArg = jsArg_cd(subj.code || subj.name);
+  const nameArg = jsArg_cd(subj.name);
+  const nameQ = (subj.name || '').replace(/'/g, "\\'");
+  const codeQ = (subj.code || '').replace(/'/g, "\\'");
 
-  // Tasks list
+  // Ring: same gauge as the overview, larger, with the 75% notch.
+  const tier = att.pct === null ? 'none' : att.isSafe ? 'safe' : att.pct >= att.targetPct - 10 ? 'watch' : 'risk';
+  const RING_C = 2 * Math.PI * 42;
+  const ringPct = att.pct === null ? 0 : Math.max(0, Math.min(100, att.exactPct !== null ? att.exactPct : att.pct));
+  const th = (att.targetPct / 100) * 2 * Math.PI;
+  const tick = [52 + 34 * Math.sin(th), 52 - 34 * Math.cos(th), 52 + 50 * Math.sin(th), 52 - 50 * Math.cos(th)].map(n => n.toFixed(1));
+  const pctText = att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}%` : '';
+
+  // One plain sentence about where the student stands.
+  const storyFor = (a, who) => a.pct === null ? `No ${escHtml_cd(who)} classes marked yet. Your line is ${a.targetPct}%.`
+    : a.isSafe ? (a.safeSkips > 0 ? `Safe. You can miss ${a.safeSkips} ${escHtml_cd(who)} class${a.safeSkips !== 1 ? 'es' : ''} and stay above the line.` : `Right on the line. Attend the next one to build a buffer.`)
+    : `Below the line. Attend the next ${a.classesToAttend} ${escHtml_cd(who)} class${a.classesToAttend !== 1 ? 'es' : ''} to get back to ${a.targetPct}%.`;
+  const projection = [att.projection ? attV2ProjectionText(att, true) : '', att.labPart && att.labPart.projection ? `Lab: ${attV2ProjectionText(att.labPart, true)}` : ''].filter(Boolean).join('<br>');
+  const liveTaps = att.liveAdj.present > 0 || att.liveAdj.missed > 0 || att.liveAdj.leave > 0;
+
+  // Head meta: who and where, then what kind of classes and which batch.
+  const teacher = subj.teacher ? formatTeacherName(subj.teacher) : '';
+  const types = [...new Set(subj.slots.map(sl => (sl.type || 'lecture') === 'lab' ? 'lab' : 'lecture'))];
+  const kinds = types.length === 2 ? 'Lectures + lab' : types[0] === 'lab' ? 'Lab' : types.length ? 'Lectures' : '';
+  const batches = [...new Set(subj.slots.flatMap(sl => sl.batches || []))];
+  const meta2 = [kinds, batches.length ? `batch ${batches.join(', ')}` : '', code.length > 5 ? code : ''].filter(Boolean).join(' · ');
+
+  // This week: one cell per day, a dashed cell when there is no class.
+  const today = new Date().getDay();
+  const nowMin = currentTimeMinutes();
+  const byDay = {};
+  subj.slots.forEach(sl => { (byDay[sl.day] = byDay[sl.day] || []).push(sl); });
+  Object.values(byDay).forEach(list => list.sort((x, y) => timeToMinutes(x.time) - timeToMinutes(y.time)));
+  const days = byDay[0] ? [1, 2, 3, 4, 5, 6, 0] : [1, 2, 3, 4, 5, 6];
+  const weekHTML = days.map(d => {
+    const list = byDay[d] || [];
+    const first = list[0];
+    const isLab = first && first.type === 'lab';
+    const [hm, ap] = first ? formatDisplayTime(first.time || '').split(' ') : ['', ''];
+    const label = list.map(sl => `${formatDisplayTime(sl.time)} ${sl.type || 'lecture'}${sl.room ? ', ' + sl.room : ''}`).join('; ');
+    return `
+      <div class="hub-day${d === today ? ' is-today' : ''}">
+        <span class="hub-day-name">${DAY_SHORT[d]}</span>
+        ${first ? `<button type="button" class="hub-day-cell${isLab ? ' is-lab' : ''}" onclick="navigateTo('timetable'); setTTDay(${d})" aria-label="${escAttr_cd(`${DAY_NAMES[d]}: ${label}. Open timetable`)}">
+          <span class="hub-day-time">${isLab ? 'Lab' : escHtml_cd(hm)}</span>
+          <span class="hub-day-sub">${isLab ? escHtml_cd(hm + ' ' + (ap || '')) : escHtml_cd(ap || '')}${list.length > 1 ? ` +${list.length - 1}` : ''}</span>
+        </button>` : `<span class="hub-day-cell is-empty" aria-label="${DAY_NAMES[d]}: no class"></span>`}
+      </div>`;
+  }).join('');
+  const nextSlot = (() => {
+    for (let k = 0; k < 7; k++) {
+      const d = (today + k) % 7;
+      const hit = (byDay[d] || []).find(sl => k > 0 || timeToMinutes(sl.time) > nowMin);
+      if (hit) return { d, k, sl: hit };
+    }
+    return null;
+  })();
+  const weekLine = subj.slots.length
+    ? `${subj.slots.length} class${subj.slots.length !== 1 ? 'es' : ''} a week.${nextSlot ? ` Next: ${nextSlot.k === 0 ? 'today' : nextSlot.k === 1 ? 'tomorrow' : DAY_NAMES[nextSlot.d]} ${formatDisplayTime(nextSlot.sl.time)} ${escHtml_cd(nextSlot.sl.type || 'lecture')}.` : ''}`
+    : 'No weekly timetable slots assigned to this subject yet.';
+
+  // Tasks as rows on rules, not cards.
   const tasksHTML = tasks.length > 0 ? tasks.map(a => {
     const isOngoing = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
     const days  = isOngoing ? null : dueDaysLeft(a.dueDate);
     const done  = a.status === 'submitted';
-    const label = done ? 'Completed ✓' : isOngoing ? '🚀 Ongoing' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : `${days}d left`;
+    const label = done ? 'Done' : isOngoing ? 'Ongoing' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : `${days}d left`;
     const cls   = done ? '' : isOngoing ? 'ongoing' : days < 0 ? 'overdue' : days === 0 ? 'today' : days <= 3 ? 'soon' : '';
-    const dateText = isOngoing ? 'Standing Mission' : `Due ${formatDate(a.dueDate)}`;
     return `
-      <div class="card card-sm assignment-card" style="margin-bottom:6px;display:flex;align-items:center;gap:10px;padding:10px 12px">
-        <div onclick="toggleAssignment('${a.id}')" title="Click to mark done" style="width:18px;height:18px;border-radius:4px;border:2px solid ${done ? 'var(--green)' : a.priority==='high' ? 'var(--red)' : a.priority==='medium' ? 'var(--yellow)' : 'var(--border)'};background:${done ? 'var(--green)' : 'transparent'};display:grid;place-items:center;flex-shrink:0;color:white;cursor:pointer;transition:all 0.15s">
-          ${done ? icons.check() : ''}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div class="font-semibold" style="font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.5':''}">${escHtml_cd(a.title)}</div>
-          <div class="text-xs text-muted">${dateText}</div>
-        </div>
+      <div class="hub-row${done ? ' is-done' : ''}">
+        <button type="button" class="hub-check${done ? ' is-on' : ''}" onclick="toggleAssignment('${a.id}')" aria-label="${escAttr_cd((done ? 'Mark not done: ' : 'Mark done: ') + a.title)}">${done ? icons.check() : ''}</button>
+        <span class="hub-row-main"><span class="hub-row-title">${escHtml_cd(a.title)}</span><span class="hub-row-sub">${isOngoing ? 'Ongoing' : `Due ${formatDate(a.dueDate)}`}</span></span>
         <span class="due-badge ${cls}">${label}</span>
       </div>`;
-  }).join('') : `<div style="font-size:var(--text-base);color:var(--text-muted);padding:10px 0">No active tasks for this subject. Tap + Add Task to create one.</div>`;
+  }).join('') : `<p class="hub-quiet">Nothing due for ${escHtml_cd(short)}. Lab record, assignment, quiz?</p>`;
 
-  // Links list
-  const linksHTML = allResources.length > 0 ? allResources.map(r => `
-    <div class="card card-sm" style="margin-bottom:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
-        <span class="r-icon" style="font-size:var(--text-lg);line-height:1">${getResourceIcon(r.icon || 'book-open')}</span>
-        <div style="min-width:0;flex:1">
-          <div style="font-weight:600;font-size:var(--text-base);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${vaultEsc(r.label)}</div>
-          ${r.fileSize ? `<div style="font-size:var(--text-xs);color:var(--text-muted)">${vaultEsc(r.fileSize)}</div>` : ''}
-        </div>
-      </div>
-      ${vaultPlaceholderFetchable(r)
-        ? `<button type="button" onclick="${vaultPlaceholderHere(r) ? 'vaultOpenFile' : 'vaultGetCloudFile'}(${jsArg_cd(r.fileId)})" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px" title="${vaultPlaceholderHere(r) ? '' : 'Added on another device. Download it here.'}">Download 📥</button>`
-        : isVaultPlaceholder(r)
-        ? `<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span>`
-        : vaultIdbMissing(r)
-        ? `<span class="vault-on-device" title="${vaultEsc(VAULT_MISSING_MESSAGE)}">Missing on this device</span>`
-        : isVaultIdbFile(r)
-        ? `<button type="button" onclick="vaultOpenFile('${vaultEsc(r.fileId)}')" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">Download 📥</button>`
-        : !vaultSafeUrl(r.url)
-        ? `<span class="vault-on-device" title="This address can’t be opened from the vault.">Link blocked</span>`
-        : `<a href="${vaultEsc(vaultSafeUrl(r.url))}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="font-size:var(--text-sm);padding:3px 9px">${r.isUpload ? 'Download 📥' : 'Open ↗'}</a>`}
-    </div>
-  `).join('') : `
-    <div class="empty-state-card" style="padding:16px 14px;margin-top:6px;text-align:center">
-      <div style="font-size:var(--text-xl);margin-bottom:4px">📚</div>
-      <div style="font-weight:600;font-size:var(--text-md);color:var(--text-primary);margin-bottom:2px">No Study Links or Notes Yet</div>
-      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:10px">Attach drive folders, lecture notes, syllabus PDFs, or code repos for ${escHtml_cd(subj.name)}.</div>
-      <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:5px 14px">+ Add Study Link / Note</button>
-    </div>
-  `;
+  // Study shelf: this subject's Vault items as plain rows.
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+  const arrow = svg('<path d="M7 17 17 7M9 7h8v8"/>', 14);
+  const linksHTML = allResources.length > 0 ? allResources.map(r => {
+    const title = `<span class="hub-row-main"><span class="hub-row-title">${vaultEsc(r.label)}</span>${r.fileSize ? `<span class="hub-row-sub">${vaultEsc(r.fileSize)}</span>` : ''}</span>`;
+    if (vaultPlaceholderFetchable(r)) return `<button type="button" class="hub-row hub-link" onclick="${vaultPlaceholderHere(r) ? 'vaultOpenFile' : 'vaultGetCloudFile'}(${jsArg_cd(r.fileId)})" title="${vaultPlaceholderHere(r) ? '' : 'Added on another device. Download it here.'}">${title}<span class="hub-row-sub">Download</span></button>`;
+    if (isVaultPlaceholder(r)) return `<div class="hub-row">${title}<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span></div>`;
+    if (vaultIdbMissing(r)) return `<div class="hub-row">${title}<span class="vault-on-device" title="${vaultEsc(VAULT_MISSING_MESSAGE)}">Missing on this device</span></div>`;
+    if (isVaultIdbFile(r)) return `<button type="button" class="hub-row hub-link" onclick="vaultOpenFile('${vaultEsc(r.fileId)}')">${title}<span class="hub-row-sub">Download</span></button>`;
+    if (!vaultSafeUrl(r.url)) return `<div class="hub-row">${title}<span class="vault-on-device" title="This address can’t be opened from the vault.">Link blocked</span></div>`;
+    return `<a class="hub-row hub-link" href="${vaultEsc(vaultSafeUrl(r.url))}" target="_blank" rel="noopener noreferrer">${title}<span class="hub-row-sub">${r.isUpload ? 'Download' : vaultEsc(hostOf(vaultSafeUrl(r.url)))}</span>${r.isUpload ? '' : arrow}</a>`;
+  }).join('') : `<p class="hub-quiet">Nothing on the shelf yet. Drive folders, lecture notes, syllabus PDFs or code repos for ${escHtml_cd(subj.name)} go here.</p>`;
 
   el.innerHTML = `
-    <div style="margin-bottom:16px">
-      <button class="btn btn-sm btn-secondary" onclick="closeSubjectHub()" style="margin-bottom:12px;font-size:var(--text-sm);display:inline-flex;align-items:center;gap:6px">
-        ← All Subjects
-      </button>
+    <button type="button" class="hub-back" onclick="closeSubjectHub()">${svg('<path d="m15 6-6 6 6 6"/>', 16)} Subjects</button>
 
-      <div class="card" style="padding:20px;border-left:4px solid ${subj.color || 'var(--accent)'}">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div>
-            <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">${escHtml_cd(subj.name)}</div>
-            <div style="font-size:var(--text-base);color:var(--text-muted);margin-top:2px">
-              ${subj.code ? 'Course Code: <strong>' + escHtml_cd(subj.code) + '</strong> · ' : ''}
-              ${subj.teacher ? 'Faculty: <strong>' + escHtml_cd(formatTeacherName(subj.teacher)) + '</strong> · ' : ''}
-              ${subj.room ? 'Room: <strong>' + escHtml_cd(subj.room) + '</strong>' : ''}
-            </div>
+    <div class="hub">
+      <div class="hub-col">
+        <section class="hub-head" aria-label="${escAttr_cd(subj.name)}">
+          <svg class="sj-ring hub-ring ${tier}" width="104" height="104" viewBox="0 0 104 104" role="img" aria-label="${escAttr_cd(`${subj.name} attendance ${pctText || 'not marked yet'}, line at ${att.targetPct}%`)}">
+            <circle class="sj-ring-track" cx="52" cy="52" r="42"/>
+            <circle class="sj-ring-fill" cx="52" cy="52" r="42" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 52 52)"/>
+            <line class="sj-ring-tick" x1="${tick[0]}" y1="${tick[1]}" x2="${tick[2]}" y2="${tick[3]}"/>
+            ${ringCode ? `<text class="hub-ring-code${ringCode.length > 3 ? ' is-long' : ''}" x="52" y="${pctText ? 47 : 52}" text-anchor="middle" dominant-baseline="central" aria-hidden="true">${escHtml_cd(ringCode)}</text>` : ''}
+            ${pctText ? `<text class="hub-ring-pct" x="52" y="72" text-anchor="middle" aria-hidden="true">${escHtml_cd(pctText)}</text>` : ''}
+          </svg>
+          <div class="hub-head-text">
+            <h1 class="hub-title">${escHtml_cd(subj.name)}</h1>
+            ${teacher || subj.room ? `<div class="hub-meta">${escHtml_cd([teacher, subj.room].filter(Boolean).join(' · '))}</div>` : ''}
+            ${meta2 ? `<div class="hub-meta2">${escHtml_cd(meta2)}</div>` : ''}
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span class="type-badge" style="font-size:var(--text-sm);padding:5px 12px;background:${att.pct===null?'var(--surface-2)':att.isSafe?'color-mix(in srgb, var(--status-success) 14%, transparent)':'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.pct===null?'var(--text-muted)':att.isSafe?'var(--status-success)':'var(--status-error)'}">
-              ${att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}% Attendance (${att.attended}/${att.total})` : 'Attendance not set yet'}
-            </span>
-            ${att.labPart && att.labPart.pct !== null ? `<span class="type-badge" style="font-size:var(--text-sm);padding:5px 12px;background:${att.labPart.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${att.labPart.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">Lab ${att.labPart.pctLabel}% (${att.labPart.attended}/${att.labPart.total})</span>` : ''}
-            <button class="btn btn-sm ${att.hasBaseline ? 'btn-secondary' : 'btn-primary'}" onclick="showBaselineModal(${jsArg_cd(subj.code || subj.name)})" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-sm);padding:5px 11px">
-              ${icons.chartLine()} ${att.hasBaseline ? 'Edit Baseline' : 'Set Baseline'}
-            </button>
-            ${att.projection || (att.labPart && att.labPart.projection) ? `<div style="flex-basis:100%;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5">${att.projection ? attV2ProjectionText(att, true) : ''}${att.projection && att.labPart && att.labPart.projection ? '<br>' : ''}${att.labPart && att.labPart.projection ? `Lab: ${attV2ProjectionText(att.labPart, true)}` : ''}</div>` : ''}
-            ${isAttendanceV2Active() ? attOdWaitingHTML(att) : ''}
-            ${isAttendanceV2Active() ? `<button type="button" class="btn btn-sm btn-secondary" onclick="showAddExtraClassModal('${String(subj.name).replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:5px 11px">+ Add extra class</button>` : ''}
-          </div>
-        </div>
+        </section>
 
-        ${att.hasBaseline ? `
-          <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-            <div>ERP baseline: <strong>${att.baseline.present} / ${att.baseline.totalCount - att.baseline.notEntered}</strong> (${(att.baseline.totalCount - att.baseline.notEntered) > 0 ? ((att.baseline.present/(att.baseline.totalCount - att.baseline.notEntered))*100).toFixed(2) : 0}%)${att.baseline.notEntered ? ` · ${att.baseline.notEntered} not entered` : ''}</div>
-            <div>${(att.dailyAttended > 0 || att.dailySkipped > 0 || att.liveAdj.present > 0 || att.liveAdj.missed > 0) ? `Live marked: <strong>+${att.dailyAttended + att.liveAdj.present}</strong> attended, <strong>+${att.dailySkipped + att.liveAdj.missed}</strong> missed` : 'Live tracking active from baseline'}</div>
+        <section class="hub-section" aria-label="Attendance">
+          <p class="hub-story">${storyFor(att, short)}</p>
+          ${att.labPart && att.labPart.pct !== null ? `<p class="hub-story-lab">Lab ${att.labPart.pctLabel}%: ${storyFor(att.labPart, short + ' lab')}</p>` : ''}
+          ${projection ? `<p class="hub-note">${projection}</p>` : ''}
+          <div class="hub-mark">
+            <button type="button" class="hub-mark-btn is-yes" onclick="logSubjectAttendanceAction(${subjArg}, 'present')">Present +1</button>
+            <button type="button" class="hub-mark-btn" onclick="logSubjectAttendanceAction(${subjArg}, 'missed')">Missed +1</button>
           </div>
-        ` : ''}
+          <div class="hub-tally">${att.pct !== null ? `${att.attended} of ${att.total} attended` : 'Tap after each class, or mark it from Today.'}</div>
+          <div class="hub-links">
+            <button type="button" onclick="logSubjectAttendanceAction(${subjArg}, 'leave')">Leave +1</button>
+            <button type="button" onclick="showBaselineModal(${subjArg})">${att.hasBaseline ? 'Edit counts from portal' : 'Counts from portal'}</button>
+            ${isAttendanceV2Active() ? `<button type="button" onclick="showAddExtraClassModal(${nameArg})">+ Extra class</button>` : ''}
+            ${liveTaps ? `<button type="button" onclick="undoSubjectAttendanceAction(${subjArg})" title="Reset live manual adjustments">Undo taps</button>` : ''}
+          </div>
+          ${att.hasBaseline ? `<div class="hub-note">Portal: ${att.baseline.present} / ${att.baseline.totalCount - att.baseline.notEntered}${att.baseline.notEntered ? ` · ${att.baseline.notEntered} not entered` : ''}${(att.dailyAttended > 0 || att.dailySkipped > 0 || att.liveAdj.present > 0 || att.liveAdj.missed > 0) ? ` · since then +${att.dailyAttended + att.liveAdj.present} attended, +${att.dailySkipped + att.liveAdj.missed} missed` : ''}</div>` : ''}
+          ${isAttendanceV2Active() ? attOdWaitingHTML(att) : ''}
+        </section>
 
-        <!-- Quick Log Action Bar on Subject Hub -->
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-          <span style="font-size:var(--text-xs);font-weight:600;color:var(--text-muted);letter-spacing:-0.01em">Quick Log:</span>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)}, 'present')" style="color:var(--status-success);border-color:color-mix(in srgb, var(--status-success) 35%, transparent)">
-            Present (+1)
-          </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)}, 'missed')" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">
-            Missed (+1)
-          </button>
-          <button class="btn btn-sm btn-secondary attendance-action-btn" onclick="logSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)}, 'leave')" style="color:var(--status-warning);border-color:color-mix(in srgb, var(--status-warning) 35%, transparent)">
-            Leave (+1)
-          </button>
-          ${(att.liveAdj.present > 0 || att.liveAdj.missed > 0 || att.liveAdj.leave > 0) ? `
-            <button class="btn btn-xs btn-secondary" onclick="undoSubjectAttendanceAction(${jsArg_cd(subj.code || subj.name)})" title="Reset live manual adjustments" style="color:var(--text-muted);font-size:var(--text-xs);padding:3px 7px">
-              ↩ Reset Live Adjustments
-            </button>
-          ` : ''}
-        </div>
+        <section class="hub-section" aria-label="This week">
+          <div class="hub-h"><h2>This week</h2><button type="button" class="hub-act" onclick="navigateTo('timetable')">Timetable →</button></div>
+          ${subj.slots.length ? `<div class="hub-week" style="grid-template-columns:repeat(${days.length}, minmax(0, 1fr))">${weekHTML}</div>` : ''}
+          <p class="hub-quiet">${weekLine}</p>
+        </section>
+      </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-          <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">Weekly Slots</div>
-            <div style="font-size:var(--text-lg);font-weight:700;margin-top:2px">${subj.slots.length} class${subj.slots.length!==1?'es':''}</div>
-          </div>
-          <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">Pending Tasks</div>
-            <div style="font-size:var(--text-lg);font-weight:700;color:${pendingTasks.length>0?'var(--red)':'inherit'};margin-top:2px">${pendingTasks.length} pending</div>
-          </div>
-          <div style="background:var(--surface-2);padding:10px 12px;border-radius:8px">
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">Completed Tasks</div>
-            <div style="font-size:var(--text-lg);font-weight:700;color:var(--green);margin-top:2px">${doneTasks.length} done</div>
-          </div>
-          <button type="button" class="hub-links-tile" onclick="document.getElementById('hub-study-links')?.scrollIntoView({ behavior: 'smooth', block: 'start' })" aria-label="Go to ${(subj.name || '').replace(/"/g, '&quot;')} study links" style="background:var(--surface-2);padding:10px 12px;border-radius:8px;border:none;font:inherit;color:inherit;text-align:left;cursor:pointer">
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">Study Resources <span style="color:var(--accent);font-weight:600">View &rarr;</span></div>
-            <div style="font-size:var(--text-lg);font-weight:700;margin-top:2px">${allResources.length} link${allResources.length!==1?'s':''}</div>
-          </button>
-        </div>
+      <div class="hub-col">
+        <section class="hub-section" aria-label="Tasks">
+          <div class="hub-h"><h2>Due for ${escHtml_cd(short)}</h2><button type="button" class="hub-act" onclick="showAssignmentModal(null, ${nameArg})">+ Add task</button></div>
+          ${tasksHTML}
+        </section>
 
-        ${att.pct !== null ? `
-          <div style="font-size:var(--text-sm);color:var(--text-primary);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px;border-left:3px solid ${att.isSafe ? 'var(--green)' : 'var(--red)'}">
-            ${att.insightMessage}
-          </div>
-        ` : `
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:12px;padding:8px 12px;background:var(--surface-2);border-radius:6px">
-            Add your current counts once so future attendance stays accurate from the right starting point.
-          </div>
-        `}
+        <section class="hub-section" id="hub-study-links" aria-label="Study shelf">
+          <div class="hub-h"><h2>Study shelf</h2><button type="button" class="hub-act" onclick="openAddResourceForSubject('${nameQ}', '${codeQ}')">+ Link or file</button></div>
+          ${linksHTML}
+        </section>
       </div>
     </div>
 
     ${syllabusCardHTML(subj)}
-
-    <!-- 1. Timetable Slots -->
-    <div style="margin-bottom:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="section-heading" style="margin-bottom:0">Timetable Schedule</div>
-        <button class="btn btn-sm btn-action" onclick="navigateTo('timetable')">Open Timetable →</button>
-      </div>
-      ${slotsHTML}
-    </div>
-
-    <!-- 2. Tasks & Assignments -->
-    <div style="margin-bottom:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="section-heading" style="margin-bottom:0">Tasks &amp; Deadlines</div>
-        <button class="btn btn-sm btn-primary" onclick="showAssignmentModal(null, ${jsArg_cd(subj.name)})" style="font-size:var(--text-sm);padding:3px 9px">+ Add Task</button>
-      </div>
-      ${tasksHTML}
-    </div>
-
-    <!-- 3. Resources & Links (the Study Resources tile above jumps here) -->
-    <div id="hub-study-links" style="margin-bottom:20px;scroll-margin-top:calc(var(--topbar-h) + 28px)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="section-heading" style="margin-bottom:0">Study Links &amp; Notes</div>
-        <button class="btn btn-sm btn-primary" onclick="openAddResourceForSubject('${(subj.name || '').replace(/'/g, "\\'")}', '${(subj.code || '').replace(/'/g, "\\'")}')" style="font-size:var(--text-sm);padding:3px 9px">+ Add Link</button>
-      </div>
-      ${linksHTML}
-    </div>
   `;
 }
 
