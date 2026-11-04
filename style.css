@@ -6524,6 +6524,9 @@ html.more-sheet-open .more-sheet {
 }
 @media (max-width: 540px) {
   .wa-entry { padding-left: 10px; padding-right: 10px; }
+  /* The longer "Paste a message or circular" label: actions drop under the title. */
+  #page-assignments > .page-header { flex-wrap: wrap; gap: 10px; }
+  #page-assignments .tk-header-actions { flex-basis: 100%; justify-content: flex-start; }
 }
 
 /* Celebration card: a calm, slightly larger toast for real milestones. */

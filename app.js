@@ -15201,7 +15201,7 @@ function renderAssignments() {
         </div>
         <p class="tk-empty-hint">Dates and subjects are picked up as you type. You check them before saving.</p>
         <div class="tk-empty-more">
-          <button type="button" onclick="showWhatsAppImport()"><span>Paste from WhatsApp</span><span class="tk-empty-sub">class group deadlines →</span></button>
+          <button type="button" onclick="showWhatsAppImport()"><span>Paste a message or circular</span><span class="tk-empty-sub">WhatsApp, notice or email →</span></button>
           <button type="button" onclick="showAddTaskModal(null, null, 'mission')"><span>Ongoing goal</span><span class="tk-empty-sub">"one paper a week" →</span></button>
         </div>
       </div>`
@@ -15227,7 +15227,7 @@ function renderAssignments() {
       </div>
       <div class="tk-header-actions">
         ${all.some(a => a.isCustom) && !taskSelectMode ? `<button class="btn-secondary" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
-        ${all.length ? `<button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Import from WhatsApp">From WhatsApp</button>` : ''}
+        ${all.length ? `<button class="btn-secondary wa-entry" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Paste a message or circular">Paste a message or circular</button>` : ''}
         <button class="btn-primary" data-testid="add-task-button" onclick="showAddTaskModal()" style="display:flex;align-items:center;gap:6px;flex-shrink:0">${icons.plus()} Add Task</button>
       </div>
     </div>
@@ -15336,7 +15336,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
         <h2 class="modal-title">${editTask ? 'Edit Task' : initialType === 'mission' ? 'Create Mission' : 'Add Task'}</h2>
         <button class="modal-close" onclick="document.getElementById('add-task-backdrop').remove()">${icons.x()}</button>
       </div>
-      ${editTask ? '' : `<button type="button" class="wa-modal-link" onclick="showWhatsAppImport()">Deadlines in a WhatsApp group? Import them</button>`}
+      ${editTask ? '' : `<button type="button" class="wa-modal-link" onclick="showWhatsAppImport()">Got a message or circular with deadlines? Paste it</button>`}
 
       <div class="form-group">
         <label class="form-label">Subject / Category <span class="req">*</span></label>
@@ -15554,7 +15554,7 @@ function submitAddTask(editTaskId = null) {
 const WA_MAX_BYTES = 20 * 1024 * 1024;
 const WA_WORKER_LINES = 3000;
 const WA_KIND_LABEL = { exam: 'Exam', sub: 'Submission', pres: 'Presentation', lec: 'Lecture', oth: 'Notice' };
-const WA_NOT_A_CHAT = 'Couldn’t read this as a WhatsApp chat. Use Export chat, or copy messages including their date and time.';
+const WA_NOT_A_CHAT = 'Couldn’t read this as a chat export. Use Export chat, or paste the message or circular text itself.';
 const WA_DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WA_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -15637,7 +15637,7 @@ function showWhatsAppImport(prefill = null, opts = {}) {
   backdrop.innerHTML = `
     <div class="modal wa-modal" data-testid="wa-import-modal" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h2 class="modal-title">Import from WhatsApp</h2>
+        <h2 class="modal-title">Paste a message or circular</h2>
         <button class="modal-close" aria-label="Close" onclick="waClose()">${icons.x()}</button>
       </div>
       <div id="wa-body"></div>
@@ -15658,12 +15658,12 @@ function waRenderAddChat(errorMsg = '') {
   const body = document.getElementById('wa-body');
   if (!body) return;
   body.innerHTML = `
-    <p class="wa-lead">Pick a class group chat. It’s read on this phone only and never uploaded.</p>
+    <p class="wa-lead">Paste the text, or pick a class group chat file. It’s read on this phone only and never uploaded.</p>
     <input type="file" id="wa-file" accept=".txt,.zip,text/plain,application/zip" hidden onchange="waFilePicked(this)">
     <button type="button" class="btn-primary wa-choose" data-testid="wa-choose" onclick="document.getElementById('wa-file').click()">Choose chat file</button>
     <div class="form-group wa-paste-group">
-      <label class="form-label" for="wa-paste">Or paste messages</label>
-      <textarea class="form-input form-textarea" id="wa-paste" data-testid="wa-paste" rows="5" placeholder="Paste messages with their date and time"></textarea>
+      <label class="form-label" for="wa-paste">Paste the text</label>
+      <textarea class="form-input form-textarea" id="wa-paste" data-testid="wa-paste" rows="5" placeholder="Paste a circular, a notice, or WhatsApp messages"></textarea>
       <button type="button" class="btn-secondary wa-find" data-testid="wa-find" onclick="waScanPasted()">Find deadlines</button>
     </div>
     <div class="wa-error" id="wa-error" role="alert" ${errorMsg ? '' : 'hidden'}>${waEsc(errorMsg)}</div>
@@ -15724,7 +15724,8 @@ async function waHandleText(raw) {
   }
   raw = null; // drop the chat text; only the found rows are kept
   if (!waIsOpen()) return;
-  if (!result || result.stats.recognised < 2) { waRenderAddChat(WA_NOT_A_CHAT); return; }
+  // Plain pasted text (a circular, one message) has no timestamps; a chat needs at least 2.
+  if (!result || (result.stats.recognised < 2 && !result.stats.plain)) { waRenderAddChat(WA_NOT_A_CHAT); return; }
 
   const today = waMidnight(now);
   const existing = allTasks();

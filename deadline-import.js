@@ -19,7 +19,7 @@ const SKIP = /(<media omitted>|this message was deleted|messages and calls are e
 
 // Order matters: the first kind whose pattern matches wins.
 const KINDS = [
-  ['exam', /\b(?:exams?|tests?|unit test|ut[- ]?\d|viva|quiz|internals?|mid[- ]?sem|end[- ]?sem|practical exam|oral)\b/i],
+  ['exam', /\b(?:exams?(?!\s+(?:forms?|fees?|registration))|tests?|unit test|ut[- ]?\d|viva|quiz|internals?|mid[- ]?sem|end[- ]?sem|practical exam|oral)\b/i],
   ['pres', /\b(?:presentations?|ppts?|seminars?|ca[- ]?\d\b.*\b(?:present|talk))/i],
   ['lec', /\b(?:extra (?:lecture|lec|class|practical|lab)s?|(?:lecture|lec|class|lab|practical)s? (?:is |are |will be )?(?:shifted|cancell?ed|rescheduled|postponed|preponed)|no (?:lecture|lec|class)s?|holiday|timetable|time table|guest lecture|workshop|session)\b/i],
   ['sub', /\b(?:submit|submission|submitted|deadline|due|last date|assignments?|journals?|write[- ]?ups?|records?|reports?|practical file|lab file|upload)\b/i],
@@ -82,7 +82,23 @@ export function splitMessages(raw) {
       msgs.push(cur);
     }
   });
-  return { msgs, dayFirst: !monthFirst, recognised: found.length };
+  if (!found.length) return { msgs: splitPlain(raw), dayFirst: true, recognised: 0, plain: true };
+  return { msgs, dayFirst: !monthFirst, recognised: found.length, plain: false };
+}
+
+// A circular or message pasted without WhatsApp timestamps. Paragraphs (blank
+// line between) are one message each; a paragraph whose lines each carry their
+// own date (a list of deadlines) is split line by line.
+function splitPlain(raw) {
+  const hasDate = (line) => !!findDate(findTimes(line).masked, new Date(), true);
+  const msgs = [];
+  String(raw || '').replace(/\r/g, '').split(/\n\s*\n/).forEach(par => {
+    const lines = par.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const dated = lines.filter(hasDate).length;
+    (dated >= 2 ? lines : [lines.join('\n')]).forEach(text => msgs.push({ sent: null, who: '', text }));
+  });
+  return msgs;
 }
 
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
@@ -297,10 +313,10 @@ export function extractLinks(raw) {
 // Returns { items, stats }. items: DeadlineCandidate[] sorted by date:
 //   { id, kind: 'exam'|'sub'|'pres'|'lec'|'oth', date: Date, end: Date|null,
 //     hasTime, title, text, who, sent: Date|null }
-// stats: { messages, recognised, ignored, first, last } for the review header.
+// stats: { messages, recognised, plain, ignored, first, last } for the review header.
 // ignored: messages with no deadline in them ("ok", "thanks", media...).
 export function scanChat(raw, now = new Date()) {
-  const { msgs, dayFirst, recognised } = splitMessages(raw);
+  const { msgs, dayFirst, recognised, plain } = splitMessages(raw);
   const out = [];
   for (const msg of msgs) {
     const text = msg.text.trim();
@@ -335,7 +351,7 @@ export function scanChat(raw, now = new Date()) {
   return {
     items,
     links: linksFromMessages(msgs),
-    stats: { messages: msgs.length, recognised, ignored: msgs.length - out.length, first: sentDates[0] || null, last: sentDates[sentDates.length - 1] || null },
+    stats: { messages: msgs.length, recognised, plain, ignored: msgs.length - out.length, first: sentDates[0] || null, last: sentDates[sentDates.length - 1] || null },
   };
 }
 
