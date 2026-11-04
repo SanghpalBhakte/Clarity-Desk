@@ -8129,11 +8129,12 @@ function buildDashboardContextLine(opts = {}) {
 // Order: a class that has ended and was never marked > a task that is due
 // today or overdue > the subject furthest below the attendance target.
 function buildTodayFocus(o = {}) {
-  const { dayClasses = [], attendanceData = {}, dateStr = '', currentMin = 0, task = null, riskSubject = null, dismissed = [] } = o;
+  const { dayClasses = [], attendanceData = {}, dateStr = '', currentMin = 0, task = null, riskSubject = null, dismissed = [], skipUnmarked = false } = o;
   const skip = new Set(dismissed);
 
   const marks = attendanceData[dateStr] || {};
-  const unmarked = dayClasses.filter(c => c.end && timeToMinutes(c.end) <= currentMin && !marks[attendanceKeyFor(c)]);
+  // The day bar marks them itself, so it asks for this one to be skipped.
+  const unmarked = skipUnmarked ? [] : dayClasses.filter(c => c.end && timeToMinutes(c.end) <= currentMin && !marks[attendanceKeyFor(c)]);
   if (unmarked.length) {
     const last = unmarked[unmarked.length - 1];
     const id = `unmarked:${attendanceKeyFor(last)}`;
@@ -8194,7 +8195,7 @@ window.dismissTodayFocus = function(id) {
 // Markup for the row. Wrapped so a bad record can never blank Today.
 // out.markKey is set to the class this row marks, so the schedule below can
 // leave out its own Present / Absent for that class.
-function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out = {} }) {
+function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out = {}, skipUnmarked = false }) {
   try {
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const task = (urgentTasks || []).find(a => a.dueDate && !a.noDeadline);
@@ -8206,7 +8207,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
         riskSubject = { name: sj.name, pct: att.pct, pctLabel: att.pctLabel, exactPct: att.exactPct, targetPct: att.targetPct, classesToAttend: att.classesToAttend };
       }
     });
-    const f = buildTodayFocus({ dayClasses, attendanceData, dateStr, currentMin, task, riskSubject, dismissed: readDismissedFocus() });
+    const f = buildTodayFocus({ dayClasses, attendanceData, dateStr, currentMin, task, riskSubject, dismissed: readDismissedFocus(), skipUnmarked });
     if (!f) return '';
     const overdue = f.kind === 'task' && /overdue/i.test(f.sub || '');
     const call = f.kind === 'unmarked' ? `setTTDay(${dayIdx}); navigateTo('timetable')`
@@ -8230,6 +8231,85 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       </button>
       <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>${markHTML}
     </div>`;
+  } catch (e) {
+    return '';
+  }
+}
+
+// ── Day bar (Today, after the last class) ──────────────────────────────
+// The day's classes as blocks on a time ruler, with the "now" needle. A tap
+// on a block marks it through setAttendance (Present, then Absent, then
+// cleared); "I was at all N" uses markEndedPresent. Display only otherwise.
+function dayBarShortName(c) {
+  const subject = String(c.subject || 'Class');
+  if (subject.includes('+')) return 'Lab';                     // a combined lab row
+  if (c.code) return String(c.code);
+  const code = (subject.match(/\(([A-Z][A-Z0-9-]{1,6})\)/) || [])[1];
+  if (code) return code;
+  const words = subject.replace(/\(.*?\)/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 1 && words[0].length <= 6) return words[0];
+  const initials = words.filter(w => !/^(and|of|the|for|to|in|&)$/i.test(w)).map(w => w[0].toUpperCase()).join('');
+  return initials.slice(0, 5) || subject;
+}
+
+function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead }) {
+  try {
+    const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const marks = attendanceData[dateStr] || {};
+    const items = dayClasses
+      .map(c => ({ c, from: timeToMinutes(c.time || '00:00'), to: timeToMinutes(c.end || c.time || '00:00') }))
+      .filter(x => x.to > x.from)
+      .sort((a, b) => a.from - b.from);
+    if (!items.length) return '';
+    const start = Math.floor(items[0].from / 60) * 60;
+    const lastEnd = Math.max(...items.map(x => x.to));
+    const end = Math.ceil(lastEnd / 60) * 60 + 30;
+    const pos = (m) => ((Math.min(Math.max(m, start), end) - start) / (end - start)) * 100;
+    // Classes that overlap (parallel labs) go on a second lane.
+    const lanes = [];
+    items.forEach(x => {
+      let lane = lanes.findIndex(lastTo => lastTo <= x.from);
+      if (lane === -1) { lane = lanes.length; lanes.push(0); }
+      lanes[lane] = x.to;
+      x.lane = lane;
+    });
+    const label = { attended: 'present', skipped: 'absent' };
+    const blocks = items.map(({ c, from, to, lane }) => {
+      const key = attendanceKeyFor(c);
+      const status = marks[key] || 'unset';
+      const next = status === 'unset' ? 'attended' : status === 'attended' ? 'skipped' : status === 'skipped' ? 'skipped' : 'attended';
+      const said = label[status] || (ATT_STATUS_LABEL[status] ? ATT_STATUS_LABEL[status].toLowerCase() : 'not marked');
+      return `<button type="button" class="day-bar-block is-${status === 'attended' ? 'present' : status === 'skipped' ? 'absent' : status === 'unset' ? 'unset' : 'other'}"
+        style="left:${pos(from).toFixed(2)}%;width:calc(${(pos(to) - pos(from)).toFixed(2)}% - 3px);top:${lane * 50}px"
+        data-key="${attrSafe(key)}" aria-label="${attrSafe(`${c.subject}, ${formatDisplayTime(c.time)}: ${said}. Tap to change.`)}"
+        onclick="setAttendance('${dateStr}', this.dataset.key, '${next}')">${escHtml_cd(dayBarShortName(c))}</button>`;
+    }).join('');
+    const ticks = [];
+    for (let m = start; m <= end; m += 60) {
+      const h = Math.round(m / 60) % 12 || 12;
+      ticks.push(`<span class="day-bar-tick" style="left:${pos(m).toFixed(2)}%"></span>${(m - start) % 120 === 0 ? `<span class="day-bar-hour" style="left:${pos(m).toFixed(2)}%">${h}</span>` : ''}`);
+    }
+    const keys = [...new Set(items.map(x => attendanceKeyFor(x.c)))];
+    const left = keys.filter(k => !marks[k]).length;
+    const word = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][left] || String(left);
+    const title = left === 0 ? `All ${keys.length === 1 ? 'marked' : `${keys.length} marked`}` : left === keys.length ? `${word} class${left !== 1 ? 'es' : ''} to mark` : `${left} left to mark`;
+    const lanesH = lanes.length * 50;
+    return `
+      <div class="chrono-beacon is-finished day-bar" role="region" aria-label="Your day">
+        <div class="day-bar-head">
+          <span class="day-bar-title">${title}</span>
+          ${left ? '<span class="day-bar-hint">tap a class to mark it</span>' : ''}
+        </div>
+        <div class="day-bar-ruler" style="height:${lanesH + 30}px">
+          <span class="day-bar-line" style="top:${lanesH + 2}px"></span>
+          <div class="day-bar-ticks" style="top:${lanesH + 2}px">${ticks.join('')}</div>
+          ${blocks}
+          <span class="day-bar-now" style="left:${pos(currentMin).toFixed(2)}%;height:${lanesH + 10}px" aria-hidden="true"></span>
+        </div>
+        ${left ? `<button type="button" class="btn btn-primary day-bar-all" onclick="markEndedPresent('${dateStr}')">${left !== keys.length ? `Mark the other ${left} present` : left === 1 ? 'I was there' : `I was at all ${left}`}</button>`
+          : `<div class="day-bar-done">${icons.check()} Day marked. Books down, feet up.</div>`}
+        ${lookAhead ? `<div class="chrono-beacon-then day-bar-next">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>` : ''}
+      </div>`;
   } catch (e) {
     return '';
   }
@@ -10174,6 +10254,7 @@ function renderDashboard() {
   }
 
   let beaconHTML = '';
+  let dayBarOn = false;
   if (onHoliday) {
     const daysLeft = holidayDaysLeft();
     beaconHTML = `
@@ -10230,8 +10311,10 @@ function renderDashboard() {
         <div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(nextStartMin - currentMin)}</span><span class="chrono-beacon-count-label">until it starts</span></div>
       </div>`;
   } else if (dayClasses.length > 0 && classesLeftCount === 0) {
-    // Classes are over: only the look-ahead, if there is one.
-    if (lookAheadHTML) {
+    // Classes are over: the day bar (mark by tapping a class) plus the look-ahead.
+    beaconHTML = dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead });
+    dayBarOn = !!beaconHTML;
+    if (!beaconHTML && lookAheadHTML) {
       beaconHTML = `
       <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
         <div class="chrono-beacon-main">
@@ -10329,7 +10412,7 @@ function renderDashboard() {
   }
 
   const focusOut = {};
-  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut });
+  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut, skipUnmarked: dayBarOn });
   // The class card already shows this class; phones leave it out of the list below.
   const heroClass = activeClass || nextClass;
   // Up to 4 classes, picked most urgent first (ended but unmarked, now,
@@ -10358,6 +10441,12 @@ function renderDashboard() {
   const quickLinksPreview = allQuickLinks.slice(0, 3);
   const moreLinks = allQuickLinks.length - quickLinksPreview.length;
 
+  // With the day bar up, the line under the greeting points at it instead of
+  // saying "no tasks pending" while classes still wait to be marked.
+  const greetingSub = dayBarOn && endedUnmarkedClassKeys(dateStr).length
+    ? `Mark today, then the evening's yours.${pending > 0 ? ` ${pending} task${pending !== 1 ? 's' : ''} pending.` : ''}`
+    : contextLine;
+
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
@@ -10374,7 +10463,7 @@ function renderDashboard() {
             </div>
             <button type="button" class="setup-first-alt greet-ask-skip" onclick="onbSaveGreetingName(true)">Not now</button>
           </div>` : ''}
-          ${contextLine ? `<div class="desk-greeting-sub">${contextLine}</div>` : ''}
+          ${greetingSub ? `<div class="desk-greeting-sub">${greetingSub}</div>` : ''}
           ${examNoteHTML}
           ${holidaySoonHTML}
           ${sylTodayHTML}
@@ -10400,7 +10489,7 @@ function renderDashboard() {
       <!-- LEFT COLUMN: WORKBENCH -->
       <div class="dashboard-left">
         <!-- SCHEDULE LEDGER -->
-        <div class="dashboard-panel"${hideSchedulePanel ? ' style="display:none"' : ''}>
+        <div class="dashboard-panel"${hideSchedulePanel || dayBarOn ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
@@ -10502,17 +10591,20 @@ function renderDashboard() {
             <button class="panel-action" onclick="navigateTo('review')">Guidance →</button>
           </div>
           <div>
-            <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : ''}" style="margin-bottom:2px">
-              ${attendancePct !== null ? (() => { const [whole, dec] = String(attendancePctLabel).split('.'); return `${escHtml_cd(whole)}<span class="att-dec">${dec ? '.' + escHtml_cd(dec) : ''}%</span>`; })() : '—'}
+            <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : 'is-target'}" style="margin-bottom:2px">
+              ${attendancePct !== null ? (() => { const [whole, dec] = String(attendancePctLabel).split('.'); return `${escHtml_cd(whole)}<span class="att-dec">${dec ? '.' + escHtml_cd(dec) : ''}%</span>`; })() : `${attTarget}<span class="att-dec">%</span>`}
             </div>
-            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'Not set yet'}</div>
-            ${attendancePct !== null ? `
-              <div style="margin-top:10px">
-                <div class="att-bar-wrap">
-                  <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
-                  <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
-                </div>
+            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'is your line'}</div>
+            <!-- The bar with a notch at the target: the line to stay above. -->
+            <div class="att-gauge" style="margin-top:10px">
+              <div class="att-bar-wrap">
+                <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
+                <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
               </div>
+              <span class="att-gauge-notch" style="left:${attTarget}%" aria-hidden="true"></span>
+              <span class="att-gauge-label" style="left:${attTarget}%" aria-hidden="true">${attTarget}% line</span>
+            </div>
+            ${attendancePct !== null ? `
               <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
             ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
           </div>

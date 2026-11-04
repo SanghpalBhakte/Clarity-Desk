@@ -7585,3 +7585,41 @@ body.holiday-mode .holiday-banner {
   background: transparent; color: var(--status-success); font: inherit; font-weight: 700;
 }
 .tt-markall svg { flex: none; }
+
+/* ── Today: day bar after the last class ─────────────────────────────
+   The day's classes as blocks on the ruler, the "now" needle in the thread
+   colour. Tap a block to mark it; unmarked blocks are hatched. */
+#page-dashboard .chrono-beacon.day-bar { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.day-bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.day-bar-title { font-family: var(--font-display, var(--font)); font-size: 1.15rem; font-weight: 700; color: var(--text-primary); }
+.day-bar-hint { font-size: 0.78rem; color: var(--text-muted); }
+.day-bar-ruler { position: relative; margin: 4px 0 0; }
+.day-bar-line { position: absolute; left: 0; right: 0; height: 1px; background: var(--color-rule, var(--border)); }
+.day-bar-ticks { position: absolute; left: 0; right: 0; height: 26px; }
+.day-bar-tick { position: absolute; top: 0; width: 1px; height: 7px; background: var(--text-muted); opacity: 0.6; }
+.day-bar-hour { position: absolute; top: 10px; transform: translateX(-50%); font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.day-bar-block {
+  position: absolute; height: 44px; padding: 0 2px; box-sizing: border-box; min-width: 24px;
+  border-radius: 10px; border: 1.5px solid var(--border-btn, var(--border)); cursor: pointer;
+  font: inherit; font-family: var(--font-display, var(--font)); font-size: 0.75rem; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: clip; letter-spacing: -0.01em; color: var(--text-primary);
+  background: repeating-linear-gradient(135deg, var(--surface) 0 5px, var(--surface-2) 5px 7px);
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+.day-bar-block:active { transform: scale(0.97); }
+.day-bar-block.is-present { background: var(--status-success); border-color: var(--status-success); color: var(--surface); }
+.day-bar-block.is-absent { background: var(--color-thread, var(--status-error)); border-color: var(--color-thread, var(--status-error)); color: var(--surface); }
+.day-bar-block.is-other { background: var(--surface-2); border-style: dashed; color: var(--text-secondary); }
+.day-bar-now { position: absolute; top: -6px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--color-thread, var(--accent)); pointer-events: none; }
+.day-bar-now::before { content: ''; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: inherit; }
+.day-bar-all { width: 100%; min-height: 48px; justify-content: center; }
+@media (min-width: 761px) { .day-bar-all { width: auto; align-self: flex-start; padding: 0 28px; } }
+.day-bar-done { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; color: var(--status-success); }
+.day-bar-next { margin: 0; padding-top: 12px; border-top: 1px solid var(--color-rule, var(--border)); }
+
+/* Attendance bar: a notch at the target, the line to stay above. */
+.att-gauge { position: relative; padding-bottom: 18px; }
+.att-gauge .att-bar-wrap { height: 8px; background: color-mix(in srgb, var(--text-muted) 18%, transparent); }
+.att-gauge-notch { position: absolute; top: -4px; width: 2px; height: 16px; margin-left: -1px; border-radius: 1px; background: var(--text-primary); }
+.att-gauge-label { position: absolute; top: 14px; transform: translateX(-50%); font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+.att-stat-figure.is-target { color: var(--text-muted); }
