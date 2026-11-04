@@ -32,3 +32,6 @@ Claude outputs/
 playwright-report/
 test-results/
 .tempmediaStorage/
+
+# UI Council: free outside-reviewer keys (scripts/ui-council/outside-review.mjs)
+.env.council
