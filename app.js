@@ -15389,14 +15389,14 @@ function renderAssignments() {
       if (!list) return '';
       return `<details class="tk-group tk-group-${key} tk-fold" ${open ? 'open' : ''} ontoggle="${ontoggle}"><summary class="tk-fold-head"><span class="tk-fold-name">${label}</span><span class="tk-fold-sum">${summary}</span><span class="tk-fold-sign" aria-hidden="true"></span></summary>${list.map(renderTaskCard).join('')}</details>`;
     };
-    const titles = (list) => `${list.length} · ${list.map(a => escHtml_cd(a.title)).join(', ')}`;
+    const titles = (list) => `${list.map(a => escHtml_cd(a.title)).join(', ')}`;
     const doneOpen = state.assignFilter === 'submitted' || taskDoneOpen || taskSelectMode;
     return [
       openList('now', 'Now'),
       openList('week', 'This week'),
       buckets.later ? fold('later', 'Later', titles(buckets.later), nothingSoon || taskOpenFolds.later, "toggleTaskFold('later', this.open)") : '',
       buckets.goals ? fold('goals', 'Goals', titles(buckets.goals), nothingSoon || taskOpenFolds.goals, "toggleTaskFold('goals', this.open)") : '',
-      buckets.done ? fold('done', 'Done', `Completed (${buckets.done.length})`, doneOpen, 'toggleTaskDoneSection(this.open)') : '',
+      buckets.done ? fold('done', 'Done', `${buckets.done.length} finished`, doneOpen, 'toggleTaskDoneSection(this.open)') : '',
     ].join('');
   };
 

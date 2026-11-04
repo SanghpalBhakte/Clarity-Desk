@@ -84,10 +84,10 @@ console.log('=================================================================='
 console.log('🗑️  TASKS: SELECT MODE + BULK DELETE');
 console.log('==================================================================');
 
-check('Completed tasks sit in a "Completed (N)" section that is closed by default', () => {
+check('Completed tasks sit in a "N finished" section that is closed by default', () => {
   setup();
   const h = html();
-  return /<details[^>]*tk-fold[^>]*>/.test(h) && !/<details[^>]*tk-fold[^>]* open/.test(h) && h.includes('Completed (4)') ? true : 'completed section missing, open, or wrong count';
+  return /<details[^>]*tk-fold[^>]*>/.test(h) && !/<details[^>]*tk-fold[^>]* open/.test(h) && h.includes('4 finished') ? true : 'completed section missing, open, or wrong count';
 });
 
 check('Entering select mode shows the toolbar and no completion checkboxes', () => {
