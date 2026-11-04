@@ -9485,7 +9485,7 @@ function renderWeeklyAttendanceTracker() {
     `;
   }
 
-  const guidance = calculateSmartAttendanceGuidance(totalAttended, totalSkipped, isAttendanceV2Active() ? getAttendanceTarget() : 75);
+  const guidance = calculateSmartAttendanceGuidance(totalAttended, totalSkipped, getAttendanceTarget());
   const streak = calculateAttendanceStreak();
 
   const subjectBreakdownHTML = Object.keys(subjectStats).map(subj => {
@@ -9717,7 +9717,7 @@ window.showOnboardingModal = function() {
       <div id="onboarding-step-1" class="ob-step">
         <div class="ob-qs">
           ${qa('Which room is the next class in?', '<b>Room 204</b> Data Structures, in 12 min', 'accent')}
-          ${qa('Can I skip this one?', '<b>Yep.</b> You can still miss 3 and stay above 75%', 'green')}
+          ${qa('Can I skip this one?', '<b>Yep.</b> You can still miss 3 and stay above your line', 'green')}
           ${qa("When's the lab record due?", "<b>Tomorrow</b> and you haven't started", 'warm')}
         </div>
         <p class="ob-pitch">Clarity Desk keeps all of this on your phone, so you're never asking around. Works without internet too.</p>
@@ -17586,7 +17586,7 @@ function renderSettings() {
           <label class="form-label">Attendance Target (%)</label>
           <input type="number" class="form-input" id="s-att-target" value="${getAttendanceTarget()}" min="50" max="100" step="1" style="max-width:120px">
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
-            Minimum attendance % to maintain. Default is 75% (most colleges).
+            The attendance % you want to stay above. Starts at 75%; set it to what your college or course asks for.
           </div>
         </div>
       </div>

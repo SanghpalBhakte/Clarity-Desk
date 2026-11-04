@@ -141,7 +141,7 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 // ── Task 2: welcome and name screen ──
 check('Welcome shows the three student questions and their answers', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const want = ['Which room is the next class in?', 'Room 204', 'Data Structures, in 12 min', 'Can I skip this one?', 'Yep.', 'You can still miss 3 and stay above 75%',
+  const want = ['Which room is the next class in?', 'Room 204', 'Data Structures, in 12 min', 'Can I skip this one?', 'Yep.', 'You can still miss 3 and stay above your line',
     "When's the lab record due?", 'Tomorrow', "and you haven't started", "Clarity Desk keeps all of this on your phone, so you're never asking around. Works without internet too.",
     'Show me around', 'I already have an account'];
   const t = visibleText(html).replace(/\s+/g, ' ');
