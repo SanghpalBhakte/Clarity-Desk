@@ -15222,7 +15222,7 @@ function renderAssignments() {
       <form class="tk-add" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
         <button type="submit" class="tk-add-plus" data-testid="add-task-button" aria-label="Add a task" title="Add a task">+</button>
         <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="Type a task. &quot;CN quiz on 13 Nov&quot;">
-        ${all.length ? `<button type="button" class="tk-add-paste" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Paste a message or circular">Paste</button>` : ''}
+        ${all.length ? `<button type="button" class="tk-add-paste" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Paste a message or circular" title="Paste a message or circular">Paste</button>` : ''}
       </form>
     </div>
   `;
