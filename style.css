@@ -1580,7 +1580,7 @@ a.card:hover,
 }
 
 .schedule-slot.is-past .schedule-slot-time,
-.schedule-slot.is-past > div:nth-child(2) {
+.schedule-slot.is-past .schedule-slot-info {
   opacity: 0.45;
 }
 
@@ -3410,6 +3410,8 @@ a.card:hover,
 
 .summary-text-main { font-weight: 600; font-size: 0.88rem; }
 .summary-text-sub  { font-size: 0.78rem; color: var(--text-muted); }
+/* Sentence case like the "Today's Schedule" heading on the same page. */
+.briefing-tomorrow-label { font-size: 0.875rem; letter-spacing: 0; font-weight: 600; color: var(--text-secondary); }
 
 /* ── Progress Bar ───────────────────────────────────────────── */
 .progress-bar-wrap { background: var(--surface-2); border-radius: 999px; height: 6px; overflow: hidden; }
@@ -3984,6 +3986,10 @@ button:disabled {
   }
 
   .tt-entry.past { opacity: 1 !important; }
+  .tt-entry.past .tt-time-col,
+  .tt-entry.past .tt-info,
+  .schedule-slot.is-past .schedule-slot-time,
+  .schedule-slot.is-past .schedule-slot-info { opacity: 1 !important; }
 
   .greeting-banner {
     border: 1px solid #ccc;
@@ -4826,7 +4832,7 @@ body {
 .tt-entry.past .tt-time-col,
 .tt-entry.past .tt-info,
 .schedule-slot.is-past .schedule-slot-time,
-.schedule-slot.is-past > div:nth-child(2) {
+.schedule-slot.is-past .schedule-slot-info {
   opacity: 0.58;
 }
 
@@ -7295,7 +7301,7 @@ body.holiday-mode .holiday-banner {
 }
 /* Past rows stay readable; the unmarked one still needs reading. */
 #page-dashboard .schedule-slot.is-past .schedule-slot-time,
-#page-dashboard .schedule-slot.is-past > div:nth-child(2) { opacity: 0.62; }
+#page-dashboard .schedule-slot.is-past .schedule-slot-info { opacity: 0.62; }
 /* Ledger rows are ruled lines; a radius bent the row divider into a box. */
 #page-dashboard .schedule-slot { border-radius: 0; }
 
