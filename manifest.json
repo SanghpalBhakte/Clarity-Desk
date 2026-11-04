@@ -28,6 +28,11 @@
       ]
     }
   },
+  "shortcuts": [
+    { "name": "Today", "short_name": "Today", "description": "Mark today's classes and see what's next", "url": "./index.html#dashboard", "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Tasks", "short_name": "Tasks", "description": "What's due, and add a task", "url": "./index.html#assignments", "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Timetable", "short_name": "Timetable", "description": "Your week of classes", "url": "./index.html#timetable", "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ],
   "icons": [
     {
       "src": "./icon-192.png",

@@ -31,6 +31,19 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
       const iconRes = await request.get(icon.src);
       expect(iconRes.status(), `Icon asset ${icon.src} must be reachable`).toBe(200);
     }
+
+    // Long-press shortcuts: each opens a real page and keeps the app's own scope
+    expect(manifest.shortcuts.map((x: any) => x.url)).toEqual(['./index.html#dashboard', './index.html#assignments', './index.html#timetable']);
+    for (const sc of manifest.shortcuts) {
+      expect(sc.name).toBeTruthy();
+      expect((await request.get(sc.icons[0].src)).status()).toBe(200);
+    }
+  });
+
+  test('1b. A shortcut opens its page', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('cos_onboarding_done', 'true'));
+    await page.goto('/index.html#timetable', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#page-timetable')).toHaveClass(/active/);
   });
 
   test('2. Service worker registers, activates, and controls page', async ({ page }) => {
