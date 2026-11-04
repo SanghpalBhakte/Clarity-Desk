@@ -10352,7 +10352,7 @@ function renderDashboard() {
                 return `
                   <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${c === heroClass ? ' is-in-hero' : ''}">
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
-                    <div style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
+                    <div class="schedule-slot-info" style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
                       <div class="schedule-slot-title">${escHtml_cd(c.subject)}</div>
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? escHtml_cd(c.room) + ' · ' : ''}${c.teacher ? escHtml_cd(formatTeacherName(c.teacher)) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
@@ -17436,7 +17436,7 @@ function renderSummaryContent(container) {
     <div class="summary-item briefing-tomorrow" onclick="navigateTo('timetable')" role="button" tabindex="0" style="cursor:pointer;margin-top:20px">
       <div class="summary-icon" style="background:color-mix(in srgb, var(--green) 14%, transparent);color:var(--green)">${icons.calendar()}</div>
       <div style="flex:1;min-width:0">
-        <div class="summary-text-sub" style="font-weight:700">Tomorrow</div>
+        <div class="summary-text-sub briefing-tomorrow-label">Tomorrow</div>
         <div class="summary-text-main">${tmr}</div>
       </div>
     </div>
