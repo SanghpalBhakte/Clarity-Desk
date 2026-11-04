@@ -7817,10 +7817,10 @@ function dueDaysLeft(dateStr) {
 function formatRelativeDueDate(dateStr) {
   const days = dueDaysLeft(dateStr);
   if (days === null) return { label: 'No deadline', cls: 'ongoing' };
-  if (days < 0) return { label: `${Math.abs(days)}d overdue`, cls: 'overdue' };
+  if (days < 0) return { label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'day' : 'days'} overdue`, cls: 'overdue' };
   if (days === 0) return { label: 'Due today', cls: 'today' };
   if (days === 1) return { label: 'Due tomorrow', cls: 'soon' };
-  if (days <= 7) return { label: `Due in ${days}d`, cls: 'soon' };
+  if (days <= 7) return { label: `Due in ${days} days`, cls: 'soon' };
   return { label: formatDate(dateStr), cls: '' };
 }
 
@@ -17351,7 +17351,7 @@ function renderSummaryContent(container) {
     importantNotices.length ? '' : 'no urgent notices'
   ].filter(Boolean);
   const stats = [
-    { n: remaining.length, label: 'Classes left', color: 'var(--text-primary)', go: "navigateTo('timetable')" },
+    { n: remaining.length, label: 'classes left', color: 'var(--text-primary)', go: "navigateTo('timetable')" },
     { n: dueTodayItems.length, label: 'Due today', color: 'var(--yellow)', go: "filterAndNavigateToAssignments('today')" },
     { n: overdueItems.length, label: 'Overdue', color: 'var(--red)', go: "filterAndNavigateToAssignments('overdue')" },
     { n: submittedCount, label: 'Completed', color: 'var(--green)', go: "filterAndNavigateToAssignments('submitted')" }
@@ -17436,7 +17436,7 @@ function renderSummaryContent(container) {
     <div class="summary-item briefing-tomorrow" onclick="navigateTo('timetable')" role="button" tabindex="0" style="cursor:pointer;margin-top:20px">
       <div class="summary-icon" style="background:color-mix(in srgb, var(--green) 14%, transparent);color:var(--green)">${icons.calendar()}</div>
       <div style="flex:1;min-width:0">
-        <div class="summary-text-sub" style="text-transform:uppercase;letter-spacing:0.08em;font-weight:700">Tomorrow</div>
+        <div class="summary-text-sub" style="font-weight:700">Tomorrow</div>
         <div class="summary-text-main">${tmr}</div>
       </div>
     </div>
