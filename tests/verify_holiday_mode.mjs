@@ -321,7 +321,7 @@ check('Briefing: holiday view lists deadlines inside the break (and overdue) plu
 check('Briefing: normal view unchanged when the break is off', () => {
   seed({ cos_custom_tasks: ALL_TASKS }); at('2026-10-19T09:50:00');
   const box = { innerHTML: '' }; makeApp().renderSummaryContent(box);
-  return box.innerHTML.includes("Today's Schedule") && box.innerHTML.includes('Read one paper a week') && !box.innerHTML.includes('holiday-banner') ? true : 'normal briefing changed';
+  return box.innerHTML.includes('bf-focus') && box.innerHTML.includes('Read one paper a week') && !box.innerHTML.includes('holiday-banner') ? true : 'normal briefing changed';
 });
 
 check('Reminders (app): deadline reminders still come during the break', () => {
