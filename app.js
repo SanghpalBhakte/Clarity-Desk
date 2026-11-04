@@ -17674,37 +17674,23 @@ function renderSettings() {
     <div class="page-header">
       <div>
         <div class="page-title">Settings</div>
-        <div class="page-subtitle">Your student profile, notification preferences &amp; local workspace settings</div>
+        <div class="page-subtitle">Changes save as you go.</div>
       </div>
     </div>
 
-    <div class="section-heading">${icons.user()} Account &amp; Cloud Sync</div>
-    <div class="card" style="padding:20px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div>
-          <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
-            ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
-          </div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
-          ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
-        </div>
-        <div>
-          ${currentUser ? 
-            `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
-            `<div style="display:flex;flex-wrap:wrap;gap:8px">
-              ${detectDevice().inApp
-                ? `<button class="btn btn-primary" onclick="showInAppBanner()" style="display:flex;align-items:center;gap:6px" title="Google blocks sign-in inside Instagram, Facebook and other apps">Google: open in browser first</button>`
-                : `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">Sign In with Google</button>`}
-              <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">Sign In with Email</button>
-              <div style="flex-basis:100%;font-size:var(--text-xs);color:var(--text-muted)">Google lists the accounts this browser is signed into. No list? Enter your Google email, or use email sign-in.</div>
-            </div>`
-          }
-        </div>
-      </div>
-    </div>
-
-    <div class="section-heading">${icons.user()} Student Profile</div>
+    <div class="st-layout">
+    <nav class="st-nav" aria-label="Settings sections">
+      <button type="button" class="st-nav-btn" data-st="profile" onclick="settingsJump('profile')"><span class="st-num" aria-hidden="true">01</span><span class="st-nav-long">Profile</span><span class="st-nav-short">Profile</span></button>
+      <button type="button" class="st-nav-btn" data-st="classes" onclick="settingsJump('classes')"><span class="st-num" aria-hidden="true">02</span><span class="st-nav-long">Classes &amp; attendance</span><span class="st-nav-short">Classes</span></button>
+      <button type="button" class="st-nav-btn" data-st="reminders" onclick="settingsJump('reminders')"><span class="st-num" aria-hidden="true">03</span><span class="st-nav-long">Reminders</span><span class="st-nav-short">Reminders</span></button>
+      <button type="button" class="st-nav-btn" data-st="look" onclick="settingsJump('look')"><span class="st-num" aria-hidden="true">04</span><span class="st-nav-long">Look</span><span class="st-nav-short">Look</span></button>
+      <button type="button" class="st-nav-btn" data-st="data" onclick="settingsJump('data')"><span class="st-num" aria-hidden="true">05</span><span class="st-nav-long">Data &amp; account</span><span class="st-nav-short">Data</span></button>
+      <button type="button" class="st-nav-btn" data-st="about" onclick="settingsJump('about')"><span class="st-num" aria-hidden="true">06</span><span class="st-nav-long">About</span><span class="st-nav-short">About</span></button>
+      <button type="button" class="st-nav-btn is-danger" data-st="danger" onclick="settingsJump('danger')"><span class="st-nav-long">Danger zone</span><span class="st-nav-short">Danger zone</span></button>
+    </nav>
+    <div class="st-body">
+    <section class="st-sec" id="st-profile" aria-labelledby="st-profile-h">
+      <div class="st-head"><span class="st-num" aria-hidden="true">01</span><h2 class="st-title" id="st-profile-h">Profile</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Used to personalize your dashboard greeting, timetable headers, and course schedule.</div>
       <div class="form-row">
@@ -17737,78 +17723,35 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="section-heading">${icons.timetable()} Timetable Schedule Management</div>
+    <h3 class="st-sub">College portal link</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Manage your schedule template. You can start clean to add or scan classes for any degree/major.
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
+        Opens from the bottom of your Notices page.
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-secondary" onclick="resetTimetableToDefault()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px;color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent)">
-          Clear Timetable (Start Clean)
-        </button>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">ERP Portal Card Title</label>
+          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. ERP Portal">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ERP Portal Link / URL</label>
+          <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://erp.yourcollege.edu">
+        </div>
+      </div>
+      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
+        💡 The ERP link just opens your portal in a new tab. You sign in there as usual.
       </div>
     </div>
 
-    ${(() => {
-      const h = loadHoliday();
-      if (!h && (!hasAnyTimetable() || p.studyMode === 'self')) return '';
-      return `
-    <div class="section-heading">${icons.sun()} Holiday mode</div>
-    <div class="card" style="padding:20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div style="font-size:var(--text-base);color:var(--text-primary);min-width:0;flex:1 1 220px">
-        ${isHolidayActive() ? `On · ${holidayLabel()}` : isHolidayScheduled() ? `Planned · ${holidayDayLabel(h.since, true)}${h.until ? ` to ${holidayDayLabel(h.until)}` : ''}` : 'Off'}
-        <span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Pick your dates. Classes, class reminders and ongoing tasks rest; real deadlines stay. Nothing is deleted.</span>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${isHolidayActive()
-          ? `<button class="btn btn-sm btn-secondary" onclick="showHolidayModal()">Change dates</button><button class="btn btn-sm btn-secondary" onclick="endHolidayEarly()">End early</button>`
-          : isHolidayScheduled()
-            ? `<button class="btn btn-sm btn-secondary" onclick="showHolidayModal()">Change dates</button><button class="btn btn-sm btn-secondary" onclick="cancelPlannedHoliday()">Cancel</button>`
-            : `<button class="btn btn-sm btn-primary" id="s-holiday" onclick="showHolidayModal()">Plan a holiday</button>`}
-      </div>
-    </div>`;
-    })()}
+    </section>
 
-    <div class="section-heading">${icons.timetable()} Mid-Semester Attendance Baseline</div>
-    <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Started using Clarity Desk mid-semester? Manually enter your current college portal / ERP attendance counts per subject. Future attendance marked in your timetable will calculate continuously from this baseline.
-      </div>
-      <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-        ${icons.chartLine()} Configure Attendance Baselines →
-      </button>
-      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
-        <input type="checkbox" id="s-att-v2" ${isAttendanceV2Active() ? 'checked' : ''} onchange="setAttendanceMathMode(this.checked)" style="margin-top:3px">
-        <span>Calculate exactly like the college ERP<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">2 decimals, labs counted separately, nothing counted twice. Your saved marks stay the same either way.</span></span>
-      </label>
-      ${hasV1AttendanceData() ? `<button type="button" class="btn-secondary" onclick="showAttendanceV2Preview()" style="margin-top:8px;font-size:var(--text-sm);padding:5px 11px">See what changes</button>` : ''}
-      ${attUnmatchedMarksHTML()}
+    <section class="st-sec" id="st-classes" aria-labelledby="st-classes-h">
+      <div class="st-head"><span class="st-num" aria-hidden="true">02</span><h2 class="st-title" id="st-classes-h">Classes &amp; attendance</h2><span class="st-saved" role="status"></span></div>
+    <div class="st-row">
+      <div><div class="st-row-title">Timetable</div><div class="st-row-sub">Add, scan or edit your classes</div></div>
+      <button type="button" class="st-link" onclick="navigateTo('timetable')">Open →</button>
     </div>
-
-    <div class="section-heading">🧹 Personalized Desk Optimization</div>
-    <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Did an earlier timetable import or photo scan create duplicate, noisy, or other-batch subject cards? Clean up and normalize your Subject Hubs, timetable slots, and attendance records to match your specific practical batch.
-      </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px">
-          ${icons.declutter()} Declutter my desk →
-        </button>
-        ${(() => {
-          const b = loadDeclutterBackup();
-          if (b && b.timestamp) {
-            return `
-              <button class="btn-secondary" onclick="showRestoreDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px;color:var(--text-secondary)">
-                ↩ Restore Previous Desk (${new Date(b.timestamp).toLocaleDateString()})
-              </button>
-            `;
-          }
-          return '';
-        })()}
-      </div>
-    </div>
-
-    <div class="section-heading">${icons.clock()} Academic Goals & Countdown</div>
+    <h3 class="st-sub">Exam countdown and attendance target</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-row">
         <div class="form-group">
@@ -17834,59 +17777,69 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="section-heading">${icons.layers()} Appearance</div>
-    <div class="card" style="padding:20px;margin-bottom:20px">
-      <div class="form-group" style="margin-bottom:20px">
-        <label class="form-label" style="margin-bottom:6px">Mode</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Light for a daytime desk, dark for focused night study.</div>
-        <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate: warm daylight desk">
-            <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#F6F1E8"></div>
-              <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#D17A5C"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Paper Slate</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm daylight desk</span>
-            </div>
-          </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
-            <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#171412"></div>
-              <div class="swatch-surface" style="background:#221D19"></div>
-              <div class="swatch-accent" style="background:#DD9470"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Focused night study</span>
-            </div>
-          </button>
-        </div>
+    ${(() => {
+      const h = loadHoliday();
+      if (!h && (!hasAnyTimetable() || p.studyMode === 'self')) return '';
+      return `
+    <h3 class="st-sub">Holiday mode</h3>
+    <div class="card" style="padding:20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-size:var(--text-base);color:var(--text-primary);min-width:0;flex:1 1 220px">
+        ${isHolidayActive() ? `On · ${holidayLabel()}` : isHolidayScheduled() ? `Planned · ${holidayDayLabel(h.since, true)}${h.until ? ` to ${holidayDayLabel(h.until)}` : ''}` : 'Off'}
+        <span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Pick your dates. Classes, class reminders and ongoing tasks rest; real deadlines stay. Nothing is deleted.</span>
       </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label" style="margin-bottom:6px">Palette</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Paper, ink and colour together. Each one has a light and a dark version.</div>
-        <div class="theme-swatch-grid" role="group" aria-label="Palette selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          ${PALETTE_SWATCHES.map(p => {
-            const on = (localStorage.getItem(KEY_ACCENT) || 'terracotta') === p.accent;
-            return `<button type="button" class="theme-swatch palette-swatch ${on ? 'active' : ''}" data-accent="${p.accent}" onclick="setAccent('${p.accent}', event)" aria-pressed="${on}" aria-label="${escAttr_cd(ACCENT_LABELS[p.accent] + ': ' + p.note)}">
-            <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:${p.colors[0]}"></div>
-              <div class="swatch-surface" style="background:${p.colors[1]}"></div>
-              <div class="swatch-accent" style="background:${p.colors[2]}"></div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">${ACCENT_LABELS[p.accent]}</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">${p.note}</span>
-            </div>
-          </button>`;
-          }).join('')}
-        </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${isHolidayActive()
+          ? `<button class="btn btn-sm btn-secondary" onclick="showHolidayModal()">Change dates</button><button class="btn btn-sm btn-secondary" onclick="endHolidayEarly()">End early</button>`
+          : isHolidayScheduled()
+            ? `<button class="btn btn-sm btn-secondary" onclick="showHolidayModal()">Change dates</button><button class="btn btn-sm btn-secondary" onclick="cancelPlannedHoliday()">Cancel</button>`
+            : `<button class="btn btn-sm btn-primary" id="s-holiday" onclick="showHolidayModal()">Plan a holiday</button>`}
+      </div>
+    </div>`;
+    })()}
+
+    <h3 class="st-sub">Starting attendance counts</h3>
+    <div class="card" style="padding:20px;margin-bottom:20px">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+        Started using Clarity Desk mid-semester? Manually enter your current college portal / ERP attendance counts per subject. Future attendance marked in your timetable will calculate continuously from this baseline.
+      </div>
+      <button class="btn-secondary" onclick="showBaselineModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
+        ${icons.chartLine()} Configure Attendance Baselines →
+      </button>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:16px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
+        <input type="checkbox" id="s-att-v2" ${isAttendanceV2Active() ? 'checked' : ''} onchange="setAttendanceMathMode(this.checked)" style="margin-top:3px">
+        <span>Calculate exactly like the college ERP<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">2 decimals, labs counted separately, nothing counted twice. Your saved marks stay the same either way.</span></span>
+      </label>
+      ${hasV1AttendanceData() ? `<button type="button" class="btn-secondary" onclick="showAttendanceV2Preview()" style="margin-top:8px;font-size:var(--text-sm);padding:5px 11px">See what changes</button>` : ''}
+      ${attUnmatchedMarksHTML()}
+    </div>
+
+    <h3 class="st-sub">Tidy duplicate subjects</h3>
+    <div class="card" style="padding:20px;margin-bottom:20px">
+      <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
+        Did an earlier timetable import or photo scan create duplicate, noisy, or other-batch subject cards? Clean up and normalize your Subject Hubs, timetable slots, and attendance records to match your specific practical batch.
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="showDeclutterDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px">
+          ${icons.declutter()} Declutter my desk →
+        </button>
+        ${(() => {
+          const b = loadDeclutterBackup();
+          if (b && b.timestamp) {
+            return `
+              <button class="btn-secondary" onclick="showRestoreDeskModal()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:8px 16px;color:var(--text-secondary)">
+                ↩ Restore Previous Desk (${new Date(b.timestamp).toLocaleDateString()})
+              </button>
+            `;
+          }
+          return '';
+        })()}
       </div>
     </div>
 
-    <div class="section-heading">${icons.bell()} Notifications &amp; Study Alerts</div>
+    </section>
+
+    <section class="st-sec" id="st-reminders" aria-labelledby="st-reminders-h">
+      <div class="st-head"><span class="st-num" aria-hidden="true">03</span><h2 class="st-title" id="st-reminders-h">Reminders</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
@@ -18030,37 +17983,93 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="section-heading">📢 ERP Portal</div>
+    </section>
+
+    <section class="st-sec" id="st-look" aria-labelledby="st-look-h">
+      <div class="st-head"><span class="st-num" aria-hidden="true">04</span><h2 class="st-title" id="st-look-h">Look</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:20px">
-      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Customize your college ERP portal link for quick access on your Notices page.
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">ERP Portal Card Title</label>
-          <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. ERP Portal">
+      <div class="form-group" style="margin-bottom:20px">
+        <label class="form-label" style="margin-bottom:6px">Mode</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Light for a daytime desk, dark for focused night study.</div>
+        <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
+          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate: warm daylight desk">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:#F6F1E8"></div>
+              <div class="swatch-surface" style="background:#FFFDFC"></div>
+              <div class="swatch-accent" style="background:#D17A5C"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">Paper Slate</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm daylight desk</span>
+            </div>
+          </button>
+          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:#171412"></div>
+              <div class="swatch-surface" style="background:#221D19"></div>
+              <div class="swatch-accent" style="background:#DD9470"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Focused night study</span>
+            </div>
+          </button>
         </div>
-        <div class="form-group">
-          <label class="form-label">ERP Portal Link / URL</label>
-          <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://erp.yourcollege.edu">
-        </div>
       </div>
-      <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px;line-height:1.4">
-        💡 The ERP link just opens your portal in a new tab. You sign in there as usual.
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" style="margin-bottom:6px">Palette</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Paper, ink and colour together. Each one has a light and a dark version.</div>
+        <div class="theme-swatch-grid" role="group" aria-label="Palette selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
+          ${PALETTE_SWATCHES.map(p => {
+            const on = (localStorage.getItem(KEY_ACCENT) || 'terracotta') === p.accent;
+            return `<button type="button" class="theme-swatch palette-swatch ${on ? 'active' : ''}" data-accent="${p.accent}" onclick="setAccent('${p.accent}', event)" aria-pressed="${on}" aria-label="${escAttr_cd(ACCENT_LABELS[p.accent] + ': ' + p.note)}">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:${p.colors[0]}"></div>
+              <div class="swatch-surface" style="background:${p.colors[1]}"></div>
+              <div class="swatch-accent" style="background:${p.colors[2]}"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">${ACCENT_LABELS[p.accent]}</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">${p.note}</span>
+            </div>
+          </button>`;
+          }).join('')}
+        </div>
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px">
-      <button class="btn-primary" onclick="saveSettings()" style="display:flex;align-items:center;gap:6px">
-        ${icons.save()} Save Changes
-      </button>
-      <span id="settings-saved" style="display:none;align-items:center;gap:6px;color:var(--green);font-size:var(--text-base);font-weight:500">
-        ${icons.check()} Saved
-      </span>
+    </section>
+
+    <section class="st-sec" id="st-data" aria-labelledby="st-data-h">
+      <div class="st-head"><span class="st-num" aria-hidden="true">05</span><h2 class="st-title" id="st-data-h">Data &amp; account</h2><span class="st-saved" role="status"></span></div>
+    <h3 class="st-sub">Account and sync</h3>
+    <div class="card" style="padding:20px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:600;font-size:var(--text-md)">${currentUser ? (currentUser.displayName || currentUser.email || 'Cloud User') : 'Local Desk Mode'}</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
+            ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
+          </div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
+          ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
+        </div>
+        <div>
+          ${currentUser ? 
+            `<button class="btn btn-sm btn-secondary" onclick="logoutUser()" style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">Sign Out</button>` : 
+            `<div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${detectDevice().inApp
+                ? `<button class="btn btn-primary" onclick="showInAppBanner()" style="display:flex;align-items:center;gap:6px" title="Google blocks sign-in inside Instagram, Facebook and other apps">Google: open in browser first</button>`
+                : `<button class="btn btn-primary" onclick="loginWithGoogle()" style="display:flex;align-items:center;gap:6px">Sign In with Google</button>`}
+              <button class="btn btn-secondary" onclick="showEmailSignInModal()" style="display:flex;align-items:center;gap:6px">Sign In with Email</button>
+              <div style="flex-basis:100%;font-size:var(--text-xs);color:var(--text-muted)">Google lists the accounts this browser is signed into. No list? Enter your Google email, or use email sign-in.</div>
+            </div>`
+          }
+        </div>
+      </div>
     </div>
 
     ${GOATCOUNTER_CODE ? `
-    <div class="section-heading">${icons.chartLine()} Usage counts</div>
+    <h3 class="st-sub">Usage counts</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
         <input type="checkbox" id="s-usage" ${loadUsage().optOut ? '' : 'checked'} onchange="onUsageToggle(this)" style="margin-top:3px;accent-color:var(--accent)">
@@ -18068,7 +18077,7 @@ function renderSettings() {
       </label>
     </div>` : ''}
 
-    <div class="section-heading">${icons.trash()} Data &amp; Backup</div>
+    <h3 class="st-sub">Backup</h3>
     <div class="card" style="padding:18px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
         Your desk data (profile, custom schedule, tasks, attendance records, notice sources) stays private and stored locally in this browser.
@@ -18082,20 +18091,20 @@ function renderSettings() {
           Restore Backup (.json)
         </button>
         <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importData(event)">
-        <button class="btn btn-secondary" onclick="confirmClearTasks()"
-          style="color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 35%, transparent)">
-          Clear All Custom Tasks
-        </button>
       </div>
     </div>
 
-    <div class="section-heading">${icons.code()} About</div>
+    </section>
+
+    <section class="st-sec" id="st-about" aria-labelledby="st-about-h">
+      <div class="st-head"><span class="st-num" aria-hidden="true">06</span><h2 class="st-title" id="st-about-h">About</h2><span class="st-saved" role="status"></span></div>
+    <h3 class="st-sub">What's new</h3>
     <div class="card" style="padding:18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div style="font-size:var(--text-base);color:var(--text-secondary)">Dev Notes: what changed in each update.</div>
       <button class="btn-secondary" onclick="showDevNotesModal()">See what's new</button>
     </div>
 
-    <div class="section-heading">${icons.bell()} Tell me what breaks</div>
+    <h3 class="st-sub">Tell me what breaks</h3>
     <div class="card" style="padding:18px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
         Made by a student. Something wrong or confusing? Tell me and I’ll fix it.
@@ -18104,9 +18113,70 @@ function renderSettings() {
       ${FEEDBACK_URL
         ? `<button class="btn-primary" onclick="openFeedbackForm()" style="display:inline-flex;align-items:center;gap:6px">Report a problem</button>`
         : `<a class="btn-primary" href="${bugReportUrl()}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">Report a problem</a>`}
+    </div>    </section>
+
+    <section class="st-sec st-danger" id="st-danger" aria-labelledby="st-danger-h">
+      <div class="st-head"><h2 class="st-title" id="st-danger-h">Danger zone</h2><span class="st-head-note">asks before it clears anything</span></div>
+      <div class="st-row">
+        <div><div class="st-row-title">Clear timetable</div><div class="st-row-sub">Start clean, then add or scan your classes</div></div>
+        <button type="button" class="st-link is-danger" onclick="resetTimetableToDefault()">Clear…</button>
+      </div>
+      <div class="st-row">
+        <div><div class="st-row-title">Clear my tasks</div><div class="st-row-sub">Removes the tasks you added</div></div>
+        <button type="button" class="st-link is-danger" onclick="confirmClearTasks()">Clear…</button>
+      </div>
+    </section>
+    </div>
     </div>
   `;
+  settingsWire(el);
 }
+
+// Settings save as you go: a field saves when it changes (text fields
+// also a moment after typing stops), and its section shows "Saved".
+const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branch', 's-year', 's-batch',
+  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 'nc-wa-title', 'nc-wa-url',
+  'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts', 'np-new-notices',
+  'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
+let settingsTypingTimer = null;
+function settingsAutoSave(e) {
+  const t = e.target;
+  if (!t || !SETTINGS_AUTOSAVE_IDS.has(t.id)) return;
+  clearTimeout(settingsTypingTimer);
+  const save = () => saveSettings({ quiet: true, from: t });
+  if (e.type === 'input') settingsTypingTimer = setTimeout(save, 900);
+  else save();
+}
+function settingsWire(el) {
+  if (!el.dataset.autosave) {
+    el.dataset.autosave = '1';
+    el.addEventListener('change', settingsAutoSave);
+    el.addEventListener('input', settingsAutoSave);
+  }
+  // The jump list follows the section in view.
+  if (window.__stObserver) window.__stObserver.disconnect();
+  if (!('IntersectionObserver' in window)) return;
+  window.__stObserver = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const key = en.target.id.replace('st-', '');
+      el.querySelectorAll('.st-nav-btn').forEach(b => b.toggleAttribute('aria-current', b.dataset.st === key));
+      const cur = el.querySelector('.st-nav-btn[aria-current]');
+      const nav = cur && cur.parentElement;
+      if (nav && nav.scrollWidth > nav.clientWidth) nav.scrollTo({ left: cur.offsetLeft - 16, behavior: 'smooth' });
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  el.querySelectorAll('.st-sec').forEach(sec => window.__stObserver.observe(sec));
+}
+function settingsJump(key) {
+  const sec = document.getElementById('st-' + key);
+  if (!sec) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  sec.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  const h = sec.querySelector('h2');
+  if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+}
+window.settingsJump = settingsJump;
 
 // "Tell me what breaks": the report goes to a small Cloudflare Worker
 // (workers/feedback/) that forwards it to a private Telegram chat. Only what
@@ -18325,7 +18395,7 @@ async function flushFeedbackQueue() {
   if (dropped) showToast(`${dropped} saved report${dropped !== 1 ? 's' : ''} could not be sent and ${dropped !== 1 ? 'were' : 'was'} dropped.`, 'error');
 }
 
-function saveSettings() {
+function saveSettings(opts = {}) {
   const nameToSave = (document.getElementById('s-name')?.value || '').trim();
   const rawCollege = (document.getElementById('s-college')?.value || '').trim();
   const rawBranch  = (document.getElementById('s-branch')?.value || '').trim();
@@ -18382,18 +18452,20 @@ function saveSettings() {
     saveNoticeChannels(channels);
   }
 
-  // Show "Saved" feedback
-  const saved = document.getElementById('settings-saved');
-  if (saved) {
-    saved.style.display = 'inline-flex';
-    setTimeout(() => { saved.style.display = 'none'; }, 2500);
+  // "Saved" beside the section that changed
+  const tick = opts.from && opts.from.closest && opts.from.closest('.st-sec')?.querySelector('.st-saved');
+  if (tick) {
+    tick.textContent = '✓ Saved';
+    clearTimeout(tick._t);
+    tick._t = setTimeout(() => { tick.textContent = ''; }, 2500);
   }
 
   // Refresh topbar avatar / name
   updateTopbarProfile();
-  setupFABDrag();
+  // It adds listeners each call, so not on every auto-save.
+  if (!opts.quiet) setupFABDrag();
   syncToCloud();
-  showToast('Settings saved ✓', 'success');
+  if (!opts.quiet) showToast('Settings saved ✓', 'success');
 }
 
 function saveNoticeChannelsFromSettings() {

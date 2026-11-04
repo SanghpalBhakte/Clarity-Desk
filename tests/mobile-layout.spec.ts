@@ -305,3 +305,27 @@ test.describe('Tasks: empty page quick add', () => {
     expect((await horizontalOverflow(page)).wide).toEqual([]);
   });
 });
+
+test.describe('Settings: sections that save as you go', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('a field saves on its own, the jump list stays on screen, and clearing lives in the danger zone', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('settings'));
+    await expect(page.getByRole('button', { name: /Save Changes/ })).toHaveCount(0);
+    const roll = page.locator('#s-roll');
+    await roll.fill('2026/AI/042');
+    await roll.blur();
+    await expect(page.locator('#st-profile .st-saved')).toHaveText('✓ Saved');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_profile') || '{}').rollNo)).toBe('2026/AI/042');
+    await page.locator('#np-class-reminders').selectOption('30_min');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_notif_prefs') || '{}').classReminders)).toBe('30_min');
+
+    await page.locator('.st-nav-btn[data-st="danger"]').click();
+    await expect(page.locator('.st-nav')).toBeInViewport();
+    const danger = page.locator('#st-danger');
+    await expect(danger.getByRole('button', { name: 'Clear…' })).toHaveCount(2);
+    await expect(page.locator('#st-data').getByRole('button', { name: /Clear/ })).toHaveCount(0);
+    expect((await horizontalOverflow(page)).wide).toEqual([]);
+  });
+});
