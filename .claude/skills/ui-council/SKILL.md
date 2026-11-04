@@ -29,8 +29,9 @@ Before the first round, read these memories: `no-generic-ui-styles`, `avoid-card
    - `npm run ui:shots -- --screen <screen> --out test-results/ui-council/r<N> --mcp` writes `mcp-job.js`.
    - Run it with the Playwright MCP tool `browser_run_code_unsafe` and `filename: test-results/ui-council/r<N>/mcp-job.js`. The tool only reads files inside the worktree, so the output must stay under `test-results/`, which is gitignored.
    - Save the returned JSON as `checks.json` in the same folder.
-4. Read at least one PNG yourself before calling the council. Sample-data quirks must not reach reviewers: if a task shows a wrong code, fix the seed in `shoot.mjs`, not the app.
-5. `checks.json` holds measured facts:
+4. Read at least one PNG yourself before calling the council. Sample-data quirks must not reach reviewers: if a task shows a wrong code, fix the seed in `shoot.mjs`, not the app. Phone shots are viewport-sized, as the screen opens, plus `-end` scrolled to the bottom, because full-page captures misdraw fixed and sticky bars. Laptop shots are full-page.
+5. Before "fixing" anything a reviewer says is hidden or broken, reproduce it in a real viewport with `browser_run_code_unsafe` (scroll, `getBoundingClientRect`, `elementFromPoint`). Screenshot artifacts are not bugs.
+6. `checks.json` holds measured facts:
    - `contrast`: text below WCAG AA. `measured` and `skipped` prove the check really ran. Many skipped means it couldn't see the background.
    - `tapTargets`: below WCAG 2.5.8 (24 px, with the spacing exception). These must be fixed.
    - `tapComfort`: under 44 px. This is advice; it counts as one vote.
@@ -47,7 +48,7 @@ Start four fresh `general-purpose` Agents in one message. Each gets the brief, t
 
 **Round 0** returns JSON only: `{"score": n, "fixes": ["element: change (why)"]}`. Ask for at most 3 fixes, each small enough for one CSS rule or one render-string edit.
 
-**From round 1 on**, run `node scripts/ui-council/pair.mjs --a <kept dir> --b <new dir> --out test-results/ui-council/r<N>-ab`. Reviewers then see each view as `A-…png` and `B-…png` in random order, and return `{"prefer": "A"|"B"|"same", "score": n, "fixes": [...]}`, where the score is for the one they prefer. Unblind with the `key.json` that `pair.mjs` writes. A pairwise choice drifts less than an absolute score.
+**From round 1 on**, run `node scripts/ui-council/pair.mjs --a <kept dir> --b <new dir> --out test-results/ui-council/r<N>-ab`. Reviewers then see each view as `A-…png` and `B-…png` in random order, and return `{"prefer": "A"|"B"|"same", "score": n, "fixes": [...]}`, where the score is for the one they prefer. Unblind with `<out>.key.json`, which `pair.mjs` writes beside the folder, not inside it, so reviewers can't peek; still tell them not to open `*.key.json`. A pairwise choice drifts less than an absolute score.
 
 If `.env.council` has keys, also run `npm run ui:outside-review -- --brief "<brief>" <up to 4 PNGs>`. Outside reviewers are advisory: their fixes count as votes, but they never decide whether to keep a change. On an error (quota, 429), carry on Claude-only.
 

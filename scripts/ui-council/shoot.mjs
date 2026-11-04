@@ -178,8 +178,22 @@ async function runShots(browser, cfg) {
         await page.evaluate((p) => window.navigateTo(p), cfg.page);
         await page.waitForTimeout(600);
         const name = `${state}-${theme}-${size}`;
-        await page.screenshot({ path: `${cfg.out}/${name}.png`, fullPage: true });
         checks[name] = await page.evaluate(measure, { pageId: cfg.page, isMobile: size === 'mobile' });
+        if (size === 'mobile') {
+          // A full-page capture draws the fixed nav and sticky add bar at
+          // their scroll-0 spots over a taller page, which looks broken when
+          // it isn't. Phone shots are what a student sees instead: the
+          // screen as it opens and, when it scrolls, the end of the list.
+          await page.screenshot({ path: `${cfg.out}/${name}.png` });
+          const scrolls = await page.evaluate(() => document.documentElement.scrollHeight > innerHeight + 4);
+          if (scrolls) {
+            await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+            await page.waitForTimeout(200);
+            await page.screenshot({ path: `${cfg.out}/${name}-end.png` });
+          }
+        } else {
+          await page.screenshot({ path: `${cfg.out}/${name}.png`, fullPage: true });
+        }
         await context.close();
       }
     }

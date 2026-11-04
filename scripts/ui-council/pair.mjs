@@ -3,7 +3,7 @@
 // =====================================================================
 // Copies each view's screenshot from two council rounds into one folder
 // as A-<view>.png and B-<view>.png, randomly deciding per view which
-// round is "A", and writes key.json so the result can be unblinded.
+// round is "A", and writes <out>.key.json so the result can be unblinded.
 // Reviewers judge without knowing which one is the change.
 //
 //   node scripts/ui-council/pair.mjs --a <kept dir> --b <new dir> --out <dir>
@@ -31,5 +31,8 @@ for (const file of fs.readdirSync(args.a).filter((f) => f.endsWith('.png'))) {
   fs.copyFileSync(path.join(args.b, file), path.join(args.out, `${newIsA ? 'A' : 'B'}-${file}`));
   key[view] = { new: newIsA ? 'A' : 'B' };
 }
-fs.writeFileSync(path.join(args.out, 'key.json'), JSON.stringify(key, null, 2));
-console.log(`Paired ${Object.keys(key).length} views into ${args.out}`);
+// The key sits beside the folder, not in it, so reviewers who list the
+// folder can't unblind themselves.
+const keyFile = `${args.out.replace(/\/+$/, '')}.key.json`;
+fs.writeFileSync(keyFile, JSON.stringify(key, null, 2));
+console.log(`Paired ${Object.keys(key).length} views into ${args.out} (key: ${keyFile})`);
