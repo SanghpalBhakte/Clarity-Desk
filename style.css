@@ -7630,6 +7630,31 @@ body.holiday-mode .holiday-banner {
 .tk-add input:focus-visible { outline: 0 !important; }
 .tk-add-paste { flex: none; min-height: 44px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.8125rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
 
+/* Two weeks strip (laptops only): one column a day, ticks for deadlines,
+   a thread-coloured needle on today. */
+.tk-strip { display: none; }
+.tk-strip-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.tk-strip-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.tk-strip-key { font-size: 0.75rem; color: var(--text-secondary); }
+.tk-strip-key i { display: inline-block; height: 12px; margin: 0 4px 0 10px; vertical-align: -2px; background: var(--text-primary); }
+.tk-strip-key .k-due { width: 3px; margin-left: 0; }
+.tk-strip-key .k-exam { width: 6px; }
+.tk-strip-key b { margin-left: 10px; color: var(--status-error, var(--color-error)); }
+.tk-strip-grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); border-bottom: 1.5px solid var(--text-primary); }
+.tk-strip-day { position: relative; display: flex; flex-direction: column; min-height: 96px; }
+.tk-strip-day.is-weekend { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+.tk-strip-day.is-week2 { border-left: 1px solid var(--color-rule); }
+.tk-strip-date { padding: 4px 0 0 8px; font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+.tk-strip-day.is-today .tk-strip-date { font-weight: 700; color: var(--color-thread, var(--accent)); }
+.tk-strip-day.is-today::before { content: ''; position: absolute; left: 8px; top: 22px; bottom: 0; width: 2px; background: var(--color-thread, var(--accent)); }
+.tk-strip-ticks { display: flex; flex-direction: column; gap: 3px; margin-top: auto; padding: 0 2px 6px 14px; min-width: 0; }
+.tk-tick { overflow: hidden; padding-left: 6px; border-left: 3px solid currentColor; font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; line-height: 18px; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
+.tk-tick.is-exam { border-left-width: 6px; }
+.tk-tick.is-late { color: var(--status-error, var(--color-error)); }
+.tk-tick.is-done { color: var(--text-muted); text-decoration: line-through; }
+.tk-tick.is-dim { opacity: 0.25; }
+.tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
+
 @media (max-width: 767px) {
   #page-assignments .tk-add { position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; order: 10; box-shadow: 0 -10px 0 var(--color-canvas); }
 }
@@ -7638,6 +7663,9 @@ body.holiday-mode .holiday-banner {
 @media (min-width: 1024px) {
   #page-assignments .tk-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); grid-template-areas: "head add" "main main"; column-gap: 48px; row-gap: 18px; align-items: end; }
   #page-assignments .tk-page.has-side { grid-template-areas: "head add" "main side"; }
+  #page-assignments .tk-page.has-strip { grid-template-areas: "head add" "strip strip" "main main"; }
+  #page-assignments .tk-page.has-strip.has-side { grid-template-areas: "head add" "strip strip" "main side"; }
+  #page-assignments .tk-strip { display: block; grid-area: strip; }
   #page-assignments .tk-head { grid-area: head; }
   #page-assignments .tk-add { grid-area: add; }
   #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; }
