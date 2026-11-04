@@ -19142,7 +19142,12 @@ function init() {
   // popping in and out. Removed; the inline handlers already cover it.
 
   document.getElementById('global-search')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') handleGlobalSearch(e.target.value);
+    if (e.key === 'Enter') {
+      handleGlobalSearch(e.target.value);
+      // On phones the box is a full-width overlay: close it once the results show.
+      if (window.matchMedia('(max-width: 540px)').matches) e.target.blur();
+    }
+    if (e.key === 'Escape') e.target.blur();
   });
 
   const pending = window._pendingNav;

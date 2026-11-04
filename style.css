@@ -7532,3 +7532,26 @@ body.holiday-mode .holiday-banner {
   .chrono-beacon[data-beacon="next"] .chrono-beacon-count-num { display: block; font-size: 1.45rem; }
   .chrono-beacon[data-beacon="next"] .chrono-beacon-count-label { display: block; }
 }
+
+/* Phones: search is a magnifier next to the other buttons. Tapping it opens
+   a full-width box and hides the rest of the bar; the close button or tapping
+   away puts it back. Needs :has(), so older browsers keep the normal box. */
+.search-close { display: none; }
+@supports selector(:has(*)) {
+  @media (max-width: 540px) {
+    .topbar-search { flex: none; width: 40px; max-width: none; min-width: 0; margin-left: auto; }
+    .topbar-search input { height: 40px; padding: 0; border-radius: 50%; color: transparent; caret-color: transparent; cursor: pointer; }
+    .topbar-search input::placeholder { color: transparent; }
+    .topbar-search .search-icon { left: 50%; transform: translate(-50%, -50%); }
+    .topbar:has(.topbar-search:focus-within) .topbar-left,
+    .topbar:has(.topbar-search:focus-within) .topbar-actions { display: none; }
+    .topbar:has(.topbar-search:focus-within) .topbar-search { flex: 1 1 auto; width: auto; margin-left: 0; }
+    .topbar-search:focus-within input { height: auto; padding: 8px 44px 8px 36px; border-radius: 999px; box-shadow: none; color: var(--text-primary); caret-color: auto; cursor: text; }
+    .topbar-search:focus-within input::placeholder { color: var(--text-muted); }
+    .topbar-search:focus-within .search-icon { left: 12px; transform: translateY(-50%); }
+    .topbar-search:focus-within .search-close {
+      display: grid; place-items: center; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer;
+    }
+  }
+}

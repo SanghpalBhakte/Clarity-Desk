@@ -121,7 +121,10 @@
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
       </span>
-      <input type="text" id="global-search" placeholder="Search notices, topics, courses… (Enter)" autocomplete="off" />
+      <input type="text" id="global-search" placeholder="Search notices, topics, courses… (Enter)" aria-label="Search" autocomplete="off" />
+      <button type="button" class="search-close" aria-label="Close search" onmousedown="event.preventDefault()" onclick="const i=document.getElementById('global-search'); i.value=''; i.blur()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
 
     <div class="topbar-actions">
