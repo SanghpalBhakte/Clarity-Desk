@@ -100,6 +100,8 @@ Nothing changes for students.`;
   check('skips Dependabot "chore(deps-dev): ..."', skipped('chore(deps-dev): bump the dev-dependencies group with 2 updates'));
   check('skips chore:, test:, build(deps):, ci:', ['chore: bump the cache version', 'test: add checks', 'build(deps): bump x', 'ci: speed up'].every(skipped));
   check('keeps student-facing subjects', !skipped('Class reminders now arrive when the app is closed') && !skipped('Choreography club notices now show'));
+  check('skips a revert of a tooling commit', skipped('Revert "chore: temp broken screenshot to test refresh"'));
+  check('keeps a revert of a student-facing change', !skipped('Revert "Class reminders now arrive when the app is closed"'));
 }
 
 // 7. No "(vN)" label on Dev Notes: ship no longer adds it, and older notes

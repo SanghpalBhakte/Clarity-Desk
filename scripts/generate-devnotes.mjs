@@ -87,7 +87,7 @@ const commits = raw
 
 // Skip housekeeping-only commits -- nothing a student user would care about.
 // chore/test/build/ci may carry a scope, e.g. Dependabot's "chore(deps-dev): ...".
-const SKIP_PATTERNS = [/^wip\b/i, /^(chore|test|build|ci)(\([^)]*\))?!?:/i, /^merge\b/i, /^bump\b/i];
+const SKIP_PATTERNS = [/^wip\b/i, /^(chore|test|build|ci)(\([^)]*\))?!?:/i, /^revert "(chore|test|build|ci)(\([^)]*\))?!?:/i, /^merge\b/i, /^bump\b/i];
 const relevant = commits.filter((c) => !SKIP_PATTERNS.some((re) => re.test(c.subject)));
 
 if (!relevant.length) {
