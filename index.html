@@ -28,6 +28,9 @@
         var valid = ['paper-slate', 'midnight-ink'];
         if (!valid.includes(t)) t = 'paper-slate';
         document.documentElement.setAttribute('data-theme', t);
+        // Palette before first paint, so a chosen palette doesn't flash the default.
+        var a = localStorage.getItem('cos_accent');
+        if (['terracotta', 'rose', 'lavender', 'apricot'].includes(a)) document.documentElement.setAttribute('data-accent', a);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', t === 'midnight-ink' ? '#171412' : '#F6F1E8');
         if (localStorage.getItem('cd_sidebar_collapsed') === '1') document.documentElement.classList.add('sidebar-collapsed');

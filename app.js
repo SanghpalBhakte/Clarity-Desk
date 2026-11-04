@@ -7101,12 +7101,23 @@ const THEME_LABELS = {
 
 const ALL_ACCENTS = ['terracotta', 'rose', 'lavender', 'apricot'];
 
+// Each accent value now names a whole palette (paper, ink and brand, in
+// both modes; see style.css 1b/2b). The stored values stay the same, so
+// backups, sync and older app versions need no change.
 const ACCENT_LABELS = {
-  'terracotta': 'Terracotta',
-  'rose':       'Rose',
-  'lavender':   'Lavender',
-  'apricot':    'Apricot'
+  'terracotta': 'Rikyū',
+  'rose':       'Azuki & Matcha',
+  'lavender':   'Ai & Kaki',
+  'apricot':    'Tetsu lamp'
 };
+
+// Settings preview colours: page, ink, signature colour.
+const PALETTE_SWATCHES = [
+  { accent: 'terracotta', note: 'Warm paper and terracotta',   colors: ['#F6F2E9', '#4A4038', '#A8452C'] },
+  { accent: 'lavender',   note: 'Indigo ink with persimmon',   colors: ['#E4E9EE', '#2C4F73', '#D0794F'] },
+  { accent: 'apricot',    note: 'Iron teal and amber lamp',    colors: ['#E8E6DF', '#2F625C', '#D39A4E'] },
+  { accent: 'rose',       note: 'Red bean and tea leaf',       colors: ['#E9ECDD', '#7D3F45', '#9AA65A'] }
+];
 
 // Retired flat 5-theme names (each baked mode+accent into one value)
 // migrate to: mode -> paper-slate, accent -> the mapped color.
@@ -7165,7 +7176,9 @@ function applyThemeColorMeta(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
   const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-  meta.setAttribute('content', isStandalone ? '#171412' : (theme === 'midnight-ink' ? '#171412' : '#F6F1E8'));
+  // A browser tab follows the palette's page colour.
+  const pageColor = getComputedStyle(document.documentElement).getPropertyValue('--raw-bg-0').trim();
+  meta.setAttribute('content', isStandalone ? '#171412' : (pageColor || (theme === 'midnight-ink' ? '#171412' : '#F6F1E8')));
 }
 
 function initTheme() {
@@ -7204,6 +7217,7 @@ function initAccent() {
   if (!accent || !ALL_ACCENTS.includes(accent)) accent = 'terracotta';
   localStorage.setItem(KEY_ACCENT, accent);
   document.documentElement.setAttribute('data-accent', accent);
+  applyThemeColorMeta(document.documentElement.getAttribute('data-theme'));
 }
 
 function setAccent(accent, originEvent) {
@@ -7211,12 +7225,14 @@ function setAccent(accent, originEvent) {
   document.documentElement.setAttribute('data-accent', accent);
   localStorage.setItem(KEY_ACCENT, accent);
 
-  // Keep any rendered accent-dot row in sync without a full renderSettings()
+  applyThemeColorMeta(document.documentElement.getAttribute('data-theme'));
+
+  // Keep any rendered palette row in sync without a full renderSettings()
   // rebuild, same efficient pattern as updateThemeSelector()'s swatch sync.
-  document.querySelectorAll('.accent-dot').forEach(dot => {
-    const isMatch = dot.getAttribute('onclick')?.includes(`'${accent}'`);
-    dot.classList.toggle('active', !!isMatch);
-    dot.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+  document.querySelectorAll('.palette-swatch').forEach(sw => {
+    const isMatch = sw.dataset.accent === accent;
+    sw.classList.toggle('active', isMatch);
+    sw.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
   });
 
   if (currentUser && db) {
@@ -7370,7 +7386,7 @@ function updateThemeSelector(theme) {
   }
 
   // Sync Settings page theme swatches if currently rendered
-  const swatches = document.querySelectorAll('.theme-swatch');
+  const swatches = document.querySelectorAll('.theme-swatch:not(.palette-swatch)');
   swatches.forEach(sw => {
     const isMatch = sw.getAttribute('onclick')?.includes(`'${theme}'`);
     sw.classList.toggle('active', !!isMatch);
@@ -17663,13 +17679,23 @@ function renderSettings() {
         </div>
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label" style="margin-bottom:6px">Accent color</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Pick any colour. It works with both modes above.</div>
-        <div role="group" aria-label="Accent color selection" style="display:flex;gap:16px;flex-wrap:wrap">
-          <button type="button" class="accent-dot ${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta' ? 'active' : ''}" onclick="setAccent('terracotta', event)" aria-pressed="${(localStorage.getItem(KEY_ACCENT) || 'terracotta') === 'terracotta'}" aria-label="Terracotta accent" title="Terracotta" style="--dot-color:#D17A5C"></button>
-          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'rose' ? 'active' : ''}" onclick="setAccent('rose', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'rose'}" aria-label="Rose accent" title="Rose" style="--dot-color:#9E4A5C"></button>
-          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'lavender' ? 'active' : ''}" onclick="setAccent('lavender', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'lavender'}" aria-label="Lavender accent" title="Lavender" style="--dot-color:#6B5A7E"></button>
-          <button type="button" class="accent-dot ${localStorage.getItem(KEY_ACCENT) === 'apricot' ? 'active' : ''}" onclick="setAccent('apricot', event)" aria-pressed="${localStorage.getItem(KEY_ACCENT) === 'apricot'}" aria-label="Apricot accent" title="Apricot" style="--dot-color:#965C1A"></button>
+        <label class="form-label" style="margin-bottom:6px">Palette</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Paper, ink and colour together. Each one has a light and a dark version.</div>
+        <div class="theme-swatch-grid" role="group" aria-label="Palette selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
+          ${PALETTE_SWATCHES.map(p => {
+            const on = (localStorage.getItem(KEY_ACCENT) || 'terracotta') === p.accent;
+            return `<button type="button" class="theme-swatch palette-swatch ${on ? 'active' : ''}" data-accent="${p.accent}" onclick="setAccent('${p.accent}', event)" aria-pressed="${on}" aria-label="${escAttr_cd(ACCENT_LABELS[p.accent] + ': ' + p.note)}">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:${p.colors[0]}"></div>
+              <div class="swatch-surface" style="background:${p.colors[1]}"></div>
+              <div class="swatch-accent" style="background:${p.colors[2]}"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">${ACCENT_LABELS[p.accent]}</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">${p.note}</span>
+            </div>
+          </button>`;
+          }).join('')}
         </div>
       </div>
     </div>
