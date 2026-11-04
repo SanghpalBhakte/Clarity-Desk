@@ -199,6 +199,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u186",
+    date: "2026-11-04",
+    title: "Pop-ups open without sliding when your phone is set to reduce motion",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Pop-ups open without sliding when your phone is set to reduce motion",
+    points: [
+
+    ]
+  },
+  {
+    id: "u185",
+    date: "2026-11-04",
+    title: "The bouncing tip next to the + button stays still when your phone is set to reduce motion",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The bouncing tip next to the + button stays still when your phone is set to reduce motion",
+    points: [
+
+    ]
+  },
+  {
+    id: "u184",
+    date: "2026-11-04",
+    title: "Ask Desk's subtitle and suggestion hints are a little bigger and easier to read on phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Ask Desk's subtitle and suggestion hints are a little bigger and easier to read on phones",
+    points: [
+
+    ]
+  },
+  {
+    id: "u183",
+    date: "2026-11-04",
+    title: "Undo on your very first attendance marks now also takes them off your other devices",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Before, if Undo left this phone with no marks at all, the account kept them and they came back on the next sync.",
+    points: [
+      "Adds checks for Mark all, attendance Undo and the install card timing."
+    ]
+  },
+  {
     id: "u182",
     date: "2026-11-04",
     title: "Attendance is quicker: Present stands out, Absent is quieter, marks can be undone, and one tap marks all ended classes Present",
