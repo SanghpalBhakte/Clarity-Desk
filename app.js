@@ -441,12 +441,15 @@ function maybeCelebrateAttendanceTarget(wasOnTarget) {
 // since the user should decide when it's a good moment to reload.
 function showUpdateAvailableBanner() {
   if (document.getElementById('update-available-banner')) return;
+  // One strip at a time: the update wins; the install card returns after it.
+  document.getElementById('install-banner')?.remove();
+  scheduleInstallBanner(10000);
   const banner = document.createElement('div');
   banner.id = 'update-available-banner';
   banner.setAttribute('role', 'status');
-  banner.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h, 60px) + 12px);z-index:9999;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 4px 18px rgba(0,0,0,0.18);font-size:0.875rem;color:var(--text-primary)';
+  banner.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(var(--nav-h, 60px) + 12px);z-index:9999;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:6px 8px 6px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 4px 18px rgba(0,0,0,0.18);font-size:0.875rem;color:var(--text-primary)';
   banner.innerHTML = `
-    <span>✨ A new version of Clarity Desk is ready.</span>
+    <span>New version ready</span>
     <div style="display:flex;gap:6px;flex-shrink:0">
       <button type="button" onclick="document.getElementById('update-available-banner')?.remove()" style="background:none;border:none;color:var(--text-muted);font-size:0.875rem;padding:4px 8px;cursor:pointer">Later</button>
       <button type="button" onclick="window.location.reload()" style="background:var(--accent);color:var(--text-on-fill);border:none;border-radius:6px;font-weight:600;padding:6px 14px;font-size:0.875rem;cursor:pointer">Refresh</button>
@@ -6418,16 +6421,24 @@ function onUsageToggle(box) {
   showToast(u.optOut ? 'Usage counts turned off.' : 'Thanks. Anonymous usage counts are on.', 'success');
 }
 
+// Offer install only from the 3rd open, once the app has proven useful.
+const INSTALL_MIN_OPENS = 3;
+function bumpInstallOpens() {
+  const p = safeGetStorage(KEY_INSTALL_PROMPT, null) || {};
+  safeSetStorage(KEY_INSTALL_PROMPT, { ...p, opens: (p.opens || 0) + 1 });
+}
+
 function scheduleInstallBanner(delay = 4000, tries = 6) {
   clearTimeout(_installBannerTimer);
   _installBannerTimer = setTimeout(() => {
     const p = safeGetStorage(KEY_INSTALL_PROMPT, null) || {};
     if (p.dismissedAt && Date.now() - p.dismissedAt < INSTALL_SNOOZE_MS) return;
+    if ((p.opens || 0) < INSTALL_MIN_OPENS) return;
     if (document.getElementById('install-banner')) return;
     const kind = installBannerKind();
     if (!kind) return;
-    // Wait until the welcome screen or any other dialog is closed.
-    if (document.querySelector('.modal-backdrop')) {
+    // Wait until the welcome screen, any other dialog or the update strip is gone.
+    if (document.querySelector('.modal-backdrop') || document.getElementById('update-available-banner')) {
       if (tries > 0) scheduleInstallBanner(10000, tries - 1);
       return;
     }
@@ -6459,7 +6470,7 @@ function showInstallBanner(kind) {
 }
 
 function dismissInstallBanner() {
-  safeSetStorage(KEY_INSTALL_PROMPT, { dismissedAt: Date.now() });
+  safeSetStorage(KEY_INSTALL_PROMPT, { ...(safeGetStorage(KEY_INSTALL_PROMPT, null) || {}), dismissedAt: Date.now() });
   document.getElementById('install-banner')?.remove();
 }
 
@@ -6471,7 +6482,7 @@ async function installBannerAction(kind) {
     try {
       e.prompt();
       const choice = await e.userChoice;
-      if (choice && choice.outcome !== 'accepted') safeSetStorage(KEY_INSTALL_PROMPT, { dismissedAt: Date.now() });
+      if (choice && choice.outcome !== 'accepted') safeSetStorage(KEY_INSTALL_PROMPT, { ...(safeGetStorage(KEY_INSTALL_PROMPT, null) || {}), dismissedAt: Date.now() });
     } catch (err) {
       console.warn('[Install] prompt failed:', err);
     }
@@ -19172,6 +19183,7 @@ function init() {
   checkScheduledNotifications();
   checkNoticeNotifications();
   schedulePushSync(5000);
+  bumpInstallOpens();
   scheduleInstallBanner();
   if (moveAction === 'card') setTimeout(() => showMovedBanner(), 2500);
   if (detectDevice().inApp) setTimeout(() => showInAppBanner(), 1200);
