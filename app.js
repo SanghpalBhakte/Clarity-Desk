@@ -7114,9 +7114,9 @@ const ACCENT_LABELS = {
 // Settings preview colours: page, ink, signature colour.
 const PALETTE_SWATCHES = [
   { accent: 'terracotta', note: 'Warm paper and terracotta',   colors: ['#F6F2E9', '#4A4038', '#A8452C'] },
-  { accent: 'lavender',   note: 'Indigo ink with persimmon',   colors: ['#E8EBE8', '#1F3A3F', '#A94A2A'] },
-  { accent: 'apricot',    note: 'Iron teal and amber lamp',    colors: ['#EBE7DC', '#2B3736', '#E3A66F'] },
-  { accent: 'rose',       note: 'Red bean and tea leaf',       colors: ['#ECEBE2', '#2F3437', '#864944'] }
+  { accent: 'lavender',   note: 'Indigo ink with persimmon',   colors: ['#E4E9EE', '#2C4F73', '#D0794F'] },
+  { accent: 'apricot',    note: 'Iron teal and amber lamp',    colors: ['#E8E6DF', '#2F625C', '#D39A4E'] },
+  { accent: 'rose',       note: 'Red bean and tea leaf',       colors: ['#E9ECDD', '#7D3F45', '#9AA65A'] }
 ];
 
 // Retired flat 5-theme names (each baked mode+accent into one value)
