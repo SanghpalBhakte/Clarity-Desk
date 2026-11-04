@@ -40,7 +40,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan, classesAttendedThisWeek };`)();
+const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan, classesAttendedThisWeek, sanitizeTask, goalCheckinsThisWeek, rhythmAimStatus, state };`)();
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -173,6 +173,32 @@ check('Sync notices a change of aim kind or count', () => {
   const count = { attTarget: 75, aims: { kind: 'count', line: 75, count: 10, subjects: {} } };
   const count12 = { attTarget: 75, aims: { kind: 'count', line: 75, count: 12, subjects: {} } };
   return H(line) !== H(count) && H(count) !== H(count12) ? true : 'hash unchanged';
+});
+
+check('Goals keep their check-in days (valid, unique, sorted); dated tasks never get them', () => {
+  const g = app.sanitizeTask({ id: 'g1', title: 'Past paper', taskType: 'mission', noDeadline: true, checkins: ['2026-11-04', 'x', '2026-11-02', '2026-11-04'] });
+  const t = app.sanitizeTask({ id: 't1', title: 'Lab', dueDate: '2026-11-09', checkins: ['2026-11-04'] });
+  const old = app.sanitizeTask({ id: 'g2', title: 'Old goal', taskType: 'mission', noDeadline: true });
+  return JSON.stringify(g.checkins) === '["2026-11-02","2026-11-04"]' && !('checkins' in t) && !('checkins' in old) ? true : JSON.stringify([g, t, old]);
+});
+
+check('Rhythm aim: progress counts this week only, and goes quiet when the goal is done or gone', () => {
+  reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'rhythm', goal: 'g1', times: 2, line: 75, subjects: {} }) });
+  const now = new Date('2026-11-05T12:00:00');
+  app.state.customTasks = [{ id: 'g1', title: 'Past paper', taskType: 'mission', noDeadline: true, status: 'pending', checkins: ['2026-11-01', '2026-11-03'] }];
+  const r = app.rhythmAimStatus(now);
+  if (!r || r.done !== 1 || r.times !== 2 || r.title !== 'Past paper') return JSON.stringify(r);
+  app.state.customTasks[0].status = 'submitted';
+  if (app.rhythmAimStatus(now) !== null) return 'shown for a finished goal';
+  app.state.customTasks = [];
+  return app.rhythmAimStatus(now) === null ? true : 'shown for a deleted goal';
+});
+
+check('A rhythm aim with no goal or a bad count reads as the line aim', () => {
+  reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'rhythm', goal: '', times: 2, line: 75 }) });
+  const a1 = app.loadAims().kind;
+  store.cos_aims = JSON.stringify({ v: 1, kind: 'rhythm', goal: 'g1', times: 40, line: 75 });
+  return a1 === 'line' && app.loadAims().kind === 'line' ? true : JSON.stringify([a1, app.loadAims()]);
 });
 
 console.log(`\n========================================\nTOTAL SCENARIOS CHECKED: ${total}\nPASSED: ${passed}\nFAILED: ${total - passed}\n========================================`);
