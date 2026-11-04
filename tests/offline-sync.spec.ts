@@ -8,7 +8,7 @@ import { test, expect, Page } from '@playwright/test';
 // reload. Run: npx playwright test tests/offline-sync.spec.ts
 // ==================================================================
 
-const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'calendar', 'notices', 'resources', 'links', 'summary', 'settings', 'review'];
+const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'calendar', 'resources', 'links', 'summary', 'settings', 'review'];
 
 async function openAppOnline(page: Page) {
   await page.addInitScript(() => {

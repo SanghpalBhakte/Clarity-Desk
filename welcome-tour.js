@@ -17,11 +17,11 @@ const STOPS = [
   { targets: ['.bottom-nav-item[data-nav="assignments"]', '#sidebar-assignments'],
     title: () => 'Tasks',
     text: 'Homework, assignments, exams. Just type "lab report Friday" and it\'s saved.' },
-  { targets: ['#bnav-more', '#sidebar-notices'],
+  { targets: ['#bnav-more', '#sidebar-calendar'],
     title: () => 'Everything else',
     text: (onSidebar) => (onSidebar
-      ? 'Notices, calendar, study vault and settings are all in this sidebar.'
-      : 'Notices, calendar, settings and backups live in here.') },
+      ? 'Calendar, study vault and settings are all in this sidebar.'
+      : 'Calendar, study vault, settings and backups live in here.') },
   { targets: ['.desk-setup-guide'], last: true,
     title: (n) => (n ? `That's the tour, ${n}!` : "That's the tour!"),
     text: 'Last thing. Add your timetable and Today fills up with your real classes.' }

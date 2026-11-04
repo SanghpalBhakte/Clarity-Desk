@@ -20,7 +20,7 @@ export function createClarityAssistant(deps) {
     detectDeskPollution, escHtml_cd, formatDisplayTime,
     formatDisplayTimeRange, getAttendanceTarget, getCanonicalSubjectKey,
     getCountdownLabel, getOverallAttendance, getSubjectAttendance,
-    getSubjectList, getVisibleNotices, holidayLabel, icons, isBreakEntry,
+    getSubjectList, holidayLabel, icons, isBreakEntry,
     isHolidayActive, isTaskOverdue, isTeachingClass,
     loadAttendanceBaselines, loadHoliday, loadProfile, loadTimetable,
     syllabusExamInfo, syllabusStats, syllabusTodayLine, timeToMinutes,
@@ -151,10 +151,6 @@ export function createClarityAssistant(deps) {
       test: /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/i,
     },
     {
-      id: 'notices',
-      test: /\b(notices?|announcements?|important|updates?|bulletins?|news|notifications?|circulars?)\b/i,
-    },
-    {
       id: 'profile',
       test: /\b(who am i|my profile|my name|my branch|my year|my roll|my college|my batch)\b/i,
     },
@@ -188,7 +184,7 @@ export function createClarityAssistant(deps) {
   // Words the rules care about; a word one or two letters off one of these
   // is read as that word ("attendnce", "scedule", "tommorow").
   const VOCAB = ['attendance', 'timetable', 'schedule', 'tomorrow', 'today', 'tasks', 'deadline', 'deadlines',
-    'subject', 'subjects', 'notice', 'notices', 'exam', 'exams', 'class', 'classes', 'urgent', 'overdue',
+    'subject', 'subjects', 'exam', 'exams', 'class', 'classes', 'urgent', 'overdue',
     'pending', 'setup', 'week', 'weekly', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
     'sunday', 'percentage', 'remaining', 'next', 'study', 'plan', 'tonight', 'profile', 'declutter', 'baseline',
     'import', 'scan', 'attention', 'skip', 'safe', 'risk', 'upcoming', 'schedule', 'finish', 'update', 'updates',
@@ -1048,7 +1044,7 @@ export function createClarityAssistant(deps) {
     } else if (subjects.length > 0) {
       planSteps.push(`<strong>2. Problem Practice (30 min):</strong> Solve practice questions or read syllabus references for <strong>${escHtml(subjects[0].name)}</strong>.`);
     } else {
-      planSteps.push(`<strong>2. Desk Review (20 min):</strong> Organize notes, verify upcoming tests, and check campus notices.`);
+      planSteps.push(`<strong>2. Desk Review (20 min):</strong> Organize notes, and verify upcoming tests.`);
     }
 
     // Block 3: Tomorrow's Schedule Preview
@@ -1523,8 +1519,6 @@ export function createClarityAssistant(deps) {
     allTasks().filter(t => t.status === 'pending' && isExam(t))
       .sort((a, b) => (a.dueDate || '9').localeCompare(b.dueDate || '9'))
       .forEach(t => lines.push(`<li><span class="cd-item-label">${escHtml(t.title)}</span><span class="cd-item-meta">${escHtml(t.subject || 'Task')}${t.dueDate ? ' · ' + fmtDate(t.dueDate) : ''}</span></li>`));
-    getVisibleNotices().filter(n => /exam|test|quiz|viva/i.test(`${n.category} ${n.title}`)).slice(0, 3)
-      .forEach(n => lines.push(`<li><span class="cd-tag cd-tag-notice">Notice</span><span class="cd-item-label">${escHtml(n.title)}</span><span class="cd-item-meta">${fmtDate(n.date)}</span></li>`));
     if (lines.length === 0) {
       return `I don't know any exam dates yet. Set your End-Sem date in Settings, or add a test as a task with the type "Exam".<br><br>
       <button class="btn btn-sm btn-secondary" onclick="navigate('settings')" style="font-size:var(--text-sm);padding:5px 12px">${icons.settings()} Set exam date</button>
@@ -1573,24 +1567,6 @@ export function createClarityAssistant(deps) {
     return `<strong>${pending.length} pending task${pending.length !== 1 ? 's' : ''}:</strong><ul class="cd-list">${items}</ul>`;
   }
 
-  function buildNotices() {
-    const allNotices = getVisibleNotices();
-    const importantNotices = allNotices.filter(n => n.important);
-
-    if (allNotices.length === 0) return `No notices posted yet.`;
-
-    const items = allNotices.slice(0, 5).map(n => {
-      const tag = n.important ? '<span class="cd-tag cd-tag-notice">Important</span>' : '';
-      return `<li>${tag}<span class="cd-item-label">${escHtml(n.title)}</span><span class="cd-item-meta">${n.category} · ${fmtDate(n.date)}</span></li>`;
-    }).join('');
-
-    const header = importantNotices.length > 0
-      ? `${importantNotices.length} important notice${importantNotices.length !== 1 ? 's' : ''}:`
-      : `${allNotices.length} notice${allNotices.length !== 1 ? 's' : ''} posted:`;
-
-    return `<strong>${header}</strong><ul class="cd-list">${items}</ul>`;
-  }
-
   function buildProfile() {
     const p = loadProfile() || deps.liveProfile || {};
     if (!p.name) return `Your profile isn't set up yet. Go to <a href="javascript:void(0)" onclick="navigate('settings')" style="color:var(--accent);font-weight:600">Settings</a> to add your name, batch, and branch.`;
@@ -1610,7 +1586,7 @@ export function createClarityAssistant(deps) {
     'What do I have today?', 'What is my next class?', 'Can I skip a class today?', 'How is my attendance?',
     'Which subjects are at risk?', 'What tasks are urgent?', 'What is due this week?', 'Classes tomorrow',
     'Show my timetable', 'When are my exams?', 'Plan my week', 'Help me plan tonight',
-    'Which subject needs the most attention?', 'Any notices?', 'Add a task', 'Is anything missing from my setup?',
+    'Which subject needs the most attention?', 'Add a task', 'Is anything missing from my setup?',
     'When does my last class end?', 'How many classes can I skip?',
     'How much syllabus is left?', 'What should I revise?', 'Important topics left', 'Am I on track for my exams?'
   ];
@@ -1628,7 +1604,7 @@ export function createClarityAssistant(deps) {
     }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(x => x.ex);
     const picks = scored.length ? scored : ['What do I have today?', 'How is my attendance?', 'What tasks are urgent?', 'Plan my week'];
     const buttons = picks.map(ex => `<button class="btn btn-sm btn-secondary" onclick="sendAssistantMessage('${jsArg(ex)}')" style="font-size:var(--text-sm);padding:4px 10px">${escHtml(ex)}</button>`).join('');
-    return `${scored.length ? 'Did you mean:' : "I didn't get that. I answer questions about your classes, attendance, tasks and notices. Try:"}
+    return `${scored.length ? 'Did you mean:' : "I didn't get that. I answer questions about your classes, attendance and tasks. Try:"}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${buttons}</div>`;
   }
 
@@ -1673,7 +1649,6 @@ export function createClarityAssistant(deps) {
       case 'day_end':            return buildDayEnd(day);
       case 'timetable_view':     return buildTimetableView();
       case 'exams':              return buildExams();
-      case 'notices':            return buildNotices();
       case 'profile':            return buildProfile();
       case 'subject_info':       return buildSubjectInfo(subject);
       case 'syllabus_overview':  return buildSyllabusOverview();

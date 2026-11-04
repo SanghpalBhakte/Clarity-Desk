@@ -7150,27 +7150,6 @@ body.holiday-mode .holiday-banner {
 #page-dashboard #quick-add-input:focus { border-bottom-color: var(--text-primary); }
 
 
-.dash-notice-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 0;
-  border: 0;
-  border-top: 1px solid var(--color-rule);
-  border-bottom: 1px solid var(--color-rule);
-  background: none;
-  font: inherit;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-}
-.dash-notice-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-md); font-weight: 600; }
-.dash-notice-date { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
-.dash-notice-row.is-important .dash-notice-date { color: var(--color-action-primary); font-weight: 600; }
-.dash-notice-row:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
 
 /* Figures: fixed-width digits so live timers and percentages don't jiggle. */
 .vitals-value, .chrono-beacon-time, .chrono-beacon-count-num, .schedule-slot-time,
@@ -7652,17 +7631,6 @@ body.holiday-mode .holiday-banner {
 @media (prefers-reduced-motion: reduce) { .cd-hello-arrow { transition: none; } }
 
 /* ── Notices: quiet board and the portal row ──────────────────────── */
-.nt-quiet { margin-top: 14px; padding-top: 36px; border-top: 2px solid var(--text-primary); text-align: center; color: var(--text-primary); }
-.nt-quiet svg { display: block; margin: 0 auto; }
-.nt-pin { fill: var(--color-thread, var(--accent)); }
-.nt-quiet-title { margin-top: 14px; font-family: var(--font-display, var(--font)); font-size: 1.25rem; font-weight: 700; }
-.nt-quiet-text { max-width: 300px; margin: 6px auto 0; font-size: 0.95rem; line-height: 1.45; color: var(--text-secondary); }
-.nt-portal { display: flex; align-items: center; gap: 8px; margin-top: 36px; border-top: 1px solid var(--color-rule, var(--border)); border-bottom: 1px solid var(--color-rule, var(--border)); }
-.nt-portal-main { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; border: 0; background: none; font: inherit; text-align: left; color: var(--text-primary); cursor: pointer; }
-.nt-portal-title { display: block; font-size: 0.95rem; font-weight: 600; }
-.nt-portal-sub { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
-.nt-portal-act { flex: none; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); }
-.nt-portal-edit { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
 
 /* ── Tasks, empty: a faded example and a line to type into ─────────── */
 .tk-empty { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; max-width: 640px; }

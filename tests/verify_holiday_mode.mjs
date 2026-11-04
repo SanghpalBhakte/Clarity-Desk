@@ -59,7 +59,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const STUDENT = { name: 'Test Student', batch: 'A1', roll: '101' };
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
-  const ASSIGNMENTS = []; const NOTICES = globalThis.__NOTICES || []; const QUICK_LINKS = []; const DEV_UPDATES = [];
+  const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
 const makeApp = () => new Function(`${code}\n return { state, holidayEndedOn, isHolidayScheduled, isTaskPausedForHoliday, holidayDaysLeft, holidayBriefingHTML, renderSummaryContent, sanitizeTask, getDynamicGreeting, loadHoliday, isHolidayActive, timetableForDisplay, setHoliday, checkHolidayExpiry, holidayLabel, getCalendarItems, renderCalendar, renderDashboard, renderTimetable, getOverallAttendance, getSubjectList, getSubjectAttendance, checkScheduledNotifications, importData, applyCloudDataToLocalState, loadTimetable };`)();
 
@@ -364,28 +364,6 @@ check('Countdown alerts: 30-day nudge rests during a break, 3-day one still come
   makeApp().checkScheduledNotifications();
   const near = sent.some(t => /3 days/.test(t));
   return !far && near ? true : `far:${far} near:${near}`;
-});
-
-check('Notice card during a break: only an important real notice shows (no setup nudges); normal days show the latest', () => {
-  const n = (id, title, important) => ({ id, title, content: 'Details', date: '2026-10-19', category: 'general', important });
-  globalThis.__NOTICES = [n('n1', 'Library timings changed', false)];
-  seed(H('2026-10-19')); at('2026-10-19T09:50:00');
-  let a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
-  const plainDuring = domCache['page-dashboard'].innerHTML.includes('Library timings changed');
-  globalThis.__NOTICES = [n('n1', 'Library timings changed', false), n('n2', 'Exam form deadline', true)];
-  seed(H('2026-10-19'));
-  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
-  const importantDuring = domCache['page-dashboard'].innerHTML.includes('Exam form deadline');
-  globalThis.__NOTICES = [{ ...n('n3', 'Set your exam date', true), builtIn: true, date: '2026-12-01' }];
-  seed(H('2026-10-19'));
-  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
-  const setupNudge = domCache['page-dashboard'].innerHTML.includes('Set your exam date');
-  globalThis.__NOTICES = [n('n1', 'Library timings changed', false)];
-  seed();
-  a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
-  const plainNormal = domCache['page-dashboard'].innerHTML.includes('Library timings changed');
-  delete globalThis.__NOTICES;
-  return !plainDuring && importantDuring && !setupNudge && plainNormal ? true : `${plainDuring}/${importantDuring}/${setupNudge}/${plainNormal}`;
 });
 
 check('Welcome back: ending a started break records endedOn; cancelling a planned one does not', () => {
