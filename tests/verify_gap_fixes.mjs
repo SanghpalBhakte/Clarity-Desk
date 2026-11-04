@@ -55,10 +55,10 @@ check('Unit 2: Mobile bottom navigation includes direct Subjects tab button', ()
 });
 
 // 3. Unit 3: Single Subject Hub add-link action
-check('Unit 3: Single Subject Hub provides empty-state "+ Add Study Link / Note" action with context prefill', () => {
+check('Unit 3: Single Subject Hub provides empty-state "+ Link or file" action with context prefill', () => {
   if (!jsSrc.includes('openAddResourceForSubject')) return 'openAddResourceForSubject function missing';
-  if (!jsSrc.includes('No Study Links or Notes Yet')) return 'Empty state copy missing';
-  if (!jsSrc.includes('+ Add Study Link / Note')) return 'Empty state action button missing';
+  if (!jsSrc.includes('Nothing on the shelf yet')) return 'Empty state copy missing';
+  if (!jsSrc.includes('+ Link or file')) return 'Empty state action button missing';
   return true;
 });
 

@@ -7625,3 +7625,55 @@ body.holiday-mode .holiday-banner {
 .att-gauge-notch { position: absolute; top: -4px; width: 2px; height: 16px; margin-left: -1px; border-radius: 1px; background: var(--text-primary); }
 .att-gauge-label { position: absolute; top: 14px; transform: translateX(-50%); font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
 .att-stat-figure.is-target { color: var(--text-muted); }
+
+/* ── Subject hub: one home per subject ───────────────────────────────
+   Ring + name on top, a plain sentence about attendance, the week as
+   cells, tasks and the subject's Vault items as rows on rules. No cards. */
+.hub-back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0; margin-bottom: 8px; border: 0; background: none; font: inherit; font-size: var(--text-base); font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.hub { display: grid; gap: 28px; margin-bottom: 28px; }
+.hub-col { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+@media (min-width: 1100px) { .hub { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; } }
+.hub-head { display: flex; align-items: center; gap: 18px; }
+.hub-ring .sj-ring-track, .hub-ring .sj-ring-fill { stroke-width: 10; }
+.hub-ring .sj-ring-tick { stroke: var(--text-primary); stroke-width: 2.5; stroke-linecap: round; }
+.hub-ring-code { font-family: var(--font-display, var(--font)); font-size: 26px; font-weight: 700; fill: var(--text-primary); letter-spacing: -0.02em; }
+.hub-ring-code.is-long { font-size: 18px; }
+.hub-ring-pct { font-size: 12px; font-weight: 700; fill: var(--text-muted); }
+.hub-head-text { min-width: 0; }
+.hub-title { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.65rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--text-primary); }
+.hub-meta { margin-top: 4px; font-size: var(--text-base); color: var(--text-secondary); }
+.hub-meta2 { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.hub-section { min-width: 0; }
+.hub-story { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.45; color: var(--text-primary); }
+.hub-story-lab { margin: 6px 0 0; font-size: var(--text-base); line-height: 1.45; color: var(--text-secondary); }
+.hub-note { margin: 8px 0 0; font-size: var(--text-sm); line-height: 1.5; color: var(--text-muted); }
+.hub-mark { display: flex; gap: 8px; margin-top: 14px; }
+.hub-mark-btn { flex: 1; min-height: 46px; border-radius: 999px; border: 1.5px solid var(--border-btn, var(--border)); background: transparent; color: var(--text-primary); font: inherit; font-family: var(--font-display, var(--font)); font-size: 0.95rem; font-weight: 700; cursor: pointer; }
+.hub-mark-btn.is-yes { border-color: var(--status-success); background: var(--status-success); color: var(--surface); }
+.hub-mark-btn:active { transform: scale(0.98); }
+@media (min-width: 761px) { .hub-mark-btn { flex: 0 0 auto; padding: 0 28px; } }
+.hub-tally { margin-top: 8px; font-size: var(--text-sm); color: var(--text-muted); }
+.hub-links { display: flex; flex-wrap: wrap; gap: 0 16px; }
+.hub-links button, .hub-act { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; }
+.hub-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.hub-h h2 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; text-transform: none; }
+.hub-week { display: grid; gap: 6px; margin-top: 4px; text-align: center; }
+.hub-day-name { display: block; font-size: var(--text-xs); color: var(--text-muted); }
+.hub-day.is-today .hub-day-name { color: var(--color-thread, var(--accent)); font-weight: 700; }
+.hub-day-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 48px; margin-top: 6px; box-sizing: border-box; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--text-primary); font: inherit; cursor: pointer; }
+.hub-day-cell.is-lab { background: var(--text-primary); color: var(--surface); }
+.hub-day-cell.is-empty { border: 1.5px dashed var(--color-rule, var(--border)); background: none; cursor: default; }
+.hub-day.is-today .hub-day-cell { box-shadow: inset 0 0 0 2px var(--color-thread, var(--accent)); }
+.hub-day-time { font-family: var(--font-display, var(--font)); font-size: 0.8rem; font-weight: 700; line-height: 1.1; }
+.hub-day-sub { font-size: 0.65rem; opacity: 0.75; line-height: 1.2; }
+.hub-quiet { margin: 8px 0 0; font-size: var(--text-base); line-height: 1.45; color: var(--text-secondary); }
+.hub-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 6px 0; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--color-rule, var(--border)); background: none; font: inherit; text-align: left; color: var(--text-primary); text-decoration: none; }
+.hub-link { cursor: pointer; }
+.hub-link svg { flex: none; color: var(--text-muted); }
+.hub-row-main { flex: 1; min-width: 0; }
+.hub-row-title { display: block; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row-sub { flex: none; display: block; font-size: var(--text-xs); color: var(--text-muted); }
+.hub-row.is-done .hub-row-title { text-decoration: line-through; opacity: 0.55; }
+.hub-check { flex: none; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border-radius: 6px; border: 2px solid var(--border-btn, var(--border)); background: none; color: var(--surface); cursor: pointer; position: relative; }
+.hub-check::after { content: ''; position: absolute; inset: -11px; }
+.hub-check.is-on { border-color: var(--status-success); background: var(--status-success); }
