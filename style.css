@@ -4019,6 +4019,7 @@ button:disabled {
   cursor: pointer;
   animation: bounceHint 2s infinite ease-in-out;
 }
+@media (prefers-reduced-motion: reduce) { .fab-hint { animation: none; } }
 .fab-hint::after {
   content: '';
   position: absolute;
