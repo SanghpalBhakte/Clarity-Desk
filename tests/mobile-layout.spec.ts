@@ -13,7 +13,7 @@ import { test, expect, Page } from '@playwright/test';
 // ==================================================================
 
 const WIDTHS = [320, 360, 412];
-const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'notices', 'links', 'settings'];
+const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'links', 'settings'];
 const SCAN_ROWS = [
   { subject: 'Art of Public Speaking', code: 'MGM51OEL115', present: 6, absent: 1, leave: 0, notEntered: 1, totalSessions: 30 },
   { subject: 'Business Management and Financial Accounting', code: 'AID21HSL205', present: 3, absent: 4, leave: 0, notEntered: 0, totalSessions: 60 },

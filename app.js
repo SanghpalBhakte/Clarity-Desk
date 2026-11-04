@@ -2,7 +2,7 @@
 // Clarity Desk — App Logic & Interactive Functions
 // ============================================================
 
-import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, NOTICES, QUICK_LINKS, DEV_UPDATES } from './data.js';
+import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, QUICK_LINKS, DEV_UPDATES } from './data.js';
 
 // ── localStorage Keys ─────────────────────────────────────────
 const KEY_PROFILE          = 'cos_profile';
@@ -4831,7 +4831,7 @@ function applyCloudDataInner(data) {
   updateTopbarProfile();
   setupFABDrag();
   updateNavBadges();
-  if (['settings', 'assignments', 'dashboard', 'notices', 'timetable', 'review', 'subjects', 'calendar'].includes(state.currentPage)) {
+  if (['settings', 'assignments', 'dashboard', 'timetable', 'review', 'subjects', 'calendar'].includes(state.currentPage)) {
     renderPage(state.currentPage);
   }
 }
@@ -5193,19 +5193,20 @@ function submitNoticeChannelModal(targetKey) {
   saveNoticeChannels(channels);
   document.getElementById('notice-channel-modal-backdrop')?.remove();
   showToast('Notice source updated ✓', 'success');
-  if (state.currentPage === 'notices') renderNotices();
   if (state.currentPage === 'settings') renderSettings();
 }
 
-function handleNoticeSourceClick(targetKey) {
-  const channels = loadNoticeChannels();
-  const url = targetKey === 'official' ? channels.officialUrl : channels.whatsappUrl;
-  if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('tg://') || url.startsWith('whatsapp://'))) {
+// More sheet "College portal ↗": open the saved link, or send the student to
+// the Profile field in Settings where it is set.
+function openCollegePortal() {
+  const url = loadNoticeChannels().whatsappUrl;
+  if (url && /^(https?|tg|whatsapp):\/\//.test(url)) {
     window.open(url, '_blank', 'noopener,noreferrer');
-  } else {
-    showToast(targetKey === 'official' ? 'Configure your official notice link' : 'Add your ERP portal link to enable quick access', 'info');
-    showNoticeChannelModal(targetKey);
+    return;
   }
+  navigateTo('settings');
+  showToast('Add your college portal link', 'info');
+  setTimeout(() => settingsJump('profile'), 0);
 }
 
 // ── Custom Quick Links / Resources ───────────────────────────
@@ -7007,54 +7008,6 @@ function checkScheduledNotifications() {
   safeSetStorage('cos_notified_history', pruneNotifiedHistory(notifiedMap));
 }
 
-function triggerNoticeNotification(notice) {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  const prefs = loadNotifPrefs();
-  if (prefs.newNotices === 'off') return;
-
-  if (prefs.newNotices === 'instant' || prefs.newNotices === 'same_day') {
-    dispatchNotification(`New Notice: ${notice.title}`, {
-      body: (notice.content || '').slice(0, 120),
-      tag: `notice_${notice.id}`,
-      data: { url: './#notices' }
-    });
-  }
-}
-
-// Notices can opt into disappearing once a one-time setup step is done
-// (exam date set, timetable customized) via an optional `hideWhen` key --
-// otherwise the board keeps nagging about something already handled.
-// Every place that reads NOTICES for display, notifications, or the
-// assistant should go through this instead of the raw array.
-//
-// Built-in sample notices (`builtIn: true` in data.js) also drop off once
-// their date has passed, so a new student doesn't open a board of months-old
-// announcements. Only that flag hides by date; anything without it stays.
-function getVisibleNotices() {
-  const today = todayStr();
-  return NOTICES.filter(n => {
-    if (n.builtIn && n.date && n.date < today) return false;
-    if (n.hideWhen === 'examDateSet') return !(liveProfile.examDate && liveProfile.examDate.trim());
-    if (n.hideWhen === 'timetableCustomized') return !isCustomTimetableActive();
-    return true;
-  });
-}
-
-function checkNoticeNotifications() {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  const prefs = loadNotifPrefs();
-  if (prefs.newNotices === 'off') return;
-
-  const notifiedNotices = safeGetStorage('cos_notified_notices', {}) || {};
-  getVisibleNotices().forEach(n => {
-    if (!notifiedNotices[n.id]) {
-      triggerNoticeNotification(n);
-      notifiedNotices[n.id] = true;
-    }
-  });
-  safeSetStorage('cos_notified_notices', notifiedNotices);
-}
-
 // ── Custom Tasks (fully persisted) ────────────────────────────
 function loadCustomTasks() {
   const raw = safeGetStorage(KEY_CUSTOM_TASKS, []) || [];
@@ -7082,7 +7035,6 @@ const state = {
   assignTypeFilter:    'all',
   assignSubjectFilter: 'all',
   assignFiltersOpen:   false,
-  noticeSearch:        '',
   assignments:         loadAssignments(),
   customTasks:         loadCustomTasks(),   // persisted across reloads
 };
@@ -7409,7 +7361,7 @@ function updateThemeSelector(theme) {
 }
 
 // ── Routing ───────────────────────────────────────────────────
-const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'calendar', 'notices', 'resources', 'links', 'summary', 'settings', 'review'];
+const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'calendar', 'resources', 'links', 'summary', 'settings', 'review'];
 const sectionHistory = [];
 
 // Subject rings animate once per view (opening the tab or a hub), not on
@@ -7476,7 +7428,7 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
     // Calendar has its own "Add deadline for <date>" action, and the FAB
     // covered its empty state's "Set Up Timetable" button on phones.
     // Only pages where a quick add belongs keep it: Settings, Vault (own Add),
-    // Notices, Weekly Reflection and Links have no task or class to add, and the
+    // Weekly Reflection and Links have no task or class to add, and the
     // button covered their controls.
     fabEl.style.display = ['timetable', 'subjects', 'summary'].includes(page) ? '' : 'none';
     // On the Timetable page the + adds a class; everywhere else it adds a task.
@@ -7680,7 +7632,6 @@ function renderPage(page) {
       case 'subjects':    renderSubjects();    break;
       case 'assignments': renderAssignments(); break;
       case 'calendar':    renderCalendar();    break;
-      case 'notices':     renderNotices();     break;
       case 'resources':
       case 'links':
       case 'summary':     renderResources();   break;
@@ -8782,7 +8733,6 @@ const icons = {
   timetable:   () => svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'),
   calendar:    () => svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'),
   assignments: () => svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>'),
-  notices:     () => svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
   bell:        () => svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>'),
   links:       () => svg('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
   summary:     () => svg('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'),
@@ -9066,8 +9016,6 @@ function renderReview() {
   const lookaheadStr = localDateKey(next7);
   
   const upcomingTasks = allTasks().filter(t => t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= todayS && t.dueDate <= lookaheadStr);
-  const upcomingNotices = getVisibleNotices().filter(n => n.date >= todayS && n.date <= lookaheadStr);
-  const recentNotices = getVisibleNotices().filter(n => n.date >= lookbackStr && n.date <= todayS);
   
   const next7Days = {};
   for(let i=0; i<=7; i++) {
@@ -9077,9 +9025,6 @@ function renderReview() {
   
   upcomingTasks.forEach(t => {
     if (next7Days[t.dueDate]) next7Days[t.dueDate].items.push({ type: 'task', data: t });
-  });
-  upcomingNotices.forEach(n => {
-    if (next7Days[n.date]) next7Days[n.date].items.push({ type: 'notice', data: n });
   });
   
   let maxItems = 0;
@@ -9115,14 +9060,6 @@ function renderReview() {
                 <span class="type-badge type-${taskType}" style="font-size:var(--text-2xs);padding:1px 6px">${taskType}</span>
               </div>
             </div>
-          </div>
-        `;
-      } else {
-        const n = it.data;
-        return `
-          <div class="card card-sm notice-card rv-flat" style="margin-bottom:0;padding:12px 4px">
-            <div style="font-weight:600;font-size:var(--text-md)">${escHtml_cd(n.title)}</div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${n.category} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}</div>
           </div>
         `;
       }
@@ -9184,18 +9121,6 @@ function renderReview() {
 
     <div class="section-heading">Weekly class attendance</div>
     ${renderWeeklyAttendanceTracker()}
-
-    ${recentNotices.length > 0 ? `
-      <div class="section-heading">Important notices this week</div>
-      <div style="margin-bottom:22px">
-        ${recentNotices.map(n => `
-          <button type="button" class="dash-notice-row${n.important ? ' is-important' : ''}" onclick="showNotice('${n.id}')">
-            <span class="dash-notice-title">${escHtml_cd(n.title)}</span>
-            <span class="dash-notice-date">${n.important ? 'Important · ' : ''}${formatDate(n.date)}</span>
-          </button>
-        `).join('')}
-      </div>
-    ` : ''}
 
     <div class="section-heading">The next 7 days</div>
     ${lookaheadHTML}
@@ -10414,11 +10339,6 @@ function renderDashboard() {
     .map(x => x.c);
   const moreClasses = dayClasses.length - shownClasses.length;
 
-  // Latest notice
-  const visibleNotices = getVisibleNotices();
-  // During a break only an important notice makes it onto Today.
-  // Built-in setup notices ("set your exam date") rest too.
-  const latestNotice = isEmptyDesk ? null : onHoliday ? visibleNotices.find(n => n.important && !n.builtIn) : (visibleNotices.find(n => n.important) || visibleNotices[0]);
   const allQuickLinks = isEmptyDesk ? [] : loadCustomLinks();
   const quickLinksPreview = allQuickLinks.slice(0, 3);
   const moreLinks = allQuickLinks.length - quickLinksPreview.length;
@@ -10591,20 +10511,6 @@ function renderDashboard() {
             ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
           </div>
         </div>
-
-        <!-- LATEST NOTICE -->
-        ${latestNotice ? `
-          <div class="dashboard-panel">
-            <div class="panel-header">
-              <div class="panel-title">Notices</div>
-              <button class="panel-action" onclick="navigateTo('notices')">All Notices →</button>
-            </div>
-            <button type="button" class="dash-notice-row${latestNotice.important ? ' is-important' : ''}" onclick="navigateTo('notices')">
-              <span class="dash-notice-title">${escHtml_cd(latestNotice.title)}</span>
-              <span class="dash-notice-date">${latestNotice.important ? 'Important · ' : ''}${formatDate(latestNotice.date)}</span>
-            </button>
-          </div>
-        ` : ''}
 
         <!-- STUDY SHORTCUTS -->
         ${quickLinksPreview.length > 0 ? `
@@ -16272,84 +16178,6 @@ async function waReceiveShare() {
   showWhatsAppImport(payload && (payload.file || payload.text) ? payload : null);
 }
 
-// ── Notices ───────────────────────────────────────────────────
-function renderNotices() {
-  const el = document.getElementById('page-notices');
-  if (!el) return;
-  const q  = state.noticeSearch.toLowerCase();
-  const channels = loadNoticeChannels();
-
-  let filtered = getVisibleNotices();
-  if (q) filtered = filtered.filter(n =>
-    n.title.toLowerCase().includes(q) ||
-    n.content.toLowerCase().includes(q) ||
-    n.category.toLowerCase().includes(q)
-  );
-
-  const allNotices = getVisibleNotices();
-  const noNoticesHtml = `<div class="nt-quiet">
-    <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="10" width="40" height="46" rx="6" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-width="2"/><line x1="20" y1="24" x2="44" y2="24" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><line x1="20" y1="32" x2="40" y2="32" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><line x1="20" y1="40" x2="36" y2="40" stroke="currentColor" stroke-opacity=".2" stroke-width="2"/><circle class="nt-pin" cx="32" cy="10" r="4"/></svg>
-    <div class="nt-quiet-title">Quiet board.</div>
-    <p class="nt-quiet-text">Nothing posted right now. When there's something for you, it lands here.</p>
-  </div>`;
-  const cardsHtml = filtered.length ? filtered.map(n => `
-    <div class="notice-card ${n.important?'important':''}" onclick="showNotice('${n.id}')">
-      <div class="notice-header">
-        <div class="notice-title">${escHtml_cd(n.title)}</div>
-        <span class="cat-badge cat-${n.category}">${n.category}</span>
-      </div>
-      <div class="notice-date">
-        ${svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 12)}
-        ${formatDate(n.date)} ${n.important ? '· <strong style="color:var(--red)">Important</strong>' : ''}
-      </div>
-    </div>
-  `).join('') : !q ? noNoticesHtml : `<div class="empty-state-card" style="margin-top:14px">
-    <span class="empty-state-icon">${icons.search()}</span>
-    <div class="empty-state-title">No Announcements Found</div>
-    <div class="empty-state-desc">No campus notices match "${state.noticeSearch}". Check your keywords or clear your search to view all notices.</div>
-    <button class="btn-secondary" onclick="filterNotices(''); const el=document.getElementById('notice-search'); if(el) el.value='';" style="font-size:var(--text-base);padding:6px 14px">Clear Search</button>
-  </div>`;
-
-  const searchInput = document.getElementById('notice-search');
-  if (searchInput && el.classList.contains('active')) {
-    const listContainer = document.getElementById('notices-list-container');
-    if (listContainer) listContainer.innerHTML = cardsHtml;
-    const clearBtn = document.getElementById('notice-search-clear');
-    if (clearBtn) clearBtn.style.display = state.noticeSearch ? 'block' : 'none';
-    return;
-  }
-
-  // The portal link sits at the bottom as one row; Dev Notes live in
-  // Settings → About. Search shows only once there is something to search.
-  el.innerHTML = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Notices</div>
-        <div class="page-subtitle">Circulars, exam forms, timetable changes.</div>
-      </div>
-    </div>
-
-    ${allNotices.length ? `
-    <div class="search-input-wrapper" style="position:relative;display:flex;align-items:center">
-      <span class="s-icon">${icons.search()}</span>
-      <input type="text" placeholder="Search notices by title, category, or keyword…" value="${escAttr_cd(state.noticeSearch || '')}"
-        oninput="filterNotices(this.value)" id="notice-search" style="flex:1">
-      <button id="notice-search-clear" onclick="filterNotices('');document.getElementById('notice-search').value='';"
-        style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;line-height:0;font-size:var(--text-md);display:${state.noticeSearch?'block':'none'}"
-        title="Clear search">×</button>
-    </div>` : ''}
-    <div id="notices-list-container">${cardsHtml}</div>
-
-    <div class="nt-portal">
-      <button type="button" class="nt-portal-main" onclick="handleNoticeSourceClick('whatsapp')">
-        <span><span class="nt-portal-title">${escHtml_cd(channels.whatsappTitle || 'College portal')}</span><span class="nt-portal-sub">Attendance, marks and fees, one tap away</span></span>
-        <span class="nt-portal-act">${channels.whatsappUrl ? 'Open ↗' : 'Add link'}</span>
-      </button>
-      ${channels.whatsappUrl ? `<button type="button" class="nt-portal-edit" onclick="showNoticeChannelModal('whatsapp')" aria-label="Edit portal link">${icons.edit()}</button>` : ''}
-    </div>
-  `;
-}
-
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -17534,7 +17362,6 @@ function renderSummaryContent(container) {
     const d = dueDaysLeft(a.dueDate);
     return d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due ${DAY_NAMES[new Date(a.dueDate + 'T12:00:00').getDay()]}`;
   };
-  const importantNotices = getVisibleNotices().filter(n => n.important).slice(0, 3);
   const watch = briefingWatch();
 
   // The week: every day on one time axis, lectures light, labs dark.
@@ -17601,11 +17428,6 @@ function renderSummaryContent(container) {
           : `<p class="bf-quiet">Once you mark a few classes, the subject closest to the ${getAttendanceTarget()}% line shows here.</p>`}
       </section>
 
-      ${importantNotices.length ? `
-      <section class="bf-section bf-ruled" aria-label="Notices">
-        <div class="bf-h"><h3>Notices</h3></div>
-        ${importantNotices.map(n => `<button type="button" class="bf-row" onclick="showNotice('${n.id}')"><span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(n.title)}</span><span class="bf-row-sub">${formatDate(n.date)} · ${escHtml_cd(n.category)}</span></span></button>`).join('')}
-      </section>` : ''}
     </div>
   `;
 }
@@ -17744,7 +17566,7 @@ function renderSettings() {
     <h3 class="st-sub">College portal link</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Opens from the bottom of your Notices page.
+        Opens from the More menu.
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -17954,19 +17776,7 @@ function renderSettings() {
           </select>
         </div>
 
-        <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Notices & Summaries</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
-          <div>
-            <span style="font-weight:500;color:var(--text-primary)">New Notices</span>
-            <div style="font-size:var(--text-sm);color:var(--text-muted)">Alerts for admin announcements</div>
-          </div>
-          <select class="form-select" id="np-new-notices" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
-            <option value="instant" ${nPrefs.newNotices === 'instant' ? 'selected' : ''}>Instant Alert</option>
-            <option value="same_day" ${nPrefs.newNotices === 'same_day' ? 'selected' : ''}>Daily Overview</option>
-            <option value="off" ${nPrefs.newNotices === 'off' ? 'selected' : ''}>Off</option>
-          </select>
-        </div>
+        <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Summaries</div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
@@ -18154,7 +17964,7 @@ function renderSettings() {
 // also a moment after typing stops), and its section shows "Saved".
 const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branch', 's-year', 's-batch',
   's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 'nc-wa-title', 'nc-wa-url',
-  'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts', 'np-new-notices',
+  'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
 let settingsPendingSave = null;
@@ -18452,7 +18262,8 @@ function saveSettings(opts = {}) {
     taskOverdue: document.getElementById('np-task-overdue')?.value || 'same_day',
     classReminders: document.getElementById('np-class-reminders')?.value || '15_min',
     attendanceAlerts: document.getElementById('np-attendance-alerts')?.value || 'instant',
-    newNotices: document.getElementById('np-new-notices')?.value || 'instant',
+    // No Notices page any more; keep whatever is already saved so old backups stay intact.
+    newNotices: loadNotifPrefs().newNotices,
     dailySummaryTime: document.getElementById('np-summary-time')?.value || '08:00',
     // Opt-in settings keep their saved value if a field is missing, never reset to off.
     ongoingNudges: document.getElementById('np-ongoing-nudges')?.value || loadNotifPrefs().ongoingNudges,
@@ -18460,8 +18271,8 @@ function saveSettings(opts = {}) {
   };
   saveNotifPrefs(nPrefs);
 
-  // The Official Updates card is gone (only ERP Portal + Dev Notes remain
-  // on the Notice Board), so this only ever touches the ERP fields --
+  // The Official Updates card is gone (only the ERP portal link remains),
+  // so this only ever touches the ERP fields --
   // whatever officialTitle/officialUrl a device already had saved is left
   // exactly as-is rather than being reset every settings save.
   const waTitleEl = document.getElementById('nc-wa-title');
@@ -18639,48 +18450,6 @@ function confirmClearTasks() {
     updateNavBadges();
     renderSettings(); // re-render to update counts
   });
-}
-
-// ── Notice Modal ──────────────────────────────────────────────
-function showNotice(id) {
-  const n = NOTICES.find(x => x.id === id);
-  if (!n) return;
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  const whatsappText = `📢 *${n.title}*\n\n${n.content}\n\n🗓️ Date: ${formatDate(n.date)} (${n.category})\n— Shared via Clarity Desk`;
-  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText)}`;
-
-  backdrop.innerHTML = `
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:500px;width:92vw">
-      <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">${icons.x()}</button>
-      <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <div>
-          <span class="cat-badge cat-${n.category}">${n.category}</span>
-          ${n.important ? '<span class="cat-badge" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error);margin-left:6px">Important</span>' : ''}
-        </div>
-        <span style="font-size:var(--text-sm);color:var(--text-muted)">${formatDate(n.date)}</span>
-      </div>
-      <h2 style="font-size:var(--text-lg);font-weight:700;margin-bottom:10px;line-height:1.4">${escHtml_cd(n.title)}</h2>
-      <p style="font-size:var(--text-md);line-height:1.7;color:var(--text-secondary);margin-bottom:20px;white-space:pre-line">${n.content}</p>
-      
-      <div class="modal-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
-        <a href="${whatsappUrl}" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#ffffff;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius-xs,6px);font-size:var(--text-sm);text-decoration:none;font-weight:700">
-          <span>💬</span> Share to Class Group ↗
-        </a>
-        <button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText('${n.title.replace(/'/g, "\\'")}\\n\\n${n.content.replace(/'/g, "\\'")}').then(() => showToast('Notice copied to clipboard ✓', 'success'))" style="font-size:var(--text-sm);padding:6px 12px">
-          ${icons.filetext()} Copy Notice
-        </button>
-      </div>
-    </div>
-  `;
-  wireBackdropClickClose(backdrop, false);
-  document.body.appendChild(backdrop);
-
-  // Close on Esc
-  const escHandler = (e) => {
-    if (e.key === 'Escape') { backdrop.remove(); document.removeEventListener('keydown', escHandler); }
-  };
-  document.addEventListener('keydown', escHandler);
 }
 
 // DEV_UPDATES now lives in data.js (imported above) and is kept fresh by
@@ -18876,7 +18645,7 @@ function clarityAssistantDeps() {
     detectDeskPollution, escHtml_cd, formatDisplayTime,
     formatDisplayTimeRange, getAttendanceTarget, getCanonicalSubjectKey,
     getCountdownLabel, getOverallAttendance, getSubjectAttendance,
-    getSubjectList, getVisibleNotices, holidayLabel, icons, isBreakEntry,
+    getSubjectList, holidayLabel, icons, isBreakEntry,
     isHolidayActive, isTaskOverdue, isTeachingClass,
     loadAttendanceBaselines, loadHoliday, loadProfile, loadTimetable,
     syllabusExamInfo, syllabusStats, syllabusTodayLine, timeToMinutes,
@@ -19146,8 +18915,6 @@ document.addEventListener('click', (e) => {
   document.querySelectorAll('.tk-more[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.tk-more-menu button')) d.removeAttribute('open'); });
 });
 window.setAssignSubject = (s) => { state.assignSubjectFilter = s; renderAssignments(); };
-window.filterNotices    = (q) => { state.noticeSearch = q; renderNotices(); };
-window.showNotice       = showNotice;
 window.showAddTaskModal = showAddTaskModal;
 window.submitAddTask    = submitAddTask;
 window.showWhatsAppImport = showWhatsAppImport;
@@ -19193,7 +18960,7 @@ window.switchResourcesTab     = switchResourcesTab;
 window.renderResources        = renderResources;
 window.showNoticeChannelModal = showNoticeChannelModal;
 window.submitNoticeChannelModal = submitNoticeChannelModal;
-window.handleNoticeSourceClick = handleNoticeSourceClick;
+window.openCollegePortal = openCollegePortal;
 window.showDevNotesModal      = showDevNotesModal;
 window.saveNoticeChannelsFromSettings = saveNoticeChannelsFromSettings;
 
@@ -19302,13 +19069,6 @@ window.deleteCustomTask = (id) => {
   });
 };
 
-function handleGlobalSearch(q) {
-  q = q.trim().toLowerCase();
-  if (!q) return;
-  state.noticeSearch = q;
-  navigate('notices');
-}
-
 // ── Nav Badge Update ──────────────────────────────────────────
 function updateNavBadges() {
   const pending = pendingCount();
@@ -19388,15 +19148,6 @@ function init() {
   // twice per click, which is what made its content look like it was
   // popping in and out. Removed; the inline handlers already cover it.
 
-  document.getElementById('global-search')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      handleGlobalSearch(e.target.value);
-      // On phones the box is a full-width overlay: close it once the results show.
-      if (window.matchMedia('(max-width: 540px)').matches) e.target.blur();
-    }
-    if (e.key === 'Escape') e.target.blur();
-  });
-
   const pending = window._pendingNav;
   if (pending) {
     delete window._pendingNav;
@@ -19431,9 +19182,8 @@ function init() {
     if (state.customTasks.some(t => t.id === reminderTaskId)) setTimeout(() => showAddTaskModal(reminderTaskId), 300);
   }
 
-  // Check and schedule task & notice notifications
+  // Check and schedule task notifications
   checkScheduledNotifications();
-  checkNoticeNotifications();
   schedulePushSync(5000);
   bumpInstallOpens();
   scheduleInstallBanner();
@@ -19441,8 +19191,7 @@ function init() {
   if (detectDevice().inApp) setTimeout(() => showInAppBanner(), 1200);
   setInterval(() => {
     checkScheduledNotifications();
-    checkNoticeNotifications();
-    updateLiveClockDisplay();
+      updateLiveClockDisplay();
     refreshIfDayChanged();
   }, 60000);
   // A backgrounded PWA's timers are paused; check the date as soon as it's shown again.

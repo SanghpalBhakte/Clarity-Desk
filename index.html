@@ -46,7 +46,7 @@
       }
     };
   </script>
-  <meta name="description" content="Keep your timetable, attendance, assignments and notices in one place and see what needs doing today. Works offline. Made for college students." />
+  <meta name="description" content="Keep your timetable, attendance, assignments and study links in one place and see what needs doing today. Works offline. Made for college students." />
   <title>Clarity Desk | Timetable, attendance and tasks for college</title>
   <link rel="canonical" href="https://claritydesk.web.app/" />
 
@@ -54,7 +54,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Clarity Desk" />
   <meta property="og:title" content="Clarity Desk" />
-  <meta property="og:description" content="Keep your timetable, attendance, assignments and notices in one place and see what needs doing today. Works offline. Made for college students." />
+  <meta property="og:description" content="Keep your timetable, attendance, assignments and study links in one place and see what needs doing today. Works offline. Made for college students." />
   <meta property="og:url" content="https://claritydesk.web.app/" />
   <meta property="og:image" content="https://claritydesk.web.app/og-image.png" />
   <meta property="og:image:width" content="1200" />
@@ -62,7 +62,7 @@
   <meta property="og:image:alt" content="Clarity Desk: your timetable, attendance and tasks in one place" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Clarity Desk" />
-  <meta name="twitter:description" content="Keep your timetable, attendance, assignments and notices in one place and see what needs doing today. Works offline. Made for college students." />
+  <meta name="twitter:description" content="Keep your timetable, attendance, assignments and study links in one place and see what needs doing today. Works offline. Made for college students." />
   <meta name="twitter:image" content="https://claritydesk.web.app/og-image.png" />
 
   <!-- Fonts -->
@@ -115,17 +115,6 @@
       </div>
     </div>
 
-    <div class="topbar-search">
-      <span class="search-icon">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-      </span>
-      <input type="text" id="global-search" placeholder="Search notices, topics, courses… (Enter)" aria-label="Search" autocomplete="off" />
-      <button type="button" class="search-close" aria-label="Close search" onmousedown="event.preventDefault()" onclick="const i=document.getElementById('global-search'); i.value=''; i.blur()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
 
     <div class="topbar-actions">
       <span id="topbar-clock-text" class="topbar-clock" aria-hidden="true"></span>
@@ -199,13 +188,6 @@
         <span class="nav-label">Calendar</span>
       </div>
 
-      <div class="nav-item" data-nav="notices" onclick="navigateTo('notices')" id="sidebar-notices" role="button" tabindex="0" data-tip="Notices">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <span class="nav-label">Notices</span>
-      </div>
 
       <span class="sidebar-section-label">Study</span>
 
@@ -268,8 +250,6 @@
       <!-- Calendar (read-only) -->
       <section id="page-calendar" class="section-page" data-page="calendar" data-testid="calendar" aria-label="Calendar"></section>
 
-      <!-- Notices -->
-      <section id="page-notices" class="section-page" data-page="notices" data-testid="notices" aria-label="Notices"></section>
 
       <!-- Resources -->
       <section id="page-resources" class="section-page" data-page="resources" data-testid="resources" aria-label="Study Vault"></section>
@@ -341,10 +321,6 @@
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="15" r="1"/><circle cx="12" cy="15" r="1"/><circle cx="16" cy="15" r="1"/></svg>
     <span><strong>Calendar</strong><small>Classes and deadlines by date</small></span>
   </button>
-  <button type="button" class="more-sheet-item" data-nav="notices" onclick="closeMoreSheet();navigateTo('notices')">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-    <span><strong>Notices</strong><small>College announcements</small></span>
-  </button>
   <button type="button" class="more-sheet-item" data-nav="resources" onclick="closeMoreSheet();navigateTo('links')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
     <span><strong>Study Vault</strong><small>Links and files you saved</small></span>
@@ -352,6 +328,10 @@
   <button type="button" class="more-sheet-item" data-nav="summary" onclick="closeMoreSheet();navigateTo('summary')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     <span><strong>Daily Briefing</strong><small>Your day in one read</small></span>
+  </button>
+  <button type="button" class="more-sheet-item" data-testid="college-portal-row" onclick="openCollegePortal()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    <span><strong>College portal ↗</strong><small>Attendance, marks and fees</small></span>
   </button>
   <button type="button" class="more-sheet-item" data-nav="settings" onclick="closeMoreSheet();navigateTo('settings')">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>

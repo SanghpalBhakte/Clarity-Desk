@@ -56,7 +56,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const STUDENT = { name: 'Test Student', batch: 'A1', roll: '101' };
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
-  const ASSIGNMENTS = []; const NOTICES = globalThis.__NOTICES || []; const QUICK_LINKS = []; const DEV_UPDATES = [];
+  const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
 const makeApp = () => new Function(`${code}\n return { briefingWeek, briefingFocus, briefingFocusHeadline, renderSummaryContent, timeToMinutes };`)();
 

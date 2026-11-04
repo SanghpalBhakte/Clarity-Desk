@@ -8,7 +8,6 @@
 //  - deciding that only reads: no cos_* key is written or changed;
 //  - an empty Today shows one setup card and no row of dashes/zeros, and
 //    the stat tiles come back as soon as there is a timetable;
-//  - built-in sample notices drop off after their date; others never do.
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
@@ -57,7 +56,6 @@ const code = appSrc.replace('function trackUsage(name, ...parts) {', 'function t
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
-  const NOTICES = globalThis.__TEST_NOTICES__ || [];
 `);
 const EXPORTS = ['bunkCalcAnswer', 'saveTimetable', 'state', 'checkOnboarding', 'renderDashboard', 'loadProfile', 'onbGet', 'onbSet', 'saveProfileField', 'timetableBatches', 'noteTimetableDay', 'pruneNotifiedHistory'];
 const makeApp = () => new Function(`${code}\n return { ${EXPORTS.map(n => `${n}: typeof ${n} === 'undefined' ? undefined : ${n}`).join(', ')} };`)();

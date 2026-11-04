@@ -82,7 +82,7 @@ test.describe('First-run tour', () => {
     await page.waitForTimeout(400);
     await checkStop(page);
     for (let i = 0; i < 3; i++) await page.locator('.tour-bubble').getByRole('button', { name: 'Next' }).click();
-    expect(await checkStop(page)).toContain('Notices, calendar, study vault and settings are all in this sidebar.');
+    expect(await checkStop(page)).toContain('Calendar, study vault and settings are all in this sidebar.');
   });
 
   test('laptop: the count skips no numbers when a stop is missing', async ({ page }) => {

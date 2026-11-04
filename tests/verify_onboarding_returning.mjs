@@ -8,7 +8,6 @@
 //  - deciding that only reads: no cos_* key is written or changed;
 //  - an empty Today shows one setup card and no row of dashes/zeros, and
 //    the stat tiles come back as soon as there is a timetable;
-//  - built-in sample notices drop off after their date; others never do.
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
@@ -55,9 +54,8 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
-  const NOTICES = globalThis.__TEST_NOTICES__ || [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, checkOnboarding, hasExistingUserData, getVisibleNotices, renderDashboard };`)();
+const makeApp = () => new Function(`${code}\n return { state, checkOnboarding, hasExistingUserData, renderDashboard };`)();
 
 const CLASS = { subject: 'Data Structures', code: 'DS', time: '10:00', end: '11:00', room: 'SF-31', teacher: 'Prof. VJM', type: 'lecture' };
 const RETURNING = {
@@ -149,20 +147,6 @@ check('With a timetable: no repeated stat tiles, the schedule shows, and the nam
   if (!html.includes("Today's Schedule") || !html.includes('Attendance') || !html.includes('Tasks &amp; Deadlines')) return 'a Today section is missing';
   if (html.includes("Let's add your timetable")) return 'still asking to scan';
   return html.includes('What should we call you?') ? true : 'name ask missing after timetable';
-});
-
-check('Built-in sample notices drop off after their date; dated-today, future and non-built-in ones stay', () => {
-  globalThis.__TEST_NOTICES__ = [
-    { id: 'old',    builtIn: true, date: '2026-07-20', title: 'old', category: 'Exam', content: '' },
-    { id: 'today',  builtIn: true, date: '2026-10-14', title: 'today', category: 'Exam', content: '' },
-    { id: 'future', builtIn: true, date: '2026-12-01', title: 'future', category: 'Exam', content: '' },
-    { id: 'mine',   date: '2026-01-01', title: 'mine', category: 'Academic', content: '' },
-  ];
-  try {
-    seed(); const app = makeApp();
-    const ids = app.getVisibleNotices().map((n) => n.id).join(',');
-    return ids === 'today,future,mine' ? true : ids;
-  } finally { delete globalThis.__TEST_NOTICES__; }
 });
 
 globalThis.setTimeout = realSetTimeout;

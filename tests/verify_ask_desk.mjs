@@ -134,8 +134,6 @@ const CASES = [
   ['when do i finish tomorrow', 'day_end', '-', 'tomorrow'],
   ['when is my next OS class', 'next_class', 'Operating Systems', '-'],
   ['when is my next lab', 'next_class', '-', '-'],
-  ['any updates from college', 'notices', '-', '-'],
-  ['show notices', 'notices', '-', '-'],
   ['remind me to submit OS lab', 'create_task', 'Operating Systems', '-'],
   ['add task for dbms', 'create_task', 'Database Management Systems', '-'],
   ['plan my week', 'weekly_plan', '-', '-'],
@@ -321,7 +319,6 @@ const SYL_CASES = [
   ['status of er model', 'syllabus_topic', '-', '-'],
   // Old questions keep their answers.
   ['what should i study today', 'study_plan', '-', 'today'],
-  ['any important notices', 'notices', '-', '-'],
   ['am i on track with attendance', 'attendance_general', '-', '-'],
   ['when do i finish today', 'day_end', '-', 'today'],
   ['did i finish my tasks', 'tasks_all', '-', '-'],
