@@ -5,6 +5,9 @@ name: Refresh Linux screenshots
 # (Actions > Refresh Linux screenshots > Run workflow, pick the branch) after
 # a deliberate UI change, download the "linux-screenshots" artifact and
 # commit the files into tests/clarity-visual-verification.spec.ts-snapshots/.
+# It rewrites only the screenshots that fail CI's comparison, so the artifact
+# holds just those (none means CI already passes). Run it on a pushed branch
+# before opening the PR, so the first Tests run is green.
 
 on:
   workflow_dispatch:
@@ -28,11 +31,18 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
 
-      - run: npx playwright test tests/clarity-visual-verification.spec.ts --update-snapshots=all
+      - run: npx playwright test tests/clarity-visual-verification.spec.ts --update-snapshots=changed
+
+      - name: List changed screenshots
+        run: |
+          mkdir -p changed-screenshots
+          git status --porcelain --untracked-files=all -- 'tests/clarity-visual-verification.spec.ts-snapshots/*-linux.png' \
+            | cut -c4- | while read -r f; do cp "$f" changed-screenshots/; echo "Changed: $(basename "$f")"; done
+          if [ -z "$(ls changed-screenshots)" ]; then echo "::notice::No screenshots changed; CI already passes."; fi
 
       - uses: actions/upload-artifact@v7
         with:
           name: linux-screenshots
-          path: tests/clarity-visual-verification.spec.ts-snapshots/*-linux.png
+          path: changed-screenshots/
           retention-days: 7
-          if-no-files-found: error
+          if-no-files-found: ignore
