@@ -1579,7 +1579,8 @@ a.card:hover,
   border-color: var(--border);
 }
 
-.schedule-slot.is-past {
+.schedule-slot.is-past .schedule-slot-time,
+.schedule-slot.is-past > div:nth-child(2) {
   opacity: 0.45;
 }
 
@@ -1970,7 +1971,8 @@ a.card:hover,
   background: var(--accent-dim);
 }
 
-.tt-entry.past { opacity: 0.5; }
+.tt-entry.past .tt-time-col,
+.tt-entry.past .tt-info { opacity: 0.5; }
 
 .tt-time-col {
   flex-shrink: 0;
@@ -4176,11 +4178,14 @@ button:disabled {
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  visibility: hidden;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.28s;
   box-shadow: -12px 0 36px rgba(0, 0, 0, 0.14);
 }
 .cd-assistant-panel.open {
   transform: translateX(0);
+  visibility: visible;
+  transition-delay: 0s;
 }
 
 .cd-assistant-header {
@@ -4817,8 +4822,11 @@ body {
 }
 
 /* Recess/past slots calm down gracefully without vanishing */
-.tt-entry.past,
-.schedule-slot.is-past {
+/* Only the time and title fade; the Present/Absent buttons stay full strength. */
+.tt-entry.past .tt-time-col,
+.tt-entry.past .tt-info,
+.schedule-slot.is-past .schedule-slot-time,
+.schedule-slot.is-past > div:nth-child(2) {
   opacity: 0.58;
 }
 
@@ -7286,7 +7294,8 @@ body.holiday-mode .holiday-banner {
   font-size: var(--text-sm);
 }
 /* Past rows stay readable; the unmarked one still needs reading. */
-#page-dashboard .schedule-slot.is-past { opacity: 0.62; }
+#page-dashboard .schedule-slot.is-past .schedule-slot-time,
+#page-dashboard .schedule-slot.is-past > div:nth-child(2) { opacity: 0.62; }
 /* Ledger rows are ruled lines; a radius bent the row divider into a box. */
 #page-dashboard .schedule-slot { border-radius: 0; }
 
