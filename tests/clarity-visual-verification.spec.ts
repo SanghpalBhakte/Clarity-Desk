@@ -451,6 +451,12 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
   // Holiday mode (break 9-15 Feb around FIXED_NOW): the sunset Today and the
   // short holiday Daily Briefing, so a later style change can't quietly break them.
   async function seedHoliday(page: Page) {
+    // The palm/sunset sways forever (holiday-sway, will-change: transform).
+    // While it runs, Chromium puts later content in layers, and how that is
+    // left after Playwright stops the animation varied between runs, so all
+    // text anti-aliasing shifted by a few hundred pixels. Reduced motion
+    // (which the app already honours) means the sway never starts.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.evaluate(() => {
       const lecture = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', type: 'lecture', batches: [] };
       localStorage.setItem('cos_custom_timetable', JSON.stringify({ 0: [], 1: [lecture], 2: [lecture], 3: [lecture], 4: [lecture], 5: [lecture], 6: [] }));
