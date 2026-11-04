@@ -199,6 +199,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u182",
+    date: "2026-11-04",
+    title: "Attendance is quicker: Present stands out, Absent is quieter, marks can be undone, and one tap marks all ended classes Present",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Attendance is quicker: Present stands out, Absent is quieter, marks can be undone, and one tap marks all ended classes Present",
+    points: [
+
+    ]
+  },
+  {
+    id: "u181",
+    date: "2026-11-04",
+    title: "Phone search is a magnifier that opens full width, so you can read what you type",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Phone search is a magnifier that opens full width, so you can read what you type",
+    points: [
+
+    ]
+  },
+  {
+    id: "u180",
+    date: "2026-11-04",
+    title: "Today on phones: the Next class card is a compact row, so more of your schedule shows without scrolling",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today on phones: the Next class card is a compact row, so more of your schedule shows without scrolling",
+    points: [
+
+    ]
+  },
+  {
+    id: "u179",
+    date: "2026-11-04",
+    title: "Smaller tap-area overlaps and clipped text fixed: notice descriptions wrap, last tiny labels are readable",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Smaller tap-area overlaps and clipped text fixed: notice descriptions wrap, last tiny labels are readable",
+    points: [
+
+    ]
+  },
+  {
+    id: "u178",
+    date: "2026-11-04",
+    title: "Easier to tap and read: unmarked past classes stay clear, Present/Absent and top-bar buttons are bigger, tiny text is larger",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Easier to tap and read: unmarked past classes stay clear, Present/Absent and top-bar buttons are bigger, tiny text is larger",
+    points: [
+
+    ]
+  },
+  {
+    id: "u177",
+    date: "2026-11-04",
+    title: "Only one banner at a time: the update notice is slimmer, and the install card waits until your third visit",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Only one banner at a time: the update notice is slimmer, and the install card waits until your third visit",
+    points: [
+
+    ]
+  },
+  {
     id: "u176",
     date: "2026-11-04",
     title: "Tidy up: Tomorrow label matches other headings, past classes print clearly",
