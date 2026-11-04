@@ -4885,7 +4885,8 @@ function pushLocalDataToCloud(uid) {
   // full re-render of whatever page is currently open.
   lastCloudPayloadHash = hash;
   const ref = db.collection('users').doc(uid);
-  const deletes = computeSyncDeletePaths(safeGetStorage(KEY_SYNC_LAST_PUSHED, null), payload);
+  const deletes = computeSyncDeletePaths(safeGetStorage(KEY_SYNC_LAST_PUSHED, null), payload, attendanceEmptiedByUndo);
+  attendanceEmptiedByUndo = false;
   ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);
   // set(merge:true) never removes a map key, so a cleared mark used to come
   // back from the cloud on the next sync. Delete exactly the paths that were
@@ -4921,14 +4922,16 @@ function rememberSyncedAttendance(src) {
 // Paths in `prev` that are gone from `cur`: [field, date(, classKey)] in
 // attendance, [field, key] in the baseline and +1 maps. A map that is now
 // completely empty while the last copy had data is skipped: that looks like
-// a failed read or a wipe, not a student's edit.
-function computeSyncDeletePaths(prev, cur) {
+// a failed read or a wipe, not a student's edit, unless an Undo emptied it
+// (`emptiedOnPurpose`: a first-ever mark taken back must leave the cloud too).
+let attendanceEmptiedByUndo = false;   // memory only; cleared by the next push
+function computeSyncDeletePaths(prev, cur, emptiedOnPurpose = false) {
   const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
   if (!isObj(prev) || !isObj(cur)) return [];
   const paths = [];
   const pa = isObj(prev.attendance) ? prev.attendance : {};
   const ca = isObj(cur.attendance) ? cur.attendance : {};
-  if (Object.keys(ca).length || !Object.keys(pa).length) {
+  if (Object.keys(ca).length || !Object.keys(pa).length || emptiedOnPurpose) {
     Object.keys(pa).forEach(date => {
       if (!isObj(ca[date])) { paths.push(['attendance', date]); return; }
       if (!isObj(pa[date])) return;
@@ -9293,6 +9296,7 @@ window.setAttendance = function(dateStr, classKey, status) {
     if (!d[dateStr]) d[dateStr] = {};
     if (prev === undefined) delete d[dateStr][classKey]; else d[dateStr][classKey] = prev;
     if (!Object.keys(d[dateStr]).length) delete d[dateStr];
+    if (!Object.keys(d).length) attendanceEmptiedByUndo = true;
     safeSetStorage(KEY_ATTENDANCE, d);
     syncToCloud();
     rerenderAttendancePages();
@@ -9353,6 +9357,7 @@ window.markEndedPresent = function(dateStr) {
     const d = safeGetStorage(KEY_ATTENDANCE, {}) || {};
     keys.forEach(k => { if (d[dateStr]) delete d[dateStr][k]; });
     if (d[dateStr] && !Object.keys(d[dateStr]).length) delete d[dateStr];
+    if (!Object.keys(d).length) attendanceEmptiedByUndo = true;
     safeSetStorage(KEY_ATTENDANCE, d);
     syncToCloud();
     rerenderAttendancePages();
