@@ -7664,6 +7664,8 @@ body.holiday-mode .holiday-banner {
 .tk-tick { overflow: hidden; padding-left: 6px; border-left: 3px solid currentColor; font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; line-height: 18px; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
 .tk-tick.is-exam { border-left-width: 6px; }
 .tk-tick.is-late { color: var(--status-error, var(--color-error)); }
+/* A '!' as well as red, so late doesn't rely on colour alone. */
+.tk-tick.is-late::before, .tk-strip-key b::before { content: '! '; }
 .tk-tick.is-done { color: var(--text-muted); text-decoration: line-through; }
 .tk-tick.is-dim { opacity: 0.25; }
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
@@ -7672,7 +7674,10 @@ body.holiday-mode .holiday-banner {
   /* Fixed, not sticky: .content-area is overflow:auto but grows with its
      content, so a sticky bar pins to it, not the screen, and opens half
      under the nav. */
-  #page-assignments .tk-add { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; box-shadow: 0 -10px 0 var(--color-canvas); }
+  #page-assignments .tk-add { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; }
+  /* Square page-colour band behind the bar: rows scroll under it cleanly
+     (a rounded shadow let a rule's corner peek out above the bar). */
+  #page-assignments .tk-page::after { content: ''; position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); height: 72px; background: var(--color-canvas); z-index: 4; pointer-events: none; }
   /* Room for the bar, so the last row (Done) scrolls clear of it. */
   #page-assignments .tk-page { padding-bottom: 16px; }
 }
