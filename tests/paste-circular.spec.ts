@@ -38,7 +38,12 @@ test('a pasted circular is reviewed first and saved only when confirmed', async 
   await page.getByTestId('wa-find').click();
   await expect(page.getByTestId('wa-summary')).toContainText('Found 1 upcoming');
   expect(await savedTasks(page)).toBe(0);                 // review only, nothing written yet
-  await page.getByTestId('wa-import').dispatchEvent('click');
+  // "Find deadlines" redraws the modal under the still pointer, so Chrome keeps a
+  // stale :hover on Import; the global 1px hover lift then flickers while
+  // Playwright waits for "stable" and the click hangs. A real tap is not affected.
+  // Move the pointer away first, then click for real.
+  await page.mouse.move(0, 0);
+  await page.getByTestId('wa-import').click();
   await expect.poll(() => savedTasks(page)).toBe(1);
   const t = await page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_tasks')!)[0]);
   expect(t.dueDate).toBe('2026-10-30');
