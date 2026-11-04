@@ -3715,6 +3715,11 @@ function sanitizeTask(t) {
   // When this task was last changed on a device (sync stamp). Only kept when
   // it is a real number, so older tasks keep exactly their old shape.
   if (Number.isFinite(t.updatedAt)) extra.updatedAt = t.updatedAt;
+  // Ongoing goals: the days you said "Did it today" (newest 120 kept).
+  if (isNoDeadline && Array.isArray(t.checkins)) {
+    const days = [...new Set(t.checkins.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(-120);
+    if (days.length) extra.checkins = days;
+  }
 
   return {
     id:          String(t.id || `c-${Date.now()}`),
@@ -4330,7 +4335,7 @@ function calculatePayloadHash(data) {
       np: data.notificationPrefs || null,
       nc: data.noticeChannels || null,
       tg: typeof data.attTarget === 'number' ? data.attTarget : null,
-      am: data.aims && typeof data.aims === 'object' ? { s: cleanAimSubjects(data.aims.subjects), k: data.aims.kind === 'count' ? 'count' : 'line', n: aimCount(data.aims.count) } : null,
+      am: data.aims && typeof data.aims === 'object' ? { s: cleanAimSubjects(data.aims.subjects), k: aimKindOf(data.aims), n: aimCount(data.aims.count), g: data.aims.goal || '', t: aimTimes(data.aims.times) } : null,
       // Full timetable and attendance, not just a day count: a mark or a
       // timetable edit made on another device must reach this one (it used
       // to be ignored until something else changed, even across reloads).
@@ -7989,29 +7994,57 @@ function aimCount(v) {
   const n = parseInt(v, 10);
   return !isNaN(n) && n >= 1 && n <= 60 ? n : null;
 }
+// kind 'rhythm': check in on ongoing goal `goal` (a task id) `times` a week.
+function aimTimes(v) {
+  const n = parseInt(v, 10);
+  return !isNaN(n) && n >= 1 && n <= 14 ? n : null;
+}
+function aimKindOf(raw) {
+  if (!raw) return 'line';
+  if (raw.kind === 'count' && aimCount(raw.count)) return 'count';
+  if (raw.kind === 'rhythm' && typeof raw.goal === 'string' && raw.goal && aimTimes(raw.times)) return 'rhythm';
+  return 'line';
+}
 function loadAims() {
   const raw = safeGetStorage(KEY_AIMS, null);
-  const count = aimCount(raw && raw.count);
-  const kind = raw && raw.kind === 'count' && count ? 'count' : 'line';
-  return { v: 1, kind, line: getAttendanceTarget(), count: count || 10, subjects: cleanAimSubjects(raw && raw.subjects) };
+  return { v: 1, kind: aimKindOf(raw), line: getAttendanceTarget(), count: aimCount(raw && raw.count) || 10,
+    goal: raw && typeof raw.goal === 'string' ? raw.goal : '', times: aimTimes(raw && raw.times) || 1,
+    subjects: cleanAimSubjects(raw && raw.subjects) };
 }
 function saveAims(aims) {
   const line = aimPct(aims && aims.line) ?? getAttendanceTarget();
-  const count = aimCount(aims && aims.count) || 10;
+  const rec = { v: 1, kind: 'line', line, count: aimCount(aims && aims.count) || 10,
+    goal: aims && typeof aims.goal === 'string' ? aims.goal : '', times: aimTimes(aims && aims.times) || 1,
+    subjects: cleanAimSubjects(aims && aims.subjects) };
+  rec.kind = aimKindOf({ ...rec, kind: aims && aims.kind });
   safeSetStorage(KEY_ATT_TARGET, line);
-  safeSetStorage(KEY_AIMS, { v: 1, kind: aims && aims.kind === 'count' ? 'count' : 'line', line, count, subjects: cleanAimSubjects(aims && aims.subjects) });
+  safeSetStorage(KEY_AIMS, rec);
+}
+function weekStartKey(now = new Date()) {
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return localDateKey(start);
+}
+function goalCheckinsThisWeek(goal, now = new Date()) {
+  const from = weekStartKey(now), to = localDateKey(now);
+  return (goal && Array.isArray(goal.checkins) ? goal.checkins : []).filter(d => d >= from && d <= to).length;
+}
+// The rhythm aim's progress, or null when it isn't the aim or its goal is gone/done.
+function rhythmAimStatus(now = new Date()) {
+  const aims = loadAims();
+  if (aims.kind !== 'rhythm') return null;
+  const goal = (state.customTasks || []).find(t => t.id === aims.goal && t.status !== 'submitted' && (t.noDeadline || (t.taskType === 'mission' && !t.dueDate)));
+  return goal ? { title: goal.title, done: goalCheckinsThisWeek(goal, now), times: aims.times } : null;
 }
 // Backups and the cloud copy carry `aims`; older ones only `attTarget`,
 // which the caller has already written, so this only adds subject lines.
 function applyAimsFromData(aims) {
   if (!aims || typeof aims !== 'object' || Array.isArray(aims)) return;
-  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), kind: aims.kind, count: aims.count, subjects: aims.subjects });
+  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), kind: aims.kind, count: aims.count, goal: aims.goal, times: aims.times, subjects: aims.subjects });
 }
 // Classes marked Present this week (Monday to today) in cos_attendance.
 function classesAttendedThisWeek(now = new Date()) {
-  const start = new Date(now); start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  const from = localDateKey(start), to = localDateKey(now);
+  const from = weekStartKey(now), to = localDateKey(now);
   const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   let n = 0;
   Object.keys(data).forEach(d => {
@@ -8128,6 +8161,11 @@ function buildDashboardContextLine(opts = {}) {
     if (examDaysLeft === 0) return `${examLabel}: <strong>today</strong>.`;
     if (examDaysLeft === 1) return `${examLabel}: <strong>tomorrow</strong>.`;
     return `<strong>${examDaysLeft} days</strong> to ${examLabel}.`;
+  }
+
+  // Rhythm aim not met yet this week
+  if (opts.rhythm && opts.rhythm.done < opts.rhythm.times) {
+    return `${escHtml_cd(opts.rhythm.title)}: <strong>${opts.rhythm.done} of ${opts.rhythm.times}</strong> this week.`;
   }
 
   // Brand-new desk: no timetable yet, so "no classes today" would be wrong
@@ -10112,6 +10150,7 @@ function renderDashboard() {
     attendancePctLabel,
     attendanceAtRisk: isAttendanceAtRisk,
     attTarget,
+    rhythm: rhythmAimStatus(),
     overdue,
     pending,
     classesLeft: classesLeftCount,
@@ -15240,7 +15279,7 @@ function renderAssignments() {
 
     let when = '', whenCls = '';
     if (done) when = 'done';
-    else if (isOngoing) { when = isTaskPausedForHoliday(a) ? 'resting for the holiday' : 'keeps going'; whenCls = 'ongoing'; }
+    else if (isOngoing) { const wk = goalCheckinsThisWeek(a); when = isTaskPausedForHoliday(a) ? 'resting for the holiday' : wk ? `${wk} this week` : 'keeps going'; whenCls = 'ongoing'; }
     else if (days !== null) {
       if (days < 0)        { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
       else if (days === 0) { when = 'due today'; whenCls = 'today'; }
@@ -15269,6 +15308,7 @@ function renderAssignments() {
     const hubName = isCategory ? '' : ((a.code || '').trim() || a.subject);
     const actions = rowOpen ? `
       <div class="tk-row-actions">
+        ${isCustom && isOngoing && !done ? `<button type="button" onclick="goalCheckIn('${a.id}')">${(a.checkins || []).includes(todayStr()) ? 'Not today after all' : 'Did it today'}</button>` : ''}
         ${isCustom ? `<button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">Edit</button>` : ''}
         ${hubName ? `<button type="button" onclick="openSubjectHub(${jsArg_cd(a.subject)})">Open ${escHtml_cd(hubName)} page</button>` : ''}
         ${isCustom ? `<button type="button" class="task-delete-btn" onclick="deleteCustomTask('${a.id}')">Delete</button>` : ''}
@@ -17730,15 +17770,24 @@ function renderSettings() {
         <div class="form-group">
           ${(() => {
             const aims = loadAims();
+            const goals = (state.customTasks || []).filter(t => t.status !== 'submitted' && (t.noDeadline || (t.taskType === 'mission' && !t.dueDate)));
             return `<label class="form-label" for="s-aim-kind">Your aim</label>
-          <select class="form-input" id="s-aim-kind" style="max-width:340px" onchange="document.getElementById('s-aim-count-row').hidden = this.value !== 'count'">
+          <select class="form-input" id="s-aim-kind" style="max-width:340px" onchange="document.getElementById('s-aim-count-row').hidden = this.value !== 'count'; const r = document.getElementById('s-aim-rhythm-row'); if (r) r.hidden = this.value !== 'rhythm'">
             <option value="line"${aims.kind === 'line' ? ' selected' : ''}>Stay above my attendance line</option>
             <option value="count"${aims.kind === 'count' ? ' selected' : ''}>Show up to a number of classes each week</option>
+            ${goals.length ? `<option value="rhythm"${aims.kind === 'rhythm' ? ' selected' : ''}>Keep a rhythm on an ongoing goal</option>` : ''}
           </select>
           <div id="s-aim-count-row" style="margin-top:10px"${aims.kind === 'count' ? '' : ' hidden'}>
             <label class="form-label" for="s-aim-count">Classes each week</label>
             <input type="number" class="form-input" id="s-aim-count" value="${aims.count}" min="1" max="60" step="1" inputmode="numeric" style="max-width:120px">
-          </div>`;
+          </div>
+          ${goals.length ? `<div id="s-aim-rhythm-row" style="margin-top:10px"${aims.kind === 'rhythm' ? '' : ' hidden'}>
+            <label class="form-label" for="s-aim-goal">Goal</label>
+            <select class="form-input" id="s-aim-goal" style="max-width:340px">${goals.map(g => `<option value="${escAttr_cd(g.id)}"${g.id === aims.goal ? ' selected' : ''}>${escHtml_cd(g.title)}</option>`).join('')}</select>
+            <label class="form-label" for="s-aim-times" style="margin-top:10px">Times each week</label>
+            <input type="number" class="form-input" id="s-aim-times" value="${aims.times}" min="1" max="14" step="1" inputmode="numeric" style="max-width:120px">
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">Tap the goal in Tasks and choose "Did it today" each time.</div>
+          </div>` : ''}`;
           })()}
           <label class="form-label" for="s-att-target" style="margin-top:14px">Attendance line (%)</label>
           <input type="number" class="form-input" id="s-att-target" value="${getAttendanceTarget()}" min="50" max="100" step="1" style="max-width:120px">
@@ -18108,7 +18157,7 @@ function renderSettings() {
 // Settings save as you go: a field saves when it changes (text fields
 // also a moment after typing stops), and its section shows "Saved".
 const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branch', 's-year', 's-batch',
-  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 's-aim-kind', 's-aim-count', 'nc-wa-title', 'nc-wa-url',
+  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 's-aim-kind', 's-aim-count', 's-aim-goal', 's-aim-times', 'nc-wa-title', 'nc-wa-url',
   'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
@@ -18410,7 +18459,9 @@ function saveSettings(opts = {}) {
   const kindEl = document.getElementById('s-aim-kind');
   saveAims({ line: attTargetSafe, subjects: aimSubjects,
     kind: kindEl ? kindEl.value : prevAims.kind,
-    count: aimCount(document.getElementById('s-aim-count')?.value) || prevAims.count });
+    count: aimCount(document.getElementById('s-aim-count')?.value) || prevAims.count,
+    goal: document.getElementById('s-aim-goal')?.value || prevAims.goal,
+    times: aimTimes(document.getElementById('s-aim-times')?.value) || prevAims.times });
 
   const nPrefs = {
     taskUpcoming: document.getElementById('np-task-upcoming')?.value || 'day_before',
@@ -19214,6 +19265,20 @@ window.toggleAssignment = (id) => {
   }
   renderPage(state.currentPage);
   updateNavBadges();
+};
+
+// "Did it today" on an ongoing goal: adds (or takes back) today's check-in.
+window.goalCheckIn = (id) => {
+  const ct = state.customTasks.find(x => x.id === id);
+  if (!ct) return;
+  const today = todayStr();
+  const days = Array.isArray(ct.checkins) ? ct.checkins.filter(d => d !== today) : [];
+  const adding = !(ct.checkins || []).includes(today);
+  ct.checkins = adding ? [...days, today] : days;
+  if (!ct.checkins.length) delete ct.checkins;
+  saveCustomTasks();
+  showToast(adding ? `Logged for today: ${ct.title}` : 'Taken back for today', adding ? 'success' : 'info');
+  renderPage(state.currentPage);
 };
 
 window.deleteCustomTask = (id) => {
