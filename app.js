@@ -4335,7 +4335,7 @@ function calculatePayloadHash(data) {
       np: data.notificationPrefs || null,
       nc: data.noticeChannels || null,
       tg: typeof data.attTarget === 'number' ? data.attTarget : null,
-      am: data.aims && typeof data.aims === 'object' ? { s: cleanAimSubjects(data.aims.subjects), k: aimKindOf(data.aims), n: aimCount(data.aims.count), g: data.aims.goal || '', t: aimTimes(data.aims.times) } : null,
+      am: data.aims && typeof data.aims === 'object' ? { s: cleanAimSubjects(data.aims.subjects), k: aimKindOf(data.aims), n: aimCount(data.aims.count), g: data.aims.goal || '', t: aimTimes(data.aims.times), b: aimDate(data.aims.by), sc: data.aims.scope || '' } : null,
       // Full timetable and attendance, not just a day count: a mark or a
       // timetable edit made on another device must reach this one (it used
       // to be ignored until something else changed, even across reloads).
@@ -8003,22 +8003,54 @@ function aimKindOf(raw) {
   if (!raw) return 'line';
   if (raw.kind === 'count' && aimCount(raw.count)) return 'count';
   if (raw.kind === 'rhythm' && typeof raw.goal === 'string' && raw.goal && aimTimes(raw.times)) return 'rhythm';
+  if (raw.kind === 'finish' && aimDate(raw.by)) return 'finish';
   return 'line';
+}
+// kind 'finish': every syllabus topic ticked and every task due by `by` done.
+// `scope` is '' (everything) or one syllabus subjectKey.
+function aimDate(v) {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00').getTime()) ? v : '';
 }
 function loadAims() {
   const raw = safeGetStorage(KEY_AIMS, null);
   return { v: 1, kind: aimKindOf(raw), line: getAttendanceTarget(), count: aimCount(raw && raw.count) || 10,
     goal: raw && typeof raw.goal === 'string' ? raw.goal : '', times: aimTimes(raw && raw.times) || 1,
+    by: aimDate(raw && raw.by), scope: raw && typeof raw.scope === 'string' ? raw.scope : '',
     subjects: cleanAimSubjects(raw && raw.subjects) };
 }
 function saveAims(aims) {
   const line = aimPct(aims && aims.line) ?? getAttendanceTarget();
   const rec = { v: 1, kind: 'line', line, count: aimCount(aims && aims.count) || 10,
     goal: aims && typeof aims.goal === 'string' ? aims.goal : '', times: aimTimes(aims && aims.times) || 1,
+    by: aimDate(aims && aims.by), scope: aims && typeof aims.scope === 'string' ? aims.scope : '',
     subjects: cleanAimSubjects(aims && aims.subjects) };
   rec.kind = aimKindOf({ ...rec, kind: aims && aims.kind });
   safeSetStorage(KEY_ATT_TARGET, line);
   safeSetStorage(KEY_AIMS, rec);
+}
+// The finish aim's progress, or null when it isn't the aim.
+function finishAimStatus(now = new Date()) {
+  const aims = loadAims();
+  if (aims.kind !== 'finish') return null;
+  const scope = aims.scope;
+  const entries = visibleSyllabusEntries().filter(e => !scope || e.subjectKey === scope);
+  const topicsLeft = entries.reduce((n, e) => n + syllabusStats(e).left, 0);
+  const inScope = (t) => !scope || getCanonicalSubjectKey(t.subject || '') === scope || getCanonicalSubjectKey(t.code || '') === scope;
+  const tasksLeft = allTasks().filter(t => t.status !== 'submitted' && t.dueDate && !t.noDeadline && t.dueDate <= aims.by && inScope(t)).length;
+  const days = Math.round((new Date(aims.by + 'T00:00:00') - new Date(localDateKey(now) + 'T00:00:00')) / 86400000);
+  const name = scope ? ((entries[0] && entries[0].subjectName) || getCanonicalSubjectName(scope) || scope) : '';
+  return { by: aims.by, days, topicsLeft, tasksLeft, name };
+}
+function finishAimLine(f) {
+  if (!f) return '';
+  const left = [f.topicsLeft ? `${f.topicsLeft} topic${f.topicsLeft !== 1 ? 's' : ''}` : '', f.tasksLeft ? `${f.tasksLeft} task${f.tasksLeft !== 1 ? 's' : ''}` : ''].filter(Boolean).join(' and ');
+  if (!left) return '';
+  const d = new Date(f.by + 'T00:00:00');
+  const when = `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+  const what = f.name ? `${escHtml_cd(f.name)} by ${when}` : `Finish by ${when}`;
+  if (f.days < 0) return `${what} has passed with <strong>${left}</strong> left. Pick a new date in Settings.`;
+  const pace = f.topicsLeft && f.days > 0 ? `, about ${Math.ceil(f.topicsLeft / f.days)} topic${Math.ceil(f.topicsLeft / f.days) !== 1 ? 's' : ''} a day` : '';
+  return `${what}: <strong>${left}</strong> left${f.days === 0 ? ', today' : ` in ${f.days} day${f.days !== 1 ? 's' : ''}`}${pace}.`;
 }
 function weekStartKey(now = new Date()) {
   const start = new Date(now); start.setHours(0, 0, 0, 0);
@@ -8040,7 +8072,7 @@ function rhythmAimStatus(now = new Date()) {
 // which the caller has already written, so this only adds subject lines.
 function applyAimsFromData(aims) {
   if (!aims || typeof aims !== 'object' || Array.isArray(aims)) return;
-  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), kind: aims.kind, count: aims.count, goal: aims.goal, times: aims.times, subjects: aims.subjects });
+  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), kind: aims.kind, count: aims.count, goal: aims.goal, times: aims.times, by: aims.by, scope: aims.scope, subjects: aims.subjects });
 }
 // Classes marked Present this week (Monday to today) in cos_attendance.
 function classesAttendedThisWeek(now = new Date()) {
@@ -8167,6 +8199,9 @@ function buildDashboardContextLine(opts = {}) {
   if (opts.rhythm && opts.rhythm.done < opts.rhythm.times) {
     return `${escHtml_cd(opts.rhythm.title)}: <strong>${opts.rhythm.done} of ${opts.rhythm.times}</strong> this week.`;
   }
+  // Finish-by-a-date aim with something still left
+  const finishLine = finishAimLine(opts.finish);
+  if (finishLine) return finishLine;
 
   // Brand-new desk: no timetable yet, so "no classes today" would be wrong
   // Self-study with no timetable: talk about the plan, never about classes
@@ -10151,6 +10186,7 @@ function renderDashboard() {
     attendanceAtRisk: isAttendanceAtRisk,
     attTarget,
     rhythm: rhythmAimStatus(),
+    finish: finishAimStatus(),
     overdue,
     pending,
     classesLeft: classesLeftCount,
@@ -17772,11 +17808,22 @@ function renderSettings() {
             const aims = loadAims();
             const goals = (state.customTasks || []).filter(t => t.status !== 'submitted' && (t.noDeadline || (t.taskType === 'mission' && !t.dueDate)));
             return `<label class="form-label" for="s-aim-kind">Your aim</label>
-          <select class="form-input" id="s-aim-kind" style="max-width:340px" onchange="document.getElementById('s-aim-count-row').hidden = this.value !== 'count'; const r = document.getElementById('s-aim-rhythm-row'); if (r) r.hidden = this.value !== 'rhythm'">
+          <select class="form-input" id="s-aim-kind" style="max-width:340px" onchange="document.getElementById('s-aim-count-row').hidden = this.value !== 'count'; document.getElementById('s-aim-finish-row').hidden = this.value !== 'finish'; const r = document.getElementById('s-aim-rhythm-row'); if (r) r.hidden = this.value !== 'rhythm'">
             <option value="line"${aims.kind === 'line' ? ' selected' : ''}>Stay above my attendance line</option>
             <option value="count"${aims.kind === 'count' ? ' selected' : ''}>Show up to a number of classes each week</option>
             ${goals.length ? `<option value="rhythm"${aims.kind === 'rhythm' ? ' selected' : ''}>Keep a rhythm on an ongoing goal</option>` : ''}
+            <option value="finish"${aims.kind === 'finish' ? ' selected' : ''}>Finish my syllabus and tasks by a date</option>
           </select>
+          <div id="s-aim-finish-row" style="margin-top:10px"${aims.kind === 'finish' ? '' : ' hidden'}>
+            <label class="form-label" for="s-aim-by">Finish by</label>
+            <input type="date" class="form-input" id="s-aim-by" value="${aims.by || sylValidDate(p.examDate) || ''}" style="max-width:240px">
+            <label class="form-label" for="s-aim-scope" style="margin-top:10px">What</label>
+            <select class="form-input" id="s-aim-scope" style="max-width:340px">
+              <option value="">Every subject</option>
+              ${visibleSyllabusEntries().map(e => `<option value="${escAttr_cd(e.subjectKey)}"${e.subjectKey === aims.scope ? ' selected' : ''}>${escHtml_cd(e.subjectName)}</option>`).join('')}
+            </select>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">Counts the topics you haven't ticked in Subjects and the tasks due by then. Today shows what's left and the pace.</div>
+          </div>
           <div id="s-aim-count-row" style="margin-top:10px"${aims.kind === 'count' ? '' : ' hidden'}>
             <label class="form-label" for="s-aim-count">Classes each week</label>
             <input type="number" class="form-input" id="s-aim-count" value="${aims.count}" min="1" max="60" step="1" inputmode="numeric" style="max-width:120px">
@@ -18157,7 +18204,7 @@ function renderSettings() {
 // Settings save as you go: a field saves when it changes (text fields
 // also a moment after typing stops), and its section shows "Saved".
 const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branch', 's-year', 's-batch',
-  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 's-aim-kind', 's-aim-count', 's-aim-goal', 's-aim-times', 'nc-wa-title', 'nc-wa-url',
+  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 's-aim-kind', 's-aim-count', 's-aim-goal', 's-aim-times', 's-aim-by', 's-aim-scope', 'nc-wa-title', 'nc-wa-url',
   'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
@@ -18461,7 +18508,9 @@ function saveSettings(opts = {}) {
     kind: kindEl ? kindEl.value : prevAims.kind,
     count: aimCount(document.getElementById('s-aim-count')?.value) || prevAims.count,
     goal: document.getElementById('s-aim-goal')?.value || prevAims.goal,
-    times: aimTimes(document.getElementById('s-aim-times')?.value) || prevAims.times });
+    times: aimTimes(document.getElementById('s-aim-times')?.value) || prevAims.times,
+    by: aimDate(document.getElementById('s-aim-by')?.value) || prevAims.by,
+    scope: document.getElementById('s-aim-scope') ? document.getElementById('s-aim-scope').value : prevAims.scope });
 
   const nPrefs = {
     taskUpcoming: document.getElementById('np-task-upcoming')?.value || 'day_before',
