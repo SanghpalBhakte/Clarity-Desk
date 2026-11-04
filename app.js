@@ -15075,6 +15075,40 @@ function renderAssignments() {
       ${subjects.map(s => `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name">${s === 'all' ? 'All' : escHtml_cd(s)}</span>${s === 'all' ? '' : `<span class="tk-subj-next">${escHtml_cd(nextDueFor(s))}</span>`}</button>`).join('')}
     </nav>` : '';
 
+  // Laptops: two weeks from this Monday as a strip, one tick per deadline
+  // (thicker for exams and quizzes), with a needle on today. CSS hides it
+  // on phones, where the list is the whole page.
+  const stripHTML = (() => {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const todayK = localDateKey(new Date());
+    const subjF = state.assignSubjectFilter;
+    let any = false;
+    const cells = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const k = localDateKey(d);
+      const due = all.filter(a => a.dueDate === k && !isOngoingTaskRow(a));
+      if (due.length) any = true;
+      const ticks = due.slice(0, 3).map(a => {
+        const isDone = a.status === 'submitted';
+        const cls = ['tk-tick',
+          (a.taskType === 'exam' || a.taskType === 'quiz') ? 'is-exam' : '',
+          isDone ? 'is-done' : isTaskOverdue(a) ? 'is-late' : '',
+          subjF !== 'all' && a.code !== subjF && a.subject !== subjF ? 'is-dim' : ''].filter(Boolean).join(' ');
+        return `<span class="${cls}" title="${escAttr_cd(a.title)}">${escHtml_cd((a.code || '').trim() || a.subject || 'Task')}</span>`;
+      }).join('') + (due.length > 3 ? `<span class="tk-tick-more">+${due.length - 3}</span>` : '');
+      const wkend = d.getDay() === 0 || d.getDay() === 6;
+      cells.push(`<div class="tk-strip-day${k === todayK ? ' is-today' : ''}${wkend ? ' is-weekend' : ''}${i === 7 ? ' is-week2' : ''}"><span class="tk-strip-date">${DAY_SHORT[d.getDay()]} ${d.getDate()}</span><div class="tk-strip-ticks">${ticks}</div></div>`);
+    }
+    if (!any) return '';
+    return `
+    <section class="tk-strip" aria-label="Deadlines in the next two weeks">
+      <div class="tk-strip-head"><h2>Two weeks</h2><span class="tk-strip-key" aria-hidden="true"><i class="k-due"></i>due <i class="k-exam"></i>exam or quiz <b>late</b></span></div>
+      <div class="tk-strip-grid" aria-hidden="true">${cells.join('')}</div>
+    </section>`;
+  })();
+
   // One row per task: a day column, the title and one meta line, the check
   // on the right. Tapping the row shows Edit · Open page · Delete under it.
   const renderTaskCard = (a) => {
@@ -15198,13 +15232,14 @@ function renderAssignments() {
 
   const selN = [...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length;
   el.innerHTML = `
-    <div class="tk-page${subjIndex ? ' has-side' : ''}">
+    <div class="tk-page${subjIndex ? ' has-side' : ''}${stripHTML ? ' has-strip' : ''}">
       <header class="tk-head">
         <div class="tk-kicker"><span>${DAY_NAMES[new Date().getDay()]} · your tasks</span>
           ${all.some(a => a.isCustom) && !taskSelectMode ? `<button type="button" class="tk-link" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
         </div>
         <h1 class="tk-headline">${headA}${headB ? ` <span class="tk-headline-late${lateN ? ' is-late' : ''}">${headB}</span>` : ''}</h1>
       </header>
+      ${stripHTML}
       ${subjIndex ? `<aside class="tk-side">${subjIndex}</aside>` : ''}
       <div class="tk-main">
         ${taskSelectMode ? `
