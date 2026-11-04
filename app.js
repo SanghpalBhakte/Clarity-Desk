@@ -15724,15 +15724,17 @@ async function waHandleText(raw) {
   }
   raw = null; // drop the chat text; only the found rows are kept
   if (!waIsOpen()) return;
-  // Plain pasted text (a circular, one message) has no timestamps; a chat needs at least 2.
-  if (!result || (result.stats.recognised < 2 && !result.stats.plain)) { waRenderAddChat(WA_NOT_A_CHAT); return; }
+  // Plain pasted text (a circular) has no timestamps; a chat needs at least 2,
+  // or 1 when that single pasted message has a deadline in it.
+  const oneMessage = result && result.stats.recognised === 1 && result.items.length > 0;
+  if (!result || (result.stats.recognised < 2 && !result.stats.plain && !oneMessage)) { waRenderAddChat(WA_NOT_A_CHAT); return; }
 
   const today = waMidnight(now);
   const existing = allTasks();
   const sel = new Set(), dup = new Set();
   for (const c of result.items) {
     if (waIsDuplicate(P, c, existing)) dup.add(c.id);
-    else if (waMidnight(c.date) >= today) sel.add(c.id);
+    else if (waMidnight(c.date) >= today && !c.unsure) sel.add(c.id);
   }
   const links = Array.isArray(result.links) ? result.links : [];
   const subjects = waLinkSubjects();

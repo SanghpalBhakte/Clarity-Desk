@@ -90,7 +90,7 @@ export function splitMessages(raw) {
 // line between) are one message each; a paragraph whose lines each carry their
 // own date (a list of deadlines) is split line by line.
 function splitPlain(raw) {
-  const hasDate = (line) => !!findDate(findTimes(line).masked, new Date(), true);
+  const hasDate = (line) => !!findDate(findTimes(line).masked, new Date(), true, true);
   const msgs = [];
   String(raw || '').replace(/\r/g, '').split(/\n\s*\n/).forEach(par => {
     const lines = par.split('\n').map(l => l.trim()).filter(Boolean);
@@ -186,8 +186,13 @@ const RELATIVE = [
   [/\b(?:today|tonight|by eod|aaj)\b/, 0],
 ];
 
+// A written date (21/10, 21-10-2026, 21 Oct, Oct 21), not just a weekday or
+// "tomorrow". Pasted text with no deadline word needs one to become a row.
+const CLEAR_DATE = new RegExp(`\\b\\d{1,2}[\\/-]\\d{1,2}\\b|\\b\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}\\b|\\b\\d{1,2}\\s*(?:st|nd|rd|th)?\\s*(?:of\\s+)?(?:${MON})|\\b(?:${MON})[a-z]*\\.?\\s+\\d{1,2}\\b`);
+
 // Every date-looking piece is a candidate; the best-scored one wins.
-export function findDate(masked, base, dayFirst = true) {
+// swapImpossible (pasted text only): 11/30 can only be MM/DD, so read it that way.
+export function findDate(masked, base, dayFirst = true, swapImpossible = false) {
   const cands = [];
   let m;
   const year = (y) => { if (!y) return null; y = +y; return y < 100 ? y + 2000 : y; };
@@ -202,7 +207,8 @@ export function findDate(masked, base, dayFirst = true) {
   RE_NUMERIC.lastIndex = 0;
   while ((m = RE_NUMERIC.exec(masked))) {
     const a = +m[1], b = +m[2];
-    const [dd, mm] = dayFirst ? [a, b] : [b, a];
+    let [dd, mm] = dayFirst ? [a, b] : [b, a];
+    if (swapImpossible && dayFirst && b > 12 && a <= 12) [dd, mm] = [b, a];
     make(year(m[3]), mm - 1, dd, m[3] ? 5 : 3, m.index, !!m[3]);
   }
   RE_DAY_MONTH.lastIndex = 0;
@@ -312,7 +318,8 @@ export function extractLinks(raw) {
 // ── Main entry ────────────────────────────────────────────────
 // Returns { items, stats }. items: DeadlineCandidate[] sorted by date:
 //   { id, kind: 'exam'|'sub'|'pres'|'lec'|'oth', date: Date, end: Date|null,
-//     hasTime, title, text, who, sent: Date|null }
+//     hasTime, title, text, who, sent: Date|null, unsure?: true }
+// unsure: pasted text with a date but no deadline word; starts unticked.
 // stats: { messages, recognised, plain, ignored, first, last } for the review header.
 // ignored: messages with no deadline in them ("ok", "thanks", media...).
 export function scanChat(raw, now = new Date()) {
@@ -322,10 +329,13 @@ export function scanChat(raw, now = new Date()) {
     const text = msg.text.trim();
     if (!text || SKIP.test(text)) continue;
     const kind = (KINDS.find(([, re]) => re.test(text)) || [])[0];
-    if (!kind) continue;
+    if (!kind && !plain) continue;
     const base = msg.sent || now;
     const { start, end, masked } = findTimes(text);
-    const date = findDate(masked, base, dayFirst);
+    // A pasted circular may give a date with no deadline word: offer it as an
+    // unticked Notice so the student decides.
+    if (!kind && !CLEAR_DATE.test(masked)) continue;
+    const date = findDate(masked, base, dayFirst, plain);
     if (!date) continue;
     let endDate = null;
     if (start) {
@@ -336,11 +346,13 @@ export function scanChat(raw, now = new Date()) {
         if (endDate <= date) endDate = null;
       }
     }
-    out.push({
-      kind, date, end: endDate, hasTime: !!start,
+    const item = {
+      kind: kind || 'oth', date, end: endDate, hasTime: !!start,
       text: text.replace(/https?:\/\/\S+/g, '[link]').replace(/\s+/g, ' '),
       title: shortTitle(text), who: msg.who, sent: msg.sent,
-    });
+    };
+    if (!kind) item.unsure = true;
+    out.push(item);
   }
   // Teachers repeat reminders: keep the latest message per day + kind + similar title.
   const seen = new Map();

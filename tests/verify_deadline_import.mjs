@@ -219,9 +219,31 @@ console.log('\n10. Plain pasted text (a circular, no WhatsApp timestamps)');
   const chat = P.scanChat(asChat('Submit the DBMS journal by 25 Oct') + '\n' + asChat('ok'), NOW);
   check('a WhatsApp export is not treated as plain', chat.stats.plain === false && chat.stats.recognised === 2);
   const one = P.scanChat(asChat('Submit the DBMS journal by 25 Oct'), NOW);
-  check('a single timestamped message keeps the old chat rules (needs 2 headers)', one.stats.plain === false && one.stats.recognised === 1);
+  check('a single timestamped message is read as a chat, with its deadline', one.stats.plain === false && one.stats.recognised === 1 && one.items.length === 1 && fmtDay(one.items[0].date) === 'Sun 25 Oct');
   const appSrc2 = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   check('app lets plain text through but still needs 2 headers for chats', /recognised < 2 && !result\.stats\.plain/.test(appSrc2));
+  check('app accepts 1 header only when that message has a deadline', /recognised === 1 && result\.items\.length > 0/.test(appSrc2));
+  check('app leaves unsure rows unticked', /waMidnight\(c\.date\) >= today && !c\.unsure/.test(appSrc2));
+
+  // Date with no deadline word: plain text only, as an unsure Notice.
+  const bare = P.scanChat('Circular\nThe college will remain closed on 2/11/2026 on account of the annual function.', NOW);
+  check('plain: a dated circular with no keyword becomes an unsure Notice', bare.items.length === 1 && bare.items[0].kind === 'oth' && bare.items[0].unsure === true && fmtDay(bare.items[0].date) === 'Mon 2 Nov', JSON.stringify(bare.items.map(describe)));
+  check('plain: keyword rows are not marked unsure', r.items[0].unsure === undefined);
+  check('plain: a weekday alone with no keyword gives no row', P.scanChat('See you all on Monday.', NOW).items.length === 0);
+  check('plain: "tomorrow" alone with no keyword gives no row', P.scanChat('Bring your ID cards tomorrow.', NOW).items.length === 0);
+  const bareChat = P.scanChat(asChat('The college will remain closed on 2/11/2026 on account of the annual function.') + '\n' + asChat('ok'), NOW);
+  check('chat: the same keyword-less message still gives no row', bareChat.items.length === 0);
+
+  // MM/DD in pasted text when the date can only be read that way.
+  const us = P.scanChat('Assignment due 11/30/2026', NOW);
+  check('plain: 11/30/2026 is read as 30 Nov', us.items.length === 1 && fmtDay(us.items[0].date) === 'Mon 30 Nov', JSON.stringify(us.items.map(describe)));
+  const amb = P.scanChat('Assignment due 05/11/2026', NOW);
+  check('plain: ambiguous 05/11/2026 stays day first (5 Nov)', amb.items.length === 1 && fmtDay(amb.items[0].date) === 'Thu 5 Nov', JSON.stringify(amb.items.map(describe)));
+  const usList = P.scanChat('Journal due 10/28/2026\nReport due 11/30/2026', NOW);
+  check('plain: lines with MM/DD dates still split one row each', usList.items.length === 2 && usList.items.map(i => fmtDay(i.date)).join('|') === 'Wed 28 Oct|Mon 30 Nov', usList.items.map(describe).join(' ; '));
+  const usChat = P.scanChat(asChat('Assignment due 11/30/2026') + '\n' + asChat('ok'), NOW);
+  check('chat: DD/MM chat headers still drop an impossible 11/30 (unchanged)', usChat.items.length === 0, JSON.stringify(usChat.items.map(describe)));
+  check('findDate without the flag keeps DD/MM only', P.findDate('due 11/30/2026', NOW, true) === null);
   check('entry points say "Paste a message or circular"', (appSrc2.match(/Paste a message or circular/g) || []).length >= 4 && !/Paste from WhatsApp|>From WhatsApp</.test(appSrc2));
 }
 
