@@ -5,7 +5,8 @@
 //  - with no cos_aims (every phone before this), the aim is read from
 //    cos_att_target and nothing is written just by reading;
 //  - saving keeps cos_att_target in step, so attendance sums are unchanged;
-//  - a subject's own line is used only for that subject;
+//  - a subject's own line is used only for that subject, and survives a
+//    rescan that changes its code or its name;
 //  - old backups / cloud copies without `aims` change nothing; new ones
 //    bring subject lines back; the sync hash notices a subject line change.
 // ==================================================================
@@ -39,7 +40,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash };`)();
+const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine };`)();
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -81,6 +82,28 @@ check("A subject's own line applies to that subject only (by code, then name)", 
   reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'line', line: 75, subjects: { DSL: 80, 'Physics': 65 } }) });
   const r = [app.getSubjectTarget({ code: 'DSL', name: 'DS Lab' }), app.getSubjectTarget({ code: '', name: 'Physics' }), app.getSubjectTarget({ code: 'DS', name: 'Data Structures' }), app.getSubjectTarget(null)];
   return JSON.stringify(r) === '[80,65,75,75]' ? true : JSON.stringify(r);
+});
+
+check('A subject line is saved under both its code and its name', () => {
+  const subs = app.setSubjectLine({}, { code: 'DSL', name: 'DS Lab' }, 80);
+  return JSON.stringify(subs) === JSON.stringify({ DSL: 80, 'DS Lab': 80 }) ? true : JSON.stringify(subs);
+});
+
+check('The line survives a rescan that changes the code or the name', () => {
+  const subjects = app.setSubjectLine({}, { code: 'DSL', name: 'DS Lab' }, 80);
+  reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'line', line: 75, subjects }) });
+  const r = [
+    app.getSubjectTarget({ code: 'DS-LAB', name: 'DS Lab' }),   // new code
+    app.getSubjectTarget({ code: 'DSL', name: 'Data Structures Lab' }), // new name
+    app.getSubjectTarget({ code: 'dsl', name: '' }),            // case only
+    app.getSubjectTarget({ code: 'CN', name: 'Networks' })      // other subject
+  ];
+  return JSON.stringify(r) === '[80,80,80,75]' ? true : JSON.stringify(r);
+});
+
+check('Clearing a subject line removes every copy of it', () => {
+  const subs = app.setSubjectLine({ DSL: 80, 'DS Lab': 80, dsl: 80, CN: 85 }, { code: 'DSL', name: 'DS Lab' }, null);
+  return JSON.stringify(subs) === JSON.stringify({ CN: 85 }) ? true : JSON.stringify(subs);
 });
 
 check('The overall target ignores subject lines (attendance sums unchanged)', () => {

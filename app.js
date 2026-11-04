@@ -6329,7 +6329,7 @@ const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
   'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved',
-  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped', 'aim_choice'];
+  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
 let _scanStartedAt = 0;
@@ -8001,11 +8001,32 @@ function applyAimsFromData(aims) {
 function aimKeyFor(subjItem) {
   return String((subjItem && (subjItem.code || subjItem.name)) || '').trim();
 }
+// A subject line is saved under both its code and its name, and found by
+// either (ignoring case and spaces), so it survives a rescan that changes
+// one of them.
+function aimSubjectKeys(subjItem) {
+  if (!subjItem) return [];
+  return [...new Set([subjItem.code, subjItem.name].map(v => String(v || '').trim()).filter(Boolean))];
+}
+function subjectOwnLine(subjItem, subjects = loadAims().subjects) {
+  const keys = aimSubjectKeys(subjItem);
+  for (const k of keys) if (subjects[k]) return subjects[k];
+  const norm = (v) => String(v).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const want = new Set(keys.map(norm).filter(Boolean));
+  const hit = Object.keys(subjects).find(k => want.has(norm(k)));
+  return hit ? subjects[hit] : null;
+}
+function setSubjectLine(subjects, subjItem, n) {
+  const norm = (v) => String(v).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const keys = aimSubjectKeys(subjItem);
+  const drop = new Set(keys.map(norm).filter(Boolean));
+  Object.keys(subjects).forEach(k => { if (drop.has(norm(k))) delete subjects[k]; });
+  if (n !== null) keys.forEach(k => { subjects[k] = n; });
+  return subjects;
+}
 // A subject's own line if one is set, else the overall line.
 function getSubjectTarget(subjItem) {
-  const k = aimKeyFor(subjItem);
-  const own = k ? loadAims().subjects[k] : null;
-  return own || getAttendanceTarget();
+  return subjectOwnLine(subjItem) || getAttendanceTarget();
 }
 
 // Builds a situation-aware context line for the dashboard masthead.
@@ -9805,51 +9826,6 @@ window.onboardingSaveName = function(skip) {
   if (name) saveProfileField('name', name);
   trackUsage(name ? 'name_given' : 'name_skipped');
   if (name) updateTopbarProfile();
-  window.onboardingShowAim();
-};
-
-// "What are you here for?": one tap sets the attendance line (or self-study)
-// and the tour starts. The welcome is marked seen now, so a reload here
-// never shows it again.
-const OB_AIM_LINES = [65, 70, 75, 80, 85];
-window.onboardingShowAim = function() {
-  localStorage.setItem('cos_onboarding_dismissed', 'true');
-  const step = document.getElementById('onboarding-step-1');
-  if (!step) { window.onboardingStartTour(); return; }
-  const cur = getAttendanceTarget();
-  step.innerHTML = `
-    <div class="ob-aim">
-      <h2 class="ob-big">What are you here for?</h2>
-      <div class="ob-aim-choice">
-        <div class="ob-aim-title">Keep my attendance above a line</div>
-        <div class="ob-hint">Tap the % your college or course asks for.</div>
-        <div class="ob-aim-lines" role="group" aria-label="Your attendance line">
-          ${OB_AIM_LINES.map(n => `<button type="button" class="ob-aim-line" aria-pressed="${n === cur}" onclick="onboardingSetAim(${n})">${n}%</button>`).join('')}
-        </div>
-      </div>
-      <button type="button" class="ob-aim-choice ob-aim-self" onclick="onboardingSetAim('self')">
-        <span class="ob-aim-title">I study on my own</span>
-        <span class="ob-hint">No class timetable. Today shows your tasks and an exam countdown.</span>
-      </button>
-    </div>
-    <div class="ob-actions">
-      <button class="btn-secondary ob-quiet" onclick="onboardingSetAim(null)">Decide later</button>
-    </div>`;
-};
-
-window.onboardingSetAim = function(choice) {
-  if (choice === 'self') {
-    const p = { ...loadProfile(), studyMode: 'self' };
-    safeSetStorage(KEY_PROFILE, p);
-    liveProfile.studyMode = 'self';
-    trackUsage('aim_choice', 'self');
-  } else if (aimPct(choice) !== null) {
-    saveAims({ ...loadAims(), line: aimPct(choice) });
-    trackUsage('aim_choice', String(choice));
-  } else {
-    trackUsage('aim_choice', 'later');
-  }
-  if (choice !== null) syncToCloud();
   window.onboardingStartTour();
 };
 
@@ -17720,11 +17696,11 @@ function renderSettings() {
             const seen = new Set();
             const subs = getSubjectList().filter(sj => { const k = aimKeyFor(sj); if (!k || seen.has(k)) return false; seen.add(k); return true; });
             if (!subs.length) return '';
-            const setN = subs.filter(sj => aims.subjects[aimKeyFor(sj)]).length;
+            const setN = subs.filter(sj => subjectOwnLine(sj, aims.subjects)).length;
             return `<details class="st-aim-subjects"${setN ? ' open' : ''}>
               <summary>A different line for one subject${setN ? ` (${setN} set)` : ''}</summary>
               <p class="st-aim-hint">Leave a box empty to use your ${aims.line}% line.</p>
-              ${subs.map((sj, i) => { const k = aimKeyFor(sj); return `<label class="st-aim-row" for="s-aim-${i}"><span class="st-aim-code">${escHtml_cd(k)}</span><span class="st-aim-name">${escHtml_cd(sj.name || '')}</span><input type="number" class="form-input s-aim-subj" id="s-aim-${i}" data-key="${escAttr_cd(k)}" value="${aims.subjects[k] || ''}" placeholder="${aims.line}" min="50" max="100" step="1" inputmode="numeric" aria-label="${escAttr_cd(`Line for ${sj.name || k}`)}"></label>`; }).join('')}
+              ${subs.map((sj, i) => { const k = aimKeyFor(sj); return `<label class="st-aim-row" for="s-aim-${i}"><span class="st-aim-code">${escHtml_cd(k)}</span><span class="st-aim-name">${escHtml_cd(sj.name || '')}</span><input type="number" class="form-input s-aim-subj" id="s-aim-${i}" data-code="${escAttr_cd(sj.code || '')}" data-name="${escAttr_cd(sj.name || '')}" value="${subjectOwnLine(sj, aims.subjects) || ''}" placeholder="${aims.line}" min="50" max="100" step="1" inputmode="numeric" aria-label="${escAttr_cd(`Line for ${sj.name || k}`)}"></label>`; }).join('')}
             </details>`;
           })()}
         </div>
@@ -18372,10 +18348,8 @@ function saveSettings(opts = {}) {
   // The line and any subject lines save together (saveAims keeps cos_att_target in step).
   const aimSubjects = { ...loadAims().subjects };
   document.querySelectorAll('.s-aim-subj').forEach(inp => {
-    const k = inp.dataset.key;
     const n = aimPct(inp.value);
-    if (!k) return;
-    if (n === null || n === attTargetSafe) delete aimSubjects[k]; else aimSubjects[k] = n;
+    setSubjectLine(aimSubjects, { code: inp.dataset.code, name: inp.dataset.name }, n === attTargetSafe ? null : n);
   });
   saveAims({ line: attTargetSafe, subjects: aimSubjects });
 
