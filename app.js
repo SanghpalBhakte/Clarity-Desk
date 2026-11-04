@@ -18758,91 +18758,39 @@ const ASSISTANT_LOAD_ERROR = 'Ask Desk could not load. Check your connection and
 
 let _assistantOpen = false;
 
+// First open: a hello, three questions as lines, and the setup check.
+// The middle question uses a real class and day from the timetable.
+function assistantSkipExample(tt) {
+  const today = new Date().getDay();
+  for (let off = 2; off <= 7; off++) {
+    const d = (today + off) % 7;
+    const c = (tt[d] || []).find(x => !isBreakEntry(x) && x.type !== 'lab');
+    if (c) return `Can I skip ${dayBarShortName(c)} on ${DAY_NAMES[d]}?`;
+  }
+  return 'Can I skip a class tomorrow?';
+}
+
 function renderAssistantWelcome() {
   const thread = document.getElementById('cd-chat-thread');
   if (!thread) return;
 
-  const tt = loadTimetable();
-  const hasTT = Object.values(tt || {}).some(arr => Array.isArray(arr) && arr.some(c => !isBreakEntry(c)));
-  const baselines = loadAttendanceBaselines();
-  const hasBaselines = Object.keys(baselines || {}).length > 0;
+  const tt = loadTimetable() || {};
+  const hasTT = Object.values(tt).some(arr => Array.isArray(arr) && arr.some(c => !isBreakEntry(c)));
+  const hasBaselines = Object.keys(loadAttendanceBaselines() || {}).length > 0;
   const isNewUser = !hasTT && !hasBaselines;
+  const first = String((liveProfile && liveProfile.name) || '').trim().split(/\s+/)[0];
+  const qs = ["What's on tomorrow?", hasTT ? assistantSkipExample(tt) : 'How is my attendance?', "What's due this week?"];
 
-  if (isNewUser) {
-    thread.innerHTML = `
-      <div class="cd-welcome-card">
-        <div class="cd-welcome-badge" style="background:var(--accent-dim);color:var(--brand-primary)">
-          <span class="cd-dot-live"></span> Getting Started
-        </div>
-        <div class="cd-welcome-title">Welcome to Ask Desk</div>
-        <div class="cd-welcome-sub">I answer academic questions grounded in your real timetable, tasks, and attendance.</div>
-        <div class="cd-starter-grid">
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('Is anything missing from my setup?')">
-            <span class="cd-starter-icon">${icons.settings()}</span>
-            <strong>Setup Checklist</strong>
-            <span>Check missing setup gaps</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('What do I have today?')">
-            <span class="cd-starter-icon">${icons.calendar()}</span>
-            <strong>What do I have today?</strong>
-            <span>Today's classes &amp; tasks</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('How is my attendance?')">
-            <span class="cd-starter-icon">${icons.check()}</span>
-            <strong>How is my attendance?</strong>
-            <span>Overall attendance status</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('What tasks are urgent?')">
-            <span class="cd-starter-icon">${icons.alert()}</span>
-            <strong>What tasks are urgent?</strong>
-            <span>Check pending deadlines</span>
-          </button>
-        </div>
+  thread.innerHTML = `
+    <div class="cd-welcome cd-hello">
+      <h2 class="cd-hello-title">${first ? `Hi ${escHtml_cd(first)}. ` : ''}<span>What do you need?</span></h2>
+      <p class="cd-hello-sub">I read your timetable, tasks and attendance on this device. Nothing you ask leaves it.</p>
+      <div class="cd-hello-list">
+        ${qs.map(q => `<button type="button" class="cd-hello-q" onclick="sendAssistantMessage(${jsArg_cd(q)})"><span>${escHtml_cd(q)}</span><span class="cd-hello-arrow" aria-hidden="true">→</span></button>`).join('')}
       </div>
-    `;
-  } else {
-    thread.innerHTML = `
-      <div class="cd-welcome-card">
-        <div class="cd-welcome-badge">
-          <span class="cd-dot-live"></span> Ready with live desk data
-        </div>
-        <div class="cd-welcome-title">How can I help you today?</div>
-        <div class="cd-welcome-sub">Grounded in your real timetable, task deadlines, and attendance logs.</div>
-        <div class="cd-starter-grid">
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('What do I have today?')">
-            <span class="cd-starter-icon">${icons.calendar()}</span>
-            <strong>What do I have today?</strong>
-            <span>Today's schedule &amp; tasks</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('What is my next class?')">
-            <span class="cd-starter-icon">${icons.clock()}</span>
-            <strong>What is my next class?</strong>
-            <span>Next upcoming lecture/lab</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('Which subject needs attention?')">
-            <span class="cd-starter-icon">${icons.target()}</span>
-            <strong>Subject focus</strong>
-            <span>Subject risk &amp; priority check</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('How is my attendance?')">
-            <span class="cd-starter-icon">${icons.check()}</span>
-            <strong>How is my attendance?</strong>
-            <span>Overall record &amp; safe skips</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('What tasks are urgent?')">
-            <span class="cd-starter-icon">${icons.alert()}</span>
-            <strong>What tasks are urgent?</strong>
-            <span>Deadlines due today or overdue</span>
-          </button>
-          <button class="cd-starter-btn" onclick="sendAssistantMessage('Is anything missing from my setup?')">
-            <span class="cd-starter-icon">${icons.settings()}</span>
-            <strong>Setup Checklist</strong>
-            <span>Check desk health &amp; gaps</span>
-          </button>
-        </div>
-      </div>
-    `;
-  }
+      <p class="cd-hello-setup">${isNewUser ? 'Not set up yet?' : 'Something look off?'} <button type="button" onclick="sendAssistantMessage('Is anything missing from my setup?')">See what's missing</button></p>
+    </div>
+  `;
 }
 
 function clearAssistantChat() {
@@ -19695,21 +19643,28 @@ function setupFABDrag() {
     if (btn) btn.classList.toggle('active', !!document.querySelector('#more-sheet .more-sheet-item.active'));
   }
 
-  // Ask Desk: three starter chips, the rest behind "More ideas"
-  window.toggleMoreChips = function () {
+  // Ask Desk chips scroll sideways: the fade and arrow show while more
+  // chips sit to the right, and the arrow nudges the row along.
+  function syncChipEnd() {
     var row = document.getElementById('cd-chip-row');
-    if (!row) return;
-    var open = row.classList.toggle('show-all');
-    var btn = row.querySelector('.cd-chip-more');
-    if (btn) {
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      btn.textContent = open ? 'Fewer' : 'More ideas';
-    }
+    var wrap = row && row.parentElement;
+    if (wrap) wrap.classList.toggle('at-end', row.scrollLeft + row.clientWidth >= row.scrollWidth - 4);
+  }
+  window.nudgeChips = function () {
+    var row = document.getElementById('cd-chip-row');
+    if (row) row.scrollBy({ left: row.clientWidth * 0.7, behavior: 'smooth' });
   };
 
   function init() {
     syncSidebarBtn();
     syncMoreActive();
+    var chipRow = document.getElementById('cd-chip-row');
+    if (chipRow) {
+      chipRow.addEventListener('scroll', syncChipEnd, { passive: true });
+      window.addEventListener('resize', syncChipEnd);
+      var panel = document.getElementById('cd-assistant-panel');
+      if (panel && 'MutationObserver' in window) new MutationObserver(syncChipEnd).observe(panel, { attributes: true, attributeFilter: ['class'] });
+    }
     var sheet = document.getElementById('more-sheet');
     if (sheet && 'MutationObserver' in window) {
       new MutationObserver(syncMoreActive).observe(sheet, { subtree: true, attributes: true, attributeFilter: ['class'] });
