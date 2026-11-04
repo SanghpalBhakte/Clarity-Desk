@@ -3261,13 +3261,6 @@ a.card:hover,
 .link-subject-card.is-collapsed .vault-card-actions { display: none; }
 
 /* Daily Briefing: the one-line summary, the quiet line, the done count */
-.briefing-lead { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border-color: transparent; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-.briefing-headline { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 700; line-height: 1.3; color: var(--text-primary); }
-.briefing-next { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-secondary); }
-.briefing-next svg { flex-shrink: 0; color: var(--accent); }
-.briefing-done { font-size: var(--text-sm); color: var(--text-muted); padding: 2px 4px 0; }
-.briefing-quiet { display: flex; align-items: center; gap: 8px; margin-top: 20px; color: var(--text-secondary); font-size: var(--text-sm); }
-.briefing-quiet svg { flex-shrink: 0; width: 16px; height: 16px; color: var(--green); }
 
 .link-resources {
   display: grid;
@@ -3413,7 +3406,6 @@ a.card:hover,
 .summary-text-main { font-weight: 600; font-size: 0.88rem; }
 .summary-text-sub  { font-size: 0.78rem; color: var(--text-muted); }
 /* Sentence case like the "Today's Schedule" heading on the same page. */
-.briefing-tomorrow-label { font-size: 0.875rem; letter-spacing: 0; font-weight: 600; color: var(--text-secondary); }
 
 /* ── Progress Bar ───────────────────────────────────────────── */
 .progress-bar-wrap { background: var(--surface-2); border-radius: 999px; height: 6px; overflow: hidden; }
@@ -7403,12 +7395,6 @@ body.holiday-mode .holiday-banner {
 .tt-now { background: transparent; color: var(--color-action-primary); padding: 0; font-weight: 700; }
 
 /* Daily Briefing: a written summary, then plain lists. */
-.briefing-lead { background: transparent; border: 0; box-shadow: none; padding: 0; }
-.briefing-headline { font-family: var(--font-display); font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); font-weight: 700; line-height: 1.25; color: var(--text-primary); }
-.briefing-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; }
-.briefing-stats .stat-card { display: inline-flex; align-items: baseline; gap: 6px; padding: 0; background: none; border: 0; box-shadow: none; min-height: 32px; }
-.briefing-stats .stat-value { font-size: var(--text-md); }
-.briefing-stats .stat-label { font-size: var(--text-sm); color: var(--text-secondary); }
 #resources-subtab-content .summary-item { padding-left: 0; padding-right: 0; }
 #resources-subtab-content .summary-icon { display: none; }
 
@@ -7462,7 +7448,6 @@ body.holiday-mode .holiday-banner {
   #page-timetable .tt-entry .tt-att .btn { flex: 0 0 auto; height: 40px !important; padding: 0 14px !important; }
   #page-timetable .tt-entry .tt-actions .icon-btn-sm { width: 36px; height: 36px; margin-left: auto; }
 }
-.briefing-stats .stat-card { flex-direction: row; }
 
 /* Pages stop stretching on wide screens: one comfortable reading width,
    centred in the space beside the sidebar. Phones are unaffected. */
@@ -7677,3 +7662,44 @@ body.holiday-mode .holiday-banner {
 .hub-check { flex: none; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border-radius: 6px; border: 2px solid var(--border-btn, var(--border)); background: none; color: var(--surface); cursor: pointer; position: relative; }
 .hub-check::after { content: ''; position: absolute; inset: -11px; }
 .hub-check.is-on { border-color: var(--status-success); background: var(--status-success); }
+
+/* ── Daily Briefing: the week ahead ───────────────────────────────────
+   Headline about the next class day, its classes as rows, the week as
+   thin day tracks on one time axis, then due / watch / notices on rules. */
+.bf { display: flex; flex-direction: column; gap: 26px; max-width: 720px; }
+.bf-kicker { font-size: var(--text-sm); color: var(--text-muted); }
+.bf-title { margin: 6px 0 0; font-family: var(--font-display, var(--font)); font-size: clamp(1.75rem, 1.5rem + 1vw, 2.1rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text-primary); }
+.bf-title em { font-style: normal; color: var(--color-thread, var(--accent)); }
+.bf-sub { margin: 8px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
+.bf-focus { border-top: 2px solid var(--text-primary); }
+.bf-class, .bf-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 52px; padding: 12px 0; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--color-rule, var(--border)); background: none; font: inherit; text-align: left; color: var(--text-primary); cursor: pointer; }
+.bf-class { align-items: baseline; }
+.bf-time { flex: none; width: 76px; font-family: var(--font-display, var(--font)); font-weight: 700; font-size: 0.95rem; }
+.bf-class-main, .bf-row-main { flex: 1; min-width: 0; }
+.bf-class-name, .bf-row-title { display: block; font-size: 0.95rem; font-weight: 600; }
+.bf-row-title { font-weight: 500; }
+.bf-class-sub, .bf-row-sub { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.bf-row-when { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
+.bf-row.is-overdue .bf-row-when { color: var(--color-thread, var(--status-error)); font-weight: 700; }
+.bf-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.bf-h h3 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.bf-act { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; }
+.bf-ruled { border-top: 1px solid var(--color-rule, var(--border)); padding-top: 14px; }
+.bf-quiet { margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
+.bf-note { margin: 10px 0 0; font-size: var(--text-sm); color: var(--text-secondary); }
+.bw { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.bw-day { display: flex; align-items: center; gap: 10px; }
+.bw-day.is-past { opacity: 0.45; }
+.bw-name { flex: none; width: 34px; font-size: var(--text-sm); font-weight: 700; color: var(--text-primary); }
+.bw-day.is-focus .bw-name, .bw-day.is-today .bw-name { color: var(--color-thread, var(--accent)); }
+.bw-track { position: relative; flex: 1; height: 26px; border-bottom: 1px solid var(--color-rule, var(--border)); }
+.bw-block { position: absolute; top: 3px; height: 20px; min-width: 6px; border-radius: 6px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
+.bw-block.is-lab { background: var(--text-primary); }
+.bw-count { flex: none; width: 18px; text-align: right; font-size: var(--text-xs); color: var(--text-muted); }
+.bw-axis { margin-top: -4px; }
+.bw-hours { position: relative; flex: 1; height: 14px; font-size: 0.7rem; color: var(--text-muted); }
+.bw-hours span { position: absolute; transform: translateX(-50%); }
+.bw-hours span:first-child { transform: none; }
+.bw-key { font-size: var(--text-xs); color: var(--text-muted); }
+.bw-key i { display: inline-block; width: 10px; height: 10px; margin: 0 2px -1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
+.bw-key i.is-lab { background: var(--text-primary); }

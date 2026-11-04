@@ -17449,142 +17449,164 @@ function holidayBriefingHTML() {
 
 function renderSummaryContent(container) {
   if (isHolidayActive()) { container.innerHTML = holidayBriefingHTML(); return; }
-  const today    = new Date();
-  const todayDay = today.getDay();
-  const classes  = timetableForDisplay()[todayDay] || [];
-  const dueTodayItems = allTasks().filter(a => !a.noDeadline && a.dueDate === todayStr() && a.status === 'pending');
+  const now = new Date();
+  const nowMin = currentTimeMinutes();
+  const week = briefingWeek(now);
+  const focus = briefingFocus(week, nowMin);
+  const head = briefingFocusHeadline(focus);
+  const part = now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening';
+
+  // Due this week: overdue first, then the next seven days.
+  const today = todayStr();
+  const horizon = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 7); return localDateKey(d); })();
+  const pending = allTasks().filter(a => a && a.status === 'pending');
+  const due = pending.filter(a => !isOngoingTask(a) && a.dueDate && (isTaskOverdue(a) || a.dueDate < horizon))
+    .sort((x, y) => x.dueDate.localeCompare(y.dueDate));
+  const ongoing = pending.filter(a => isOngoingTask(a) && !isTaskPausedForHoliday(a));
+  const dueText = (a) => {
+    const d = dueDaysLeft(a.dueDate);
+    return d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due ${DAY_NAMES[new Date(a.dueDate + 'T12:00:00').getDay()]}`;
+  };
   const importantNotices = getVisibleNotices().filter(n => n.important).slice(0, 3);
-  const overdueItems = allTasks().filter(a => isTaskOverdue(a));
-  const ongoingMissions = allTasks().filter(a => a.status === 'pending' && (a.taskType === 'mission' || !!a.noDeadline));
-  const currentMin   = currentTimeMinutes();
-  const realClasses  = classes.filter(c => c.type !== 'off' && c.subject !== 'Recess');
-  const remaining    = realClasses.filter(c => timeToMinutes(c.end || '23:59') > currentMin);
-  const doneCount    = realClasses.length - remaining.length;
-  const submittedCount = allTasks().filter(a => a.status === 'submitted').length;
-  const next = remaining[0];
-  const quiet = [
-    realClasses.length ? '' : 'no classes today',
-    dueTodayItems.length ? '' : 'nothing due today',
-    overdueItems.length ? '' : 'nothing overdue',
-    importantNotices.length ? '' : 'no urgent notices'
-  ].filter(Boolean);
-  const stats = [
-    { n: remaining.length, label: 'classes left', color: 'var(--text-primary)', go: "navigateTo('timetable')" },
-    { n: dueTodayItems.length, label: 'Due today', color: 'var(--yellow)', go: "filterAndNavigateToAssignments('today')" },
-    { n: overdueItems.length, label: 'Overdue', color: 'var(--red)', go: "filterAndNavigateToAssignments('overdue')" },
-    { n: submittedCount, label: 'Completed', color: 'var(--green)', go: "filterAndNavigateToAssignments('submitted')" }
-  ].filter(s => s.n > 0);
-  const tmr = briefingTomorrow(today);
+  const watch = briefingWatch();
+
+  // The week: every day on one time axis, lectures light, labs dark.
+  const shown = week.filter(d => d.day !== 0 || d.classes.length);
+  const all = shown.flatMap(d => d.classes);
+  const start = all.length ? Math.floor(Math.min(...all.map(c => timeToMinutes(c.time))) / 60) * 60 : 540;
+  const end = all.length ? Math.ceil(Math.max(...all.map(c => timeToMinutes(c.end || c.time))) / 60) * 60 : 1020;
+  const pos = (m) => ((m - start) / Math.max(60, end - start)) * 100;
+  const hours = [];
+  for (let m = start; m <= end; m += 120) hours.push(`<span style="left:${pos(m).toFixed(1)}%">${Math.round(m / 60) % 12 || 12}</span>`);
+  const weekRows = shown.map(d => `
+    <div class="bw-day${d.past ? ' is-past' : ''}${focus && focus.day === d.day && !focus.isToday ? ' is-focus' : ''}${d.isToday ? ' is-today' : ''}">
+      <span class="bw-name">${DAY_SHORT[d.day]}</span>
+      <span class="bw-track" role="img" aria-label="${escAttr_cd(`${DAY_NAMES[d.day]}: ${d.classes.length ? d.classes.map(c => `${c.subject} ${formatDisplayTime(c.time)}`).join(', ') : 'no classes'}`)}">
+        ${d.classes.map(c => `<span class="bw-block${c.type === 'lab' ? ' is-lab' : ''}" style="left:${pos(timeToMinutes(c.time)).toFixed(1)}%;width:calc(${(pos(timeToMinutes(c.end || c.time)) - pos(timeToMinutes(c.time))).toFixed(1)}% - 3px)"></span>`).join('')}
+      </span>
+      <span class="bw-count">${d.classes.length || ''}</span>
+    </div>`).join('');
+  const longest = shown.filter(d => !d.past).sort((x, y) => y.classes.length - x.classes.length);
+  const longLine = longest[0] && longest[0].classes.length >= 3 && (!longest[1] || longest[1].classes.length < longest[0].classes.length)
+    ? `${DAY_NAMES[longest[0].day]} is your long day: ${longest[0].classes.length} classes, ${formatDisplayTime(longest[0].classes[0].time)} to ${formatDisplayTime(longest[0].classes[longest[0].classes.length - 1].end)}.` : '';
+
   container.innerHTML = `
-    <div class="card briefing-lead">
-      <div class="briefing-headline">${escHtml_cd(briefingHeadline({ classesToday: realClasses.length, left: remaining.length, due: dueTodayItems.length, overdue: overdueItems.length, notices: importantNotices.length }))}</div>
-      ${next ? `<div class="briefing-next">${icons.clock()}<span>Next: <strong>${escHtml_cd(next.subject)}</strong>, ${formatDisplayTimeRange(next.time, next.end)}${next.room ? ` · ${escHtml_cd(next.room)}` : ''}</span></div>` : ''}
-    </div>
+    <div class="bf">
+      <header class="bf-head">
+        <div class="bf-kicker">This ${part}</div>
+        <h2 class="bf-title">${head.html}</h2>
+        ${head.sub ? `<p class="bf-sub">${escHtml_cd(head.sub)}</p>` : ''}
+      </header>
 
-    ${stats.length ? `
-    <div class="stat-grid briefing-stats" style="margin-bottom:0">
-      ${stats.map(s => `
-      <div class="stat-card" onclick="${s.go}" role="button" tabindex="0" style="cursor:pointer">
-        <div class="stat-value" style="color:${s.color}">${s.n}</div>
-        <div class="stat-label">${s.label} →</div>
-      </div>`).join('')}
-    </div>` : ''}
+      ${focus ? `
+      <section class="bf-focus" aria-label="${escAttr_cd(focus.label)}">
+        ${focus.classes.map(c => `
+          <button type="button" class="bf-class" onclick="navigateTo('timetable'); setTTDay(${focus.day})">
+            <span class="bf-time">${escHtml_cd(formatDisplayTime(c.time))}</span>
+            <span class="bf-class-main"><span class="bf-class-name">${escHtml_cd(c.subject)}${c.type === 'lab' && !/lab/i.test(c.subject) ? ' lab' : ''}</span><span class="bf-class-sub">${escHtml_cd([c.room, c.teacher ? formatTeacherName(c.teacher) : ''].filter(v => v && v !== '—').join(' · ') || (c.type === 'lab' ? 'Lab' : 'Lecture'))}</span></span>
+          </button>`).join('')}
+      </section>` : ''}
 
-    ${realClasses.length ? `
-    <div class="section-heading" style="margin-top:20px">Today's Schedule</div>
-    ${remaining.map(c => `
-      <div class="summary-item">
-        <div class="summary-icon" style="background:var(--accent-dim);color:var(--brand-primary)">${icons.timetable()}</div>
-        <div style="flex:1;min-width:0">
-          <div class="summary-text-main" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml_cd(c.subject)}</span>
-            <span class="type-badge type-${c.type}">${c.type}</span>
-          </div>
-          <div class="summary-text-sub">${[formatDisplayTimeRange(c.time, c.end), escHtml_cd(c.room || ''), escHtml_cd(c.teacher || '')].filter(Boolean).join(' · ')}</div>
-        </div>
-      </div>`).join('')}
-    ${doneCount ? `<div class="briefing-done">${remaining.length ? `${doneCount} class${doneCount !== 1 ? 'es' : ''} done earlier today` : `All ${doneCount} class${doneCount !== 1 ? 'es' : ''} done for today`}</div>` : ''}` : ''}
+      ${all.length ? `
+      <section class="bf-section" aria-label="The week">
+        <div class="bf-h"><h3>The week</h3><span class="bw-key"><i></i> lecture <i class="is-lab"></i> lab</span></div>
+        <div class="bw">${weekRows}<div class="bw-day bw-axis" aria-hidden="true"><span class="bw-name"></span><span class="bw-hours">${hours.join('')}</span><span class="bw-count"></span></div></div>
+        ${longLine ? `<p class="bf-note">${escHtml_cd(longLine)}</p>` : ''}
+      </section>` : ''}
 
-    ${dueTodayItems.length ? `
-    <div class="section-heading" style="margin-top:20px">Due Today</div>
-    ${dueTodayItems.map(a => `
-      <div class="summary-item">
-        <div class="summary-icon" style="background:color-mix(in srgb, var(--status-warning) 12%, transparent);color:var(--status-warning)">${icons.assignments()}</div>
-        <div style="flex:1;min-width:0">
-          <div class="summary-text-main">${escHtml_cd(a.title)}</div>
-          <div class="summary-text-sub">${escHtml_cd(a.subject)} · ${a.marks > 0 ? a.marks + ' marks' : 'Academic task'}</div>
-        </div>
-      </div>`).join('')}` : ''}
+      <section class="bf-section bf-ruled" aria-label="Due this week">
+        <div class="bf-h"><h3>Due this week</h3>${pending.length ? `<button type="button" class="bf-act" onclick="navigateTo('assignments')">All tasks →</button>` : ''}</div>
+        ${due.length ? due.map(a => `
+          <button type="button" class="bf-row${isTaskOverdue(a) ? ' is-overdue' : ''}" onclick="navigateTo('assignments')">
+            <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
+            <span class="bf-row-when">${dueText(a)}</span>
+          </button>`).join('') : `<p class="bf-quiet">${ongoing.length ? 'No deadlines this week.' : 'Nothing. Rare. Enjoy it.'}</p>`}
+        ${ongoing.map(a => `
+          <button type="button" class="bf-row" onclick="navigateTo('assignments')">
+            <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
+            <span class="bf-row-when">Ongoing</span>
+          </button>`).join('')}
+      </section>
 
-    ${ongoingMissions.length ? `
-      <div class="section-heading" style="margin-top:20px;color:var(--brand-secondary)">Ongoing Missions</div>
-      ${ongoingMissions.map(a => `
-        <div class="summary-item">
-          <div class="summary-icon" style="background:color-mix(in srgb, var(--brand-secondary) 12%, transparent);color:var(--brand-secondary)">${icons.target()}</div>
-          <div style="flex:1;min-width:0">
-            <div class="summary-text-main">${escHtml_cd(a.title)}</div>
-            <div class="summary-text-sub">${escHtml_cd(a.subject)} · Standing Goal · Active</div>
-          </div>
-        </div>`).join('')}` : ''}
+      <section class="bf-section bf-ruled" aria-label="Watch">
+        <div class="bf-h"><h3>Watch</h3></div>
+        ${watch ? `<button type="button" class="bf-row" onclick="openSubjectHub(${jsArg_cd(watch.name)})"><span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(watch.line)}</span></span><span class="bf-row-when">${escHtml_cd(watch.pct)}</span></button>`
+          : `<p class="bf-quiet">Once you mark a few classes, the subject closest to the ${getAttendanceTarget()}% line shows here.</p>`}
+      </section>
 
-    ${overdueItems.length ? `
-      <div class="section-heading" style="margin-top:20px;color:var(--status-error)">Overdue Tasks</div>
-      ${overdueItems.map(a => `
-        <div class="summary-item">
-          <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.alert()}</div>
-          <div style="flex:1;min-width:0">
-            <div class="summary-text-main">${escHtml_cd(a.title)}</div>
-            <div class="summary-text-sub">${escHtml_cd(a.subject)} · ${Math.abs(dueDaysLeft(a.dueDate) || 1)}d overdue</div>
-          </div>
-        </div>`).join('')}` : ''}
-
-    ${importantNotices.length ? `
-    <div class="section-heading" style="margin-top:20px">Key Notices</div>
-    ${importantNotices.map(n => `
-      <div class="summary-item" onclick="showNotice('${n.id}')" style="cursor:pointer">
-        <div class="summary-icon" style="background:color-mix(in srgb, var(--status-error) 12%, transparent);color:var(--status-error)">${icons.notices()}</div>
-        <div style="flex:1;min-width:0">
-          <div class="summary-text-main">${escHtml_cd(n.title)}</div>
-          <div class="summary-text-sub">${formatDate(n.date)} · ${n.category}</div>
-        </div>
-      </div>`).join('')}` : ''}
-
-    ${quiet.length ? `<div class="briefing-quiet">${icons.check()}<span>${quiet.join(' · ').replace(/^./, ch => ch.toUpperCase())}</span></div>` : ''}
-
-    <div class="summary-item briefing-tomorrow" onclick="navigateTo('timetable')" role="button" tabindex="0" style="cursor:pointer;margin-top:20px">
-      <div class="summary-icon" style="background:color-mix(in srgb, var(--green) 14%, transparent);color:var(--green)">${icons.calendar()}</div>
-      <div style="flex:1;min-width:0">
-        <div class="summary-text-sub briefing-tomorrow-label">Tomorrow</div>
-        <div class="summary-text-main">${tmr}</div>
-      </div>
+      ${importantNotices.length ? `
+      <section class="bf-section bf-ruled" aria-label="Notices">
+        <div class="bf-h"><h3>Notices</h3></div>
+        ${importantNotices.map(n => `<button type="button" class="bf-row" onclick="showNotice('${n.id}')"><span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(n.title)}</span><span class="bf-row-sub">${formatDate(n.date)} · ${escHtml_cd(n.category)}</span></span></button>`).join('')}
+      </section>` : ''}
     </div>
   `;
 }
 
-// One line for the top of the Daily Briefing, e.g.
-// "2 classes left, 1 task due, nothing urgent." Built only from counts the
-// page already shows, so it can never disagree with the sections below.
-function briefingHeadline({ classesToday = 0, left = 0, due = 0, overdue = 0, notices = 0 } = {}) {
-  const plural = (n, word) => `${n} ${word}${n !== 1 ? 's' : ''}`;
-  const classPart = left ? `${left} class${left !== 1 ? 'es' : ''} left`
-    : classesToday ? 'classes done for today' : 'no classes today';
-  const duePart = due ? `${plural(due, 'task')} due` : 'nothing due today';
-  const urgent = overdue ? `${overdue} overdue`
-    : notices ? plural(notices, 'important notice') : 'nothing urgent';
-  const line = `${classPart}, ${duePart}, ${urgent}.`;
-  return line.charAt(0).toUpperCase() + line.slice(1);
+// This week, Monday to Sunday: each day's real classes (no recess or off
+// rows) in time order. A holiday date has none. Reads only.
+function briefingWeek(now = new Date()) {
+  const tt = loadTimetable() || {};
+  const todayKey = localDateKey(now);
+  return getWeekDays(0).map(date => {
+    const key = localDateKey(date);
+    const day = date.getDay();
+    const classes = isHolidayActive(key) ? [] : (tt[day] || []).filter(isTeachingClass)
+      .slice().sort((x, y) => timeToMinutes(x.time) - timeToMinutes(y.time));
+    return { day, key, classes, past: key < todayKey, isToday: key === todayKey };
+  });
 }
 
-// "4 classes, first at 9:00 AM" for tomorrow. A holiday that covers
-// tomorrow shows no classes, the same rule the timetable uses today.
-function briefingTomorrow(today = new Date()) {
-  const t = new Date(today);
-  t.setDate(t.getDate() + 1);
-  const list = isHolidayActive(localDateKey(t)) ? [] : ((loadTimetable() || {})[t.getDay()] || [])
-    .filter(c => c.type !== 'off' && c.subject !== 'Recess');
-  if (!list.length) return 'No classes';
-  const first = list.slice().sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time))[0];
-  return `${list.length} class${list.length !== 1 ? 'es' : ''}, first at ${formatDisplayTime(first.time)}`;
+// What the headline is about: today while classes remain, else the next
+// day with classes (looking up to a week ahead, into next week if needed).
+function briefingFocus(week, nowMin) {
+  const t = week.find(d => d.isToday);
+  if (t) {
+    const left = t.classes.filter(c => timeToMinutes(c.end || '23:59') > nowMin);
+    if (left.length) return { label: 'Today', day: t.day, classes: left, isToday: true };
+  }
+  const tt = loadTimetable() || {};
+  const base = new Date();
+  for (let k = 1; k <= 7; k++) {
+    const d = new Date(base); d.setDate(base.getDate() + k);
+    const key = localDateKey(d);
+    const classes = isHolidayActive(key) ? [] : (tt[d.getDay()] || []).filter(isTeachingClass)
+      .slice().sort((x, y) => timeToMinutes(x.time) - timeToMinutes(y.time));
+    if (classes.length) return { label: k === 1 ? 'Tomorrow' : DAY_NAMES[d.getDay()], day: d.getDay(), classes, isToday: false };
+  }
+  return null;
+}
+
+// "Tomorrow's a lab day." with the key words in the thread colour, plus
+// one line of times. Fixed words only, so the html is safe.
+function briefingFocusHeadline(focus) {
+  if (!focus) return { html: 'A <em>clear</em> week.', sub: 'No classes in the next seven days.' };
+  const n = focus.classes.length;
+  const first = formatDisplayTime(focus.classes[0].time);
+  const last = formatDisplayTime(focus.classes.reduce((m, c) => timeToMinutes(c.end || c.time) > timeToMinutes(m) ? (c.end || c.time) : m, focus.classes[0].end || focus.classes[0].time));
+  const count = `${n} class${n !== 1 ? 'es' : ''}`;
+  if (focus.isToday) return { html: `<em>${count}</em> left today.`, sub: `Next at ${first}, done by ${last}.` };
+  const w = focus.label;
+  const html = focus.classes.some(c => c.type === 'lab') ? `${w}'s a <em>lab day</em>.`
+    : n >= 4 ? `${w}'s a <em>long one</em>.`
+    : n <= 2 ? `${w}'s a <em>light one</em>.`
+    : `${w}: <em>${count}</em>.`;
+  return { html, sub: `${count}, ${first} to ${last}.` };
+}
+
+// The subject nearest the attendance line (lowest first). Null until
+// something has been marked.
+function briefingWatch() {
+  if (isSelfStudyMode()) return null;
+  const rows = getSubjectList().map(s => ({ s, a: getSubjectAttendance(s) })).filter(r => r.a.pct !== null);
+  if (!rows.length) return null;
+  rows.sort((x, y) => (x.a.exactPct ?? x.a.pct) - (y.a.exactPct ?? y.a.pct));
+  const { s, a } = rows[0];
+  const name = s.code || s.name;
+  const line = a.isSafe
+    ? (a.safeSkips > 0 ? `${name} is your lowest. You can miss ${a.safeSkips} and stay above ${a.targetPct}%.` : `${name} is right on the line. Go to the next one.`)
+    : `${name} is below the line. Attend the next ${a.classesToAttend} to get back to ${a.targetPct}%.`;
+  return { name: s.name, line, pct: `${a.pctLabel ?? a.pct}%` };
 }
 
 // ── Settings ────────────────────────────────────────────────

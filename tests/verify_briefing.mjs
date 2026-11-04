@@ -1,13 +1,13 @@
 // ==================================================================
-// Clarity Desk: DAILY BRIEFING summary line and Tomorrow card
+// Clarity Desk: DAILY BRIEFING, the week ahead
 // ==================================================================
 // Locked down here:
-//  - the one-line summary matches the counts (busy, quiet, all done,
-//    overdue, singular/plural) and never says "nothing urgent" when
-//    something is overdue;
-//  - Tomorrow counts real classes (no Recess/off), shows the earliest
-//    start in 12-hour time, and shows none on a holiday date;
-//  - the rendered briefing carries the line, the next class and Tomorrow.
+//  - the headline is about today while classes remain, then the next day
+//    with classes ("Tomorrow's a light one / lab day / long one");
+//  - only real classes count (no Recess/off), earliest first, 12-hour time;
+//  - a holiday date has no classes; nothing ahead gives "A clear week";
+//  - the rendered briefing has the focus day, the week, Due and Watch,
+//    shows no empty week section and no emoji.
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
@@ -58,7 +58,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = globalThis.__NOTICES || []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { briefingHeadline, briefingTomorrow, renderSummaryContent };`)();
+const makeApp = () => new Function(`${code}\n return { briefingWeek, briefingFocus, briefingFocusHeadline, renderSummaryContent, timeToMinutes };`)();
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -73,36 +73,56 @@ const eq = (got, want) => got === want ? true : `got "${got}", want "${want}"`;
 const C = (subject, time, end, type = 'lecture') => ({ subject, code: subject.slice(0, 2), time, end, type, room: 'R1', teacher: 'T', batches: [] });
 
 const a = makeApp();
-check('busy day', () => eq(a.briefingHeadline({ classesToday: 5, left: 2, due: 1 }), '2 classes left, 1 task due, nothing urgent.'));
-check('singular and an important notice', () => eq(a.briefingHeadline({ classesToday: 1, left: 1, due: 1, notices: 1 }), '1 class left, 1 task due, 1 important notice.'));
-check('empty day', () => eq(a.briefingHeadline({}), 'No classes today, nothing due today, nothing urgent.'));
-check('all classes done, overdue wins over "nothing urgent"', () => eq(a.briefingHeadline({ classesToday: 3, left: 0, due: 0, overdue: 2, notices: 1 }), 'Classes done for today, nothing due today, 2 overdue.'));
-
 localStorage.setItem('cos_custom_timetable', JSON.stringify({ 0: [], 1: [C('Data Structures', '10:00', '11:00')], 2: [C('Maths', '11:00', '12:00'), C('Recess', '12:00', '12:30', 'off'), C('Physics', '09:00', '10:00')], 3: [], 4: [], 5: [], 6: [] }));
-check('tomorrow: real classes, earliest first, 12-hour time', () => eq(a.briefingTomorrow(), '2 classes, first at 9:00 AM'));
-check('tomorrow on a holiday shows no classes', () => {
-  localStorage.setItem('cos_holiday', JSON.stringify({ on: true, since: '2026-10-20', until: null }));
-  const r = a.briefingTomorrow();
-  localStorage.removeItem('cos_holiday');
-  return eq(r, 'No classes');
+const focusAt = (iso) => { at(iso); const m = new Date().getHours() * 60 + new Date().getMinutes(); return a.briefingFocus(a.briefingWeek(new Date()), m); };
+
+check('week: Monday to Sunday, real classes only, earliest first', () => {
+  at('2026-10-19T09:50:00');
+  const w = a.briefingWeek(new Date());
+  if (w.length !== 7 || w[0].day !== 1 || w[6].day !== 0) return 'not Mon..Sun';
+  if (!w[0].isToday || w[0].past) return 'today flags wrong';
+  return eq(w[1].classes.map(c => c.subject).join(','), 'Physics,Maths');
 });
-check('rendered briefing: line, next class, tomorrow, no emoji', () => {
+check('classes left today: headline is about today', () => {
+  const f = focusAt('2026-10-19T09:50:00');
+  const h = a.briefingFocusHeadline(f);
+  return eq(`${f.label} | ${h.html} | ${h.sub}`, 'Today | <em>1 class</em> left today. | Next at 10:00 AM, done by 11:00 AM.');
+});
+check('after the last class: tomorrow, light day, 12-hour times', () => {
+  const f = focusAt('2026-10-19T18:30:00');
+  const h = a.briefingFocusHeadline(f);
+  return eq(`${f.label} | ${h.html} | ${h.sub}`, "Tomorrow | Tomorrow's a <em>light one</em>. | 2 classes, 9:00 AM to 12:00 PM.");
+});
+check('a lab makes it a lab day; four classes a long one', () => {
+  const lab = a.briefingFocusHeadline({ label: 'Tomorrow', classes: [C('DS', '10:00', '12:00', 'lab')], isToday: false }).html;
+  const four = a.briefingFocusHeadline({ label: 'Thursday', classes: [1, 2, 3, 4].map(i => C('S' + i, `${9 + i}:00`, `${10 + i}:00`)), isToday: false }).html;
+  return eq(`${lab} | ${four}`, "Tomorrow's a <em>lab day</em>. | Thursday's a <em>long one</em>.");
+});
+check('a holiday from tomorrow: nothing ahead, a clear week', () => {
+  localStorage.setItem('cos_holiday', JSON.stringify({ on: true, since: '2026-10-20', until: null }));
+  const f = focusAt('2026-10-19T18:30:00');
+  localStorage.removeItem('cos_holiday');
+  return f === null ? eq(a.briefingFocusHeadline(f).html, 'A <em>clear</em> week.') : `focus ${f.label}`;
+});
+check('rendered briefing: focus class, the week, due, watch, no emoji', () => {
+  at('2026-10-19T09:50:00');
   const box = { innerHTML: '' }; makeApp().renderSummaryContent(box);
   const h = box.innerHTML;
-  if (!h.includes('1 class left, nothing due today, nothing urgent.')) return 'summary line missing';
-  if (!h.includes('Next: <strong>Data Structures</strong>')) return 'next class missing';
-  if (!h.includes('2 classes, first at 9:00 AM')) return 'tomorrow missing';
-  if (!h.includes("Today's Schedule")) return 'schedule heading missing';
+  if (!h.includes('This morning')) return 'kicker missing';
+  if (!h.includes('10:00 AM') || !h.includes('Data Structures')) return 'focus class missing';
+  if (!h.includes('The week') || !h.includes('bw-block')) return 'week missing';
+  if (!h.includes('Nothing. Rare. Enjoy it.')) return 'empty due line missing';
+  if (!h.includes('closest to the 75% line')) return 'watch line missing';
   if (/[\u{1F300}-\u{1FAFF}]/u.test(h)) return 'emoji left in briefing';
   return true;
 });
-check('quiet day: one combined line, no empty cards', () => {
+check('no timetable: a clear week, no empty week or focus section', () => {
   localStorage.setItem('cos_custom_timetable', JSON.stringify({ 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }));
   const box = { innerHTML: '' }; makeApp().renderSummaryContent(box);
   const h = box.innerHTML;
-  if (!h.includes('No classes today · nothing due today · nothing overdue · no urgent notices')) return 'combined line missing';
-  if (h.includes("Today's Schedule") || h.includes('Key Notices') || h.includes('stat-card')) return 'empty sections still shown';
-  return h.includes('No classes') ? true : 'tomorrow card missing';
+  if (!h.includes('A <em>clear</em> week.')) return 'clear-week headline missing';
+  if (h.includes('bf-focus') || h.includes('The week')) return 'empty sections still shown';
+  return true;
 });
 
 console.log('\n========================================');
