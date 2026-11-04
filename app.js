@@ -9367,6 +9367,7 @@ window.setAttendance = function(dateStr, classKey, status) {
     showToast('Attendance status cleared', 'info');
   } else {
     data[dateStr][classKey] = status;
+    haptic();
     if (status === 'attended') {
       const streak = calculateAttendanceStreak();
       showUndoToast(streak >= 3 ? `Attendance logged: Attended ✓ (Streak: ${streak})` : 'Attendance logged: Attended ✓', undo, 'success');
@@ -9411,6 +9412,7 @@ window.markEndedPresent = function(dateStr) {
   if (!data[dateStr]) data[dateStr] = {};
   keys.forEach(k => { data[dateStr][k] = 'attended'; });
   safeSetStorage(KEY_ATTENDANCE, data);
+  haptic();
   maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
   showUndoToast(`${keys.length} classes marked Present ✓`, () => {
@@ -11369,16 +11371,26 @@ function logSubjectAttendanceAction(subjectKey, action) {
     liveActions[storageKey] = { present: 0, missed: 0, leave: 0 };
   }
 
+  // Undo takes back just this one tap (the "Undo taps" link resets all).
+  const undoOne = () => {
+    const live = loadLiveAttendanceActions();
+    const row = live[storageKey];
+    if (!row || !(row[action] > 0)) return;
+    row[action] -= 1;
+    saveLiveAttendanceActions(live);
+    renderPage(state.currentPage);
+  };
   if (action === 'present') {
     liveActions[storageKey].present = (liveActions[storageKey].present || 0) + 1;
-    showToast(`Logged Present (+1) for ${subj.name} ✓`, 'success');
+    showUndoToast(`Logged Present (+1) for ${subj.name} ✓`, undoOne, 'success');
   } else if (action === 'missed') {
     liveActions[storageKey].missed = (liveActions[storageKey].missed || 0) + 1;
-    showToast(`Logged Missed (+1) for ${subj.name}`, 'info');
+    showUndoToast(`Logged Missed (+1) for ${subj.name}`, undoOne, 'info');
   } else if (action === 'leave') {
     liveActions[storageKey].leave = (liveActions[storageKey].leave || 0) + 1;
-    showToast(`Logged Leave (+1) for ${subj.name}`, 'info');
+    showUndoToast(`Logged Leave (+1) for ${subj.name}`, undoOne, 'info');
   }
+  haptic();
 
   saveLiveAttendanceActions(liveActions);
   maybeCelebrateAttendanceTarget(wasOnTarget);
@@ -15017,7 +15029,7 @@ window.taskCardClick = (e, id) => {
       timer = null;
       _taskLongPressFired = true;
       if (!task || !task.isCustom) { showToast('Built-in tasks cannot be deleted', 'info'); return; }
-      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+      haptic(15);
       enterTaskSelect(id);
     }, HOLD_MS);
   }, true);
@@ -16214,6 +16226,12 @@ function waSaveLinks() {
 
 // A toast with one action button (used for Undo). Stays a little longer
 // than showToast() so there is time to tap it.
+// A short tick under the finger when a mark or tick lands (phones that
+// support it; silently nothing elsewhere).
+function haptic(ms = 10) {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
+}
+
 function showUndoToast(msg, onUndo, type = 'success') {
   showToast(msg, type);
   const container = document.getElementById('toast-container');
@@ -19223,9 +19241,24 @@ window.sendAssistantMessage  = sendAssistantMessage;
 window.clearAssistantChat    = clearAssistantChat;
 
 // The last pending task gets the "all caught up" card; any other gets the usual toast.
-function celebrateTaskDone() {
+function celebrateTaskDone(undo) {
+  haptic();
   if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
+  else if (undo) showUndoToast('Task marked completed ✓', undo, 'success');
   else showToast('Task marked completed ✓', 'success');
+}
+
+// Undo for a tick: the task goes back to pending, quietly. Looked up by
+// id when Undo is tapped, since saving replaces the task objects.
+function taskTickUndo(id, custom) {
+  return () => {
+    const task = (custom ? state.customTasks : state.assignments).find(x => x.id === id);
+    if (!task || task.status !== 'submitted') return;
+    task.status = 'pending';
+    custom ? saveCustomTasks() : saveAssignments();
+    renderPage(state.currentPage);
+    updateNavBadges();
+  };
 }
 
 window.toggleAssignment = (id) => {
@@ -19236,7 +19269,7 @@ window.toggleAssignment = (id) => {
     ct.status = isNowDone ? 'submitted' : 'pending';
     saveCustomTasks();
     if (isNowDone) {
-      celebrateTaskDone();
+      celebrateTaskDone(taskTickUndo(id, true));
     } else {
       showToast('Task moved back to pending', 'info');
     }
@@ -19251,7 +19284,7 @@ window.toggleAssignment = (id) => {
   a.status = isNowDone ? 'submitted' : 'pending';
   saveAssignments();
   if (isNowDone) {
-    celebrateTaskDone();
+    celebrateTaskDone(taskTickUndo(id, false));
   } else {
     showToast('Task moved back to pending', 'info');
   }
@@ -19282,6 +19315,13 @@ function updateNavBadges() {
 
   // Update browser tab title with pending count
   document.title = pending > 0 ? `(${pending}) Clarity Desk` : 'Clarity Desk';
+
+  // Installed app icon: how many tasks are due today or overdue.
+  if ('setAppBadge' in navigator) {
+    const today = todayStr();
+    const due = allTasks().filter(t => t.status === 'pending' && t.dueDate && !t.noDeadline && t.dueDate <= today).length;
+    try { (due ? navigator.setAppBadge(due) : navigator.clearAppBadge()).catch(() => {}); } catch (_) {}
+  }
 
   document.querySelectorAll('[data-nav="assignments"]').forEach(el => {
     // Sidebar: dot indicator (no badge number)

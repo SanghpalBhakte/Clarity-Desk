@@ -333,3 +333,29 @@ test.describe('Settings: sections that save as you go', () => {
     expect((await horizontalOverflow(page)).wide).toEqual([]);
   });
 });
+
+test.describe('Undo on quick taps', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('a hub Present +1 and a task tick can each be taken back from the toast', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).navigate('subjects'));
+    await page.locator('#page-subjects .attendance-subject-card').first().click();
+    const live = () => page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('cos_attendance_live') || '{}')));
+    const before = await live();
+    await page.getByRole('button', { name: 'Present +1' }).click();
+    expect(await live()).not.toBe(before);
+    await page.locator('.toast-has-action button').last().click();
+    expect(await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('cos_attendance_live') || '{}')).every((r: any) => !r.present))).toBe(true);
+
+    await page.evaluate(() => {
+      const ws = (window as any);
+      ws.state.customTasks.push({ id: 't-undo', title: 'Lab record', status: 'pending', isCustom: true, dueDate: '2026-09-30' });
+      ws.state.customTasks.push({ id: 't-other', title: 'Essay', status: 'pending', isCustom: true, dueDate: '2026-10-02' });
+      ws.toggleAssignment('t-undo');
+    });
+    expect(await page.evaluate(() => (window as any).state.customTasks.find((t: any) => t.id === 't-undo').status)).toBe('submitted');
+    await page.locator('.toast-has-action button').last().click();
+    expect(await page.evaluate(() => (window as any).state.customTasks.find((t: any) => t.id === 't-undo').status)).toBe('pending');
+  });
+});
