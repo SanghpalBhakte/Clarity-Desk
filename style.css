@@ -2527,18 +2527,6 @@ a.card:hover,
 .ob-big { display: block; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 8.5vw, 34px); line-height: 1.15; letter-spacing: -0.02em; color: var(--text-primary); }
 .ob-name-input { width: 100%; box-sizing: border-box; margin-top: 20px; font-size: 22px; padding: 14px 16px; border-radius: 14px; }
 .ob-hint { margin-top: 10px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
-/* First run "What are you here for?": two ruled choices, the line chips in the first. */
-.ob-aim { margin: auto 0; padding: 24px 0; }
-.ob-aim .ob-big { margin: 0 0 18px; }
-.ob-aim-choice { display: block; width: 100%; box-sizing: border-box; padding: 16px 0; border: 0; border-top: 1.5px solid var(--text-primary); background: none; font: inherit; color: var(--text-primary); text-align: left; }
-.ob-aim-self { cursor: pointer; border-bottom: 1px solid var(--color-rule); min-height: 44px; }
-.ob-aim-self .ob-hint { display: block; margin-top: 4px; }
-.ob-aim-title { display: block; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
-.ob-aim-choice > .ob-hint { margin-top: 4px; }
-.ob-aim-lines { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.ob-aim-line { min-width: 56px; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--color-rule); border-radius: 12px; background: none; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); cursor: pointer; }
-.ob-aim-line[aria-pressed="true"] { border-color: var(--color-thread, var(--accent)); color: var(--color-thread, var(--accent)); }
-.ob-aim-line:focus-visible, .ob-aim-self:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 @media (min-width: 768px) {
   .ob-screen { min-height: 0; margin: auto; padding: 40px 28px; }
   #onboarding-modal-box.ob-screen { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 20px 48px rgba(0, 0, 0, 0.12); }
@@ -2548,7 +2536,7 @@ a.card:hover,
   .ob-q { animation: ob-rise 0.45s ease-out backwards; }
   .ob-q:nth-child(2) { animation-delay: 0.12s; }
   .ob-q:nth-child(3) { animation-delay: 0.24s; }
-  .ob-pitch, .ob-step .ob-actions, .ob-name, .ob-aim { animation: ob-rise 0.45s ease-out 0.36s backwards; }
+  .ob-pitch, .ob-step .ob-actions, .ob-name { animation: ob-rise 0.45s ease-out 0.36s backwards; }
 }
 
 /* Tour (welcome-tour.js, loaded on Explore): CSS scroll-snap, no library. */
