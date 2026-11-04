@@ -40,7 +40,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan };`)();
+const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan, classesAttendedThisWeek };`)();
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -140,6 +140,39 @@ check('Sync notices a subject line change', () => {
   const old = { attTarget: 75 };
   const H = app.calculatePayloadHash;
   return H(base) !== H(changed) && H(old) !== H(changed) ? true : 'hash unchanged';
+});
+
+check('Older cos_aims without a kind read as "stay above the line"', () => {
+  reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'line', line: 75, subjects: {} }) });
+  const a = app.loadAims();
+  return a.kind === 'line' && a.count === 10 ? true : JSON.stringify(a);
+});
+
+check('"Show up N a week" saves its count; a bad count falls back to the line aim on read', () => {
+  reset({ cos_att_target: '75' });
+  app.saveAims({ line: 75, kind: 'count', count: 12, subjects: {} });
+  const ok = app.loadAims().kind === 'count' && app.loadAims().count === 12 && store.cos_att_target === '75';
+  store.cos_aims = JSON.stringify({ v: 1, kind: 'count', count: 500, line: 75, subjects: {} });
+  return ok && app.loadAims().kind === 'line' ? true : JSON.stringify(app.loadAims());
+});
+
+check('Classes this week counts Present marks from Monday to today only', () => {
+  reset({ cos_attendance: JSON.stringify({
+    '2026-11-01': { DS_09: 'attended' },                     // Sunday, last week
+    '2026-11-02': { DS_09: 'attended', PS_10: 'skipped' },  // Monday
+    '2026-11-04': { DS_09: 'attended', PS_10: 'attended', WD_11: 'leave' },
+    '2026-11-06': { DS_09: 'attended' }                      // tomorrow
+  }) });
+  const n = app.classesAttendedThisWeek(new Date('2026-11-05T12:00:00'));
+  return n === 3 ? true : n;
+});
+
+check('Sync notices a change of aim kind or count', () => {
+  const H = app.calculatePayloadHash;
+  const line = { attTarget: 75, aims: { kind: 'line', line: 75, count: 10, subjects: {} } };
+  const count = { attTarget: 75, aims: { kind: 'count', line: 75, count: 10, subjects: {} } };
+  const count12 = { attTarget: 75, aims: { kind: 'count', line: 75, count: 12, subjects: {} } };
+  return H(line) !== H(count) && H(count) !== H(count12) ? true : 'hash unchanged';
 });
 
 console.log(`\n========================================\nTOTAL SCENARIOS CHECKED: ${total}\nPASSED: ${passed}\nFAILED: ${total - passed}\n========================================`);
