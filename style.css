@@ -7606,7 +7606,7 @@ body.holiday-mode .holiday-banner {
 .tk-card.is-late .tk-day-name { color: var(--status-error, var(--color-error)); }
 #page-assignments .tk-card .assignment-body { flex: 1 1 0; min-width: 0; padding: 6px 0; cursor: pointer; border-radius: 6px; }
 #page-assignments .tk-card .assignment-body:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
-#page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 1; }
+#page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 2; }
 #page-assignments .tk-meta { gap: 0; font-size: 0.8125rem; }
 #page-assignments .tk-meta > span + span::before { content: '·'; margin: 0 5px; color: var(--text-secondary); font-weight: 400; }
 #page-assignments .tk-due.overdue { display: inline; color: var(--status-error, var(--color-error)); }
@@ -7669,10 +7669,12 @@ body.holiday-mode .holiday-banner {
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
 
 @media (max-width: 767px) {
-  #page-assignments .tk-add { position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; order: 10; box-shadow: 0 -10px 0 var(--color-canvas); }
-  /* Room for the bar's sticky offset, so a long list can scroll its last
-     row (Done) out from under the bar. */
-  #page-assignments .tk-page { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); }
+  /* Fixed, not sticky: .content-area is overflow:auto but grows with its
+     content, so a sticky bar pins to it, not the screen, and opens half
+     under the nav. */
+  #page-assignments .tk-add { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; box-shadow: 0 -10px 0 var(--color-canvas); }
+  /* Room for the bar, so the last row (Done) scrolls clear of it. */
+  #page-assignments .tk-page { padding-bottom: 16px; }
 }
 
 /* Laptops: headline beside the add line, list beside the subject index. */
