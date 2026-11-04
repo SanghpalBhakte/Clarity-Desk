@@ -5782,20 +5782,23 @@ body::before {
 .sj-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: var(--ds-space-2);
+  gap: 0 var(--ds-space-6, 32px);
 }
 
+/* Ruled rows, not cards; the ring is the one status colour. */
 .attendance-subject-card.sj-card {
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
   gap: var(--ds-space-3);
-  padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-3) var(--ds-space-3);
-  border: 1px solid var(--color-rule);
-  border-radius: var(--ds-radius-2);
-  background: var(--card-bg);
-  box-shadow: var(--ds-elev-1);
+  padding: var(--ds-space-3) 4px;
+  border: 0;
+  border-bottom: 1px solid var(--color-rule);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
+.attendance-subject-card.sj-card:hover { box-shadow: none; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
 
 .sj-ring { flex: none; }
 .sj-ring-track { fill: none; stroke: var(--color-surface-sunken); stroke-width: 5; }
@@ -5822,7 +5825,6 @@ body::before {
   color: var(--color-text-secondary);
 }
 
-.sj-card.risk .sj-line { color: var(--color-error); font-weight: 700; }
 
 .sj-meta {
   margin-top: 2px;
@@ -5851,12 +5853,9 @@ body::before {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
 }
 
-.sj-card.risk .sj-pct, .sj-card.risk .sj-tier { color: var(--color-error); }
-.sj-card.watch .sj-pct, .sj-card.watch .sj-tier { color: var(--color-accent-text); }
-.sj-card.safe .sj-pct, .sj-card.safe .sj-tier { color: var(--color-success); }
 
 .sj-side .subject-select-checkbox {
   width: 24px;
