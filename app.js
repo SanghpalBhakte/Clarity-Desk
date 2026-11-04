@@ -44,6 +44,10 @@ const KEY_HIDDEN_SUBJECTS     = 'cos_hidden_subjects';
 const KEY_SUBJECT_DELETE_SILENT = 'cos_subject_delete_silent';
 const KEY_ACCENT              = 'cos_accent';
 const KEY_ATT_TARGET          = 'cos_att_target';
+// Your aim: { v: 1, kind: 'line', line, subjects: { DS: 80 } }. `line` mirrors
+// cos_att_target, which every attendance sum still reads; `subjects` holds
+// a different line for one subject. Missing = built from cos_att_target.
+const KEY_AIMS                = 'cos_aims';
 const KEY_USER_BATCH          = 'cos_user_batch';
 const KEY_CLEANUP_BACKUP      = 'cos_cleanup_backup';
 // Local-only (never synced or backed up): reports written offline, text only.
@@ -4326,6 +4330,7 @@ function calculatePayloadHash(data) {
       np: data.notificationPrefs || null,
       nc: data.noticeChannels || null,
       tg: typeof data.attTarget === 'number' ? data.attTarget : null,
+      am: data.aims && typeof data.aims === 'object' ? cleanAimSubjects(data.aims.subjects) : null,
       // Full timetable and attendance, not just a day count: a mark or a
       // timetable edit made on another device must reach this one (it used
       // to be ignored until something else changed, even across reloads).
@@ -4361,7 +4366,7 @@ const SIGNIN_UNDO_MS = 7500;  // a little longer than the Undo toast (7 s)
 const SIGNIN_BACKUP_KEYS = [KEY_CUSTOM_TASKS, KEY_CUSTOM_LINKS, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE,
   KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_PROFILE, KEY_ASSIGNMENTS, KEY_TOMBSTONES,
   // Everything else applying the cloud copy may overwrite, so Undo is exact.
-  KEY_SYLLABUS, KEY_NOTIF_PREFS, KEY_NOTICE_CHANNELS, KEY_ATT_TARGET, KEY_HOLIDAY, KEY_THEME, KEY_ACCENT];
+  KEY_SYLLABUS, KEY_NOTIF_PREFS, KEY_NOTICE_CHANNELS, KEY_ATT_TARGET, KEY_AIMS, KEY_HOLIDAY, KEY_THEME, KEY_ACCENT];
 
 function signinDataIn(src) {
   const nonEmptyObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
@@ -4640,6 +4645,7 @@ function subscribeUserCloudData(uid) {
     notificationPrefs: safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels: safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget: getAttendanceTarget(),
+    aims: loadAims(),
     assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
     attendance: safeGetStorage(KEY_ATTENDANCE, {}),
     attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
@@ -4822,6 +4828,7 @@ function applyCloudDataInner(data) {
   if (typeof data.attTarget === 'number' && data.attTarget >= 50 && data.attTarget <= 100) {
     safeSetStorage(KEY_ATT_TARGET, data.attTarget);
   }
+  applyAimsFromData(data.aims);
   if (data.holiday && typeof data.holiday === 'object' && !Array.isArray(data.holiday)) {
     safeSetStorage(KEY_HOLIDAY, data.holiday);
     checkHolidayExpiry();
@@ -4865,6 +4872,7 @@ function pushLocalDataToCloud(uid) {
     notificationPrefs:  safeGetStorage(KEY_NOTIF_PREFS, null),
     noticeChannels:     safeGetStorage(KEY_NOTICE_CHANNELS, null),
     attTarget:          getAttendanceTarget(),
+    aims:               loadAims(),
     attSummary:         buildAttendanceCloudSummary(),
     holiday:            safeGetStorage(KEY_HOLIDAY, null),
     tombstones:         pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
@@ -6321,7 +6329,7 @@ const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
   'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved',
-  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped'];
+  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped', 'aim_choice'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
 let _scanStartedAt = 0;
@@ -7960,6 +7968,44 @@ function getAttendanceTarget() {
   const stored = parseInt(safeGetStorage(KEY_ATT_TARGET, 75) || '75', 10);
   if (isNaN(stored) || stored < 50 || stored > 100) return 75;
   return stored;
+}
+
+// Aims (cos_aims). The overall line always comes from cos_att_target, so an
+// old phone, an old backup or a missing cos_aims all read the same line.
+function aimPct(v) {
+  const n = parseInt(v, 10);
+  return !isNaN(n) && n >= 50 && n <= 100 ? n : null;
+}
+function cleanAimSubjects(raw) {
+  const out = {};
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    Object.keys(raw).forEach(k => { const n = aimPct(raw[k]); if (String(k).trim() && n !== null) out[String(k).trim()] = n; });
+  }
+  return out;
+}
+function loadAims() {
+  const raw = safeGetStorage(KEY_AIMS, null);
+  return { v: 1, kind: 'line', line: getAttendanceTarget(), subjects: cleanAimSubjects(raw && raw.subjects) };
+}
+function saveAims(aims) {
+  const line = aimPct(aims && aims.line) ?? getAttendanceTarget();
+  safeSetStorage(KEY_ATT_TARGET, line);
+  safeSetStorage(KEY_AIMS, { v: 1, kind: 'line', line, subjects: cleanAimSubjects(aims && aims.subjects) });
+}
+// Backups and the cloud copy carry `aims`; older ones only `attTarget`,
+// which the caller has already written, so this only adds subject lines.
+function applyAimsFromData(aims) {
+  if (!aims || typeof aims !== 'object' || Array.isArray(aims)) return;
+  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), subjects: aims.subjects });
+}
+function aimKeyFor(subjItem) {
+  return String((subjItem && (subjItem.code || subjItem.name)) || '').trim();
+}
+// A subject's own line if one is set, else the overall line.
+function getSubjectTarget(subjItem) {
+  const k = aimKeyFor(subjItem);
+  const own = k ? loadAims().subjects[k] : null;
+  return own || getAttendanceTarget();
 }
 
 // Builds a situation-aware context line for the dashboard masthead.
@@ -9759,6 +9805,51 @@ window.onboardingSaveName = function(skip) {
   if (name) saveProfileField('name', name);
   trackUsage(name ? 'name_given' : 'name_skipped');
   if (name) updateTopbarProfile();
+  window.onboardingShowAim();
+};
+
+// "What are you here for?": one tap sets the attendance line (or self-study)
+// and the tour starts. The welcome is marked seen now, so a reload here
+// never shows it again.
+const OB_AIM_LINES = [65, 70, 75, 80, 85];
+window.onboardingShowAim = function() {
+  localStorage.setItem('cos_onboarding_dismissed', 'true');
+  const step = document.getElementById('onboarding-step-1');
+  if (!step) { window.onboardingStartTour(); return; }
+  const cur = getAttendanceTarget();
+  step.innerHTML = `
+    <div class="ob-aim">
+      <h2 class="ob-big">What are you here for?</h2>
+      <div class="ob-aim-choice">
+        <div class="ob-aim-title">Keep my attendance above a line</div>
+        <div class="ob-hint">Tap the % your college or course asks for.</div>
+        <div class="ob-aim-lines" role="group" aria-label="Your attendance line">
+          ${OB_AIM_LINES.map(n => `<button type="button" class="ob-aim-line" aria-pressed="${n === cur}" onclick="onboardingSetAim(${n})">${n}%</button>`).join('')}
+        </div>
+      </div>
+      <button type="button" class="ob-aim-choice ob-aim-self" onclick="onboardingSetAim('self')">
+        <span class="ob-aim-title">I study on my own</span>
+        <span class="ob-hint">No class timetable. Today shows your tasks and an exam countdown.</span>
+      </button>
+    </div>
+    <div class="ob-actions">
+      <button class="btn-secondary ob-quiet" onclick="onboardingSetAim(null)">Decide later</button>
+    </div>`;
+};
+
+window.onboardingSetAim = function(choice) {
+  if (choice === 'self') {
+    const p = { ...loadProfile(), studyMode: 'self' };
+    safeSetStorage(KEY_PROFILE, p);
+    liveProfile.studyMode = 'self';
+    trackUsage('aim_choice', 'self');
+  } else if (aimPct(choice) !== null) {
+    saveAims({ ...loadAims(), line: aimPct(choice) });
+    trackUsage('aim_choice', String(choice));
+  } else {
+    trackUsage('aim_choice', 'later');
+  }
+  if (choice !== null) syncToCloud();
   window.onboardingStartTour();
 };
 
@@ -10496,7 +10587,7 @@ function renderDashboard() {
             <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : 'is-target'}" style="margin-bottom:2px">
               ${attendancePct !== null ? (() => { const [whole, dec] = String(attendancePctLabel).split('.'); return `${escHtml_cd(whole)}<span class="att-dec">${dec ? '.' + escHtml_cd(dec) : ''}%</span>`; })() : `${attTarget}<span class="att-dec">%</span>`}
             </div>
-            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Safe · ≥${attTarget}%` : `Needs attention · <${attTarget}%`) : 'is your line'}</div>
+            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Aim ${attTarget}% · on track` : `Aim ${attTarget}% · below it`) : 'is your line'}</div>
             <!-- The bar with a notch at the target: the line to stay above. -->
             <div class="att-gauge" style="margin-top:10px">
               <div class="att-bar-wrap">
@@ -11369,7 +11460,7 @@ function getSubjectAttendanceV1(subjItem) {
   const pct = total > 0 ? Math.round((present / total) * 100) : null;
   const exactPct = total > 0 ? parseFloat(((present / total) * 100).toFixed(2)) : null;
 
-  const targetPct = getAttendanceTarget();
+  const targetPct = getSubjectTarget(subjItem);
   const targetFrac = targetPct / 100;
   const isSafe = pct !== null ? pct >= targetPct : null;
   const statusLine = pct === null ? 'Attendance not set yet' : isSafe ? 'Safe Zone' : 'Needs Recovery';
@@ -11993,7 +12084,7 @@ function attV2InsightMessage(pct, display, isSafe, g, target) {
 // ERP's 2-decimal value; `pctLabel` is its text ("60.00"); `labPart` is
 // the linked lab's own result when this card is a theory subject.
 function attV2ResultFor(derived, id, subjItem, withLab = true) {
-  const target = getAttendanceTarget();
+  const target = getSubjectTarget(subjItem);
   const baseline = getSubjectBaseline(subjItem);
   const liveAdj = getSubjectLiveActions(subjItem);
   const r = id ? derived.report.subjects[id] : null;
@@ -17601,7 +17692,7 @@ function renderSettings() {
       <div><div class="st-row-title">Timetable</div><div class="st-row-sub">Add, scan or edit your classes</div></div>
       <button type="button" class="st-link" onclick="navigateTo('timetable')">Open →</button>
     </div>
-    <h3 class="st-sub">Exam countdown and attendance target</h3>
+    <h3 class="st-sub">Exam countdown and your aim</h3>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-row">
         <div class="form-group">
@@ -17618,11 +17709,24 @@ function renderSettings() {
           </label>
         </div>
         <div class="form-group">
-          <label class="form-label">Attendance Target (%)</label>
+          <label class="form-label" for="s-att-target">Your aim: stay above (%)</label>
           <input type="number" class="form-input" id="s-att-target" value="${getAttendanceTarget()}" min="50" max="100" step="1" style="max-width:120px">
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
             The attendance % you want to stay above. Starts at 75%; set it to what your college or course asks for.
           </div>
+          ${(() => {
+            // A different line for one subject (a lab that needs 80%, say).
+            const aims = loadAims();
+            const seen = new Set();
+            const subs = getSubjectList().filter(sj => { const k = aimKeyFor(sj); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+            if (!subs.length) return '';
+            const setN = subs.filter(sj => aims.subjects[aimKeyFor(sj)]).length;
+            return `<details class="st-aim-subjects"${setN ? ' open' : ''}>
+              <summary>A different line for one subject${setN ? ` (${setN} set)` : ''}</summary>
+              <p class="st-aim-hint">Leave a box empty to use your ${aims.line}% line.</p>
+              ${subs.map((sj, i) => { const k = aimKeyFor(sj); return `<label class="st-aim-row" for="s-aim-${i}"><span class="st-aim-code">${escHtml_cd(k)}</span><span class="st-aim-name">${escHtml_cd(sj.name || '')}</span><input type="number" class="form-input s-aim-subj" id="s-aim-${i}" data-key="${escAttr_cd(k)}" value="${aims.subjects[k] || ''}" placeholder="${aims.line}" min="50" max="100" step="1" inputmode="numeric" aria-label="${escAttr_cd(`Line for ${sj.name || k}`)}"></label>`; }).join('')}
+            </details>`;
+          })()}
         </div>
       </div>
     </div>
@@ -17980,7 +18084,7 @@ let settingsTypingTimer = null;
 let settingsPendingSave = null;
 function settingsAutoSave(e) {
   const t = e.target;
-  if (!t || !SETTINGS_AUTOSAVE_IDS.has(t.id)) return;
+  if (!t || !(SETTINGS_AUTOSAVE_IDS.has(t.id) || (t.classList && t.classList.contains('s-aim-subj')))) return;
   clearTimeout(settingsTypingTimer);
   settingsTypingTimer = null;
   const save = () => { settingsTypingTimer = null; settingsPendingSave = null; saveSettings({ quiet: true, from: t }); };
@@ -18265,7 +18369,15 @@ function saveSettings(opts = {}) {
   // Save attendance target separately (not part of profile)
   const attTargetRaw = parseInt(document.getElementById('s-att-target')?.value || '75', 10);
   const attTargetSafe = (isNaN(attTargetRaw) || attTargetRaw < 50 || attTargetRaw > 100) ? 75 : attTargetRaw;
-  safeSetStorage(KEY_ATT_TARGET, attTargetSafe);
+  // The line and any subject lines save together (saveAims keeps cos_att_target in step).
+  const aimSubjects = { ...loadAims().subjects };
+  document.querySelectorAll('.s-aim-subj').forEach(inp => {
+    const k = inp.dataset.key;
+    const n = aimPct(inp.value);
+    if (!k) return;
+    if (n === null || n === attTargetSafe) delete aimSubjects[k]; else aimSubjects[k] = n;
+  });
+  saveAims({ line: attTargetSafe, subjects: aimSubjects });
 
   const nPrefs = {
     taskUpcoming: document.getElementById('np-task-upcoming')?.value || 'day_before',
@@ -18334,6 +18446,7 @@ function exportData() {
     syllabus:           loadSyllabus(),
     userBatch:          safeGetStorage(KEY_USER_BATCH, ''),
     attTarget:          getAttendanceTarget(),
+    aims:               loadAims(),
     holiday:            safeGetStorage(KEY_HOLIDAY, null),
     notificationPrefs:  loadNotifPrefs(),
     noticeChannels:     loadNoticeChannels(),
@@ -18396,6 +18509,7 @@ function importData(event) {
       if (Array.isArray(data.syllabus)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
       if (data.userBatch) safeSetStorage(KEY_USER_BATCH, data.userBatch);
       if (data.attTarget) safeSetStorage(KEY_ATT_TARGET, data.attTarget);
+      applyAimsFromData(data.aims);
       if (data.holiday && typeof data.holiday === 'object' && !Array.isArray(data.holiday)) {
         safeSetStorage(KEY_HOLIDAY, data.holiday);
         checkHolidayExpiry();
