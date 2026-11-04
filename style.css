@@ -2623,6 +2623,7 @@ a.card:hover,
   color: var(--text-primary);
   animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
+@media (prefers-reduced-motion: reduce) { .modal, .modal-backdrop { animation: none; } }
 
 /* ── Startup / Onboarding Welcome Dialog ────────────────────── */
 /* Firefox: the card inherited .modal's 88vh cap but was overflow:hidden, so on a
@@ -4019,6 +4020,7 @@ button:disabled {
   cursor: pointer;
   animation: bounceHint 2s infinite ease-in-out;
 }
+@media (prefers-reduced-motion: reduce) { .fab-hint { animation: none; } }
 .fab-hint::after {
   content: '';
   position: absolute;

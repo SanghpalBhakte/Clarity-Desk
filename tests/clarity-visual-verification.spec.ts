@@ -128,6 +128,12 @@ const FIXED_NOW = new Date('2026-02-10T09:15:00');
 
 async function gotoApp(page: Page) {
   await page.clock.setFixedTime(FIXED_NOW);
+  // Endless animations (holiday sway, FAB hint bounce) and the
+  // theme switch's view transition left Chromium's layers in a different
+  // state from run to run once Playwright stopped them, so text anti-aliasing
+  // shifted by a few hundred pixels between identical renders. With reduced
+  // motion (which the app honours) none of them start.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(() => {
     try {
       localStorage.setItem('cos_onboarding_dismissed', 'true');
@@ -451,12 +457,6 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
   // Holiday mode (break 9-15 Feb around FIXED_NOW): the sunset Today and the
   // short holiday Daily Briefing, so a later style change can't quietly break them.
   async function seedHoliday(page: Page) {
-    // The palm/sunset sways forever (holiday-sway, will-change: transform).
-    // While it runs, Chromium puts later content in layers, and how that is
-    // left after Playwright stops the animation varied between runs, so all
-    // text anti-aliasing shifted by a few hundred pixels. Reduced motion
-    // (which the app already honours) means the sway never starts.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.evaluate(() => {
       const lecture = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', type: 'lecture', batches: [] };
       localStorage.setItem('cos_custom_timetable', JSON.stringify({ 0: [], 1: [lecture], 2: [lecture], 3: [lecture], 4: [lecture], 5: [lecture], 6: [] }));
