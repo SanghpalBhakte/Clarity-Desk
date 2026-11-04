@@ -310,6 +310,22 @@ check('F3: one dot per item up to 3, then "+N"; past days marked; labels list co
   return ok ? true : `dots=${dots} cell=${c28.slice(0, 200)}`;
 });
 
+check('Marks: classes are ticks (labs dark), break days hatched, the exam day ringed, a month line', () => {
+  seed();
+  store.cos_profile = JSON.stringify({ name: 'Test', batch: 'A2', examDate: '2026-10-28' });
+  store.cos_holiday = JSON.stringify({ on: true, since: '2026-10-21', until: '2026-10-22' });
+  const app = makeApp(); app.renderCalendar();
+  const h = domCache['page-calendar'].innerHTML;
+  const c19 = cellFor(h, '2026-10-19');
+  const ticks = (c19.match(/class="cal-tick/g) || []).length;
+  const ok = ticks === 2 && c19.includes('cal-tick is-lab')
+    && cellFor(h, '2026-10-21').includes('is-break') && cellFor(h, '2026-10-21').includes(', break"')
+    && !cellFor(h, '2026-10-23').includes('is-break')
+    && cellFor(h, '2026-10-28').includes('is-exam') && h.includes('exams on the 28th.')
+    && h.includes('class="cal-summary"');
+  return ok ? true : `ticks=${ticks} ${h.match(/cal-summary">[^<]*/)}`;
+});
+
 check('F3: calendar styles have no hover/active transforms', () => {
   const css = fs.readFileSync(`${ROOT}/style.css`, 'utf8');
   const rules = css.match(/[^{}]*\.cal-[^{}]*\{[^}]*\}/g) || [];
