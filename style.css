@@ -188,8 +188,8 @@
      08d746f deleted these definitions while app.js kept ~446 inline
      font-size:var(--text-*) references, so every one of those sizes was
      silently discarded and the text inherited its parent's size. */
-  --text-2xs:  0.65rem;
-  --text-xs:   0.72rem;
+  --text-2xs:  0.75rem;
+  --text-xs:   0.78rem;
   --text-sm:   0.78rem;
   --text-base: 0.84rem;
   --text-md:   0.92rem;
@@ -1579,8 +1579,9 @@ a.card:hover,
   border-color: var(--border);
 }
 
-.schedule-slot.is-past .schedule-slot-time,
-.schedule-slot.is-past .schedule-slot-info {
+/* A past class still waiting to be marked stays at full strength. */
+.schedule-slot.is-past:not(.needs-mark) .schedule-slot-time,
+.schedule-slot.is-past:not(.needs-mark) .schedule-slot-info {
   opacity: 0.45;
 }
 
@@ -1971,8 +1972,8 @@ a.card:hover,
   background: var(--accent-dim);
 }
 
-.tt-entry.past .tt-time-col,
-.tt-entry.past .tt-info { opacity: 0.5; }
+.tt-entry.past:not(.needs-mark) .tt-time-col,
+.tt-entry.past:not(.needs-mark) .tt-info { opacity: 0.5; }
 
 .tt-time-col {
   flex-shrink: 0;
@@ -7447,7 +7448,7 @@ body.holiday-mode .holiday-banner {
 @media (max-width: 540px) {
   #page-timetable .tt-entry .tt-actions.has-att { justify-content: flex-start; padding-left: 76px; }
   #page-timetable .tt-entry .tt-att { flex: 0 0 auto; }
-  #page-timetable .tt-entry .tt-att .btn { flex: 0 0 auto; height: 36px !important; padding: 0 14px !important; }
+  #page-timetable .tt-entry .tt-att .btn { flex: 0 0 auto; height: 40px !important; padding: 0 14px !important; }
   #page-timetable .tt-entry .tt-actions .icon-btn-sm { width: 36px; height: 36px; margin-left: auto; }
 }
 .briefing-stats .stat-card { flex-direction: row; }
@@ -7508,3 +7509,14 @@ body.holiday-mode .holiday-banner {
   background-size: 47px 61px, 83px 53px, 71px 97px, 140px 140px;
   background-position: 0 0, 29px 17px, 13px 41px, 0 0;
 }
+
+/* Top-bar controls keep their look but get a 44px tap area. */
+.btn-back, .topbar-brand, .topbar-theme-toggle, .btn-assistant-toggle, #topbar-avatar { position: relative; }
+.btn-back::after, .topbar-brand::after, .topbar-theme-toggle::after,
+.btn-assistant-toggle::after, #topbar-avatar::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: max(100%, 44px); height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+/* Present / Absent: a thumb-sized target. */
+.btn.slot-att { min-height: 40px; min-width: 44px; }

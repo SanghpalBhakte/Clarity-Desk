@@ -10350,7 +10350,7 @@ function renderDashboard() {
                 // The next-step row above marks this class, so no second set of buttons here.
                 const markedAbove = isPast && status === 'unset' && classKey === focusOut.markKey;
                 return `
-                  <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${c === heroClass ? ' is-in-hero' : ''}">
+                  <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${isPast && status === 'unset' && !markedAbove ? ' needs-mark' : ''}${c === heroClass ? ' is-in-hero' : ''}">
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
                     <div class="schedule-slot-info" style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
                       <div class="schedule-slot-title">${escHtml_cd(c.subject)}</div>
@@ -10797,14 +10797,14 @@ function renderTimetable() {
           <button class="btn btn-sm ${isAttended ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')"
                   title="Mark ${escAttr_cd(c.subject)} Attended" aria-label="Mark ${escAttr_cd(c.subject)} as attended" aria-pressed="${isAttended}"
-                  style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
+                  style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:44px;height:40px;
                          ${isAttended ? 'background:color-mix(in srgb, var(--status-success) 12%, transparent);border-color:var(--status-success);color:var(--status-success);' : ''}">
             ${icons.check()}<span class="tt-att-label">Present</span>
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
                   title="Mark ${escAttr_cd(c.subject)} as skipped" aria-label="Mark ${escAttr_cd(c.subject)} as skipped" aria-pressed="${isSkipped}"
-                  style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:32px;height:28px;
+                  style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:44px;height:40px;
                          ${isSkipped ? 'background:color-mix(in srgb, var(--status-error) 10%, transparent);border-color:var(--status-error);color:var(--status-error);' : ''}">
             ${icons.x()}<span class="tt-att-label">Absent</span>
           </button>
@@ -10823,7 +10823,7 @@ function renderTimetable() {
       ].filter(Boolean);
 
       return `
-        <div class="tt-entry ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}">
+        <div class="tt-entry ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}${isPast && isTeaching && status === 'unset' ? ' needs-mark' : ''}">
           <div class="tt-time-col">
             <div class="tt-time-start">${formatDisplayTime(c.time)}</div>
             <div class="tt-time-end">${c.end ? formatDisplayTime(c.end) : ''}</div>
