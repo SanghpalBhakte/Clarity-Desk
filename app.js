@@ -16110,7 +16110,7 @@ function renderNotices() {
         <div class="notice-source-top">
           <div class="notice-source-icon-wrap notice-source-icon-erp">${icons.graduation()}</div>
           <button class="btn-icon" onclick="event.stopPropagation(); showNoticeChannelModal('whatsapp')" title="Edit ERP portal link" style="width:24px;height:24px;font-size:var(--text-xs)" aria-label="Edit ERP portal link">
-            ✏️
+            ${icons.edit()}
           </button>
         </div>
         <div>

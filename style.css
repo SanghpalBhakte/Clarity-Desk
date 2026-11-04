@@ -7256,8 +7256,31 @@ body.holiday-mode .holiday-banner {
 .btn.att-week-btn { background: transparent; }
 .btn.att-week-btn.is-present[aria-pressed="true"] { background: color-mix(in srgb, var(--status-success) 12%, transparent); border-color: var(--status-success); color: var(--status-success); }
 .btn.att-week-btn.is-absent[aria-pressed="true"] { background: color-mix(in srgb, var(--status-error) 10%, transparent); border-color: var(--status-error); color: var(--status-error); }
-/* Notice Board: the source cards stop competing with the notices. */
-.notice-source-card.tint-devnotes { border-left: 1px solid var(--color-rule); }
+/* Notice Board: the two sources are quiet link lines, not cards, so the
+   notices lead; "nothing here" is a plain line, not a dashed box. */
+#page-notices .notice-sources-grid { grid-template-columns: 1fr; gap: 0; margin-bottom: 14px; }
+#page-notices .notice-source-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 2px 12px;
+  min-height: 44px;
+  padding: 8px 4px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--color-rule);
+  border-radius: 0;
+  box-shadow: none;
+}
+#page-notices .notice-source-card:hover { transform: none; box-shadow: none; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
+#page-notices .notice-source-top { display: contents; }
+#page-notices .notice-source-icon-wrap { order: 0; width: 28px; height: 28px; background: transparent; color: var(--text-secondary); }
+#page-notices .notice-source-card > div:not(.notice-source-top):not(.notice-source-action) { order: 1; min-width: 0; }
+#page-notices .notice-source-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#page-notices .notice-source-action { order: 2; margin: 0; color: var(--color-action-primary) !important; white-space: nowrap; }
+#page-notices .notice-source-top .btn-icon { order: 3; width: 32px !important; height: 32px !important; color: var(--text-muted); }
+#page-notices .notice-source-top .btn-icon svg { width: 15px; height: 15px; }
+#page-notices .empty-state-card { padding: 28px 8px; background: transparent; border: 0; }
 /* Timetable on phones: compact Present/Absent under the class, not a
    full-width bar per row. */
 @media (max-width: 540px) {
