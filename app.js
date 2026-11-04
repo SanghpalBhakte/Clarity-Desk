@@ -8426,6 +8426,22 @@ function hasAnyTimetable() {
   return !!tt && typeof tt === 'object' && Object.values(tt).some(arr => Array.isArray(arr) && arr.length > 0);
 }
 
+// The built-in SY AI-DS sample is leaving the app (archived in
+// timetable-test-kit/). A student who picked it before custom timetables
+// existed still reads it live from data.js, so copy it once into their own
+// saved timetable and links: same view, and nothing is lost when data.js
+// drops it. Only fills keys that are empty; never overwrites.
+function migrateLegacySampleTimetable() {
+  if (safeGetStorage(KEY_TIMETABLE_CHOICE, null) !== 'aids') return;
+  const saved = safeGetStorage(KEY_CUSTOM_TIMETABLE, null);
+  if (!saved || typeof saved !== 'object') {
+    safeSetStorage(KEY_CUSTOM_TIMETABLE, JSON.parse(JSON.stringify(TIMETABLE)));
+  }
+  if (!Array.isArray(safeGetStorage(KEY_CUSTOM_LINKS, null))) {
+    safeSetStorage(KEY_CUSTOM_LINKS, JSON.parse(JSON.stringify(QUICK_LINKS)));
+  }
+}
+
 function isCustomTimetableActive() {
   const saved = safeGetStorage(KEY_CUSTOM_TIMETABLE, null);
   if (!saved || typeof saved !== 'object') return false;
@@ -8509,42 +8525,6 @@ function doResetTimetable() {
   syncToCloud();
   renderPage(state.currentPage);
   showToast("Timetable schedule cleared ✓", "info");
-}
-
-// In-app confirm, not confirm(): embedded/in-app browsers auto-cancel the
-// native dialog, so the button silently did nothing there.
-function loadOfficialAidsTimetable() {
-  document.getElementById('sample-tt-modal-backdrop')?.remove();
-  const close = `document.getElementById('sample-tt-modal-backdrop')?.remove()`;
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  backdrop.id = 'sample-tt-modal-backdrop';
-  backdrop.innerHTML = `
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:420px;width:92vw">
-      <div class="modal-header">
-        <span class="modal-title">Load sample timetable</span>
-        <button class="modal-close" onclick="${close}" aria-label="Close">${icons.x()}</button>
-      </div>
-      <div class="modal-body" style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">Load the official Sem 3 SY AI-DS timetable schedule? You'll get a chance to review it and filter it down to your own practical batch before saving.</div>
-      <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
-        <button class="btn-secondary" onclick="${close}">Cancel</button>
-        <button class="btn-primary" onclick="${close}; confirmLoadOfficialAidsTimetable()">Load</button>
-      </div>
-    </div>`;
-  wireBackdropClickClose(backdrop);
-  document.body.appendChild(backdrop);
-}
-
-function confirmLoadOfficialAidsTimetable() {
-  safeSetStorage(KEY_TIMETABLE_CHOICE, 'aids');
-  // Combined lab slots (e.g. "DS-AI-A2 (VJM) + WEB DEV.-AI-C2 (MKP)") need
-  // to be split per batch and the whole schedule reviewed/filtered before
-  // saving -- see buildSampleTimetableSchedule() and the batch selector
-  // already built into this preview modal -- rather than saving the raw
-  // TIMETABLE object (with every batch's classes glued together) directly.
-  // Not an OCR result, so the unverified-scan banner never applies here.
-  pendingExtractionNeedsReview = false;
-  showTimetablePreviewModal(buildSampleTimetableSchedule());
 }
 
 function todayClasses() {
@@ -10920,11 +10900,10 @@ function renderTimetable() {
       <div class="empty-state-card" style="margin-top:8px">
         <span class="empty-state-icon">${icons.calendar()}</span>
         <div class="empty-state-title">No Classes on ${DAY_NAMES[day]}</div>
-        <div class="empty-state-desc">No classes scheduled for this day. You can add class slots manually, scan your class timetable photo, or load a sample template.</div>
+        <div class="empty-state-desc">No classes scheduled for this day. You can add class slots manually or scan your class timetable photo.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px">
           <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="font-size:var(--text-base);padding:6px 14px">+ Add Class Entry</button>
           <button class="btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:6px 14px">${icons.camera()} Scan Photo</button>
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:6px 14px">${icons.filetext()} Load Sample Template</button>
         </div>
       </div>`;
   } else {
@@ -11015,7 +10994,6 @@ function renderTimetable() {
           <button type="button" onclick="showTimetableEntryModal(${day}, null)">${icons.plus()} Add class</button>
           ${classes.length ? `<button type="button" onclick="triggerTimetableImport()">${icons.camera()} Scan timetable</button>` : ''}
           ${hasPollution ? `<button type="button" onclick="showDeclutterDeskModal()" title="Declutter duplicate or other-batch sessions">${icons.declutter()} Declutter schedule</button>` : ''}
-          ${classes.length ? `<button type="button" onclick="loadOfficialAidsTimetable()" title="Load sample schedule template">${icons.filetext()} Sample schedule</button>` : ''}
           ${isCustom ? `<button type="button" class="task-delete-btn" onclick="resetTimetableToDefault()">Clear schedule</button>` : ''}
         </div>
       </details>
@@ -14369,7 +14347,6 @@ function renderSubjectsOverview(el, subjects) {
         <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
           <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:7px 14px">${icons.camera()} Scan Timetable Photo</button>
           <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:7px 14px">${icons.chartLine()} Set Attendance Baseline</button>
-          <button class="btn-secondary" onclick="loadOfficialAidsTimetable()" style="font-size:var(--text-base);padding:7px 14px">${icons.filetext()} Sample Template</button>
           <button class="btn-secondary" onclick="showAddSyllabusSubjectModal()" style="font-size:var(--text-base);padding:7px 14px">+ Add a subject</button>
         </div>
       </div>
@@ -17723,14 +17700,11 @@ function renderSettings() {
     <div class="section-heading">${icons.timetable()} Timetable Schedule Management</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:12px;line-height:1.5">
-        Manage your schedule template. You can start clean to add or scan classes for any degree/major, or load the sample Sem 3 AI-DS template.
+        Manage your schedule template. You can start clean to add or scan classes for any degree/major.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-secondary" onclick="resetTimetableToDefault()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px;color:var(--status-error);border-color:color-mix(in srgb, var(--status-error) 30%, transparent)">
           Clear Timetable (Start Clean)
-        </button>
-        <button class="btn btn-secondary" onclick="loadOfficialAidsTimetable()" style="display:inline-flex;align-items:center;gap:6px;font-size:var(--text-base);padding:7px 14px">
-          ${icons.filetext()} Load Sample SY AI-DS Template
         </button>
       </div>
     </div>
@@ -19119,8 +19093,6 @@ window.logoutUser       = logoutUser;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.cancelTimetableScan     = cancelTimetableScan;
 window.resetTimetableToDefault = resetTimetableToDefault;
-window.loadOfficialAidsTimetable = loadOfficialAidsTimetable;
-window.confirmLoadOfficialAidsTimetable = confirmLoadOfficialAidsTimetable;
 window.showTimetableEntryModal = showTimetableEntryModal;
 window.saveTimetableEntry      = saveTimetableEntry;
 window.deleteTimetableEntry    = deleteTimetableEntry;
@@ -19286,6 +19258,7 @@ function init() {
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
   try { fixShiftedAttendanceDates(); } catch (e) { console.warn('[Attendance] date-key repair skipped:', e); }
   try { checkHolidayExpiry(); } catch (e) { console.warn('[Holiday] expiry check skipped:', e); }
+  try { migrateLegacySampleTimetable(); } catch (e) { console.warn('[Timetable] sample copy skipped:', e); }
   try { noteTimetableDay(); } catch (e) { console.warn('[Onboarding] timetable day skipped:', e); }
   try { vaultIdbStart(); } catch (e) { console.warn('[Vault] file store skipped:', e); }
   initTheme();

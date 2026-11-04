@@ -6,6 +6,7 @@ Reusable fixture set for testing Clarity-Desk's timetable scanner without re-upl
 images/            3 real-world sample timetables (see below)
 expected-output/   hand-verified ground-truth JSON for each image, following schema.json
 schema.json         the target structure every extractor output should match
+sample-sy-aids-sem3.json  archived built-in SY AI-DS Sem 3 timetable + quick links (removed from the live app's "Load sample" buttons)
 ```
 
 ## Samples
