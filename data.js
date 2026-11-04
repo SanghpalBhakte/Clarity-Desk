@@ -199,6 +199,203 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u202",
+    date: "2026-11-04",
+    title: "Long-press the app icon to jump straight to Today, Tasks or Timetable",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Long-press the app icon to jump straight to Today, Tasks or Timetable",
+    points: [
+
+    ]
+  },
+  {
+    id: "u201",
+    date: "2026-11-04",
+    title: "Marking a class or ticking a task gives a small buzz and can be undone; the app icon shows how many tasks are due today",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Marking a class or ticking a task gives a small buzz and can be undone; the app icon shows how many tasks are due today",
+    points: [
+
+    ]
+  },
+  {
+    id: "u200",
+    date: "2026-11-04",
+    title: "Settings keeps what you typed even if you close the app right away; clearer words for starting counts and tidying subjects",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings keeps what you typed even if you close the app right away; clearer words for starting counts and tidying subjects",
+    points: [
+
+    ]
+  },
+  {
+    id: "u199",
+    date: "2026-11-04",
+    title: "Settings is now six short sections you can jump between, saves as you go, and keeps the clear buttons in a danger zone at the end",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings is now six short sections you can jump between, saves as you go, and keeps the clear buttons in a danger zone at the end",
+    points: [
+
+    ]
+  },
+  {
+    id: "u198",
+    date: "2026-11-04",
+    title: "The arrow on Ask Desk's suggestion row now works with the keyboard; unused Notices styles removed",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The arrow on Ask Desk's suggestion row now works with the keyboard; unused Notices styles removed",
+    points: [
+
+    ]
+  },
+  {
+    id: "u197",
+    date: "2026-11-04",
+    title: "Ask Desk opens with a short hello and three questions you can tap; the suggestion row shows it scrolls",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Ask Desk opens with a short hello and three questions you can tap; the suggestion row shows it scrolls",
+    points: [
+
+    ]
+  },
+  {
+    id: "u196",
+    date: "2026-11-04",
+    title: "Notices page is calmer when nothing is posted; Dev Notes moved to Settings → About",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Notices page is calmer when nothing is posted; Dev Notes moved to Settings → About",
+    points: [
+
+    ]
+  },
+  {
+    id: "u195",
+    date: "2026-11-04",
+    title: "An empty Tasks page now shows an example and a line to type into: write \"WD assignment by 13 Nov\" and the date and subject fill in",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "An empty Tasks page now shows an example and a line to type into: write \"WD assignment by 13 Nov\" and the date and subject fill in",
+    points: [
+
+    ]
+  },
+  {
+    id: "u194",
+    date: "2026-11-04",
+    title: "Calendar shows your month at a glance: class marks on every day, deadlines, break days and your exam date",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calendar shows your month at a glance: class marks on every day, deadlines, break days and your exam date",
+    points: [
+
+    ]
+  },
+  {
+    id: "u193",
+    date: "2026-11-04",
+    title: "Present +1 and Missed +1 now count for subjects that also have a lab, like DS; earlier taps count too",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Present +1 and Missed +1 now count for subjects that also have a lab, like DS; earlier taps count too",
+    points: [
+
+    ]
+  },
+  {
+    id: "u192",
+    date: "2026-11-04",
+    title: "Daily Briefing now looks ahead: what tomorrow holds, your whole week at a glance, what's due and which subject to watch",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Daily Briefing now looks ahead: what tomorrow holds, your whole week at a glance, what's due and which subject to watch",
+    points: [
+
+    ]
+  },
+  {
+    id: "u191",
+    date: "2026-11-04",
+    title: "Each subject's page is now its home: your attendance in one sentence, this week's classes, what's due and your study links",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Each subject's page is now its home: your attendance in one sentence, this week's classes, what's due and your study links",
+    points: [
+
+    ]
+  },
+  {
+    id: "u190",
+    date: "2026-11-04",
+    title: "The sample AI-DS timetable is gone from the app; if you were using it, it is now saved as your own timetable",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The sample AI-DS timetable is gone from the app; if you were using it, it is now saved as your own timetable",
+    points: [
+
+    ]
+  },
+  {
+    id: "u189",
+    date: "2026-11-04",
+    title: "Subject Hubs reads at a glance: each subject's code sits in its attendance ring, and empty rows stay quiet",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject Hubs reads at a glance: each subject's code sits in its attendance ring, and empty rows stay quiet",
+    points: [
+      "Each ring now shows the subject's code (DS, DEMP), and the 75% notch shows even before you mark anything.",
+      "Before you mark any class, rows no longer repeat \"Attendance not set yet / No data\". One line at the top explains the rings, with a \"Mark today\" link."
+    ]
+  },
+  {
+    id: "u188",
+    date: "2026-11-04",
+    title: "Mark your whole day in one tap: Today shows a day bar after classes, and your attendance bar shows the 75% line",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Mark your whole day in one tap: Today shows a day bar after classes, and your attendance bar shows the 75% line",
+    points: [
+      "After your last class, Today shows the day as blocks on a time line. Tap a class to mark it (Present, then Absent), or tap \"I was at all 4\".",
+      "The attendance bar now has a notch at your target, so you can see how far above or below the line you are. Before you mark anything it shows your target."
+    ]
+  },
+  {
+    id: "u187",
+    date: "2026-11-04",
+    title: "Clearer buttons and names: typing boxes no longer look red, Present/Absent words on laptops",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clearer buttons and names: typing boxes no longer look red, Present/Absent words on laptops",
+    points: [
+      "A box you are typing in now gets a dark ink edge instead of a red one, so it never looks like an error.",
+      "The laptop timetable shows \"Present\" and \"Absent\" next to the icons, like phones do.",
+      "\"Full timetable →\" style links are easier to tap.",
+      "The sidebar says \"Notices\" and \"Settings\", matching the phone menu, and Study Vault has its own icon."
+    ]
+  },
+  {
     id: "u186",
     date: "2026-11-04",
     title: "Pop-ups open without sliding when your phone is set to reduce motion",
