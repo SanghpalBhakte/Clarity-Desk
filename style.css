@@ -6382,7 +6382,7 @@ body::before {
 /* ═══ Calm navigation ═══════════════════════════════════════════════
    1. Desktop sidebar collapses to an icon rail ( [ or the footer button )
    2. Mobile: 5 tabs + a "More" sheet instead of 7 cramped tabs
-   3. Ask Desk shows 3 starter chips; the rest sit behind "More ideas"
+   3. Ask Desk chips scroll sideways, with a fade and arrow at the edge
    4. Quieter mobile header
    Motion: transform/opacity only, 160-240ms, off for reduced motion. */
 
@@ -6560,9 +6560,6 @@ html.more-sheet-open .more-sheet {
 }
 .bottom-nav-item.active::before { transform: scaleX(1); }
 
-/* ── Ask Desk chips: 3 visible, rest on request ───────────── */
-.cd-chip-row:not(.show-all) .cd-chip.is-extra { display: none; }
-.cd-chip-more { border-style: dashed; color: var(--text-muted); }
 
 /* ── Quieter header: save status and theme name live in Settings ─── */
 .topbar .storage-status-badge,
@@ -7703,6 +7700,86 @@ body.holiday-mode .holiday-banner {
 .bw-key { font-size: var(--text-xs); color: var(--text-muted); }
 .bw-key i { display: inline-block; width: 10px; height: 10px; margin: 0 2px -1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 .bw-key i.is-lab { background: var(--text-primary); }
+
+/* ═══ Ask Desk first open ═══════════════════════════════════════════
+   A hello, three questions as ruled lines, and a quiet setup link.
+   The chip row fades out on the right with an arrow while it scrolls. */
+.cd-hello { padding: 22px 4px 8px; }
+.cd-hello-title {
+  margin: 0;
+  font-family: var(--font-display, 'Quicksand', sans-serif);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+.cd-hello-title span { color: var(--color-thread, var(--accent)); }
+.cd-hello-sub {
+  margin: 10px 0 20px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 34ch;
+}
+.cd-hello-list { border-top: 2px solid var(--text-primary); }
+.cd-hello-q {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--color-rule, var(--border));
+  background: none;
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.cd-hello-arrow { color: var(--text-muted); transition: transform 0.16s ease, color 0.16s ease; }
+.cd-hello-q:hover .cd-hello-arrow,
+.cd-hello-q:focus-visible .cd-hello-arrow { color: var(--color-thread, var(--accent)); transform: translateX(3px); }
+.cd-hello-setup {
+  margin: 16px 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.cd-hello-setup button {
+  border: 0;
+  padding: 6px 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-thread, var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.cd-chip-wrap { position: relative; flex-shrink: 0; }
+.cd-chip-wrap .cd-chip-row { padding-right: 56px; }
+.cd-chip-next {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  bottom: 0;
+  width: 64px;
+  padding: 0 14px 0 0;
+  border: 0;
+  background: linear-gradient(to right, transparent, var(--surface) 55%);
+  font-size: 1.4rem;
+  line-height: 1;
+  text-align: right;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.cd-chip-wrap.at-end .cd-chip-next { display: none; }
+@media (prefers-reduced-motion: reduce) { .cd-hello-arrow { transition: none; } }
 
 /* ── Notices: quiet board and the portal row ──────────────────────── */
 .nt-quiet { margin-top: 14px; padding-top: 36px; border-top: 2px solid var(--text-primary); text-align: center; color: var(--text-primary); }
