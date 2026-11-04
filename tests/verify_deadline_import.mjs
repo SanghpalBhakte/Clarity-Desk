@@ -231,6 +231,9 @@ console.log('\n10. Plain pasted text (a circular, no WhatsApp timestamps)');
   check('plain: keyword rows are not marked unsure', r.items[0].unsure === undefined);
   check('plain: a weekday alone with no keyword gives no row', P.scanChat('See you all on Monday.', NOW).items.length === 0);
   check('plain: "tomorrow" alone with no keyword gives no row', P.scanChat('Bring your ID cards tomorrow.', NOW).items.length === 0);
+  check('plain: a range or decimal with no keyword gives no row', P.scanChat('Read chapters 3-5 before class.\n\nThe cut-off is 7.5 CGPA.', NOW).items.length === 0);
+  const dashed = P.scanChat('The college will remain closed on 2-11-2026.', NOW);
+  check('plain: a dashed date with a year still gives a Notice', dashed.items.length === 1 && dashed.items[0].unsure === true && fmtDay(dashed.items[0].date) === 'Mon 2 Nov');
   const bareChat = P.scanChat(asChat('The college will remain closed on 2/11/2026 on account of the annual function.') + '\n' + asChat('ok'), NOW);
   check('chat: the same keyword-less message still gives no row', bareChat.items.length === 0);
 
