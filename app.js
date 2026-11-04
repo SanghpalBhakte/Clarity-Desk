@@ -8360,7 +8360,7 @@ function getCalendarItems(startKey, endKey, src = {}) {
     const dayItems = [];
     // Holiday mode hides classes on its dates only; tasks always show.
     if (!isHolidayActive(key, holiday)) classesByDay[dayIdx].forEach(c => {
-      dayItems.push({ min: timeToMinutes(c.time), item: { date: key, time: formatDisplayTime(c.time || ''), title: c.subject || 'Class', type: 'class', sourceId: String(dayIdx) } });
+      dayItems.push({ min: timeToMinutes(c.time), item: { date: key, time: formatDisplayTime(c.time || ''), title: c.subject || 'Class', type: 'class', sourceId: String(dayIdx), short: dayBarShortName(c), ...(c.type === 'lab' ? { lab: true } : {}) } });
     });
     (tasksByDate[key] || []).forEach(t => {
       const item = {
@@ -10681,6 +10681,9 @@ function renderCalendar() {
   const monthName = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long' });
   const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;   // Monday first, like the Timetable tabs
 
+  const holiday = loadHoliday();
+  const examKey = ((liveProfile && liveProfile.examDate) || '').trim();
+  const isBreak = (key) => !!holiday && isHolidayActive(key, holiday);
   let cells = '<span class="cal-cell cal-cell-pad" aria-hidden="true"></span>'.repeat(lead);
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${state.calMonth}-${String(d).padStart(2, '0')}`;
@@ -10688,7 +10691,7 @@ function renderCalendar() {
     const counts = { deadline: 0, task: 0, class: 0 };
     dayItems.forEach(it => { counts[it.type]++; });
     const parts = Object.keys(counts).filter(t => counts[t]).map(t => `${counts[t]} ${CAL_TYPE_LABELS[t][counts[t] === 1 ? 0 : 1]}`);
-    const label = `${d} ${CAL_MONTH_LONG[m - 1]}${key === todayKey ? ', today' : ''}, ${parts.length ? parts.join(', ') : 'nothing scheduled'}`;
+    const label = `${d} ${CAL_MONTH_LONG[m - 1]}${key === todayKey ? ', today' : ''}, ${parts.length ? parts.join(', ') : 'nothing scheduled'}${isBreak(key) ? ', break' : ''}${key === examKey ? ', exams' : ''}`;
     // One dot per deadline or task, up to CAL_MAX_DOTS, then "+N". Classes
     // repeat every weekday, so a dot for them was noise; the day list and the
     // label still include them.
@@ -10696,8 +10699,15 @@ function renderCalendar() {
     const extra = dotItems.length - CAL_MAX_DOTS;
     const dots = dotItems.slice(0, CAL_MAX_DOTS).map(it => `<span class="cal-dot cal-dot-${it.type}"></span>`).join('')
       + (extra > 0 ? `<span class="cal-more">+${extra}</span>` : '');
-    const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : ''].filter(Boolean).join(' ');
-    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${dots}</span></button>`;
+    // Classes as short ticks (labs dark), so a teaching day reads at a glance.
+    const ticks = dayItems.filter(it => it.type === 'class').slice(0, CAL_MAX_DOTS)
+      .map(it => `<span class="cal-tick${it.lab ? ' is-lab' : ''}"></span>`).join('');
+    // Laptop only (CSS): the day's first two items as words.
+    const chipItems = dotItems.concat(dayItems.filter(it => it.type === 'class'));
+    const chips = chipItems.slice(0, 2).map(it => `<span class="cal-chip cal-chip-${it.type}${it.lab ? ' is-lab' : ''}">${it.type === 'class' ? escAttr_cd(it.short || it.title) + (it.lab && it.short !== 'Lab' ? ' lab' : '') : 'Due · ' + escAttr_cd(it.title)}</span>`).join('')
+      + (chipItems.length > 2 ? `<span class="cal-chip">+${chipItems.length - 2} more</span>` : '');
+    const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : '', isBreak(key) ? 'is-break' : '', key === examKey ? 'is-exam' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${ticks}${dots}</span><span class="cal-chips" aria-hidden="true">${chips}</span></button>`;
   }
 
   const hasData = hasAnyTimetable() || allTasks().some(t => t && t.dueDate && !t.noDeadline);
@@ -10718,9 +10728,13 @@ function renderCalendar() {
         </div>
       </div>`;
   } else if (!selItems.length) {
-    dayList = `<p class="cal-day-empty">Nothing on this day.</p>`;
+    dayList = `<p class="cal-day-empty">${isBreak(state.calSelected) ? 'On your break. No classes.' : 'Nothing on this day.'}</p>`;
   } else {
     dayList = `<ul class="cal-day-list">${selItems.map(it => calItemHtml(it)).join('')}</ul>`;
+  }
+  if (hasData && state.calSelected === examKey) {
+    const left = Math.round((new Date(examKey + 'T00:00:00') - new Date(todayKey + 'T00:00:00')) / 86400000);
+    dayList = `<p class="cal-day-note">Exams start${left > 0 ? ` · ${left} day${left !== 1 ? 's' : ''} to go` : ''}</p>` + dayList;
   }
   // Quick-add opens the existing Add Task form with this date filled in.
   if (hasData) {
@@ -10745,34 +10759,55 @@ function renderCalendar() {
     </section>`;
   }
 
+  // One line about the month: what's still ahead in it.
+  const monthKeys = Array.from({ length: daysInMonth }, (_, i) => `${state.calMonth}-${String(i + 1).padStart(2, '0')}`);
+  const dueAhead = items.filter(it => it.type === 'deadline' && !it.done && it.date >= todayKey).length;
+  const breakDays = monthKeys.filter(isBreak).length;
+  const examHere = !!examKey && examKey.slice(0, 7) === state.calMonth;
+  const examDay = examHere ? Number(examKey.slice(8)) : 0;
+  const ord = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+  const summary = [
+    dueAhead ? `${dueAhead} deadline${dueAhead !== 1 ? 's' : ''} ahead` : '',
+    breakDays ? `${breakDays === 1 ? 'a day' : `a ${breakDays}-day`} break` : '',
+    examHere ? `exams on the ${ord(examDay)}` : ''
+  ].filter(Boolean).join(', ');
+  const hasTicks = items.some(it => it.type === 'class');
+
   el.innerHTML = `
-    <div class="page-header">
+    <div class="cal-top">
       <div>
-        <div class="page-title">Calendar</div>
-        <div class="page-subtitle">Your classes, deadlines and tasks by date</div>
+        <div class="cal-kicker">Calendar</div>
+        <h1 class="cal-month" aria-live="polite">${monthName} ${y}</h1>
+      </div>
+      <div class="cal-nav">
+        <button type="button" class="cal-nav-btn" onclick="calShiftMonth(-1)" aria-label="Previous month">${svg('<polyline points="15 18 9 12 15 6"/>', 20)}</button>
+        <button type="button" class="cal-nav-btn" onclick="calShiftMonth(1)" aria-label="Next month">${svg('<polyline points="9 18 15 12 9 6"/>', 20)}</button>
+        <button type="button" class="cal-today-btn" onclick="calGoToday()">Today</button>
       </div>
     </div>
-    <div class="card cal-card">
-      <div class="cal-head">
-        <button type="button" class="icon-btn-sm" onclick="calShiftMonth(-1)" aria-label="Previous month">${svg('<polyline points="15 18 9 12 15 6"/>')}</button>
-        <div class="cal-month" aria-live="polite">${monthName} ${y}</div>
-        <button type="button" class="icon-btn-sm" onclick="calShiftMonth(1)" aria-label="Next month">${svg('<polyline points="9 18 15 12 9 6"/>')}</button>
-        <button type="button" class="btn-secondary cal-today-btn" onclick="calGoToday()">Today</button>
+    ${hasData ? `<p class="cal-summary">${summary ? escHtml_cd(summary.charAt(0).toUpperCase() + summary.slice(1)) + '.' : 'A quiet month.'}</p>` : ''}
+    <div class="cal-layout">
+      <div class="cal-sheet">
+        <div class="cal-grid" role="group" aria-label="${monthName} ${y}">
+          ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(n => `<span class="cal-wd" aria-hidden="true">${n}</span>`).join('')}
+          ${cells}
+        </div>
+        <div class="cal-legend">
+          ${hasTicks ? `<span><span class="cal-tick" aria-hidden="true"></span>Class</span><span><span class="cal-tick is-lab" aria-hidden="true"></span>Lab</span>` : ''}
+          <span><span class="cal-dot cal-dot-deadline" aria-hidden="true"></span>Deadline</span>
+          <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
+          ${breakDays ? `<span><span class="cal-key-break" aria-hidden="true"></span>Break</span>` : ''}
+          ${examHere ? `<span><span class="cal-key-exam" aria-hidden="true"></span>Exams</span>` : ''}
+        </div>
       </div>
-      <div class="cal-grid" role="group" aria-label="${monthName} ${y}">
-        ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(n => `<span class="cal-wd" aria-hidden="true">${n}</span>`).join('')}
-        ${cells}
+      <div class="cal-side">
+        ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Classes hidden during holiday mode</span></p>` : ''}
+        <section class="cal-day" aria-label="${selTitle}">
+          <h2 class="cal-day-title">${selTitle}</h2>
+          ${dayList}
+        </section>${agenda}
       </div>
-      <div class="cal-legend">
-        <span><span class="cal-dot cal-dot-deadline" aria-hidden="true"></span>Deadline</span>
-        <span><span class="cal-dot cal-dot-task" aria-hidden="true"></span>Task</span>
-      </div>
-    </div>
-    ${isHolidayActive() ? `<p class="holiday-note" role="status">${icons.sun()} <span>Classes hidden during holiday mode</span></p>` : ''}
-    <section class="cal-day" aria-label="${selTitle}">
-      <h2 class="cal-day-title">${selTitle}</h2>
-      ${dayList}
-    </section>${agenda}`;
+    </div>`;
   wireCalendarSwipe(el);
 }
 
