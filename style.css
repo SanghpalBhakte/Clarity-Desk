@@ -741,43 +741,6 @@ img { display: block; max-width: 100%; }
   cursor: not-allowed;
 }
 
-.topbar-search {
-  flex: 1;
-  max-width: 340px;
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.topbar-search input {
-  width: 100%;
-  padding: 8px 12px 8px 36px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-family: var(--font);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  outline: none;
-}
-
-.topbar-search input:focus {
-  border-color: var(--text-primary);
-  box-shadow: none;
-  background: var(--surface);
-}
-
-.topbar-search input::placeholder { color: var(--text-muted); }
-
-.topbar-search .search-icon {
-  position: absolute;
-  left: 12px; top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -846,9 +809,6 @@ img { display: block; max-width: 100%; }
      since the sidebar/bottom-nav already carry navigation. */
   .topbar-brand span {
     display: none;
-  }
-  .topbar-search {
-    min-width: 64px;
   }
   /* #topbar-clock-text has no white-space:nowrap and gets squeezed to
      ~50px on narrow phones by its fixed-width siblings (theme toggle,
@@ -2420,28 +2380,6 @@ a.card:hover,
 }
 
 /* ── Notices ────────────────────────────────────────────────── */
-.search-input-wrapper {
-  position: relative;
-  margin-bottom: 16px;
-}
-
-.search-input-wrapper input {
-  width: 100%;
-  padding: 10px 14px 10px 38px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  font-family: var(--font);
-  outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease);
-}
-
-.search-input-wrapper input:focus {
-  border-color: var(--text-primary);
-  box-shadow: none;
-}
 
 .notice-card {
   background: var(--surface);
@@ -3746,7 +3684,6 @@ button:disabled {
     gap: 22px;
   }
   .topbar-left { margin-right: 6px; }
-  .topbar-search { max-width: 400px; }
 }
 
 @media (min-width: 1024px) {
@@ -3759,7 +3696,6 @@ button:disabled {
     gap: 28px;
   }
   .topbar-left { margin-right: 12px; }
-  .topbar-search { max-width: 440px; }
 }
 
 /* Two-column dashboard layout — only on genuinely wide screens */
@@ -3795,7 +3731,6 @@ button:disabled {
     padding: 0 48px;
     gap: 32px;
   }
-  .topbar-search { max-width: 480px; }
   .dashboard-layout {
     grid-template-columns: 1fr 300px;
     gap: 40px;
@@ -5169,7 +5104,6 @@ body::before {
   .topbar-actions { gap: 6px; }
 }
 @media (max-width: 360px) {
-  .topbar-search { min-width: 40px; }
 }
 
 /* 2. Pop-ups fit the visible screen (dvh = height between the browser
@@ -7229,17 +7163,6 @@ body.holiday-mode .holiday-banner {
 .rv-week-btn { background: transparent; border-color: transparent; color: var(--text-secondary); }
 .rv-week-btn[aria-pressed="true"] { color: var(--text-primary); box-shadow: inset 0 -2px 0 var(--text-primary); border-radius: 0; }
 
-.search-input-wrapper .s-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  color: var(--text-muted);
-  pointer-events: none;
-}
-.search-input-wrapper .s-icon svg { width: 16px; height: 16px; }
-
 /* ── Calm app pass: lists are ruled lines, not stacks of cards ──────── */
 #page-timetable .tt-entry,
 #page-assignments .assignment-card.tk-card,
@@ -7384,23 +7307,8 @@ body.holiday-mode .holiday-banner {
 /* Phones: search is a magnifier next to the other buttons. Tapping it opens
    a full-width box and hides the rest of the bar; the close button or tapping
    away puts it back. Needs :has(), so older browsers keep the normal box. */
-.search-close { display: none; }
 @supports selector(:has(*)) {
   @media (max-width: 540px) {
-    .topbar-search { flex: none; width: 40px; max-width: none; min-width: 0; margin-left: auto; }
-    .topbar-search input { height: 40px; padding: 0; border-radius: 50%; color: transparent; caret-color: transparent; cursor: pointer; }
-    .topbar-search input::placeholder { color: transparent; }
-    .topbar-search .search-icon { left: 50%; transform: translate(-50%, -50%); }
-    .topbar:has(.topbar-search:focus-within) .topbar-left,
-    .topbar:has(.topbar-search:focus-within) .topbar-actions { display: none; }
-    .topbar:has(.topbar-search:focus-within) .topbar-search { flex: 1 1 auto; width: auto; margin-left: 0; }
-    .topbar-search:focus-within input { height: auto; padding: 8px 44px 8px 36px; border-radius: 999px; box-shadow: none; color: var(--text-primary); caret-color: auto; cursor: text; }
-    .topbar-search:focus-within input::placeholder { color: var(--text-muted); }
-    .topbar-search:focus-within .search-icon { left: 12px; transform: translateY(-50%); }
-    .topbar-search:focus-within .search-close {
-      display: grid; place-items: center; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-      width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer;
-    }
   }
 }
 

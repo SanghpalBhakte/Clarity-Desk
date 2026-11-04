@@ -48,6 +48,17 @@ test('no Notices item in the sidebar or the More sheet', async ({ page }) => {
   await expect(page.locator('#global-search')).toHaveCount(0);
 });
 
+test('laptop sidebar has the College portal link: saved link opens, none opens Settings → Profile', async ({ page, context }) => {
+  await openApp(page, '', { whatsappTitle: 'ERP', whatsappUrl: 'https://erp.example.edu/' });
+  await context.route('https://erp.example.edu/**', (r) => r.fulfill({ status: 200, body: 'ok' }));
+  const [popup] = await Promise.all([context.waitForEvent('page'), page.getByTestId('sidebar-college-portal').click()]);
+  expect(popup.url()).toBe('https://erp.example.edu/');
+  await page.evaluate(() => localStorage.removeItem('cos_notice_channels'));
+  await page.getByTestId('sidebar-college-portal').click();
+  await expect.poll(() => activePage(page)).toBe('settings');
+  await expect(page.locator('#st-profile')).toBeVisible();
+});
+
 test.describe('College portal row (phone)', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
