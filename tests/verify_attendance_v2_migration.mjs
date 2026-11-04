@@ -218,6 +218,15 @@ check('+1 taps keep the same totals and are flagged as undated', () => {
     ? true : `new ${r.attended}/${r.held}, old ${old.present}/${old.total}, taps ${JSON.stringify(r.undatedTaps)}`;
 });
 
+check('A +1 tap on a subject that also has a lab counts for the theory; a "lab" key never lands on the theory', () => {
+  const timetable = tt({ 1: [cls('Data Structures', 'DS', '10:00')], 2: [cls('Data Structures', 'DS', '14:00', 'lab')] });
+  const { store: v2 } = convert({ attendance: {}, live: { DS: { present: 2, missed: 1 }, 'DS Lab': { present: 1 } } }, timetable);
+  const th = v2.adjustments.datastructures;
+  return Object.keys(v2.adjustments).join(',') === 'datastructures' && th.present === 2 && th.missed === 1
+    && v2.unmatched.taps.length === 1 && v2.unmatched.taps[0].key === 'DS Lab'
+    ? true : `adjustments ${JSON.stringify(v2.adjustments)} unmatched ${JSON.stringify(v2.unmatched.taps)}`;
+});
+
 check('Repeatable: converting twice gives identical output; a backup file converts the same', () => {
   const timetable = tt({ 1: [cls('Data Structures', 'DS', '10:00')], 2: [cls('Data Structures Lab', 'DSL', '14:00', 'lab')] });
   const v1 = {
