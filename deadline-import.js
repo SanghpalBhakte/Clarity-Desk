@@ -188,7 +188,8 @@ const RELATIVE = [
 
 // A written date (21/10, 21-10-2026, 21 Oct, Oct 21), not just a weekday or
 // "tomorrow". Pasted text with no deadline word needs one to become a row.
-const CLEAR_DATE = new RegExp(`\\b\\d{1,2}[\\/-]\\d{1,2}\\b|\\b\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}\\b|\\b\\d{1,2}\\s*(?:st|nd|rd|th)?\\s*(?:of\\s+)?(?:${MON})|\\b(?:${MON})[a-z]*\\.?\\s+\\d{1,2}\\b`);
+// 3-5 or 2.5 without a year is a range or a number, not a date.
+const CLEAR_DATE = new RegExp(`\\b\\d{1,2}\\/\\d{1,2}\\b|\\b\\d{1,2}[.-]\\d{1,2}[.-]\\d{2,4}\\b|\\b\\d{1,2}\\s*(?:st|nd|rd|th)?\\s*(?:of\\s+)?(?:${MON})|\\b(?:${MON})[a-z]*\\.?\\s+\\d{1,2}\\b`);
 
 // Every date-looking piece is a candidate; the best-scored one wins.
 // swapImpossible (pasted text only): 11/30 can only be MM/DD, so read it that way.
