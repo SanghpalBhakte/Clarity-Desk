@@ -7450,6 +7450,7 @@ body.holiday-mode .holiday-banner {
 :root[data-accent="apricot"] .chrono-beacon.is-live,
 :root[data-accent="apricot"] .schedule-slot.is-now,
 :root[data-accent="apricot"] #page-timetable .tt-entry.current {
+  border-radius: 14px;
   background-image: radial-gradient(130% 160% at 12% 40%, rgba(211, 154, 78, 0.22), rgba(211, 154, 78, 0.07) 45%, transparent 75%);
 }
 :root[data-theme="midnight-ink"][data-accent="apricot"] .chrono-beacon.is-live,
@@ -7461,9 +7462,10 @@ body.holiday-mode .holiday-banner {
 /* Azuki & Matcha: faint tea-leaf flecks over the paper grain. */
 :root[data-theme="paper-slate"][data-accent="rose"] body::before {
   background-image:
-    radial-gradient(circle, rgba(94, 106, 34, 0.30) 0 1px, transparent 1.6px),
-    radial-gradient(circle, rgba(125, 63, 69, 0.18) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 30% 40%, rgba(94, 106, 34, 0.17) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 70% 20%, rgba(125, 63, 69, 0.11) 0 0.9px, transparent 1.5px),
+    radial-gradient(ellipse 1.6px 0.9px at 45% 75%, rgba(94, 106, 34, 0.13), transparent),
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 23px 19px, 37px 29px, 140px 140px;
-  background-position: 0 0, 11px 7px, 0 0;
+  background-size: 47px 61px, 83px 53px, 71px 97px, 140px 140px;
+  background-position: 0 0, 29px 17px, 13px 41px, 0 0;
 }
