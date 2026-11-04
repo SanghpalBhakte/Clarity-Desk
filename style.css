@@ -7520,3 +7520,15 @@ body.holiday-mode .holiday-banner {
 }
 /* Present / Absent: a thumb-sized target. */
 .btn.slot-att { min-height: 40px; min-width: 44px; }
+
+/* Phones: "Next class" is one compact row (class left, countdown right) so
+   more of the day's schedule fits on the first screen. The live "In Session"
+   card keeps its buttons and progress bar. */
+@media (max-width: 560px) {
+  .chrono-beacon[data-beacon="next"] { flex-wrap: nowrap; align-items: center; padding: var(--ds-space-3) var(--ds-space-4); }
+  .chrono-beacon[data-beacon="next"] .chrono-beacon-main { display: block; flex: 1 1 auto; }
+  .chrono-beacon[data-beacon="next"] .chrono-beacon-main > * { flex: none; }
+  .chrono-beacon[data-beacon="next"] .chrono-beacon-count { display: block; flex: none; margin-top: 0; text-align: right; }
+  .chrono-beacon[data-beacon="next"] .chrono-beacon-count-num { display: block; font-size: 1.45rem; }
+  .chrono-beacon[data-beacon="next"] .chrono-beacon-count-label { display: block; }
+}
