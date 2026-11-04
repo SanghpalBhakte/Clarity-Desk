@@ -763,8 +763,8 @@ img { display: block; max-width: 100%; }
 }
 
 .topbar-search input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  border-color: var(--text-primary);
+  box-shadow: none;
   background: var(--surface);
 }
 
@@ -1715,8 +1715,8 @@ a.card:hover,
 }
 
 .command-dock-field:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  border-color: var(--text-primary);
+  box-shadow: none;
 }
 
 .command-dock-field input {
@@ -2439,8 +2439,8 @@ a.card:hover,
 }
 
 .search-input-wrapper input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  border-color: var(--text-primary);
+  box-shadow: none;
 }
 
 /* ── Notice Sources Linked Cards ────────────────────────────── */
@@ -3550,8 +3550,8 @@ a.card:hover,
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  border-color: var(--text-primary);
+  box-shadow: none;
   background-color: var(--surface);
 }
 
@@ -3704,12 +3704,19 @@ a.card:hover,
 /* Keyboard focus — high-contrast visible ring for accessibility */
 .btn:focus-visible,
 button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--focus-ring, var(--brand-primary)) !important;
   outline-offset: 2px !important;
+}
+
+/* Text fields show focus with an ink edge, not the terracotta ring, so a box you are typing in never looks like an error. */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--text-primary) !important;
+  outline-offset: -1px !important;
 }
 
 .btn:disabled,
@@ -4518,8 +4525,8 @@ button:disabled {
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 .cd-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  border-color: var(--text-primary);
+  box-shadow: none;
   background: var(--surface);
 }
 .cd-input::placeholder { color: var(--text-muted); font-size: 0.82rem; }
@@ -5353,9 +5360,10 @@ body::before {
   cursor: pointer;
 }
 
-/* 3. Timetable card on phones: Present / Absent get their own row with
-      labels and 40px touch targets; the class name gets the full width. */
-.tt-att-label { display: none; }
+/* 3. Present / Absent always carry their word next to the icon. On phones
+      they also get their own row with 40px touch targets; the class name
+      gets the full width. */
+.tt-att .btn { gap: 6px; }
 @media (max-width: 540px) {
   .tt-entry { flex-wrap: wrap; column-gap: 12px; row-gap: 10px; }
   .tt-entry .tt-time-col { width: 64px; }
@@ -5371,7 +5379,6 @@ body::before {
   .tt-entry .tt-att { flex: 1; margin-right: 0 !important; gap: 8px !important; }
   .tt-entry .tt-att .btn { flex: 1; height: 40px !important; gap: 6px; }
   .tt-entry .tt-actions .icon-btn-sm { width: 40px; height: 40px; }
-  .tt-att-label { display: inline; }
   /* Quick Log buttons on the subject page: finger-sized. */
   .attendance-action-btn { min-height: 40px; }
 
@@ -7256,7 +7263,7 @@ body.holiday-mode .holiday-banner {
 
 /* Quick add: a quiet line under the tasks instead of a boxed field. */
 #page-dashboard #quick-add-input { background: transparent; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; }
-#page-dashboard #quick-add-input:focus { border-bottom-color: var(--color-focus-ring); }
+#page-dashboard #quick-add-input:focus { border-bottom-color: var(--text-primary); }
 
 
 .dash-notice-row {
@@ -7519,6 +7526,12 @@ body.holiday-mode .holiday-banner {
   content: ''; position: absolute; top: 50%; left: 50%;
   width: max(100%, 36px); height: max(100%, 44px);
   transform: translate(-50%, -50%);
+}
+/* "Full timetable →" style links: same look, a 44px-tall tap area. */
+.panel-action { position: relative; }
+.panel-action::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%;
+  height: 44px; transform: translateY(-50%);
 }
 /* Present / Absent: a thumb-sized target. */
 .btn.slot-att { min-height: 40px; min-width: 44px; }

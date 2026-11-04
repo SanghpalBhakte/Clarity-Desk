@@ -148,7 +148,7 @@ check('No timetable yet: Today hides schedule, attendance, notices and the subti
   if (!html.includes("Let's add your timetable")) return 'timetable card missing';
   if (!html.includes('id="quick-add-input"')) return 'quick-add missing';
   if ((html.match(/class="dashboard-panel" style="display:none"/g) || []).length !== 2) return 'schedule/attendance panels not hidden';
-  if (html.includes('Notice Board') || html.includes('today-focus')) return 'extra cards shown';
+  if (html.includes('<div class="panel-title">Notices</div>') || html.includes('today-focus')) return 'extra cards shown';
   if (html.includes('Add your timetable to see your day here') || html.includes('desk-greeting-sub')) return 'duplicate subtitle shown';
   return true;
 });
