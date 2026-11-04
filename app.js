@@ -4330,7 +4330,7 @@ function calculatePayloadHash(data) {
       np: data.notificationPrefs || null,
       nc: data.noticeChannels || null,
       tg: typeof data.attTarget === 'number' ? data.attTarget : null,
-      am: data.aims && typeof data.aims === 'object' ? cleanAimSubjects(data.aims.subjects) : null,
+      am: data.aims && typeof data.aims === 'object' ? { s: cleanAimSubjects(data.aims.subjects), k: data.aims.kind === 'count' ? 'count' : 'line', n: aimCount(data.aims.count) } : null,
       // Full timetable and attendance, not just a day count: a mark or a
       // timetable edit made on another device must reach this one (it used
       // to be ignored until something else changed, even across reloads).
@@ -7983,20 +7983,42 @@ function cleanAimSubjects(raw) {
   }
   return out;
 }
+// kind 'line' (stay above the line, the default) or 'count' (show up to
+// `count` classes each week, Monday to Sunday). The line is kept either way.
+function aimCount(v) {
+  const n = parseInt(v, 10);
+  return !isNaN(n) && n >= 1 && n <= 60 ? n : null;
+}
 function loadAims() {
   const raw = safeGetStorage(KEY_AIMS, null);
-  return { v: 1, kind: 'line', line: getAttendanceTarget(), subjects: cleanAimSubjects(raw && raw.subjects) };
+  const count = aimCount(raw && raw.count);
+  const kind = raw && raw.kind === 'count' && count ? 'count' : 'line';
+  return { v: 1, kind, line: getAttendanceTarget(), count: count || 10, subjects: cleanAimSubjects(raw && raw.subjects) };
 }
 function saveAims(aims) {
   const line = aimPct(aims && aims.line) ?? getAttendanceTarget();
+  const count = aimCount(aims && aims.count) || 10;
   safeSetStorage(KEY_ATT_TARGET, line);
-  safeSetStorage(KEY_AIMS, { v: 1, kind: 'line', line, subjects: cleanAimSubjects(aims && aims.subjects) });
+  safeSetStorage(KEY_AIMS, { v: 1, kind: aims && aims.kind === 'count' ? 'count' : 'line', line, count, subjects: cleanAimSubjects(aims && aims.subjects) });
 }
 // Backups and the cloud copy carry `aims`; older ones only `attTarget`,
 // which the caller has already written, so this only adds subject lines.
 function applyAimsFromData(aims) {
   if (!aims || typeof aims !== 'object' || Array.isArray(aims)) return;
-  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), subjects: aims.subjects });
+  saveAims({ line: aimPct(aims.line) ?? getAttendanceTarget(), kind: aims.kind, count: aims.count, subjects: aims.subjects });
+}
+// Classes marked Present this week (Monday to today) in cos_attendance.
+function classesAttendedThisWeek(now = new Date()) {
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const from = localDateKey(start), to = localDateKey(now);
+  const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
+  let n = 0;
+  Object.keys(data).forEach(d => {
+    if (d < from || d > to || !data[d] || typeof data[d] !== 'object') return;
+    Object.values(data[d]).forEach(st => { if (st === 'attended') n++; });
+  });
+  return n;
 }
 function aimKeyFor(subjItem) {
   return String((subjItem && (subjItem.code || subjItem.name)) || '').trim();
@@ -10563,7 +10585,11 @@ function renderDashboard() {
             <div class="att-stat-figure ${isAttendanceAtRisk ? 'at-risk' : attendancePct !== null ? 'is-safe' : 'is-target'}" style="margin-bottom:2px">
               ${attendancePct !== null ? (() => { const [whole, dec] = String(attendancePctLabel).split('.'); return `${escHtml_cd(whole)}<span class="att-dec">${dec ? '.' + escHtml_cd(dec) : ''}%</span>`; })() : `${attTarget}<span class="att-dec">%</span>`}
             </div>
-            <div class="att-stat-label">${attendancePct !== null ? (dashGuidance.isSafe ? `Aim ${attTarget}% · on track` : `Aim ${attTarget}% · below it`) : 'is your line'}</div>
+            <div class="att-stat-label">${(() => {
+              const aims = loadAims();
+              if (aims.kind === 'count') { const done = classesAttendedThisWeek(); return `This week ${done} of ${aims.count} classes${done >= aims.count ? ' · aim met' : ''}`; }
+              return attendancePct !== null ? (dashGuidance.isSafe ? `Aim ${attTarget}% · on track` : `Aim ${attTarget}% · below it`) : 'is your line';
+            })()}</div>
             <!-- The bar with a notch at the target: the line to stay above. -->
             <div class="att-gauge" style="margin-top:10px">
               <div class="att-bar-wrap">
@@ -17702,7 +17728,19 @@ function renderSettings() {
           </label>
         </div>
         <div class="form-group">
-          <label class="form-label" for="s-att-target">Your aim: stay above (%)</label>
+          ${(() => {
+            const aims = loadAims();
+            return `<label class="form-label" for="s-aim-kind">Your aim</label>
+          <select class="form-input" id="s-aim-kind" style="max-width:340px" onchange="document.getElementById('s-aim-count-row').hidden = this.value !== 'count'">
+            <option value="line"${aims.kind === 'line' ? ' selected' : ''}>Stay above my attendance line</option>
+            <option value="count"${aims.kind === 'count' ? ' selected' : ''}>Show up to a number of classes each week</option>
+          </select>
+          <div id="s-aim-count-row" style="margin-top:10px"${aims.kind === 'count' ? '' : ' hidden'}>
+            <label class="form-label" for="s-aim-count">Classes each week</label>
+            <input type="number" class="form-input" id="s-aim-count" value="${aims.count}" min="1" max="60" step="1" inputmode="numeric" style="max-width:120px">
+          </div>`;
+          })()}
+          <label class="form-label" for="s-att-target" style="margin-top:14px">Attendance line (%)</label>
           <input type="number" class="form-input" id="s-att-target" value="${getAttendanceTarget()}" min="50" max="100" step="1" style="max-width:120px">
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
             The attendance % you want to stay above. Starts at 75%; set it to what your college or course asks for.
@@ -18070,7 +18108,7 @@ function renderSettings() {
 // Settings save as you go: a field saves when it changes (text fields
 // also a moment after typing stops), and its section shows "Saved".
 const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branch', 's-year', 's-batch',
-  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 'nc-wa-title', 'nc-wa-url',
+  's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 's-aim-kind', 's-aim-count', 'nc-wa-title', 'nc-wa-url',
   'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
@@ -18368,7 +18406,11 @@ function saveSettings(opts = {}) {
     const n = aimPct(inp.value);
     setSubjectLine(aimSubjects, { code: inp.dataset.code, name: inp.dataset.name }, n === attTargetSafe ? null : n);
   });
-  saveAims({ line: attTargetSafe, subjects: aimSubjects });
+  const prevAims = loadAims();
+  const kindEl = document.getElementById('s-aim-kind');
+  saveAims({ line: attTargetSafe, subjects: aimSubjects,
+    kind: kindEl ? kindEl.value : prevAims.kind,
+    count: aimCount(document.getElementById('s-aim-count')?.value) || prevAims.count });
 
   const nPrefs = {
     taskUpcoming: document.getElementById('np-task-upcoming')?.value || 'day_before',
