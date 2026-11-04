@@ -5406,171 +5406,6 @@ body::before {
   --color-accent-text: #8a5a14;
 }
 
-/* Tasks: segmented filter with counts */
-.tk-seg {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 2px;
-  padding: 3px;
-  margin: 0 0 var(--ds-space-3);
-  border-radius: var(--ds-radius-pill);
-  background: var(--color-surface);
-  border: 1px solid var(--color-rule);
-}
-
-.tk-seg-btn {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: var(--ds-radius-pill);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--ds-text-14);
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background var(--ds-motion-fast), color var(--ds-motion-fast);
-}
-
-.tk-seg-btn.active {
-  background: var(--color-action-primary);
-  color: var(--color-action-primary-text);
-}
-
-.tk-seg-btn:focus-visible,
-.tk-filter-btn:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-.tk-seg-n {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 400px) {
-  .tk-seg-btn { flex-direction: column; gap: 0; line-height: 1.2; }
-  .tk-seg-n { font-size: var(--ds-text-12); }
-}
-
-/* Tasks: progress + Filter button */
-.tk-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ds-space-3);
-  margin-bottom: var(--ds-space-3);
-}
-
-.tk-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  max-width: 200px;
-  font-size: var(--ds-text-14);
-  color: var(--color-text-secondary);
-}
-
-.tk-progress strong {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-.tk-progress-bar {
-  display: block;
-  height: 6px;
-  border-radius: var(--ds-radius-pill);
-  background: var(--color-surface-sunken);
-  overflow: hidden;
-}
-
-.tk-progress-bar > span {
-  display: block;
-  height: 100%;
-  width: var(--p, 0%);
-  border-radius: inherit;
-  background: var(--color-success);
-}
-
-.tk-filter-btn {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ds-space-2);
-  padding: 0 14px;
-  border: 1px solid var(--color-text-tertiary);
-  border-radius: var(--ds-radius-pill);
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: var(--ds-text-14);
-  font-weight: 700;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.tk-filter-btn[aria-expanded="true"],
-.tk-filter-btn.has-active {
-  border-color: var(--color-action-primary);
-  color: var(--color-action-primary);
-}
-
-.tk-filter-n {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--ds-radius-pill);
-  background: var(--color-action-primary);
-  color: var(--color-action-primary-text);
-  font-size: var(--ds-text-12);
-  line-height: 20px;
-  text-align: center;
-}
-
-.tk-filters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-space-3);
-  padding: var(--ds-space-3) var(--ds-space-4);
-  margin-bottom: var(--ds-space-3);
-  border-radius: var(--ds-radius-2);
-  background: var(--color-surface);
-  border: 1px solid var(--color-rule);
-}
-
-.tk-filters[hidden] { display: none; }
-
-.tk-filter-row { display: flex; flex-direction: column; gap: 6px; }
-
-.tk-filter-label {
-  font-size: var(--ds-text-12);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.tk-filters .filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  overflow: visible;
-}
-
-.tk-filters .filter-chip { min-height: 44px; }
-.tk-reset { align-self: flex-start; min-height: 44px; }
-
 /* Tasks: grouped list, one title line + one meta line */
 .tk-group { margin-bottom: var(--ds-space-4); }
 
@@ -6436,8 +6271,6 @@ html.more-sheet-open .more-sheet {
 }
 
 /* ── Import from WhatsApp (Tasks) ─────────────────────────────── */
-.tk-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
-.wa-entry { white-space: nowrap; }
 .wa-modal-link {
   display: block; width: 100%; margin: -4px 0 14px; padding: 8px 12px;
   background: var(--surface-2); border: 1px dashed var(--border); border-radius: var(--radius-sm);
@@ -6521,12 +6354,6 @@ html.more-sheet-open .more-sheet {
   margin-left: 6px; padding: 6px 12px; min-height: 36px; border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.4);
   color: inherit; font: inherit; font-weight: 700; cursor: pointer;
-}
-@media (max-width: 540px) {
-  .wa-entry { padding-left: 10px; padding-right: 10px; }
-  /* The longer "Paste a message or circular" label: actions drop under the title. */
-  #page-assignments > .page-header { flex-wrap: wrap; gap: 10px; }
-  #page-assignments .tk-header-actions { flex-basis: 100%; justify-content: flex-start; }
 }
 
 /* Celebration card: a calm, slightly larger toast for real milestones. */
@@ -7001,10 +6828,6 @@ body.holiday-mode .holiday-banner {
 }
 .tk-pick.on { background: var(--accent); border-color: var(--accent); }
 .tk-pick.off { opacity: 0.25; border-style: dashed; }
-.tk-fold > summary.tk-group-head { cursor: pointer; list-style: none; }
-.tk-fold > summary.tk-group-head::-webkit-details-marker { display: none; }
-.tk-fold > summary.tk-group-head::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.15s; vertical-align: 1px; }
-.tk-fold[open] > summary.tk-group-head::before { transform: rotate(45deg); }
 
 /* ── Today hierarchy pass: quiet "Up next" card, one secondary label style,
    red only for overdue, class chain dots centred on the line ───────────── */
@@ -7090,7 +6913,7 @@ body.holiday-mode .holiday-banner {
 
 /* Figures: fixed-width digits so live timers and percentages don't jiggle. */
 .vitals-value, .chrono-beacon-time, .chrono-beacon-count-num, .schedule-slot-time,
-.att-stat-figure, .setup-guide-count, .tk-seg-n, .tk-progress strong, .sj-pct, .tt-tab-n {
+.att-stat-figure, .setup-guide-count, .sj-pct, .tt-tab-n {
   font-variant-numeric: tabular-nums;
 }
 #page-dashboard .chrono-beacon-count-num { font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
@@ -7151,11 +6974,6 @@ body.holiday-mode .holiday-banner {
   border-radius: 0;
 }
 .tt-tab.today.active::after { background: var(--color-action-primary); }
-
-.tk-seg-btn.active {
-  background: color-mix(in srgb, var(--text-primary) 9%, transparent);
-  color: var(--text-primary);
-}
 
 .cal-cell.selected { background: transparent; border-color: transparent; box-shadow: inset 0 0 0 2px var(--text-primary); }
 .cal-cell.selected .cal-num,
@@ -7547,15 +7365,9 @@ body.holiday-mode .holiday-banner {
 .tk-empty { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
 .tk-empty-list { border-top: 2px solid var(--text-primary); }
 .tk-empty-row { display: flex; align-items: center; gap: 12px; min-height: 56px; margin: 0; border-bottom: 1px solid var(--color-rule, var(--border)); }
-.tk-empty-row.is-input { border-bottom: 1.5px solid var(--text-primary); }
 .tk-empty-box { flex: none; width: 22px; height: 22px; box-sizing: border-box; border-radius: 6px; border: 2px dashed var(--border-btn, var(--border)); }
 .tk-empty-text { flex: 1; font-size: 1rem; color: var(--text-muted); opacity: 0.8; }
 .tk-empty-tag { font-size: var(--text-xs); color: var(--text-muted); }
-.tk-empty-plus { flex: none; width: 22px; text-align: center; font-family: var(--font-display, var(--font)); font-size: 1.3rem; font-weight: 700; color: var(--color-thread, var(--accent)); }
-.tk-empty-row input { flex: 1; min-width: 0; min-height: 48px; padding: 0; border: 0; background: none; font: inherit; font-size: 1rem; color: var(--text-primary); }
-.tk-empty-row input::placeholder { color: var(--text-muted); }
-.tk-empty-row input:focus-visible { outline: 0 !important; }
-.tk-empty-row.is-input:focus-within { border-bottom-color: var(--color-thread, var(--accent)); }
 .tk-empty-hint { margin: -4px 0 0; font-size: var(--text-sm); color: var(--text-muted); }
 .tk-empty-more { border-top: 1px solid var(--color-rule, var(--border)); }
 .tk-empty-more button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 0; border: 0; border-bottom: 1px solid var(--color-rule, var(--border)); background: none; font: inherit; font-size: 0.95rem; color: var(--text-primary); text-align: left; cursor: pointer; }
@@ -7745,4 +7557,96 @@ body.holiday-mode .holiday-banner {
   #page-settings .st-nav-short { display: none; }
   #page-settings .st-nav-btn[aria-current] { box-shadow: none; border-left-color: var(--color-thread, var(--accent)); }
   #page-settings .st-nav-btn.is-danger { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-rule, var(--border)); }
+}
+
+/* ── Tasks in the Briefing's voice ─────────────────────────────────────
+   A headline instead of a title + counters, ruled sections, a day column,
+   the check on the right, and one typed add bar (pinned above the bottom
+   nav on phones, beside the headline on laptops). */
+#page-assignments .tk-page { display: flex; flex-direction: column; gap: 14px; }
+.tk-kicker { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: var(--text-sm); color: var(--text-secondary); }
+.tk-headline { margin: 4px 0 0; font-family: var(--font-display); font-size: clamp(24px, 6.6vw, 30px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--text-primary); }
+.tk-headline-late.is-late { color: var(--color-thread, var(--accent)); }
+.tk-link { min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--color-rule); text-underline-offset: 3px; cursor: pointer; }
+.tk-narrow, .tk-none { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); }
+.tk-none { padding: 18px 0; }
+
+/* By subject: a sideways row of names on phones, an index with each
+   subject's next deadline on laptops. */
+.tk-subjects { display: flex; gap: 18px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--color-rule); white-space: nowrap; }
+.tk-subjects::-webkit-scrollbar { display: none; }
+.tk-side-head { display: none; }
+.tk-subj-pick { flex: none; min-height: 44px; margin-bottom: -1px; padding: 0; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: left; }
+.tk-subj-pick[aria-pressed="true"] { font-weight: 700; color: var(--text-primary); border-bottom-color: var(--color-thread, var(--accent)); }
+.tk-subj-next { display: none; }
+
+/* Sections: an ink rule under the heading, hairlines between rows. */
+#page-assignments .tk-group { margin: 0 0 6px; }
+#page-assignments .tk-group-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); }
+#page-assignments .tk-group-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+#page-assignments .tk-group-head span { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
+#page-assignments .tk-group-now.has-late .tk-group-head h2 { color: var(--status-error, var(--color-error)); }
+
+#page-assignments .assignment-card.tk-card { flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: 56px; padding: 6px 0; border-left: 0; }
+#page-assignments .assignment-card.tk-card:hover { background: transparent; }
+.tk-day { flex: none; width: 48px; font-family: var(--font-display); font-size: 0.9375rem; font-weight: 700; line-height: 1.1; color: var(--text-primary); }
+.tk-day-date { display: block; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--text-secondary); }
+.tk-card.is-late .tk-day-name { color: var(--status-error, var(--color-error)); }
+#page-assignments .tk-card .assignment-body { flex: 1 1 0; min-width: 0; padding: 6px 0; cursor: pointer; border-radius: 6px; }
+#page-assignments .tk-card .assignment-body:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+#page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 1; }
+#page-assignments .tk-meta { gap: 0; font-size: 0.8125rem; }
+#page-assignments .tk-meta > span + span::before { content: '·'; margin: 0 5px; color: var(--text-secondary); font-weight: 400; }
+#page-assignments .tk-due.overdue { display: inline; color: var(--status-error, var(--color-error)); }
+#page-assignments .tk-due.overdue::before { width: auto; height: auto; border: 0; }
+#page-assignments .tk-prio { color: var(--text-primary); font-weight: 600; }
+#page-assignments .tk-card .assignment-desc { margin-top: 2px; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#page-assignments .tk-card .assignment-checkbox { flex: none; margin-right: 0; border-radius: 8px; border: 2px solid var(--text-primary); }
+#page-assignments .tk-card.is-late .assignment-checkbox { border-color: var(--color-thread, var(--accent)); }
+#page-assignments .tk-card.done .assignment-checkbox { background: var(--text-primary); border-color: var(--text-primary); color: var(--color-canvas); }
+#page-assignments .tk-card.done { opacity: 0.55; }
+.tk-row-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 20px; padding: 0 0 2px 60px; }
+.tk-row-actions button { min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 0.875rem; font-weight: 700; color: var(--text-primary); cursor: pointer; }
+.tk-row-actions .task-delete-btn { color: var(--status-error, var(--color-error)); }
+
+/* Later, Goals, Done: one line each until opened. */
+#page-assignments .tk-fold { margin: 0; border-bottom: 1px solid var(--color-rule); }
+.tk-fold-head { display: flex; align-items: center; gap: 12px; min-height: 52px; list-style: none; cursor: pointer; }
+.tk-fold-head::-webkit-details-marker { display: none; }
+.tk-fold-name { flex: none; width: 48px; font-family: var(--font-display); font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+.tk-fold-sum { flex: 1; min-width: 0; font-size: 0.875rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-fold-sign { flex: none; width: 24px; text-align: center; color: var(--text-secondary); }
+.tk-fold-sign::before { content: '+'; }
+.tk-fold[open] > .tk-fold-head .tk-fold-sign::before { content: '–'; }
+.tk-fold-head:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+#page-assignments .tk-fold > .tk-card:last-child { border-bottom: 0; }
+
+/* The add bar: type a task, Enter opens the form filled in. */
+.tk-add { display: flex; align-items: center; gap: 6px; min-height: 52px; padding: 0 6px 0 4px; border: 1.5px solid var(--text-primary); border-radius: 16px; background: var(--color-surface, var(--color-canvas)); }
+.tk-add:focus-within { border-color: var(--color-thread, var(--accent)); }
+.tk-add-plus { flex: none; width: 44px; height: 44px; padding: 0; border: 0; background: none; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--color-thread, var(--accent)); cursor: pointer; }
+.tk-add input { flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 1rem; color: var(--text-primary); }
+.tk-add input::placeholder { color: var(--text-muted); }
+.tk-add input:focus-visible { outline: 0 !important; }
+.tk-add-paste { flex: none; min-height: 44px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.8125rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+
+@media (max-width: 767px) {
+  #page-assignments .tk-add { position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; order: 10; box-shadow: 0 -10px 0 var(--color-canvas); }
+}
+
+/* Laptops: headline beside the add line, list beside the subject index. */
+@media (min-width: 1024px) {
+  #page-assignments .tk-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); grid-template-areas: "head add" "main main"; column-gap: 48px; row-gap: 18px; align-items: end; }
+  #page-assignments .tk-page.has-side { grid-template-areas: "head add" "main side"; }
+  #page-assignments .tk-head { grid-area: head; }
+  #page-assignments .tk-add { grid-area: add; }
+  #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; }
+  #page-assignments .tk-side { grid-area: side; align-self: start; }
+  .tk-subjects { flex-direction: column; gap: 0; margin: 0; padding: 0; overflow: visible; border-bottom: 0; white-space: normal; }
+  .tk-side-head { display: block; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+  .tk-subj-pick { display: flex; gap: 12px; align-items: center; width: 100%; min-height: 48px; margin: 0; border-bottom: 1px solid var(--color-rule); }
+  .tk-subj-pick .tk-subj-name { flex: none; width: 56px; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); }
+  .tk-subj-pick[aria-pressed="true"] { border-bottom-color: var(--color-rule); }
+  .tk-subj-pick[aria-pressed="true"] .tk-subj-name { color: var(--color-thread, var(--accent)); text-decoration: underline; text-underline-offset: 4px; }
+  .tk-subj-next { display: block; flex: 1; min-width: 0; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
