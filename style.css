@@ -1793,7 +1793,7 @@ a.card:hover,
 }
 
 .panel-action {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
   background: none;
@@ -2009,7 +2009,7 @@ a.card:hover,
 
 /* Type badges use rectangular shape to distinguish from status pills */
 .type-badge {
-  font-size: 0.64rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2356,7 +2356,7 @@ a.card:hover,
 .swatch-accent { flex: 1.5; }
 
 .swatch-name {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-primary);
   text-align: center;
@@ -2541,7 +2541,7 @@ a.card:hover,
 }
 
 .notice-source-action {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--accent);
   display: flex;
@@ -4812,7 +4812,7 @@ body {
 }
 
 .type-badge {
-  font-size: 0.64rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: var(--space-2) var(--space-6);
   letter-spacing: 0.06em;
@@ -4948,7 +4948,7 @@ body {
 
 .tt-time-end {
   font-family: var(--font-sans);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-tertiary);
   margin-top: 2px;
   white-space: nowrap;
@@ -7438,7 +7438,7 @@ body.holiday-mode .holiday-banner {
 #page-notices .notice-source-top { display: contents; }
 #page-notices .notice-source-icon-wrap { order: 0; width: 28px; height: 28px; background: transparent; color: var(--text-secondary); }
 #page-notices .notice-source-card > div:not(.notice-source-top):not(.notice-source-action) { order: 1; min-width: 0; }
-#page-notices .notice-source-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#page-notices .notice-source-sub { white-space: normal; }
 #page-notices .notice-source-action { order: 2; margin: 0; color: var(--color-action-primary) !important; white-space: nowrap; }
 #page-notices .notice-source-top .btn-icon { order: 3; width: 32px !important; height: 32px !important; color: var(--text-muted); }
 #page-notices .notice-source-top .btn-icon svg { width: 15px; height: 15px; }
@@ -7510,12 +7510,12 @@ body.holiday-mode .holiday-banner {
   background-position: 0 0, 29px 17px, 13px 41px, 0 0;
 }
 
-/* Top-bar controls keep their look but get a 44px tap area. */
+/* Top-bar controls keep their look but get a 36x44px tap area (narrower so neighbours never overlap). */
 .btn-back, .topbar-brand, .topbar-theme-toggle, .btn-assistant-toggle, #topbar-avatar { position: relative; }
 .btn-back::after, .topbar-brand::after, .topbar-theme-toggle::after,
 .btn-assistant-toggle::after, #topbar-avatar::after {
   content: ''; position: absolute; top: 50%; left: 50%;
-  width: max(100%, 44px); height: max(100%, 44px);
+  width: max(100%, 36px); height: max(100%, 44px);
   transform: translate(-50%, -50%);
 }
 /* Present / Absent: a thumb-sized target. */
