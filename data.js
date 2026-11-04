@@ -196,11 +196,11 @@ export const DEV_UPDATES = [
   {
     id: "u205",
     date: "2026-11-04",
-    title: "Paste a message or circular: you can now paste a plain notice or circular (no WhatsApp timestamps) and review the deadlines before anything is saved",
+    title: "Paste a notice or circular and check its dates before saving",
     category: "Update",
     tag: "Update",
     tagColor: "var(--blue)",
-    summary: "Paste a message or circular: you can now paste a plain notice or circular (no WhatsApp timestamps) and review the deadlines before anything is saved",
+    summary: "Tasks › Paste a message or circular now also reads a plain notice or circular, not just WhatsApp chats. You review the dates before anything is saved.",
     points: [
 
     ]
