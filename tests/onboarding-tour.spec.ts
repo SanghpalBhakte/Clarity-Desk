@@ -17,6 +17,8 @@ async function startTour(page: Page, name: string | null) {
   } else {
     await page.getByRole('button', { name: 'Skip' }).click();
   }
+  await expect(page.getByRole('heading', { name: 'What are you here for?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Decide later' }).click();
   await expect(page.locator('.tour-bubble')).toBeVisible();
 }
 

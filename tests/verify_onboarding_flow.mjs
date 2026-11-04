@@ -209,6 +209,35 @@ check('After the name step the welcome never comes back, even mid tour', () => {
   return welcomeScheduled() ? 'welcome scheduled again' : true;
 });
 
+check('After the name, "What are you here for?" offers the lines and self-study', () => {
+  seed(); makeApp(); welcomeHtml();
+  globalThis.onboardingSaveName(true);
+  const html = domCache['onboarding-step-1'].innerHTML;
+  const t = visibleText(html).replace(/\s+/g, ' ');
+  const ok = t.includes('What are you here for?') && ['65%', '70%', '75%', '80%', '85%'].every(n => t.includes(n))
+    && t.includes('I study on my own') && t.includes('Decide later') && /aria-pressed="true"[^>]*>75%/.test(html);
+  return ok ? (BAD_WORDING(html) || true) : t.slice(0, 200);
+});
+
+check('Tapping a line saves it as the aim (target kept in step) and starts the tour', () => {
+  seed(); makeApp(); welcomeHtml();
+  globalThis.onboardingSaveName(true);
+  globalThis.onboardingSetAim(80);
+  const a = JSON.parse(store.cos_aims || 'null');
+  return store.cos_att_target === '80' && a && a.line === 80 && globalThis.__EV__.includes('aim_choice/80') ? true : JSON.stringify([store.cos_att_target, a, globalThis.__EV__]);
+});
+
+check('"I study on my own" sets self-study; "Decide later" saves no aim', () => {
+  seed(); makeApp(); welcomeHtml();
+  globalThis.onboardingSaveName(true);
+  globalThis.onboardingSetAim('self');
+  if (prof().studyMode !== 'self') return 'self-study not set';
+  seed(); makeApp(); welcomeHtml();
+  globalThis.onboardingSaveName(true);
+  globalThis.onboardingSetAim(null);
+  return !('cos_aims' in store) && !('cos_att_target' in store) && globalThis.__EV__.includes('aim_choice/later') ? true : JSON.stringify(store);
+});
+
 // ── Task 3: one timetable card and the "how to add it" dialog ──
 const todayHtml = (app) => { app.state.currentPage = 'dashboard'; app.renderDashboard(); return domCache['page-dashboard'].innerHTML; };
 check('A new Today shows one timetable card with one button and a quiet self-study link', () => {
