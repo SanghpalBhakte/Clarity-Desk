@@ -10522,7 +10522,7 @@ function renderDashboard() {
         ${latestNotice ? `
           <div class="dashboard-panel">
             <div class="panel-header">
-              <div class="panel-title">Notice Board</div>
+              <div class="panel-title">Notices</div>
               <button class="panel-action" onclick="navigateTo('notices')">All Notices →</button>
             </div>
             <button type="button" class="dash-notice-row${latestNotice.important ? ' is-important' : ''}" onclick="navigateTo('notices')">
@@ -16181,7 +16181,7 @@ function renderNotices() {
   el.innerHTML = `
     <div class="page-header">
       <div>
-        <div class="page-title">Notice Board</div>
+        <div class="page-title">Notices</div>
         <div class="page-subtitle">${getVisibleNotices().filter(n=>n.important).length} pinned announcements · official campus circulars</div>
       </div>
     </div>
@@ -17551,7 +17551,7 @@ function renderSettings() {
   el.innerHTML = `
     <div class="page-header">
       <div>
-        <div class="page-title">Desk Settings</div>
+        <div class="page-title">Settings</div>
         <div class="page-subtitle">Your student profile, notification preferences &amp; local workspace settings</div>
       </div>
     </div>
@@ -17914,7 +17914,7 @@ function renderSettings() {
     <div class="section-heading">📢 ERP Portal</div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">
-        Customize your college ERP portal link for quick access on your Notice Board.
+        Customize your college ERP portal link for quick access on your Notices page.
       </div>
       <div class="form-row">
         <div class="form-group">
