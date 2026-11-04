@@ -11,7 +11,7 @@
     "test:visual": "playwright test tests/clarity-visual-verification.spec.ts",
     "test:visual:update": "playwright test tests/clarity-visual-verification.spec.ts --update-snapshots",
     "test:photo-check": "node tests/verify_scan_photo_check.mjs",
-    "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts tests/notices-retired.spec.ts --project=chromium-desktop",
+    "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts tests/notices-retired.spec.ts tests/paste-circular.spec.ts --project=chromium-desktop",
     "test:onboarding": "playwright test tests/onboarding-tour.spec.ts --project=chromium-desktop",
     "test:sync-flows": "playwright test tests/signin-review.spec.ts tests/offline-sync.spec.ts tests/core-flows.spec.ts --project=chromium-desktop",
     "test:mobile": "playwright test tests/mobile-layout.spec.ts --project=chromium-mobile",

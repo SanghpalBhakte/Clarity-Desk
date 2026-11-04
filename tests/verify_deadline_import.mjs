@@ -205,5 +205,25 @@ console.log('\n9. Share target and offline');
   check('no em dashes in import UI copy', !/—/.test(waBlock.replace(/^\s*\/\/.*$/gm, '')));
 }
 
+console.log('\n10. Plain pasted text (a circular, no WhatsApp timestamps)');
+{
+  const circ = 'Circular: Exam form last date is 30/10/2026 at the accounts office.\nFee receipt must be attached.';
+  const r = P.scanChat(circ, NOW);
+  check('plain text is flagged plain with 0 chat headers', r.stats.plain === true && r.stats.recognised === 0);
+  check('plain circular: one deadline, 30 Oct, a form deadline (not an exam)', r.items.length === 1 && fmtDay(r.items[0].date) === 'Fri 30 Oct' && r.items[0].kind === 'sub', JSON.stringify(r.items.map(describe)));
+  check('"Exam on 5 Nov" is still an exam', P.scanChat('Mid-sem exam on 5 Nov at 10 am', NOW).items[0]?.kind === 'exam');
+  const list = P.scanChat('Unit test 1 on 26 Oct\nUnit test 2 on 2 Nov\n\nPlease carry your ID card.', NOW);
+  check('lines that each carry a date become one row each', list.items.length === 2 && list.items.map(i => fmtDay(i.date)).join('|') === 'Mon 26 Oct|Mon 2 Nov', list.items.map(describe).join(' ; '));
+  const none = P.scanChat('Please keep your ID cards with you.', NOW);
+  check('plain text with no date: no rows, no error', none.items.length === 0 && none.stats.plain === true);
+  const chat = P.scanChat(asChat('Submit the DBMS journal by 25 Oct') + '\n' + asChat('ok'), NOW);
+  check('a WhatsApp export is not treated as plain', chat.stats.plain === false && chat.stats.recognised === 2);
+  const one = P.scanChat(asChat('Submit the DBMS journal by 25 Oct'), NOW);
+  check('a single timestamped message keeps the old chat rules (needs 2 headers)', one.stats.plain === false && one.stats.recognised === 1);
+  const appSrc2 = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  check('app lets plain text through but still needs 2 headers for chats', /recognised < 2 && !result\.stats\.plain/.test(appSrc2));
+  check('entry points say "Paste a message or circular"', (appSrc2.match(/Paste a message or circular/g) || []).length >= 4 && !/Paste from WhatsApp|>From WhatsApp</.test(appSrc2));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
