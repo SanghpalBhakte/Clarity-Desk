@@ -3118,8 +3118,8 @@ a.card:hover,
 .briefing-next { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-secondary); }
 .briefing-next svg { flex-shrink: 0; color: var(--accent); }
 .briefing-done { font-size: var(--text-sm); color: var(--text-muted); padding: 2px 4px 0; }
-.briefing-quiet { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); font-size: var(--text-sm); font-weight: 600; }
-.briefing-quiet svg { flex-shrink: 0; }
+.briefing-quiet { display: flex; align-items: center; gap: 8px; margin-top: 20px; color: var(--text-secondary); font-size: var(--text-sm); }
+.briefing-quiet svg { flex-shrink: 0; width: 16px; height: 16px; color: var(--green); }
 
 .link-resources {
   display: grid;
@@ -5343,8 +5343,10 @@ body::before {
   .fab-label { display: none; }
   /* The one-time "Drag me" hint was centred on the wide pill; on a 48px
      circle at the right edge that would hang off the screen. */
-  .fab-hint { left: auto; right: 0; transform: none; animation: none; }
-  .fab-hint::after { left: auto; right: 18px; transform: rotate(45deg); }
+  /* Beside the circle, not above it, so the one-time tip doesn't cover
+     the list the student is reading. */
+  .fab-hint { top: 50%; left: auto; right: calc(100% + 10px); transform: translateY(-50%); animation: none; }
+  .fab-hint::after { top: 50%; bottom: auto; left: auto; right: -4px; transform: translateY(-50%) rotate(-45deg); }
 }
 
 /* ── Today on phones: the class card leads (v169) ──────────────────────
