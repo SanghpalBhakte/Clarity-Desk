@@ -232,11 +232,11 @@ export const DEV_UPDATES = [
   {
     id: "u211",
     date: "2026-11-05",
-    title: "Set your aim: pick your attendance line when you start, give one subject its own line in Settings, and Today shows \"Aim 75% · on track\"",
+    title: "Set your aim in Settings: your attendance line, and a different line for one subject if it needs one, and Today shows \"Aim 75% · on track\"",
     category: "Update",
     tag: "Update",
     tagColor: "var(--blue)",
-    summary: "Set your aim: pick your attendance line when you start, give one subject its own line in Settings, and Today shows \"Aim 75% · on track\"",
+    summary: "Set your aim in Settings: your attendance line, and a different line for one subject if it needs one, and Today shows \"Aim 75% · on track\"",
     points: [
 
     ]
