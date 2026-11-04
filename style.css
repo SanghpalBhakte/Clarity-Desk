@@ -5977,7 +5977,9 @@ body::before {
 .sj-ring.risk .sj-ring-fill { stroke: var(--color-error); }
 .sj-ring.watch .sj-ring-fill { stroke: var(--color-warning); }
 .sj-ring.safe .sj-ring-fill { stroke: var(--color-success); }
-.sj-ring.none .sj-ring-tick { display: none; }
+.sj-ring-code { font-family: var(--font-display, var(--font)); font-size: 12px; font-weight: 700; fill: var(--text-primary); letter-spacing: -0.01em; }
+.sj-ring-code.is-long { font-size: 8.5px; }
+.sj-mark-link { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; min-height: 44px; }
 
 .sj-body { flex: 1; min-width: 0; }
 

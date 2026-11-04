@@ -14401,6 +14401,11 @@ function renderSubjectsOverview(el, subjects) {
     (!riskN && !watchN && ranked.some(r => r.tier === 'safe') ? ' · all on track' : '');
   const TIER_WORD = { risk: 'At risk', watch: 'Watch', safe: 'Safe', none: 'No data' };
   const RING_C = 2 * Math.PI * 20;
+  // The subject's code sits inside its ring (DS, DEMP), like a label on a gauge.
+  const ringCode = (s) => String(s.code || '').trim().slice(0, 5);
+  // Day one (nothing marked anywhere): one line explains the rings instead of
+  // every row saying "not set yet".
+  const noneYet = !isSelfStudyMode() && ranked.every(r => r.tier === 'none');
   const animateRings = subjectRingsAnimatedSeq !== subjectViewSeq;
   subjectRingsAnimatedSeq = subjectViewSeq;
 
@@ -14428,19 +14433,27 @@ function renderSubjectsOverview(el, subjects) {
           <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
           <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
           <line class="sj-ring-tick" x1="${tick[0]}" y1="${tick[1]}" x2="${tick[2]}" y2="${tick[3]}"/>
+          ${ringCode(s) ? `<text class="sj-ring-code${ringCode(s).length > 2 ? ' is-long' : ''}" x="26" y="26.5" text-anchor="middle" dominant-baseline="central" aria-hidden="true">${escHtml_cd(ringCode(s))}</text>` : ''}
         </svg>
         <div class="sj-body">
           <div class="card-title sj-title">${escHtml_cd(s.name)}</div>
-          <div class="sj-line">${line}</div>
+          ${tier === 'none' ? '' : `<div class="sj-line">${line}</div>`}
           ${projection ? `<div class="sj-meta">${projection}</div>` : ''}
-          <div class="sj-meta">${escHtml_cd(s.code)}${att.labPart && att.labPart.pct !== null ? ` · Lab ${att.labPart.pctLabel}%` : ''}${pending ? ` · ${pending} pending task${pending !== 1 ? 's' : ''}` : ''}${sylLine(s)}</div>
+          ${(() => {
+            // The code is in the ring already; it stays here only when it was too long to fit there.
+            const meta = [ringCode(s) === String(s.code || '').trim() ? '' : escHtml_cd(s.code),
+              att.labPart && att.labPart.pct !== null ? `Lab ${att.labPart.pctLabel}%` : '',
+              pending ? `${pending} pending task${pending !== 1 ? 's' : ''}` : '',
+              sylLine(s).replace(/^ · /, '')].filter(Boolean).join(' · ');
+            return meta ? `<div class="sj-meta">${meta}</div>` : '';
+          })()}
         </div>
         <div class="sj-side">
           ${subjectManageMode ? `
             <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" aria-label="Select ${s.name.replace(/"/g, '&quot;')}"${picked(s) ? ' checked' : ''} onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))">
           ` : `
-            <span class="sj-pct">${label}</span>
-            <span class="sj-tier">${TIER_WORD[tier]}</span>
+            ${tier === 'none' ? '' : `<span class="sj-pct">${label}</span>
+            <span class="sj-tier">${TIER_WORD[tier]}</span>`}
           `}
         </div>
       </div>
@@ -14453,7 +14466,7 @@ function renderSubjectsOverview(el, subjects) {
     <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:nowrap">
       <div style="flex:1;min-width:0">
         <div class="page-title">Subject Hubs</div>
-        <div class="page-subtitle">${summaryLine}</div>
+        <div class="page-subtitle">${noneYet ? `${summaryLine}. Each ring fills as you mark classes; the notch is your ${getAttendanceTarget()}% line. <button type="button" class="sj-mark-link" onclick="navigateTo('dashboard')">Mark today →</button>` : summaryLine}</div>
       </div>
       <details class="tk-more sj-manage">
         <summary aria-label="Manage subjects">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage${hasPollution ? '<span class="sj-dot" title="Duplicate subject cards found"></span>' : ''}</summary>
