@@ -199,6 +199,126 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u176",
+    date: "2026-11-04",
+    title: "Tidy up: Tomorrow label matches other headings, past classes print clearly",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tidy up: Tomorrow label matches other headings, past classes print clearly",
+    points: [
+
+    ]
+  },
+  {
+    id: "u175",
+    date: "2026-11-04",
+    title: "Small fixes: no grey edge on pages, past classes stay easy to mark, due dates in plain words",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Small fixes: no grey edge on pages, past classes stay easy to mark, due dates in plain words",
+    points: [
+
+    ]
+  },
+  {
+    id: "u174",
+    date: "2026-11-04",
+    title: "Tea-paper flecks are softer and the lamp glow has rounded edges",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tea-paper flecks are softer and the lamp glow has rounded edges",
+    points: [
+
+    ]
+  },
+  {
+    id: "u173",
+    date: "2026-11-04",
+    title: "Every palette keeps Clarity Desk's terracotta for your name and the Now marker, and each one gets its own small touch: stitched lines, a lamp glow or tea-paper flecks",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Every palette keeps Clarity Desk's terracotta for your name and the Now marker, and each one gets its own small touch: stitched lines, a lamp glow or tea-paper flecks",
+    points: [
+
+    ]
+  },
+  {
+    id: "u172",
+    date: "2026-11-04",
+    title: "Light palettes look clearly different: Ai & Kaki in indigo, Tetsu lamp in iron teal and Azuki & Matcha in red bean on tea paper",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Light palettes look clearly different: Ai & Kaki in indigo, Tetsu lamp in iron teal and Azuki & Matcha in red bean on tea paper",
+    points: [
+
+    ]
+  },
+  {
+    id: "u171",
+    date: "2026-11-04",
+    title: "Four new colour palettes in Desk Settings: Rikyū (the current look), Ai & Kaki, Tetsu lamp and Azuki & Matcha, each with a light and dark version",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Four new colour palettes in Desk Settings: Rikyū (the current look), Ai & Kaki, Tetsu lamp and Azuki & Matcha, each with a light and dark version",
+    points: [
+
+    ]
+  },
+  {
+    id: "u170",
+    date: "2026-11-04",
+    title: "Daily Briefing's \"nothing urgent\" line is a plain line now, and the one-time drag tip sits beside the + button instead of over your list",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Daily Briefing's \"nothing urgent\" line is a plain line now, and the one-time drag tip sits beside the + button instead of over your list",
+    points: [
+
+    ]
+  },
+  {
+    id: "u169",
+    date: "2026-11-04",
+    title: "Notice Board is calmer: ERP Portal and Dev Notes are small link lines, so your notices come first",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Notice Board is calmer: ERP Portal and Dev Notes are small link lines, so your notices come first",
+    points: [
+
+    ]
+  },
+  {
+    id: "u168",
+    date: "2026-11-04",
+    title: "Subject Hubs are calmer: each subject is a simple line, and only the ring shows its colour",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject Hubs are calmer: each subject is a simple line, and only the ring shows its colour",
+    points: [
+
+    ]
+  },
+  {
+    id: "u167",
+    date: "2026-11-04",
+    title: "Dev Notes: the Today update note no longer mentions a change that didn't ship",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Dev Notes: the Today update note no longer mentions a change that didn't ship",
+    points: [
+
+    ]
+  },
+  {
     id: "u166",
     date: "2026-11-04",
     title: "Today keeps the attendance bar and shows every class in the schedule, with the class happening now highlighted",
