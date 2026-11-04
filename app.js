@@ -13234,6 +13234,19 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
     });
   });
 
+  // 2b. A subject's own attendance line (cos_aims) follows its subject the
+  // same way, so a rescan that changes both code and name keeps it.
+  const newAimSubjects = {};
+  Object.entries(loadAims().subjects).forEach(([k, n]) => {
+    const norm = normalizeSubjectIdentity(k, survivingList);
+    const matched = survivingList.find(s =>
+      s.name.toLowerCase() === norm.canonicalName.toLowerCase() ||
+      (s.code && norm.canonicalCode && s.code.toLowerCase() === norm.canonicalCode.toLowerCase())
+    );
+    if (matched) setSubjectLine(newAimSubjects, matched, n);
+    else if (!(k in newAimSubjects)) newAimSubjects[k] = n;
+  });
+
   // 3. Process Historical Daily Attendance Logs (KEY_ATTENDANCE)
   const liveDailyAttendance = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   const newDailyAttendance = {};
@@ -13336,6 +13349,7 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
   return {
     newTimetable: newTT,
     newBaselines,
+    newAimSubjects,
     newDailyAttendance,
     survivingSubjects: survivingList,
     archivedSlots,
@@ -13514,6 +13528,7 @@ function executeDeclutterPlan(plan, userBatch) {
     tasks: Array.isArray(state.customTasks) ? state.customTasks : safeGetStorage(KEY_CUSTOM_TASKS, []),
     links: loadCustomLinks(),
     hiddenSubjects: safeGetStorage(KEY_HIDDEN_SUBJECTS, []) || [],
+    aims: loadAims(),
     profile: liveProfile || loadProfile() || {}
   };
   safeSetStorage(KEY_CLEANUP_BACKUP, backup);
@@ -13521,8 +13536,9 @@ function executeDeclutterPlan(plan, userBatch) {
   // 2. Save new timetable
   safeSetStorage(KEY_CUSTOM_TIMETABLE, plan.newTimetable);
 
-  // 3. Save remapped attendance baselines
+  // 3. Save remapped attendance baselines (and subject lines with them)
   saveAttendanceBaselines(plan.newBaselines);
+  if (plan.newAimSubjects) saveAims({ ...loadAims(), subjects: plan.newAimSubjects });
 
   // 4. Save remapped historical daily attendance logs
   if (plan.newDailyAttendance) {
@@ -13630,6 +13646,7 @@ function confirmExecuteRestore() {
     }
     if (backup.links) persistCustomLinks(backup.links);
     if (Array.isArray(backup.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, backup.hiddenSubjects);
+    if (backup.aims) applyAimsFromData(backup.aims);
     if (backup.userBatch) safeSetStorage(KEY_USER_BATCH, backup.userBatch);
     if (backup.profile) {
       safeSetStorage(KEY_PROFILE, backup.profile);

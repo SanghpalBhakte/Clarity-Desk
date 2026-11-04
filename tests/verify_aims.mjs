@@ -40,7 +40,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine };`)();
+const app = new Function(`${code}\n return { loadAims, saveAims, applyAimsFromData, getSubjectTarget, getAttendanceTarget, calculatePayloadHash, setSubjectLine, generateDeclutterPlan };`)();
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -104,6 +104,16 @@ check('The line survives a rescan that changes the code or the name', () => {
 check('Clearing a subject line removes every copy of it', () => {
   const subs = app.setSubjectLine({ DSL: 80, 'DS Lab': 80, dsl: 80, CN: 85 }, { code: 'DSL', name: 'DS Lab' }, null);
   return JSON.stringify(subs) === JSON.stringify({ CN: 85 }) ? true : JSON.stringify(subs);
+});
+
+check('A rescan that changes both code and name moves the line to the new subject', () => {
+  reset({ cos_att_target: '75', cos_aims: JSON.stringify({ v: 1, kind: 'line', line: 75, subjects: { DS: 90, Gone: 60 } }) });
+  const L = (subject, code) => ({ subject, code, time: '09:00', end: '10:00', type: 'lecture', batches: [] });
+  const day = [L('Data Structures', 'BTAIC302'), L('Probability and Statistics', 'BTAIC303')];
+  const tt = { 0: [], 1: day, 2: day, 3: day, 4: day, 5: day, 6: [] };
+  const plan = app.generateDeclutterPlan(tt, {}, [], 'all');
+  const subs = plan.newAimSubjects || {};
+  return subs.BTAIC302 === 90 && subs['Data Structures'] === 90 && !subs.BTAIC303 && !('DS' in subs) && subs.Gone === 60 ? true : JSON.stringify(subs);
 });
 
 check('The overall target ignores subject lines (attendance sums unchanged)', () => {
