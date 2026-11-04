@@ -170,6 +170,114 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u216",
+    date: "2026-11-05",
+    title: "New aim: finish your syllabus and tasks by a date. Today shows what's left and how many topics a day it takes",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New aim: finish your syllabus and tasks by a date. Today shows what's left and how many topics a day it takes",
+    points: [
+
+    ]
+  },
+  {
+    id: "u215",
+    date: "2026-11-05",
+    title: "New aim: keep a rhythm on an ongoing goal. Tap the goal, choose \"Did it today\", and Today shows how many times you have done it this week",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New aim: keep a rhythm on an ongoing goal. Tap the goal, choose \"Did it today\", and Today shows how many times you have done it this week",
+    points: [
+
+    ]
+  },
+  {
+    id: "u214",
+    date: "2026-11-05",
+    title: "New aim in Settings: show up to a number of classes each week, and Today counts how many you have attended so far",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New aim in Settings: show up to a number of classes each week, and Today counts how many you have attended so far",
+    points: [
+
+    ]
+  },
+  {
+    id: "u213",
+    date: "2026-11-05",
+    title: "A subject's own attendance line now moves with it when a timetable rescan renames the subject completely",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "A subject's own attendance line now moves with it when a timetable rescan renames the subject completely",
+    points: [
+
+    ]
+  },
+  {
+    id: "u212",
+    date: "2026-11-05",
+    title: "Starting the app is back to just your name, and a subject's own attendance line now stays put when a rescan changes its code or name",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Starting the app is back to just your name, and a subject's own attendance line now stays put when a rescan changes its code or name",
+    points: [
+
+    ]
+  },
+  {
+    id: "u211",
+    date: "2026-11-05",
+    title: "Set your aim: pick your attendance line when you start, give one subject its own line in Settings, and Today shows \"Aim 75% · on track\"",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Set your aim: pick your attendance line when you start, give one subject its own line in Settings, and Today shows \"Aim 75% · on track\"",
+    points: [
+
+    ]
+  },
+  {
+    id: "u210",
+    date: "2026-11-05",
+    title: "On a laptop, Tasks shows your next two weeks as a strip, with each deadline on its day and a line marking today",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On a laptop, Tasks shows your next two weeks as a strip, with each deadline on its day and a line marking today",
+    points: [
+
+    ]
+  },
+  {
+    id: "u209",
+    date: "2026-11-05",
+    title: "Your attendance line is now used everywhere: the weekly view no longer assumes 75%, and Settings no longer says \"most colleges\"",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Your attendance line is now used everywhere: the weekly view no longer assumes 75%, and Settings no longer says \"most colleges\"",
+    points: [
+
+    ]
+  },
+  {
+    id: "u208",
+    date: "2026-11-05",
+    title: "Tasks reads like the Daily Briefing: a headline, Now and This week, and a typing bar to add",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The Tasks page now opens with one line (\"Five to do.",
+    points: [
+      "One is late.\"), shows what is due now and this week, and folds Later, Goals and finished tasks to one line each so it fits a phone screen. The tick sits on the right; tap a task for Edit, Open its subject page or Delete. Type a task in the bar above the bottom menu and press Enter. On a laptop, each subject's next deadline sits beside the list."
+    ]
+  },
+  {
     id: "u207",
     date: "2026-11-04",
     title: "Pasted notices: number ranges like 3-5 are no longer read as dates",
