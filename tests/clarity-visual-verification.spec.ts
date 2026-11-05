@@ -454,6 +454,38 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     await expect(view).toHaveScreenshot('clarity-calendar-paper-slate-mobile.png', { animations: 'disabled' });
   });
 
+  // Tasks page: late, due-soon, quiz, exam, goal and done rows, so a change to
+  // the tick boxes, section heads or two-week strip shows up as a diff.
+  async function seedTasksPage(page: Page) {
+    await page.evaluate(() => {
+      localStorage.setItem('cos_custom_tasks', JSON.stringify([
+        { id: 'c-1', title: 'Lab journal sign-off', subject: 'Data Structures', code: 'DS', taskType: 'assignment', dueDate: '2026-02-09', status: 'pending' },
+        { id: 'c-2', title: 'DBMS assignment 3', subject: 'DBMS', code: 'DBMS', taskType: 'assignment', dueDate: '2026-02-11', status: 'pending' },
+        { id: 'c-3', title: 'CN quiz', subject: 'Computer Networks', code: 'CN', taskType: 'quiz', dueDate: '2026-02-13', status: 'pending' },
+        { id: 'c-4', title: 'Unit test 1', subject: 'DBMS', code: 'DBMS', taskType: 'exam', dueDate: '2026-02-16', status: 'pending' },
+        { id: 'c-5', title: 'Mini project synopsis', subject: 'General', taskType: 'project', dueDate: '2026-03-20', status: 'pending' },
+        { id: 'c-6', title: 'Read one paper a week', subject: 'General', taskType: 'mission', noDeadline: true, dueDate: '', status: 'pending' },
+        { id: 'c-7', title: 'OS worksheet', subject: 'General', taskType: 'assignment', dueDate: '2026-02-08', status: 'submitted' }
+      ]));
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+  }
+
+  for (const theme of THEMES) {
+    for (const [name, size] of [['mobile', MOBILE], ['desktop', DESKTOP]] as const) {
+      test(`tasks screenshot ${theme} ${name}`, async ({ page }) => {
+        await page.setViewportSize(size);
+        await seedTasksPage(page);
+        await ensureTheme(page, theme);
+        await page.evaluate(() => (window as any).navigateTo('assignments'));
+        const view = page.locator('#page-assignments');
+        await expect(view.locator('.tk-group').first()).toBeVisible();
+        await expect(view.locator('.tk-card.is-key .assignment-checkbox').first()).toBeVisible();
+        await expect(view).toHaveScreenshot(`clarity-tasks-${theme}-${name}.png`, { animations: 'disabled' });
+      });
+    }
+  }
+
   // Holiday mode (break 9-15 Feb around FIXED_NOW): the sunset Today and the
   // short holiday Daily Briefing, so a later style change can't quietly break them.
   async function seedHoliday(page: Page) {
