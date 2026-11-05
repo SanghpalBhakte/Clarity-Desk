@@ -481,7 +481,8 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
         const view = page.locator('#page-assignments');
         await expect(view.locator('.tk-group').first()).toBeVisible();
         await expect(view.locator('.tk-card.is-key .assignment-checkbox').first()).toBeVisible();
-        await expect(view).toHaveScreenshot(`clarity-tasks-${theme}-${name}.png`, { animations: 'disabled' });
+        // 60 px of slack: Linux CI gave a 1 px text-edge difference between two runs of identical code.
+        await expect(view).toHaveScreenshot(`clarity-tasks-${theme}-${name}.png`, { animations: 'disabled', maxDiffPixels: 60 });
       });
     }
   }
