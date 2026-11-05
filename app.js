@@ -15281,7 +15281,7 @@ function renderAssignments() {
           (a.taskType === 'exam' || a.taskType === 'quiz') ? 'is-exam' : '',
           isDone ? 'is-done' : isTaskOverdue(a) ? 'is-late' : '',
           subjF !== 'all' && a.code !== subjF && a.subject !== subjF ? 'is-dim' : ''].filter(Boolean).join(' ');
-        return `<span class="${cls}" title="${escAttr_cd(a.title)}">${escHtml_cd((a.code || '').trim() || a.subject || 'Task')}</span>`;
+        return `<span class="${cls}" title="${escAttr_cd(a.title + (a.subject ? ' · ' + a.subject : ''))}">${escHtml_cd(a.title || 'Task')}</span>`;
       }).join('') + (due.length > 3 ? `<span class="tk-tick-more">+${due.length - 3}</span>` : '');
       const wkend = d.getDay() === 0 || d.getDay() === 6;
       cells.push(`<div class="tk-strip-day${k === todayK ? ' is-today' : ''}${wkend ? ' is-weekend' : ''}${i === 7 ? ' is-week2' : ''}"><span class="tk-strip-date">${DAY_SHORT[d.getDay()]} ${d.getDate()}</span><div class="tk-strip-ticks">${ticks}</div></div>`);
@@ -15304,6 +15304,8 @@ function renderAssignments() {
     const isCustom = !!a.isCustom;
     const taskType = a.taskType || 'assignment';
     const late = !done && days !== null && days < 0;
+    // Rows to tick first: late, due today or tomorrow, exams and quizzes.
+    const isKey = !done && !isOngoing && (taskType === 'exam' || taskType === 'quiz' || (days !== null && days <= 1));
 
     let dayName = '', dayDate = '';
     if (isOngoing) dayName = 'Goal';
@@ -15351,7 +15353,7 @@ function renderAssignments() {
       </div>` : '';
     const bodyAttrs = taskSelectMode ? '' : ` role="button" tabindex="0" aria-expanded="${rowOpen}" onclick="toggleTaskRow('${a.id}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();toggleTaskRow('${a.id}')}"`;
     return `
-      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${late ? 'is-late' : ''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
+      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${late ? 'is-late' : ''} ${isKey ? 'is-key' : ''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
         <span class="tk-day" aria-hidden="${dayName ? 'false' : 'true'}"><span class="tk-day-name">${dayName}</span>${dayDate ? `<span class="tk-day-date">${dayDate}</span>` : ''}</span>
         <div class="assignment-body"${bodyAttrs}>
           <div class="assignment-title">${escHtml_cd(a.title)}</div>

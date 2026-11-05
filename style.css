@@ -7597,7 +7597,6 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-group-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); }
 #page-assignments .tk-group-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 #page-assignments .tk-group-head span { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
-#page-assignments .tk-group-now.has-late .tk-group-head h2 { color: var(--status-error, var(--color-error)); }
 /* Midnight Ink: small dates and counts need a little more size on dark. */
 :root[data-theme="midnight-ink"] #page-assignments .tk-group-head span,
 :root[data-theme="midnight-ink"] #page-assignments .tk-day-date { font-size: 0.8125rem; color: var(--text-secondary); }
@@ -7618,6 +7617,8 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-card .assignment-desc { margin-top: 2px; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #page-assignments .tk-card .assignment-checkbox { flex: none; margin-right: 0; border-radius: 8px; border: 2px solid var(--text-primary); }
 #page-assignments .tk-card.is-late .assignment-checkbox { border-color: var(--color-thread, var(--accent)); }
+/* Rows to tick first (late, due today or tomorrow, exams, quizzes): a bigger, accent box. */
+#page-assignments .tk-card.is-key .assignment-checkbox { width: 28px; height: 28px; border-width: 2.5px; border-color: var(--color-thread, var(--accent)); }
 #page-assignments .tk-card.done .assignment-checkbox { background: var(--text-primary); border-color: var(--text-primary); color: var(--color-canvas); }
 #page-assignments .tk-card.done { opacity: 0.55; }
 .tk-row-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 20px; padding: 0 0 2px 60px; }
@@ -7669,6 +7670,7 @@ body.holiday-mode .holiday-banner {
 .tk-tick.is-late { color: var(--status-error, var(--color-error)); }
 /* A '!' as well as red, so late doesn't rely on colour alone. */
 .tk-tick.is-late::before, .tk-strip-key b::before { content: '! '; }
+.tk-tick.is-done::before { content: '\2713 '; }
 .tk-tick.is-done { color: var(--text-muted); text-decoration: line-through; }
 .tk-tick.is-dim { opacity: 0.25; }
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
@@ -7695,7 +7697,9 @@ body.holiday-mode .holiday-banner {
   #page-assignments .tk-strip { display: block; grid-area: strip; }
   #page-assignments .tk-head { grid-area: head; }
   #page-assignments .tk-add { grid-area: add; }
-  #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; }
+  /* Capped so the tick box stays beside its task, not 1000px away. */
+  #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; max-width: 840px; }
+  #page-assignments .tk-kicker { justify-content: flex-start; gap: 16px; }
   #page-assignments .tk-side { grid-area: side; align-self: start; }
   .tk-subjects { flex-direction: column; gap: 0; margin: 0; padding: 0; overflow: visible; border-bottom: 0; white-space: normal; }
   .tk-side-head { display: block; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
