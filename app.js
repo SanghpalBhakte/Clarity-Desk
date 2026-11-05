@@ -4834,12 +4834,20 @@ function applyCloudDataInner(data) {
     safeSetStorage(KEY_ATT_TARGET, data.attTarget);
   }
   applyAimsFromData(data.aims);
+  // Holiday on/off carries `changedAt` (ms, written by setHoliday). A cloud copy
+  // older than this phone's own change no longer overwrites it; a missing stamp
+  // on either side counts as 0, so old data and old backups apply as before.
+  let holidayKeptLocal = false;
   if (data.holiday && typeof data.holiday === 'object' && !Array.isArray(data.holiday)) {
-    safeSetStorage(KEY_HOLIDAY, data.holiday);
-    checkHolidayExpiry();
+    const localAt = Number((safeGetStorage(KEY_HOLIDAY, null) || {}).changedAt) || 0;
+    if (localAt && (Number(data.holiday.changedAt) || 0) < localAt) holidayKeptLocal = true;
+    else {
+      safeSetStorage(KEY_HOLIDAY, data.holiday);
+      checkHolidayExpiry();
+    }
   }
   // One push (2.5 s debounce) when the merge kept something the cloud lacks.
-  if (mergeNeedsPush) syncToCloud();
+  if (mergeNeedsPush || holidayKeptLocal) syncToCloud();
   updateTopbarProfile();
   setupFABDrag();
   updateNavBadges();
@@ -8751,7 +8759,7 @@ function setHoliday(on, until = null, since = null) {
     const today = todayStr();
     const s = (typeof since === 'string' && HOLIDAY_DATE_RE.test(since) && since > today) ? since : today;
     const u = (typeof until === 'string' && HOLIDAY_DATE_RE.test(until) && until > today && until > s) ? until : null;
-    safeSetStorage(KEY_HOLIDAY, { on: true, since: s, until: u });
+    safeSetStorage(KEY_HOLIDAY, { on: true, since: s, until: u, changedAt: Date.now() });
   } else {
     // `endedOn` (optional, additive) marks the day a break that had started
     // ended, for the one-day welcome-back card. Cancelling a planned break
@@ -8759,8 +8767,8 @@ function setHoliday(on, until = null, since = null) {
     const prev = loadHoliday();
     const today = todayStr();
     safeSetStorage(KEY_HOLIDAY, prev && prev.since <= today
-      ? { on: false, since: null, until: null, endedOn: today }
-      : { on: false, since: null, until: null });
+      ? { on: false, since: null, until: null, endedOn: today, changedAt: Date.now() }
+      : { on: false, since: null, until: null, changedAt: Date.now() });
   }
   syncToCloud();
 }
