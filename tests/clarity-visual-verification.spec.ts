@@ -473,7 +473,9 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
 
   for (const theme of THEMES) {
     for (const [name, size] of [['mobile', MOBILE], ['desktop', DESKTOP]] as const) {
-      test(`tasks screenshot ${theme} ${name}`, async ({ page }) => {
+      test(`tasks screenshot ${theme} ${name}`, async ({ page }, testInfo) => {
+        // Each size runs in its own project; a laptop-size page in the phone-emulated project was unstable.
+        test.skip(testInfo.project.name !== (name === 'mobile' ? 'chromium-mobile' : 'chromium-desktop'), 'runs in the matching project only');
         await page.setViewportSize(size);
         await seedTasksPage(page);
         await ensureTheme(page, theme);
