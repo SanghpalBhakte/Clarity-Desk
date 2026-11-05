@@ -7583,6 +7583,19 @@ function restoreTypedDrafts(d) {
 // their own refresh still runs straight away.
 let __renderDeferred = null;
 const PICKER_INPUT_TYPES = ['date', 'time', 'datetime-local', 'month', 'week'];
+// A dropdown with its own change handler is not held by the focus rule below
+// (its pick re-renders straight away), so a cloud sync or timer render could
+// close it while open. Track the one being used instead: held until a pick
+// (the capture listener runs before its own onchange, so that re-render is
+// not held), until it loses focus, or 15 s after the last touch.
+let __openSelect = null;
+let __openSelectAt = 0;
+const OPEN_SELECT_MS = 15000;
+const markOpenSelect = (e) => { if (e.target && e.target.tagName === 'SELECT') { __openSelect = e.target; __openSelectAt = Date.now(); } };
+document.addEventListener('focusin', markOpenSelect);
+document.addEventListener('pointerdown', markOpenSelect);
+document.addEventListener('change', (e) => { if (e.target === __openSelect) __openSelect = null; }, true);
+document.addEventListener('focusout', (e) => { if (e.target === __openSelect) __openSelect = null; });
 function isPickerField(el) {
   return !!el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && PICKER_INPUT_TYPES.includes(el.type)));
 }
@@ -7595,6 +7608,7 @@ function isDatePromptOpen(page) {
   try {
     const el = document.getElementById('page-' + page);
     if (!el || !el.classList.contains('active')) return false;
+    if (__openSelect && el.contains(__openSelect) && document.activeElement === __openSelect && Date.now() - __openSelectAt < OPEN_SELECT_MS) return true;
     if (el.querySelector('#quick-add-date') || el.querySelector('input[id^="resched-"]')) return true;
     const a = document.activeElement;
     return isPickerField(a) && el.contains(a) && !a.hasAttribute('onchange') && !a.hasAttribute('oninput');
