@@ -170,6 +170,114 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u225",
+    date: "2026-11-05",
+    title: "Holiday mode now follows the newest change across your phones: an older copy from the cloud no longer undoes a break you just started or ended",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Holiday mode now follows the newest change across your phones: an older copy from the cloud no longer undoes a break you just started or ended",
+    points: [
+
+    ]
+  },
+  {
+    id: "u224",
+    date: "2026-11-05",
+    title: "Dropdowns with their own handler no longer close by themselves when the app refreshes in the background",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Dropdowns with their own handler no longer close by themselves when the app refreshes in the background",
+    points: [
+
+    ]
+  },
+  {
+    id: "u223",
+    date: "2026-11-05",
+    title: "Subject Hubs: empty rings are visible, and the duplicate-cards notice is a ruled line instead of a box",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject Hubs: empty rings are visible, and the duplicate-cards notice is a ruled line instead of a box",
+    points: [
+
+    ]
+  },
+  {
+    id: "u222",
+    date: "2026-11-05",
+    title: "Laptop sidebar matches the Tasks page: ruled section titles, thin lines between items, and the current page in bold colour",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Laptop sidebar matches the Tasks page: ruled section titles, thin lines between items, and the current page in bold colour",
+    points: [
+
+    ]
+  },
+  {
+    id: "u221",
+    date: "2026-11-05",
+    title: "Tasks: tick boxes are bigger and red on late, due-soon, exam and quiz tasks, sit beside their task on laptops, and the two-week strip shows task names",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks: tick boxes are bigger and red on late, due-soon, exam and quiz tasks, sit beside their task on laptops, and the two-week strip shows task names",
+    points: [
+
+    ]
+  },
+  {
+    id: "u220",
+    date: "2026-11-05",
+    title: "Tasks screen is easier to read: bigger section titles on phones, simpler Done and Goals lines, a tighter two-week strip on laptops, and larger dates in Midnight Ink",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks screen is easier to read: bigger section titles on phones, simpler Done and Goals lines, a tighter two-week strip on laptops, and larger dates in Midnight Ink",
+    points: [
+
+    ]
+  },
+  {
+    id: "u219",
+    date: "2026-11-05",
+    title: "Late tasks on the Tasks two-week strip now show a ! as well as red, and nothing peeks out above the add-task bar on phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Late tasks on the Tasks two-week strip now show a ! as well as red, and nothing peeks out above the add-task bar on phones",
+    points: [
+
+    ]
+  },
+  {
+    id: "u218",
+    date: "2026-11-05",
+    title: "On phones, the add-task bar stays fully above the bottom menu, and long task names show on two lines",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On phones, the add-task bar stays fully above the bottom menu, and long task names show on two lines",
+    points: [
+
+    ]
+  },
+  {
+    id: "u217",
+    date: "2026-11-05",
+    title: "On phones, the Done list is no longer hidden under the add-task bar, and subjects are easier to tap",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On phones, the Done list is no longer hidden under the add-task bar, and subjects are easier to tap",
+    points: [
+
+    ]
+  },
+  {
     id: "u216",
     date: "2026-11-05",
     title: "New aim: finish your syllabus and tasks by a date. Today shows what's left and how many topics a day it takes",
