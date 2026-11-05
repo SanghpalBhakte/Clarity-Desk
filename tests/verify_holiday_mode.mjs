@@ -475,6 +475,44 @@ check('Sync: cloud data with and without the key', () => {
   return none === false && on === true && a.isHolidayActive() === true ? true : `${none}/${on}`;
 });
 
+// ── Two devices: the newer change wins ───────────────────────────
+
+check('Holiday on/off is stamped with changedAt, and the stamp does not change what the app reads', () => {
+  seed(); at('2026-10-19T09:50:00');
+  const a = makeApp(); a.setHoliday(true);
+  const on = JSON.parse(store.cos_holiday);
+  a.setHoliday(false);
+  const off = JSON.parse(store.cos_holiday);
+  a.setHoliday(true);
+  return typeof on.changedAt === 'number' && typeof off.changedAt === 'number' && Object.keys(a.loadHoliday()).join() === 'on,since,until' ? true : JSON.stringify([on, off]);
+});
+
+check('Sync: an older cloud copy does not turn off a break this phone just started', () => {
+  seed(); at('2026-10-19T09:50:00');
+  const a = makeApp(); a.setHoliday(true);
+  const stamp = JSON.parse(store.cos_holiday).changedAt;
+  a.applyCloudDataToLocalState({ holiday: { on: false, since: null, until: null, changedAt: stamp - 60000 } });
+  return a.isHolidayActive() === true && JSON.parse(store.cos_holiday).changedAt === stamp ? true : 'older cloud copy overwrote it';
+});
+
+check('Sync: a newer cloud copy (another phone ended the break later) wins', () => {
+  seed(); at('2026-10-19T09:50:00');
+  const a = makeApp(); a.setHoliday(true);
+  const stamp = JSON.parse(store.cos_holiday).changedAt;
+  a.applyCloudDataToLocalState({ holiday: { on: false, since: null, until: null, changedAt: stamp + 60000 } });
+  return a.isHolidayActive() === false ? true : 'newer cloud copy ignored';
+});
+
+check('Sync: old data without a stamp still applies, both ways', () => {
+  seed(); at('2026-10-19T09:50:00');
+  let a = makeApp();
+  a.applyCloudDataToLocalState({ holiday: { on: true, since: '2026-10-19', until: null } });
+  const unstampedLocal = a.isHolidayActive();
+  a.applyCloudDataToLocalState({ holiday: { on: false, since: null, until: null, changedAt: 5 } });
+  const stampedCloud = a.isHolidayActive() === false;
+  return unstampedLocal && stampedCloud ? true : `${unstampedLocal}/${stampedCloud}`;
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);
