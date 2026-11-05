@@ -481,11 +481,18 @@
 <!-- Cloudflare Web Analytics. Only loads on the live site, and not in automated browsers (the post-ship
      smoke test, Playwright), so local runs and tests aren't counted. -->
 <script>
-  if (['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.web.app', 'claritydesk.firebaseapp.com'].includes(location.hostname) && !navigator.webdriver) {
+  // Each address has its own Cloudflare site token, so visits are counted under the right site.
+  var cfTokens = {
+    'campusos-83365.web.app': '273caa4281d14d7ab6eca4e31af9c116',
+    'campusos-83365.firebaseapp.com': '273caa4281d14d7ab6eca4e31af9c116',
+    'claritydesk.web.app': 'e8919947f5de47419941a28c201a81f0',
+    'claritydesk.firebaseapp.com': 'e8919947f5de47419941a28c201a81f0'
+  };
+  if (cfTokens[location.hostname] && !navigator.webdriver) {
     var cfBeacon = document.createElement('script');
     cfBeacon.defer = true;
     cfBeacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
-    cfBeacon.setAttribute('data-cf-beacon', '{"token": "273caa4281d14d7ab6eca4e31af9c116"}');
+    cfBeacon.setAttribute('data-cf-beacon', '{"token": "' + cfTokens[location.hostname] + '"}');
     document.body.appendChild(cfBeacon);
   }
 </script>
