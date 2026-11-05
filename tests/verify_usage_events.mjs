@@ -212,6 +212,31 @@ check('cos_usage is left out of backups and cloud sync', () => {
   return bad.length === 0 ? true : `found in ${bad}`;
 });
 
+check('A content link tag (?ref=reel) is sent once per device', () => {
+  seed(); location.search = '?ref=reel';
+  app.trackAppOpen(); app.trackAppOpen();
+  location.search = '?ref=linkedin'; app.trackAppOpen();
+  location.search = '';
+  const r = paths().filter(p => p.startsWith('ref_visit/'));
+  return r.length === 2 && r.includes('ref_visit/reel') && r.includes('ref_visit/linkedin') ? true : `ref events: ${r}`;
+});
+
+check('An unknown or hand-typed ?ref value sends nothing', () => {
+  seed();
+  for (const q of ['?ref=evil', '?ref=Reel%20x', '?ref=', '?ref=../x', '?x=1']) { location.search = q; app.trackAppOpen(); }
+  location.search = '';
+  return !paths().some(p => p.startsWith('ref_visit/')) ? true : `sent: ${paths()}`;
+});
+
+check('First open says new or existing, once per device', () => {
+  seed(); app.trackAppOpen(); app.trackAppOpen();
+  const a = paths().filter(p => p.startsWith('first_open/'));
+  seed({ cos_custom_tasks: JSON.stringify([{ id: 't1', title: 'Lab journal', dueDate: '2026-10-28' }]) });
+  app.trackAppOpen();
+  const b = paths().filter(p => p.startsWith('first_open/'));
+  return a.length === 1 && a[0] === 'first_open/new' && b.length === 1 && b[0] === 'first_open/existing' ? true : `new=${a} existing=${b}`;
+});
+
 check('Every event that can be sent is a fixed lowercase path', () => {
   seed();
   for (const [n, p] of [['welcome_shown'], ['welcome_choice', 'self'], ['scan_review_shown', 'under30s'], ['scan_failed', 'over60s'], ['signin_started', 'google', 'inapp'], ['signin_done', 'email_link']]) app.trackUsage(n, ...(p ? [p] : []));
