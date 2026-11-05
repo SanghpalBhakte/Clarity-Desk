@@ -18,10 +18,18 @@
 //     PORT=4179 node tests/serve.mjs. The tool returns only the failed
 //     checks (clean views as one "ok" line); save that as <dir>/checks.json.
 //
+//   --crop <selector>   shoot only that element (e.g. .tk-strip) instead of the
+//                       page: fewer pixels for a reviewer to read.
+//   Direct runs are cached in test-results/ui-council-cache/<hash>/, keyed on
+//   index.html, app.js, style.css, data.js, this script, the screen and --crop.
+//   Same hash = files copied back, no browser. --fresh skips the cache.
+//   (--mcp runs inside the browser tool, which has no file access: no cache.)
+//
 // Each view gets a fresh browser context, so nothing touches real storage.
 // =====================================================================
 
 import { spawn } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -179,7 +187,9 @@ async function runShots(browser, cfg) {
         await page.waitForTimeout(600);
         const name = `${state}-${theme}-${size}`;
         checks[name] = await page.evaluate(measure, { pageId: cfg.page, isMobile: size === 'mobile' });
-        if (size === 'mobile') {
+        if (cfg.crop) {
+          await page.locator(cfg.crop).first().screenshot({ path: `${cfg.out}/${name}.png` });
+        } else if (size === 'mobile') {
           // A full-page capture draws the fixed nav and sticky add bar at
           // their scroll-0 spots over a taller page, which looks broken when
           // it isn't. Phone shots are what a student sees instead: the
@@ -219,7 +229,7 @@ async function main() {
   const screen = SCREENS[SCREEN];
   if (!screen) throw new Error(`Unknown screen "${SCREEN}". Known: ${Object.keys(SCREENS).join(', ')}`);
   fs.mkdirSync(OUT, { recursive: true });
-  const cfg = { base: BASE, out: OUT, page: screen.page, states: screen.states, themes: THEMES, sizes: SIZES, now: FIXED_NOW, profile: PROFILE };
+  const cfg = { base: BASE, out: OUT, page: screen.page, states: screen.states, themes: THEMES, sizes: SIZES, now: FIXED_NOW, profile: PROFILE, crop: typeof args.crop === 'string' ? args.crop : null };
 
   if (args.mcp) {
     const job = path.join(OUT, 'mcp-job.js');
@@ -236,6 +246,20 @@ return Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v.contrast.lengt
     return;
   }
 
+  // Same inputs as last time: reuse the saved shots, skip the browser.
+  const hash = crypto.createHash('sha1');
+  for (const f of ['index.html', 'app.js', 'style.css', 'data.js', 'scripts/ui-council/shoot.mjs']) hash.update(fs.readFileSync(path.join(ROOT, f)));
+  hash.update(JSON.stringify({ screen: SCREEN, cfg: { ...cfg, base: null, out: null } }));
+  const cacheDir = path.join(ROOT, 'test-results', 'ui-council-cache', hash.digest('hex').slice(0, 16));
+  if (!args.fresh && fs.existsSync(path.join(cacheDir, 'checks.json'))) {
+    for (const f of fs.readdirSync(cacheDir)) fs.copyFileSync(path.join(cacheDir, f), path.join(OUT, f));
+    const cached = JSON.parse(fs.readFileSync(path.join(OUT, 'checks.json'), 'utf8'));
+    console.log(`Cache hit (${path.basename(cacheDir)}): ${Object.keys(cached).length} screenshots + checks.json copied to ${OUT}, no browser started`);
+    summarise(cached);
+    return;
+  }
+
+  const startedAt = Date.now();
   const { chromium } = await import('@playwright/test');
   const server = spawn(process.execPath, [path.join(ROOT, 'tests', 'serve.mjs')], { env: { ...process.env, PORT }, stdio: 'ignore' });
   let checks;
@@ -251,6 +275,8 @@ return Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v.contrast.lengt
     server.kill();
   }
   fs.writeFileSync(path.join(OUT, 'checks.json'), JSON.stringify(checks, null, 2));
+  fs.mkdirSync(cacheDir, { recursive: true });
+  for (const f of fs.readdirSync(OUT)) if (/\.(png|json)$/.test(f) && fs.statSync(path.join(OUT, f)).mtimeMs >= startedAt) fs.copyFileSync(path.join(OUT, f), path.join(cacheDir, f));
   console.log(`Saved ${Object.keys(checks).length} screenshots + checks.json to ${OUT}`);
   summarise(checks);
 }
