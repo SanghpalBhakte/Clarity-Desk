@@ -21,6 +21,11 @@ Follow memories `no-generic-ui-styles`, `avoid-cards` and `student-first-offline
 - Change only the screen's CSS in `style.css`, plus that screen's render code in `app.js`. Never touch `cos_*` data, the protected systems in CLAUDE.md, or 12-hour times.
 - Both themes, phone and laptop, and reduced motion must still work.
 
+## Numbers first, then pictures
+- Measure before shooting: sizes, gaps, overflow and colours come from `getBoundingClientRect` and computed styles. No image unless a number can't answer the question.
+- At most **two cropped images** per change (`npm run ui:shots -- --crop <selector>`, without `--mcp`). Repeat runs on unchanged files are reused from the cache (`--fresh` skips it).
+- Seed once and switch theme and viewport in place; use one shared seed (the `BUSY_TASKS` set in `shoot.mjs`), so shots stay comparable. Start one preview server and reuse it.
+
 ## Setup (once)
 1. Work in a worktree on a `claude/ui-council-<screen>` branch.
 2. Start `PORT=4179 node tests/serve.mjs` in the background from the worktree. Check with `curl -sI` that `/scripts/ui-council/shoot.mjs` returns 200, which proves it serves this worktree.
