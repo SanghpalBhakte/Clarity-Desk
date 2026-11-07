@@ -274,7 +274,7 @@ await check('Settings shows the cloud copy size after a push (and nothing before
   D.app.pushLocalDataToCloud('u1');
   await tick();
   const after = D.app.syncSizeNote();
-  return before === '' && /^ · Cloud copy \d+ KB of about 900 KB$/.test(after) ? true : JSON.stringify({ before, after });
+  return before === '' && /^Cloud copy \d+ KB of about 900 KB$/.test(after) ? true : JSON.stringify({ before, after });
 });
 
 await check('nextPushDelay: 5 s, 30 s, 2 min, then stop', async () => {
