@@ -22,5 +22,8 @@ for (const id of ids) {
 const hint = /\$\{!isGranted && !isDenied \? `<div id="st-notif-hint"[^`]*once notifications are on/.test(app);
 if (!hint) failed++;
 console.log(`${hint ? '✓ [PASS]' : '✗ [FAIL]'} Reminders explain that timing choices start once notifications are on`);
-console.log(`\nTOTAL SCENARIOS CHECKED: ${ids.length + 1}\nPASSED: ${ids.length + 1 - failed}\nFAILED: ${failed}`);
+const dz = app.includes('Attendance marks and tasks stay.') && app.includes('This can’t be undone.</div>');
+if (!dz) failed++;
+console.log(`${dz ? '✓ [PASS]' : '✗ [FAIL]'} Danger zone rows say what each Clear removes`);
+console.log(`\nTOTAL SCENARIOS CHECKED: ${ids.length + 2}\nPASSED: ${ids.length + 2 - failed}\nFAILED: ${failed}`);
 process.exit(failed ? 1 : 0);
