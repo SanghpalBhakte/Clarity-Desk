@@ -170,6 +170,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u230",
+    date: "2026-11-07",
+    title: "Settings: Reminders now say the timing choices start once notifications are on",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings: Reminders now say the timing choices start once notifications are on",
+    points: [
+
+    ]
+  },
+  {
+    id: "u229",
+    date: "2026-11-07",
+    title: "Settings: the reminder dropdowns, time pickers and exam date now have names for screen readers",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings: the reminder dropdowns, time pickers and exam date now have names for screen readers",
+    points: [
+
+    ]
+  },
+  {
     id: "u228",
     date: "2026-11-07",
     title: "Settings: the cloud copy size now sits on its own line so it doesn't wrap on small phones",
