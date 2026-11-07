@@ -503,7 +503,7 @@ function markSynced() {
 // Size of the last desk copy measured for the cloud (bytes); null until a push ran.
 let lastCloudBytes = null;
 function syncSizeNote() {
-  return currentUser && lastCloudBytes ? ` · Cloud copy ${Math.max(1, Math.round(lastCloudBytes / 1024))} KB of about 900 KB` : '';
+  return currentUser && lastCloudBytes ? `Cloud copy ${Math.max(1, Math.round(lastCloudBytes / 1024))} KB of about 900 KB` : '';
 }
 let syncPushSeq = 0;   // counts pushes so a late delete failure only rolls back its own push
 
@@ -599,9 +599,9 @@ function updateSyncUI(status = null) {
   }
   // The save status shows in Settings (the topbar badge is hidden).
   const settingsText = document.getElementById('settings-sync-text');
-  if (settingsText && text) {
-    settingsText.textContent = text.textContent + syncSizeNote();
-  }
+  if (settingsText && text) settingsText.textContent = text.textContent;
+  const sizeLine = document.getElementById('settings-cloud-size');
+  if (sizeLine) { sizeLine.textContent = syncSizeNote(); sizeLine.hidden = !sizeLine.textContent; }
 }
 
 // ── Vision AI Service (Groq primary → Gemini fallback) ────────
@@ -18160,7 +18160,8 @@ function renderSettings() {
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
           </div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd((document.getElementById('sync-text')?.textContent || 'Saved locally') + syncSizeNote())}</span></div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
+          <div id="settings-cloud-size" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px" ${syncSizeNote() ? '' : 'hidden'}>${escHtml_cd(syncSizeNote())}</div>
           ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
         </div>
         <div>
