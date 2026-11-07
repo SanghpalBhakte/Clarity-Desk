@@ -61,10 +61,15 @@
   <meta name="twitter:description" content="Keep your timetable, attendance, assignments and notices in one place and see what needs doing today. Works offline. Made for college students." />
   <meta name="twitter:image" content="https://claritydesk.web.app/og-image.png" />
 
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Comfortaa:wght@600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Fonts: self-hosted (latin), cached by the service worker so they also work offline -->
+  <link rel="preload" href="/fonts/quicksand.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/nunito.woff2" as="font" type="font/woff2" crossorigin />
+  <style>
+  @font-face{font-family:'Quicksand';font-style:normal;font-weight:500 700;font-display:swap;src:url(/fonts/quicksand.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+  @font-face{font-family:'Comfortaa';font-style:normal;font-weight:600 700;font-display:swap;src:url(/fonts/comfortaa.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+  @font-face{font-family:'Nunito';font-style:normal;font-weight:400 700;font-display:swap;src:url(/fonts/nunito.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+  @font-face{font-family:'Nunito';font-style:italic;font-weight:500;font-display:swap;src:url(/fonts/nunito-italic.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+  </style>
 
   <!-- PWA & Mobile -->
   <meta name="mobile-web-app-capable" content="yes" />
