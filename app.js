@@ -18231,11 +18231,11 @@ function renderSettings() {
     <section class="st-sec st-danger" id="st-danger" aria-labelledby="st-danger-h">
       <div class="st-head"><h2 class="st-title" id="st-danger-h">Danger zone</h2><span class="st-head-note">asks before it clears anything</span></div>
       <div class="st-row">
-        <div><div class="st-row-title">Clear timetable</div><div class="st-row-sub">Start clean, then add or scan your classes</div></div>
+        <div><div class="st-row-title">Clear timetable</div><div class="st-row-sub">Empties your weekly schedule, then add or scan your classes. Attendance marks and tasks stay.</div></div>
         <button type="button" class="st-link is-danger" onclick="resetTimetableToDefault()">Clear…</button>
       </div>
       <div class="st-row">
-        <div><div class="st-row-title">Clear my tasks</div><div class="st-row-sub">Removes the tasks you added</div></div>
+        <div><div class="st-row-title">Clear my tasks</div><div class="st-row-sub">Deletes every task you added. This can’t be undone.</div></div>
         <button type="button" class="st-link is-danger" onclick="confirmClearTasks()">Clear…</button>
       </div>
     </section>
