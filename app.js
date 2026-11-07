@@ -17977,6 +17977,8 @@ function renderSettings() {
         </button>
       </div>
 
+      ${!isGranted && !isDenied ? `<div id="st-notif-hint" style="margin:-4px 0 16px;font-size:var(--text-sm);color:var(--text-muted)">Choose when you want reminders below. They start arriving once notifications are on.</div>` : ''}
+
       ${isDenied ? `
       <div style="margin-bottom:16px;font-size:var(--text-sm);color:var(--status-error);background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid color-mix(in srgb, var(--status-error) 25%, transparent);line-height:1.5;display:flex;align-items:flex-start;gap:8px">
         <span style="font-size:var(--text-md)">🔒</span>
