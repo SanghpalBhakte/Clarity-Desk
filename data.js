@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u226",
+    date: "2026-11-07",
+    title: "Fonts now load from Clarity Desk itself, so text looks right on slow campus Wi-Fi and offline",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Fonts now load from Clarity Desk itself, so text looks right on slow campus Wi-Fi and offline",
+    points: [
+
+    ]
+  },
+  {
     id: "u225",
     date: "2026-11-05",
     title: "Holiday mode now follows the newest change across your phones: an older copy from the cloud no longer undoes a break you just started or ended",
