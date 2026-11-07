@@ -38,12 +38,14 @@ class FieldPath { constructor(...segs) { this.segs = segs; } }
 globalThis.firebase = { firestore: { FieldValue: { delete: () => DELETE, serverTimestamp: () => 'ts' }, FieldPath } };
 let cloud = {};
 let updateCalls = [];
+let failUpdates = false;   // makes update() reject, like a failed delete write
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 function deepMerge(t, s) { for (const k of Object.keys(s)) { if (isObj(s[k]) && isObj(t[k])) deepMerge(t[k], s[k]); else t[k] = JSON.parse(JSON.stringify(s[k] ?? null)); } return t; }
 const fakeDb = { collection: () => ({ doc: () => ({
   set: (payload, opts) => { if (opts && opts.merge) deepMerge(cloud, payload); else cloud = JSON.parse(JSON.stringify(payload)); return Promise.resolve(); },
   update: (...args) => {
     updateCalls.push(args);
+    if (failUpdates) return Promise.reject({ code: 'unavailable' });
     for (let i = 0; i < args.length; i += 2) {
       if (!(args[i] instanceof FieldPath) || args[i + 1] !== DELETE) throw new Error('unexpected update arg');
       const segs = args[i].segs; let o = cloud;
@@ -165,6 +167,25 @@ check('Nothing changed: no delete call at all', () => {
   app.pushLocalDataToCloud('u1');
   return updateCalls.length === 0 ? true : `${updateCalls.length} calls`;
 });
+
+// A delete write that fails must not be forgotten: the next push sends it again.
+{
+  total++;
+  const name = 'A failed delete write is retried on the next push';
+  try {
+    reset(START);
+    editLocal(a => { delete a['2026-10-12'].DS_1000; });
+    failUpdates = true;
+    app.pushLocalDataToCloud('u1');
+    await new Promise(r => setTimeout(r, 10));
+    failUpdates = false;
+    const stillThere = cloud.attendance['2026-10-12'].DS_1000 === 'attended';
+    app.pushLocalDataToCloud('u1');
+    const gone = !('DS_1000' in cloud.attendance['2026-10-12']);
+    if (stillThere && gone) { passed++; console.log(`✓ [PASS] ${name}`); }
+    else { errors.push({ name, error: 'x' }); console.error(`✗ [FAIL] ${name}: ${JSON.stringify({ stillThere, gone })}`); }
+  } catch (err) { errors.push({ name, error: err.message }); console.error(`✗ [ERROR] ${name}: ${err.stack}`); }
+}
 
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);

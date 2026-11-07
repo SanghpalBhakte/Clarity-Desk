@@ -99,6 +99,7 @@ function makeDevice(name, dayOffsetMs = 0) {
       dismissSyncUndo: typeof dismissSyncUndo === 'function' ? dismissSyncUndo : undefined,
       vaultReferencedIds: typeof vaultReferencedIds === 'function' ? vaultReferencedIds : undefined,
       pushGuard: typeof pushGuard === 'function' ? pushGuard : undefined,
+      syncSizeNote: typeof syncSizeNote === 'function' ? syncSizeNote : undefined,
       nextPushDelay: typeof nextPushDelay === 'function' ? nextPushDelay : undefined,
       get pushFailed() { return cloudPushFailed; } };`)(db, ls, st, ct, DevDate);
   dev.app.state.currentPage = 'none';
@@ -263,6 +264,17 @@ await check('A ~950 KB payload skips set() and reports a full cloud copy; data s
   const msg = toasts.join(' | ');
   return D.sets.length === 0 && D.app.pushFailed === 'cloud-full' && /full/i.test(msg) && /safe on this device/i.test(msg) && linksOf(D)[0].resources.length === 1
     ? true : JSON.stringify({ sets: D.sets.length, failed: D.app.pushFailed, msg });
+});
+
+await check('Settings shows the cloud copy size after a push (and nothing before one)', async () => {
+  cloud = {};
+  const D = makeDevice('S');
+  if (!D.app.syncSizeNote) return 'syncSizeNote missing';
+  const before = D.app.syncSizeNote();
+  D.app.pushLocalDataToCloud('u1');
+  await tick();
+  const after = D.app.syncSizeNote();
+  return before === '' && /^ · Cloud copy \d+ KB of about 900 KB$/.test(after) ? true : JSON.stringify({ before, after });
 });
 
 await check('nextPushDelay: 5 s, 30 s, 2 min, then stop', async () => {
