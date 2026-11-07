@@ -500,6 +500,13 @@ function markSynced() {
   if (!hasPendingSync()) updateSyncUI();
 }
 
+// Size of the last desk copy measured for the cloud (bytes); null until a push ran.
+let lastCloudBytes = null;
+function syncSizeNote() {
+  return currentUser && lastCloudBytes ? ` · Cloud copy ${Math.max(1, Math.round(lastCloudBytes / 1024))} KB of about 900 KB` : '';
+}
+let syncPushSeq = 0;   // counts pushes so a late delete failure only rolls back its own push
+
 function onCloudPushOk() {
   localPushPendingAt = 0;
   resetPushBackoff();
@@ -592,7 +599,9 @@ function updateSyncUI(status = null) {
   }
   // The save status shows in Settings (the topbar badge is hidden).
   const settingsText = document.getElementById('settings-sync-text');
-  if (settingsText && text) settingsText.textContent = text.textContent;
+  if (settingsText && text) {
+    settingsText.textContent = text.textContent + syncSizeNote();
+  }
 }
 
 // ── Vision AI Service (Groq primary → Gemini fallback) ────────
@@ -4891,6 +4900,7 @@ function pushLocalDataToCloud(uid) {
     tombstones:         pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
   };
   const guard = pushGuard(payload);
+  lastCloudBytes = guard.bytes;
   if (!guard.ok) { onCloudPushError({ code: 'cloud-full' }); return; }
   if (guard.level === 'warn' && !cloudFullWarned) {
     cloudFullWarned = true;
@@ -4906,7 +4916,9 @@ function pushLocalDataToCloud(uid) {
   // full re-render of whatever page is currently open.
   lastCloudPayloadHash = hash;
   const ref = db.collection('users').doc(uid);
-  const deletes = computeSyncDeletePaths(safeGetStorage(KEY_SYNC_LAST_PUSHED, null), payload, attendanceEmptiedByUndo);
+  const prevPushed = safeGetStorage(KEY_SYNC_LAST_PUSHED, null);
+  const deletes = computeSyncDeletePaths(prevPushed, payload, attendanceEmptiedByUndo);
+  const pushSeq = ++syncPushSeq;
   attendanceEmptiedByUndo = false;
   ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);
   // set(merge:true) never removes a map key, so a cleared mark used to come
@@ -4917,7 +4929,12 @@ function pushLocalDataToCloud(uid) {
     for (let i = 0; i < deletes.length; i += 400) {
       const args = [];
       deletes.slice(i, i + 400).forEach(p => args.push(new FP(...p), FV.delete()));
-      ref.update(...args).catch(err => console.warn('Cloud delete error:', err));
+      ref.update(...args).catch(err => {
+        // Put the old "last synced" copy back so the next push works out the
+        // same deletes again, then report it like any other failed push.
+        if (pushSeq === syncPushSeq && prevPushed) safeSetStorage(KEY_SYNC_LAST_PUSHED, prevPushed);
+        onCloudPushError(err);
+      });
     }
   }
   rememberSyncedAttendance(payload);
@@ -18143,7 +18160,7 @@ function renderSettings() {
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
           </div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd((document.getElementById('sync-text')?.textContent || 'Saved locally') + syncSizeNote())}</span></div>
           ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
         </div>
         <div>
