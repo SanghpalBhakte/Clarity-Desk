@@ -17835,7 +17835,7 @@ function renderSettings() {
           <label class="form-label">Counting down to</label>
           <input type="text" class="form-input" id="s-exam-label" maxlength="30" value="${(p.examLabel || '').replace(/"/g, '&quot;')}" placeholder="End-Sem exams, GATE, Boards, Syllabus done" style="max-width:280px;margin-bottom:8px">
           <label class="form-label">Date</label>
-          <input type="date" class="form-input" id="s-exam-date" value="${p.examDate || ''}" style="max-width:240px">
+          <input type="date" class="form-input" id="s-exam-date" aria-label="Exam date" value="${p.examDate || ''}" style="max-width:240px">
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:6px">
             Shows a daily countdown with a short cheer on Today once set. Leave the first box empty for End-Sem exams.
           </div>
@@ -18012,7 +18012,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Upcoming Tasks</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Remind about pending assignments</div>
           </div>
-          <select class="form-select" id="np-task-upcoming" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
+          <select class="form-select" id="np-task-upcoming" aria-label="Upcoming tasks reminder" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="day_before" ${nPrefs.taskUpcoming === 'day_before' ? 'selected' : ''}>Day Before (Morning)</option>
             <option value="same_day" ${nPrefs.taskUpcoming === 'same_day' ? 'selected' : ''}>Same Day (Morning)</option>
             <option value="off" ${nPrefs.taskUpcoming === 'off' ? 'selected' : ''}>Off</option>
@@ -18024,7 +18024,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Overdue Tasks</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Alert when tasks pass due date</div>
           </div>
-          <select class="form-select" id="np-task-overdue" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
+          <select class="form-select" id="np-task-overdue" aria-label="Overdue tasks reminder" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="same_day" ${nPrefs.taskOverdue === 'same_day' ? 'selected' : ''}>Daily Reminder</option>
             <option value="instant" ${nPrefs.taskOverdue === 'instant' ? 'selected' : ''}>Instant Alert</option>
             <option value="off" ${nPrefs.taskOverdue === 'off' ? 'selected' : ''}>Off</option>
@@ -18038,7 +18038,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Class Reminders</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Notify before upcoming classes</div>
           </div>
-          <select class="form-select" id="np-class-reminders" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
+          <select class="form-select" id="np-class-reminders" aria-label="Class reminders" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="15_min" ${nPrefs.classReminders === '15_min' ? 'selected' : ''}>15 Minutes Before</option>
             <option value="30_min" ${nPrefs.classReminders === '30_min' ? 'selected' : ''}>30 Minutes Before</option>
             <option value="1_hour" ${nPrefs.classReminders === '1_hour' ? 'selected' : ''}>1 Hour Before</option>
@@ -18051,7 +18051,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Low-Attendance Alerts</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Alert if attendance drops below target (${getAttendanceTarget()}%)</div>
           </div>
-          <select class="form-select" id="np-attendance-alerts" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
+          <select class="form-select" id="np-attendance-alerts" aria-label="Low-attendance alerts" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
             <option value="instant" ${nPrefs.attendanceAlerts === 'instant' ? 'selected' : ''}>Instant Alert (&lt; ${getAttendanceTarget()}%)</option>
             <option value="weekly" ${nPrefs.attendanceAlerts === 'weekly' ? 'selected' : ''}>Weekly Summary Only</option>
             <option value="off" ${nPrefs.attendanceAlerts === 'off' ? 'selected' : ''}>Off</option>
@@ -18065,7 +18065,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Daily Briefing Time</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Preferred morning notification time</div>
           </div>
-          <input type="time" class="form-input" id="np-summary-time" value="${nPrefs.dailySummaryTime || '08:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
+          <input type="time" class="form-input" id="np-summary-time" aria-label="Daily briefing time" value="${nPrefs.dailySummaryTime || '08:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
         </div>
 
         <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-top:6px">Motivation</div>
@@ -18075,7 +18075,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Gentle Nudges</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">A friendly nudge for tasks with no deadline. One task at a time, never more than once a day.</div>
           </div>
-          <select class="form-select" id="np-ongoing-nudges" style="width:170px;padding:5px 8px;font-size:var(--text-base)" onchange="document.getElementById('np-nudge-time-row').style.display = this.value === 'off' ? 'none' : 'flex'">
+          <select class="form-select" id="np-ongoing-nudges" aria-label="Gentle nudges" style="width:170px;padding:5px 8px;font-size:var(--text-base)" onchange="document.getElementById('np-nudge-time-row').style.display = this.value === 'off' ? 'none' : 'flex'">
             <option value="off" ${nPrefs.ongoingNudges === 'off' ? 'selected' : ''}>Off</option>
             <option value="daily" ${nPrefs.ongoingNudges === 'daily' ? 'selected' : ''}>Every Day</option>
             <option value="every_2_days" ${nPrefs.ongoingNudges === 'every_2_days' ? 'selected' : ''}>Every 2 Days</option>
@@ -18088,7 +18088,7 @@ function renderSettings() {
             <span style="font-weight:500;color:var(--text-primary)">Nudge Time</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Sent around this time, only while it is still a good moment</div>
           </div>
-          <input type="time" class="form-input" id="np-nudge-time" value="${nPrefs.ongoingNudgeTime || '18:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
+          <input type="time" class="form-input" id="np-nudge-time" aria-label="Nudge time" value="${nPrefs.ongoingNudgeTime || '18:00'}" style="width:130px;padding:4px 8px;font-size:var(--text-base)">
         </div>
       </div>
     </div>
