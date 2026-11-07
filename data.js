@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u231",
+    date: "2026-11-07",
+    title: "Settings: the Danger zone now says what each Clear removes and what stays",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings: the Danger zone now says what each Clear removes and what stays",
+    points: [
+
+    ]
+  },
+  {
     id: "u230",
     date: "2026-11-07",
     title: "Settings: Reminders now say the timing choices start once notifications are on",
