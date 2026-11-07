@@ -170,6 +170,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u228",
+    date: "2026-11-07",
+    title: "Settings: the cloud copy size now sits on its own line so it doesn't wrap on small phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings: the cloud copy size now sits on its own line so it doesn't wrap on small phones",
+    points: [
+
+    ]
+  },
+  {
+    id: "u227",
+    date: "2026-11-07",
+    title: "Settings now shows how full your cloud copy is, and a failed attendance delete is retried instead of lost",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings now shows how full your cloud copy is, and a failed attendance delete is retried instead of lost",
+    points: [
+
+    ]
+  },
+  {
     id: "u226",
     date: "2026-11-07",
     title: "Fonts now load from Clarity Desk itself, so text looks right on slow campus Wi-Fi and offline",
