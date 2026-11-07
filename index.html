@@ -93,13 +93,13 @@
        pinned to the exact git commit that was deployed: some Indian networks
        reach Firebase Hosting's CDN very slowly. If jsDelivr fails, the same
        file loads from this site instead. scripts/ship.mjs sets the commit. -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e7ee2b4edf9f9bf2350bc49fc5d6d644e159e82a/style.css" onerror="this.onerror=null;this.href='style.css?v=283'" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@a71582165745d486d04dd3adf32abb9fc0e510f3/style.css" onerror="this.onerror=null;this.href='style.css?v=283'" />
 
   <!-- Start downloading the app and its data now, in parallel, instead of
        after the scripts at the end of <body> (data.js is only found once
        app.js has arrived). Same URLs as the module script below. -->
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e7ee2b4edf9f9bf2350bc49fc5d6d644e159e82a/app.js" />
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e7ee2b4edf9f9bf2350bc49fc5d6d644e159e82a/data.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@a71582165745d486d04dd3adf32abb9fc0e510f3/app.js" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@a71582165745d486d04dd3adf32abb9fc0e510f3/data.js" />
 </head>
 <body>
 
@@ -480,7 +480,7 @@
   }
 </script>
 <script src="firebase-config.js?v=283"></script>
-<script type="module" src="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@e7ee2b4edf9f9bf2350bc49fc5d6d644e159e82a/app.js" onerror="var s=document.createElement('script');s.type='module';s.src='app.js?v=283';document.body.appendChild(s)"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@a71582165745d486d04dd3adf32abb9fc0e510f3/app.js" onerror="var s=document.createElement('script');s.type='module';s.src='app.js?v=283';document.body.appendChild(s)"></script>
 
 <!-- Cloudflare Web Analytics. Only loads on the live site, and not in automated browsers (the post-ship
      smoke test, Playwright), so local runs and tests aren't counted. -->
