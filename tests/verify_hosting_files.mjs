@@ -20,7 +20,8 @@ const RUNTIME_FILES = [
   'firebase-config.js', 'desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
-  'og-image.png', 'robots.txt'
+  'og-image.png', 'robots.txt',
+  'fonts/quicksand.woff2', 'fonts/nunito.woff2', 'fonts/nunito-italic.woff2', 'fonts/comfortaa.woff2'
 ];
 // Runtime files a fresh clone may legitimately lack (none at the moment).
 const OPTIONAL = new Set();
@@ -176,16 +177,19 @@ scenario('App files load from one jsDelivr commit, with this site as the fallbac
   return bad.length === 0 ? true : bad.join('; ');
 });
 
-scenario('Fonts load from the page <head>, not an @import in style.css (one less wait before first paint)', () => {
+scenario('Fonts are self-hosted: @font-face in the page <head>, files published, precached, no Google Fonts request', () => {
   const css = fs.readFileSync(path.join(ROOT, 'style.css'), 'utf8');
   if (/@import\s/.test(css)) return 'style.css has an @import: the browser must download style.css before it can even ask for it';
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const bad = [];
   for (const f of ['index.html', '404.html']) {
     const head = fs.readFileSync(path.join(ROOT, f), 'utf8').split('</head>')[0];
-    const link = (head.match(/<link href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)" rel="stylesheet"/) || [])[1] || '';
-    for (const fam of ['Quicksand', 'Comfortaa', 'Nunito', 'Spline+Sans+Mono']) if (!link.includes(`family=${fam}:`)) bad.push(`${f}: ${fam}`);
+    if (/fonts\.(googleapis|gstatic)\.com/.test(head)) bad.push(`${f}: still calls Google Fonts`);
+    for (const fam of ['Quicksand', 'Comfortaa', 'Nunito']) if (!head.includes(`font-family:'${fam}'`)) bad.push(`${f}: no @font-face for ${fam}`);
+    for (const file of head.match(/fonts\/[\w-]+\.woff2/g) || []) if (!fs.existsSync(path.join(ROOT, file))) bad.push(`${f}: ${file} missing`);
   }
-  return bad.length === 0 ? true : `font missing from the <head> link: ${bad.join(', ')}`;
+  for (const file of ['quicksand', 'nunito', 'nunito-italic', 'comfortaa']) if (!sw.includes(`'fonts/${file}.woff2'`)) bad.push(`sw.js does not precache ${file}`);
+  return bad.length === 0 ? true : bad.join('; ');
 });
 
 scenario('Analytics beacon loads for real visitors on the live site only, never for automated browsers', () => {
