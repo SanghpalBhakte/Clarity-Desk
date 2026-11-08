@@ -7117,6 +7117,17 @@ body.holiday-mode .holiday-banner {
   content: ''; position: absolute; left: 0; right: 0; top: 50%;
   height: 44px; transform: translateY(-50%);
 }
+/* Timetable "Edit class" icon and Today's "Weekly Review →": same look, a 44px tap area. */
+#page-timetable .tt-entry .tt-actions .icon-btn-sm { position: relative; }
+#page-timetable .tt-entry .tt-actions .icon-btn-sm::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 44px; height: 44px; transform: translate(-50%, -50%);
+}
+.weekly-review-link { position: relative; overflow: visible; }
+.weekly-review-link::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%;
+  height: 44px; transform: translateY(-50%);
+}
 /* Present / Absent: a thumb-sized target. */
 .btn.slot-att { min-height: 40px; min-width: 44px; }
 

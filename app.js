@@ -10575,7 +10575,7 @@ function renderDashboard() {
         </div>
         ${(dayIdx === 0 || dayIdx === 6) && !onHoliday ? `
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
-          <button class="btn btn-sm btn-secondary" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
+          <button class="btn btn-sm btn-secondary weekly-review-link" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
           </button>
         </div>` : ''}
