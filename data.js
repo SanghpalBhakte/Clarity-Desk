@@ -170,6 +170,42 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u234",
+    date: "2026-11-08",
+    title: "Press N on a laptop to add a task, and calendar arrows plus Present/Absent are easier to tap",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Press N on a laptop to add a task, and calendar arrows plus Present/Absent are easier to tap",
+    points: [
+
+    ]
+  },
+  {
+    id: "u233",
+    date: "2026-11-08",
+    title: "Easier taps: the Edit class pencil and Weekly Review button are now easier to hit on a phone",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Easier taps: the Edit class pencil and Weekly Review button are now easier to hit on a phone",
+    points: [
+
+    ]
+  },
+  {
+    id: "u232",
+    date: "2026-11-08",
+    title: "Security: other sites can no longer embed Clarity Desk, and the app shares less info when you open links",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Security: other sites can no longer embed Clarity Desk, and the app shares less info when you open links",
+    points: [
+
+    ]
+  },
+  {
     id: "u231",
     date: "2026-11-07",
     title: "Settings: the Danger zone now says what each Clear removes and what stays",
