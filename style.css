@@ -7123,6 +7123,16 @@ body.holiday-mode .holiday-banner {
   content: ''; position: absolute; top: 50%; left: 50%;
   width: 44px; height: 44px; transform: translate(-50%, -50%);
 }
+/* Timetable Present / Absent and the calendar arrows + "Today": 40px look, 44px tap area. */
+#page-timetable .tt-entry .tt-att .btn { position: relative; overflow: visible; }
+#page-timetable .tt-entry .tt-att .btn::after {
+  content: ''; position: absolute; left: 0; right: 0; top: -3px; bottom: -3px; /* -3: the 1px border sits outside the padding box */
+}
+.cal-nav-btn::after, #page-calendar .cal-today-btn::after {
+  content: ''; position: absolute; left: 0; right: 0; top: -2px; bottom: -2px;
+}
+.cal-nav-btn, #page-calendar .cal-today-btn { position: relative; }
+.cal-nav-btn::after { left: -2px; right: -2px; }
 .weekly-review-link { position: relative; overflow: visible; }
 .weekly-review-link::after {
   content: ''; position: absolute; left: 0; right: 0; top: 50%;

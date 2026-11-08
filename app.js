@@ -19841,6 +19841,13 @@ function setupFABDrag() {
       e.preventDefault();
       window.toggleSidebar();
     }
+    // N: new task (laptop shortcut; same entry as the Add Task buttons).
+    if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat
+        && !isTyping(e.target) && !document.querySelector('.modal-backdrop, #onboarding-backdrop')
+        && !root.classList.contains('more-sheet-open') && typeof window.showAddTaskModal === 'function') {
+      e.preventDefault();
+      window.showAddTaskModal();
+    }
     if (e.key === 'Escape' && root.classList.contains('more-sheet-open')) window.closeMoreSheet();
   });
 
