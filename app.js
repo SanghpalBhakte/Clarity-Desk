@@ -8329,6 +8329,11 @@ function buildDashboardContextLine(opts = {}) {
     return '';
   }
 
+  // No timetable: never talk about classes the student never added.
+  if (opts.hasTimetable === false) {
+    return `${pending} task${pending !== 1 ? 's' : ''} on your desk.`;
+  }
+
   // Weekend or free day with no tasks
   if (isWeekend && pending === 0) {
     return 'No classes today and no tasks pending.';
@@ -10160,7 +10165,7 @@ window.showOnboardingModal = function() {
       <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
       <div id="onboarding-step-1" class="ob-step ob-value">
         <h1 class="ob-hero">Make the next thing clear.</h1>
-        <p class="ob-lede">Add one deadline, message, or photo. Clarity Desk turns it into a next step you can start today.</p>
+        <p class="ob-lede">Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.</p>
         <form class="ob-add" onsubmit="event.preventDefault(); onboardingAddDue()">
           <label class="ob-sr" for="ob-due">What is due?</label>
           <input type="text" id="ob-due" class="ob-add-input" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="e.g. Lab report due Friday">
@@ -15767,8 +15772,15 @@ async function tkQuickAdd(input) {
   const subj = getSubjectList().find(sj => (sj.code && words.includes(String(sj.code).toLowerCase()))
     || (sj.name && text.toLowerCase().includes(String(sj.name).toLowerCase())));
   showAddTaskModal(null, subj ? subj.name : null, null, dateKey);
+  // A new student has no subjects yet, so the required Subject would block
+  // their very first add: General is picked for them (still changeable).
+  const sel = document.getElementById('task-subject');
+  if (sel && !subj && !sel.value && !getSubjectList().length) sel.value = 'General|||GEN';
+  // The date was read into Due Date, so "Lab report due Friday" keeps only
+  // "Lab report" as the title. The form still shows it before saving.
   const t = document.getElementById('task-title');
-  if (t) t.value = text;
+  const title = dateKey ? text.replace(/\s+(?:is\s+)?due\b.*$/i, '').trim() : '';
+  if (t) t.value = title || text;
 }
 window.tkQuickAdd = tkQuickAdd;
 

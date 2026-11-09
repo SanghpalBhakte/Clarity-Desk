@@ -141,7 +141,7 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 // ── Task 2: welcome and name screen ──
 check('Welcome is value first: headline, add field, paste, optional setup', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const want = ['Make the next thing clear.', 'Add one deadline, message, or photo. Clarity Desk turns it into a next step you can start today.', 'Add deadline', 'Paste a class-group message', 'Use a photo',
+  const want = ['Make the next thing clear.', 'Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.', 'Add deadline', 'Paste a class-group message', 'Use a photo',
     'Coming up', 'Example', 'Tomorrow', 'Physics assignment', 'Have a timetable?', 'study without one',
     'Made by a student, for students. Works offline.', 'Show me around', 'Log in'];
   const t = visibleText(html).replace(/\s+/g, ' ');
