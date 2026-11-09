@@ -17279,7 +17279,7 @@ window.vbToggle = function(id, on) {
 };
 window.vbTitle = function(id, value) {
   const row = _vb && _vb.rows.find(r => r.id === id);
-  if (row) row.label = String(value || '').slice(0, 150);
+  if (row) row.label = String(value || '').slice(0, VAULT_IMPORT_LABEL_MAX);
 };
 window.vbSubject = function(id, value) {
   const row = _vb && _vb.rows.find(r => r.id === id);
