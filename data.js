@@ -170,6 +170,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u246",
+    date: "2026-11-09",
+    title: "In Safari, closing the example day puts you back on the link you tapped",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "In Safari, closing the example day puts you back on the link you tapped",
+    points: [
+
+    ]
+  },
+  {
+    id: "u245",
+    date: "2026-11-09",
+    title: "Tasks: long subject names no longer overlap, every subject shows under By subject, and the add bar has one clean edge while you type",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks: long subject names no longer overlap, every subject shows under By subject, and the add bar has one clean edge while you type",
+    points: [
+
+    ]
+  },
+  {
+    id: "u244",
+    date: "2026-11-09",
+    title: "Google sign-in on claritydesk.web.app keeps working on slow connections",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Google sign-in on claritydesk.web.app keeps working on slow connections",
+    points: [
+
+    ]
+  },
+  {
+    id: "u243",
+    date: "2026-11-09",
+    title: "No timetable yet? Today now has a See an example day link that shows a sample day without saving anything",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "No timetable yet? Today now has a See an example day link that shows a sample day without saving anything",
+    points: [
+
+    ]
+  },
+  {
+    id: "u242",
+    date: "2026-11-09",
+    title: "Long task notes no longer get cut off silently: the notes box now stops at its limit",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Long task notes no longer get cut off silently: the notes box now stops at its limit",
+    points: [
+
+    ]
+  },
+  {
+    id: "u241",
+    date: "2026-11-09",
+    title: "Google sign-in on claritydesk.web.app now stays on the same address, so it works in Safari",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Google sign-in on claritydesk.web.app now stays on the same address, so it works in Safari",
+    points: [
+
+    ]
+  },
+  {
     id: "u240",
     date: "2026-11-09",
     title: "Reminders now have Calm, Balanced and Off presets you can undo",
