@@ -16,6 +16,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 ## Working rules
 - Inspect first before editing.
 - Plan first for non-trivial or multi-file tasks; wait for explicit approval before implementing.
+- For look/feel or will-it-work questions, a quick browser check beats a long plan (it changes nothing).
 - Make the smallest safe change. No unrelated cleanup, refactors, or redesigns.
 - Don't invent new architecture unless clearly necessary.
 - Be concise. No explanations unless asked.
