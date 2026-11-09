@@ -10115,10 +10115,11 @@ function onboardingPinReference(url) {
 // Read-only preview opened from the welcome's example row or the empty Today
 // setup card. Nothing here is saved; the welcome (if open) stays underneath
 // (inert), and focus goes back to whatever opened the preview.
-window.onboardingSampleDay = function() {
+window.onboardingSampleDay = function(from) {
   if (document.getElementById('sample-day-backdrop')) return;
   const welcome = document.getElementById('onboarding-backdrop');
-  const opener = document.activeElement;
+  // Safari does not focus a clicked button, so the opener passes itself.
+  const opener = from || document.activeElement;
   if (welcome) trackUsage('welcome_choice', 'sample');
   const rows = [['9:00 AM', 'Data Structures lecture', 'Room 204'], ['11:00 AM', 'Maths tutorial', 'Room 110'], ['2:00 PM', 'DS lab', 'Lab 3']];
   const backdrop = document.createElement('div');
@@ -10715,7 +10716,7 @@ function renderDashboard() {
       <div class="setup-first-sub">${firstStep.desc}</div>
       <button class="btn-primary setup-first-btn" onclick="${firstStep.action}">Add your timetable</button>
       <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">No timetable? I study on my own</button>
-      <button type="button" class="setup-first-alt" onclick="onboardingSampleDay()">See an example day</button>
+      <button type="button" class="setup-first-alt" onclick="onboardingSampleDay(this)">See an example day</button>
     </div>` : `
     <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
