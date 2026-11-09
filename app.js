@@ -15471,8 +15471,11 @@ function renderAssignments() {
   // subjects is redundant, confusing clutter (this is what produced the
   // "General" and "Other" chips that look like duplicate categories).
   const NON_SUBJECT_FILTER_VALUES = ['general', 'gen', 'mission', 'mis', 'other', 'oth'];
+  // A task with a real subject but no code is stored with code OTH; list it
+  // under its subject name, as its row does, so it can still be picked.
   const subjects = ['all', ...new Set(
-    all.map(a => a.code || a.subject).filter(s => s && !NON_SUBJECT_FILTER_VALUES.includes(String(s).toLowerCase()))
+    all.map(a => (NON_SUBJECT_FILTER_VALUES.includes(String(a.code || '').toLowerCase()) ? a.subject : a.code) || a.subject)
+      .filter(s => s && !NON_SUBJECT_FILTER_VALUES.includes(String(s).toLowerCase()))
   )];
 
   let filtered = all;
@@ -15549,7 +15552,7 @@ function renderAssignments() {
   const subjIndex = subjects.length > 1 ? `
     <nav class="tk-subjects" aria-label="Show one subject">
       <h2 class="tk-side-head">By subject</h2>
-      ${subjects.map(s => `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name">${s === 'all' ? 'All' : escHtml_cd(s)}</span>${s === 'all' ? '' : `<span class="tk-subj-next">${escHtml_cd(nextDueFor(s))}</span>`}</button>`).join('')}
+      ${subjects.map(s => `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name"${s === 'all' ? '' : ` title="${escAttr_cd(s)}"`}>${s === 'all' ? 'All' : escHtml_cd(s)}</span>${s === 'all' ? '' : `<span class="tk-subj-next">${escHtml_cd(nextDueFor(s))}</span>`}</button>`).join('')}
     </nav>` : '';
 
   // Laptops: two weeks from this Monday as a strip, one tick per deadline
@@ -15620,7 +15623,7 @@ function renderAssignments() {
     // The old "Mission" category reads as General (missions are a Task Type now).
     const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
 
-    const bits = [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page">${escHtml_cd(subjectText)}</span>`];
+    const bits = [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page"><span class="tk-subj-text">${escHtml_cd(subjectText)}</span></span>`];
     if (taskType !== 'assignment' && typeLabel(taskType).toLowerCase() !== String(subjectText).toLowerCase()) bits.push(`<span class="tk-type">${typeLabel(taskType)}</span>`);
     if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
     if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">high priority</span>`);
