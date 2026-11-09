@@ -170,6 +170,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u254",
+    date: "2026-11-09",
+    title: "An attendance warning on Today now comes before a task that is not due yet, even when the task has a first step",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "An attendance warning on Today now comes before a task that is not due yet, even when the task has a first step",
+    points: [
+
+    ]
+  },
+  {
+    id: "u253",
+    date: "2026-11-09",
+    title: "When a task slips past its date, Today lets you mark it done, move it to tomorrow or pick a new day, each with Undo, and the wording is kinder",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When a task slips past its date, Today lets you mark it done, move it to tomorrow or pick a new day, each with Undo, and the wording is kinder",
+    points: [
+
+    ]
+  },
+  {
+    id: "u252",
+    date: "2026-11-09",
+    title: "Tasks can have a first step (like \"Read the aim, 15 min\"), and Today shows it with a Start button up to 2 days before the deadline",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks can have a first step (like \"Read the aim, 15 min\"), and Today shows it with a Start button up to 2 days before the deadline",
+    points: [
+
+    ]
+  },
+  {
+    id: "u251",
+    date: "2026-11-09",
+    title: "Welcome screen shows today's date, a plain Example label and quieter Show me around / Log in links; the update notice's Refresh button is no longer a second filled button",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Welcome screen shows today's date, a plain Example label and quieter Show me around / Log in links; the update notice's Refresh button is no longer a second filled button",
+    points: [
+
+    ]
+  },
+  {
     id: "u250",
     date: "2026-11-09",
     title: "Your first deadline now saves in one tap",
