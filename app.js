@@ -81,7 +81,7 @@ const KEY_USAGE               = 'cos_usage';
 // safe but lowering one would cut text students already saved: don't.
 const TASK_TITLE_MAX         = 150;               // characters, sanitizeTask and WhatsApp import
 const TASK_DESC_MAX          = 500;               // characters, sanitizeTask
-const VAULT_IMPORT_LABEL_MAX = 150;               // characters, vault links saved from a WhatsApp export
+const VAULT_IMPORT_LABEL_MAX = 150;               // characters, vault labels from a WhatsApp export or "add several"
 const VAULT_FILE_MAX_BYTES   = 1024 * 1024;       // one file kept as a data URL (no IndexedDB)
 const VAULT_IDB_MAX_BYTES    = 10 * 1024 * 1024;  // one file kept in IndexedDB on this device
 const VAULT_CLOUD_MAX_BYTES  = 50 * 1024 * 1024;  // all vault files in one account
@@ -17272,7 +17272,7 @@ function vbAddRow(spec) {
   const dup = isFile ? vb.knownFiles.has(key) : vb.knownUrls.has(key);
   vb.rows.push({
     id: vb.nextId++, kind: spec.kind, key, dup, sel: !dup,
-    label: String(spec.label || '').slice(0, 150), url: spec.url, file: spec.file || null, icon: spec.icon || 'link', size: spec.size || 0,
+    label: String(spec.label || '').slice(0, VAULT_IMPORT_LABEL_MAX), url: spec.url, file: spec.file || null, icon: spec.icon || 'link', size: spec.size || 0,
     subject: vb.fixed || waGuessLinkSubject(spec.context, vb.subjects)
   });
 }
@@ -17283,7 +17283,7 @@ window.vbToggle = function(id, on) {
 };
 window.vbTitle = function(id, value) {
   const row = _vb && _vb.rows.find(r => r.id === id);
-  if (row) row.label = String(value || '').slice(0, 150);
+  if (row) row.label = String(value || '').slice(0, VAULT_IMPORT_LABEL_MAX);
 };
 window.vbSubject = function(id, value) {
   const row = _vb && _vb.rows.find(r => r.id === id);
