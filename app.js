@@ -471,7 +471,7 @@ function showUpdateAvailableBanner() {
     <span>New version ready</span>
     <div style="display:flex;gap:6px;flex-shrink:0">
       <button type="button" onclick="document.getElementById('update-available-banner')?.remove()" style="background:none;border:none;color:var(--text-muted);font-size:0.875rem;padding:4px 8px;cursor:pointer">Later</button>
-      <button type="button" onclick="window.location.reload()" style="background:var(--accent);color:var(--text-on-fill);border:none;border-radius:6px;font-weight:600;padding:6px 14px;font-size:0.875rem;cursor:pointer">Refresh</button>
+      <button type="button" onclick="window.location.reload()" style="background:none;color:var(--text-primary);border:1px solid var(--border);border-radius:6px;font-weight:600;padding:6px 14px;font-size:0.875rem;cursor:pointer">Refresh</button>
     </div>
   `;
   document.body.appendChild(banner);
@@ -9994,12 +9994,19 @@ function onboardingComingUpHtml() {
     const diff = Math.round((d - t0) / 86400000);
     when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   }
-  return `<section class="ob-soon${example ? ' is-example' : ''}" aria-label="Coming up">
-          <h2 class="ob-soon-h">Coming up${example ? '<span class="ob-soon-tag"><span aria-hidden="true"> \u00b7 </span>Example</span>' : ''}</h2>
+  return `<section class="ob-soon${example ? ' is-example' : ''}" aria-label="${example ? 'Example' : 'Coming up'}">
+          <h2 class="ob-soon-h${example ? ' is-tag' : ''}">${example ? 'Example' : 'Coming up'}</h2>
           ${example
             ? `<button type="button" class="ob-soon-row ob-soon-btn" aria-label="Example: ${escHtml_cd(title)}, due ${escHtml_cd(when.toLowerCase())}. See a sample day" onclick="onboardingSampleDay()"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></button>`
             : `<div class="ob-soon-row"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></div>`}
         </section>`;
+}
+
+// Quiet date line over the welcome headline: "Monday, 9 November · Today".
+function onboardingDateLine(d = new Date()) {
+  const wd = d.toLocaleDateString('en-GB', { weekday: 'long' });
+  const mo = d.toLocaleDateString('en-GB', { month: 'long' });
+  return `${wd}, ${d.getDate()} ${mo} \u00b7 Today`;
 }
 
 // Primary action: the typed text goes through the same Add Task review as the
@@ -10164,6 +10171,7 @@ window.showOnboardingModal = function() {
     <div class="ob-screen" id="onboarding-modal-box" role="dialog" aria-modal="true" aria-label="Welcome to Clarity Desk">
       <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
       <div id="onboarding-step-1" class="ob-step ob-value">
+        <p class="ob-date">${onboardingDateLine()}</p>
         <h1 class="ob-hero">Make the next thing clear.</h1>
         <p class="ob-lede">Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.</p>
         <form class="ob-add" onsubmit="event.preventDefault(); onboardingAddDue()">
