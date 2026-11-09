@@ -170,6 +170,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u258",
+    date: "2026-11-09",
+    title: "Today no longer says \"add a task\" twice on a quiet self-study day",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today no longer says \"add a task\" twice on a quiet self-study day",
+    points: [
+
+    ]
+  },
+  {
+    id: "u257",
+    date: "2026-11-09",
+    title: "Today on a quiet day now offers a next step, and the exam line links to Settings",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "With nothing pending, Today suggests adding the next thing that's due (or a syllabus topic).",
+    points: [
+      "The exam countdown line has \"Change\" and the syllabus line has \"Open\", so you can reach where each one is set."
+    ]
+  },
+  {
+    id: "u256",
+    date: "2026-11-09",
+    title: "Study Shortcuts on Today now show the subject you need first",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The subject of your current or next class comes first, then the subject of your top task.",
+    points: [
+      "Your Study Vault keeps its own order."
+    ]
+  },
+  {
+    id: "u255",
+    date: "2026-11-09",
+    title: "Tapping a task on Today now opens that task in Tasks & Deadlines",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The task opens with its row expanded and in view, even when a filter or a folded section would hide it.",
+    points: [
+      "\"Why this order?\" explains the Today list, and ongoing tasks no longer say \"Standing\"."
+    ]
+  },
+  {
     id: "u254",
     date: "2026-11-09",
     title: "An attendance warning on Today now comes before a task that is not due yet, even when the task has a first step",
