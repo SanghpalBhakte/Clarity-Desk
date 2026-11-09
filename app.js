@@ -8325,7 +8325,8 @@ function buildDashboardContextLine(opts = {}) {
   if (opts.selfStudy && opts.hasTimetable === false) {
     return pending > 0
       ? `${pending} task${pending !== 1 ? 's' : ''} on your plan.`
-      : 'Add a study task for today to plan your day.';
+      // The Tasks panel offers the next step, so this line only says where things stand.
+      : 'Nothing on your plan right now.';
   }
 
   // No timetable and no tasks: the Get started card below says it already.
