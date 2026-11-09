@@ -141,8 +141,8 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 // ── Task 2: welcome and name screen ──
 check('Welcome is value first: headline, add field, paste, optional setup', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const want = ['Make the next thing clear', 'Paste a task or class-group message, or keep a photo of a notice open while you add the details.', 'Get one clear next step now.', 'Add something due', 'Paste a message', 'Photo as reference',
-    'Coming up', 'Example', 'Tomorrow', 'Lab record due', 'Set up my timetable', 'Study without a timetable', 'Try a sample day',
+  const want = ['Make the next thing clear', 'Paste a task or class-group message, or keep a photo of a notice open while you add the details.', 'Get one clear next step now.', 'Add something due', 'Paste a message', 'Use a photo as reference',
+    'Coming up', 'Example', 'Tomorrow', 'Physics assignment', 'Set up my timetable', 'Study without a timetable', 'Try a sample day',
     'Made by a student, for students. Works offline.', 'Show me around', 'I already have an account'];
   const t = visibleText(html).replace(/\s+/g, ' ');
   const missing = want.filter(w => !t.includes(w));

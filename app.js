@@ -9908,15 +9908,15 @@ function onboardingComingUpHtml() {
     task = (state.customTasks || []).filter(t => t && t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= today)
       .sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0] || null;
   } catch (e) { task = null; }
-  let when = 'Tomorrow', title = 'Lab record due', example = true;
+  let when = 'Tomorrow', title = 'Physics assignment', example = true;
   if (task) {
     example = false; title = String(task.title || 'Task');
     const d = new Date(task.dueDate + 'T00:00:00'), t0 = new Date(); t0.setHours(0, 0, 0, 0);
     const diff = Math.round((d - t0) / 86400000);
     when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   }
-  return `<section class="ob-soon" aria-label="Coming up">
-          <h2 class="ob-soon-h">Coming up${example ? '<span class="ob-soon-tag">Example</span>' : ''}</h2>
+  return `<section class="ob-soon${example ? ' is-example' : ''}" aria-label="Coming up">
+          <h2 class="ob-soon-h">Coming up${example ? '<span class="ob-soon-tag"><span aria-hidden="true"> \u00b7 </span>Example</span>' : ''}</h2>
           <div class="ob-soon-row"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></div>
         </section>`;
 }
@@ -10079,7 +10079,7 @@ window.showOnboardingModal = function() {
         </form>
         <div class="ob-capture">
           <button type="button" class="ob-paste" onclick="onboardingPasteMessage()">Paste a message</button>
-          <button type="button" class="ob-paste" onclick="onboardingTakePhoto()">Photo as reference</button>
+          <button type="button" class="ob-paste" onclick="onboardingTakePhoto()">Use a photo as reference</button>
         </div>
         ${onboardingComingUpHtml()}
         <div class="ob-more">
