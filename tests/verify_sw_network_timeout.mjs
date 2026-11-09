@@ -178,5 +178,17 @@ await check('Install still succeeds when only an optional file (an icon, a lazy 
   return r === 'ok' ? true : r;
 });
 
+await check("Firebase's reserved /__/ pages are left to the network, even on a slow connection", async () => {
+  cacheStore.clear(); cacheStore.set('https://app.test/index.html', res('app shell'));
+  fetchImpl = () => new Promise(() => {});   // network never answers
+  const hits = [];
+  for (const u of ['https://app.test/__/auth/handler?apiKey=x', 'https://app.test/__/auth/iframe', 'https://app.test/__/firebase/init.json']) {
+    let responded = false;
+    listeners.fetch({ request: { url: u, method: 'GET', mode: 'navigate' }, respondWith: () => { responded = true; }, waitUntil() {} });
+    if (responded) hits.push(u);
+  }
+  return hits.length ? `service worker answered ${hits.join(', ')}` : true;
+});
+
 console.log(`\nSW NETWORK WAIT: ${passed}/${total} passed`);
 if (errors.length) process.exit(1);
