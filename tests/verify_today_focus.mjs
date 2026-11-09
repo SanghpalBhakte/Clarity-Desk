@@ -55,7 +55,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, buildTodayFocus, renderDashboard, attendanceKeyFor, todayStr };`)();
+const makeApp = () => new Function(`${code}\n return { state, buildTodayFocus, renderDashboard, attendanceKeyFor, todayStr, sanitizeTask };`)();
 
 const DSL = { subject: 'Data Structures Lab', code: 'DSL', time: '10:00', end: '12:00', room: 'FF-28', teacher: 'Prof. VJM', type: 'lab' };
 const OE2 = { subject: 'Open Elective 2', code: 'OE2', time: '12:45', end: '14:45', room: 'SF-31', teacher: 'Faculty', type: 'lecture' };
@@ -119,6 +119,39 @@ check('Task: due today and overdue are worded plainly; a future or undated task 
   const t = mk(DAY), o1 = mk('2026-09-28'), o3 = mk('2026-09-26');
   if (t.sub !== 'Due today' || o1.sub !== '1 day overdue' || o3.sub !== '3 days overdue') return [t.sub, o1.sub, o3.sub].join(' | ');
   return mk('2026-09-30') === null && f({ dayClasses: [], dateStr: DAY, task: { id: 'y', title: 'Mission' } }) === null ? true : 'future/undated task showed';
+});
+
+check('First step: a task with one comes up to 2 days early and says Start; without one it waits', () => {
+  seed(); at(DAY + 'T09:00:00'); const { buildTodayFocus: f } = makeApp();
+  const mk = (dueDate, firstStep) => f({ dayClasses: [], dateStr: DAY, currentMin: 540, task: { id: 'x', title: 'Lab report', dueDate, firstStep } });
+  const in2 = mk('2026-10-01', 'Read the aim, 15 min'), in1 = mk('2026-09-30', 'Read the aim'), in3 = mk('2026-10-02', 'Read the aim');
+  const late = mk('2026-09-28', 'Read the aim');
+  if (!in2 || in2.go !== 'Start' || in2.sub !== 'Start: Read the aim, 15 min · due in 2 days') return in2 ? in2.go + ' | ' + in2.sub : 'no row in 2 days';
+  if (!in1 || in1.sub !== 'Start: Read the aim · due tomorrow') return in1 ? in1.sub : 'no row tomorrow';
+  if (in3 !== null) return 'showed 3 days early';
+  if (!late || !/overdue/.test(late.sub)) return late ? late.sub : 'no overdue row';
+  return mk('2026-09-30', '   ') === null && mk('2026-09-30') === null ? true : 'blank step still came early';
+});
+
+check('First step: Today picks the due-today task first, else the soonest task with a step', () => {
+  const tasks = [
+    { id: 'a', title: 'Essay', dueDate: '2026-09-30', status: 'pending', taskType: 'assignment', isCustom: true },
+    { id: 'b', title: 'Lab report', dueDate: '2026-10-01', status: 'pending', taskType: 'assignment', isCustom: true, firstStep: 'Read the aim' },
+  ];
+  const { html } = today(DAY + 'T09:00:00', { cos_custom_tasks: JSON.stringify(tasks) });
+  const h = html();
+  return focusOf(h) === 'task' && h.includes('Lab report') && h.includes('Start: Read the aim') ? true : 'focus=' + focusOf(h);
+});
+
+check('First step: sanitizeTask keeps it trimmed and capped, drops blanks, and leaves old tasks unchanged', () => {
+  seed(); const { sanitizeTask: s } = makeApp();
+  const base = { id: 't', title: 'X', dueDate: DAY, status: 'pending', taskType: 'assignment' };
+  const kept = s({ ...base, firstStep: '  Read the aim  ' }).firstStep;
+  const capped = s({ ...base, firstStep: 'x'.repeat(200) }).firstStep.length;
+  const blank = 'firstStep' in s({ ...base, firstStep: '   ' });
+  const old = 'firstStep' in s(base);
+  const odd = 'firstStep' in s({ ...base, firstStep: 42 });
+  return kept === 'Read the aim' && capped === 80 && !blank && !old && !odd ? true : [kept, capped, blank, old, odd].join(',');
 });
 
 check('Risk: names the subject and how many classes to attend; silly numbers are not shown', () => {
