@@ -69,7 +69,8 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { saveCustomLinks, linksForCloud, mergeCloudLinks, saveLinksFittingStorage, vaultFileTooBigMessage, applyCloudDataToLocalState, isVaultPlaceholder, vaultFileId, VAULT_FILE_MAX_BYTES };`)();
+const app = new Function(`${code}\n return { saveCustomLinks, linksForCloud, mergeCloudLinks, saveLinksFittingStorage, vaultFileTooBigMessage, applyCloudDataToLocalState, isVaultPlaceholder, vaultFileId, VAULT_FILE_MAX_BYTES,
+  sanitizeTask, pushGuard, TASK_TITLE_MAX, TASK_DESC_MAX, VAULT_IMPORT_LABEL_MAX, VAULT_IDB_MAX_BYTES, VAULT_CLOUD_MAX_BYTES, VAULT_BULK_MAX_ROWS, PUSH_WARN_BYTES, PUSH_FULL_BYTES };`)();
 
 const dataUrl = (n, ch = 'A') => 'data:application/pdf;base64,' + ch.repeat(n);
 const FILE = { label: 'Unit 3 notes.pdf', url: dataUrl(400), icon: 'book-open', isUpload: true, fileSize: '300 B' };
@@ -225,6 +226,35 @@ check('Restore writes the vault after everything else, and the push sends placeh
 check('Backups still include the files', () => {
   const i = appSrc.indexOf('function exportData('), b = appSrc.slice(i, appSrc.indexOf('\n}\n', i));
   return b.includes('customLinks:        safeGetStorage(KEY_CUSTOM_LINKS, null)') ? true : 'export changed';
+});
+
+// ── Size caps block: tests read the constants, not fixed numbers ──
+check('Caps block: every cap is a positive number and the cloud warn sits below the stop', () => {
+  const caps = { TASK_TITLE_MAX: app.TASK_TITLE_MAX, TASK_DESC_MAX: app.TASK_DESC_MAX, VAULT_IMPORT_LABEL_MAX: app.VAULT_IMPORT_LABEL_MAX,
+    VAULT_FILE_MAX_BYTES: app.VAULT_FILE_MAX_BYTES, VAULT_IDB_MAX_BYTES: app.VAULT_IDB_MAX_BYTES, VAULT_CLOUD_MAX_BYTES: app.VAULT_CLOUD_MAX_BYTES,
+    VAULT_BULK_MAX_ROWS: app.VAULT_BULK_MAX_ROWS, PUSH_WARN_BYTES: app.PUSH_WARN_BYTES, PUSH_FULL_BYTES: app.PUSH_FULL_BYTES };
+  const bad = Object.entries(caps).filter(([, v]) => !(Number.isFinite(v) && v > 0)).map(([k]) => k);
+  if (bad.length) return `not set: ${bad.join(', ')}`;
+  if (!(app.PUSH_WARN_BYTES < app.PUSH_FULL_BYTES && app.PUSH_FULL_BYTES < 1048576)) return 'cloud warn/stop out of order or over 1 MiB';
+  return app.VAULT_FILE_MAX_BYTES <= app.VAULT_IDB_MAX_BYTES ? true : 'data-URL file cap above the device file cap';
+});
+
+check('Task title and description stop exactly at their caps', () => {
+  const t = app.sanitizeTask({ id: 'c-cap', title: 'T'.repeat(app.TASK_TITLE_MAX + 40), description: 'D'.repeat(app.TASK_DESC_MAX + 40), subject: 'Maths' });
+  const ok = app.sanitizeTask({ id: 'c-ok', title: 'T'.repeat(app.TASK_TITLE_MAX), description: 'D'.repeat(app.TASK_DESC_MAX), subject: 'Maths' });
+  return t.title.length === app.TASK_TITLE_MAX && t.description.length === app.TASK_DESC_MAX
+    && ok.title.length === app.TASK_TITLE_MAX && ok.description.length === app.TASK_DESC_MAX ? true
+    : `long=${t.title.length}/${t.description.length} exact=${ok.title.length}/${ok.description.length}`;
+});
+
+check('Cloud copy guard levels follow PUSH_WARN_BYTES and PUSH_FULL_BYTES', () => {
+  const at = (n) => app.pushGuard({ a: 'x'.repeat(n) }).level;   // {"a":"..."} adds 8 bytes
+  const r = [at(app.PUSH_WARN_BYTES - 20), at(app.PUSH_WARN_BYTES), at(app.PUSH_FULL_BYTES - 20), at(app.PUSH_FULL_BYTES)];
+  return r.join() === 'ok,warn,warn,full' ? true : r.join();
+});
+
+check('Task description box is capped at TASK_DESC_MAX and escapes saved text', () => {
+  return /id="task-desc" maxlength="\$\{TASK_DESC_MAX\}"/.test(appSrc) && /escHtml_cd\(editTask\.description\)/.test(appSrc) ? true : 'description box not capped or not escaped';
 });
 
 console.log('\n========================================');

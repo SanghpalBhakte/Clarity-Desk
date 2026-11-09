@@ -166,7 +166,8 @@ console.log('\n8. Task schema (sanitizeTask in app.js)');
 {
   const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
   const fnSrc = appSrc.match(/const VALID_TASK_TYPES[\s\S]*?\nfunction sanitizeTask\(t\) \{[\s\S]*?\n\}\n/)[0];
-  const sanitizeTask = new Function(`const todayStr = () => '2026-10-20';\n${fnSrc}\nreturn sanitizeTask;`)();
+  const capsSrc = appSrc.match(/\/\/ ── Size caps[\s\S]*?\n\n/)[0];
+  const sanitizeTask = new Function(`const todayStr = () => '2026-10-20';\n${capsSrc}${fnSrc}\nreturn sanitizeTask;`)();
   const old = { id: 'c-1', subject: 'DBMS', code: 'CS301', title: 'Lab 3', taskType: 'lab', dueDate: '2026-10-22', priority: 'high', status: 'pending', marks: 5 };
   const oldOut = sanitizeTask(old);
   check('an existing task keeps exactly its old keys', JSON.stringify(Object.keys(oldOut)) === JSON.stringify(['id', 'subject', 'code', 'title', 'taskType', 'noDeadline', 'description', 'dueDate', 'priority', 'status', 'marks', 'isCustom']), Object.keys(oldOut).join(','));
