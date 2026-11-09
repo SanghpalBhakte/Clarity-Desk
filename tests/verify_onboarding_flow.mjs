@@ -141,14 +141,14 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 // ── Task 2: welcome and name screen ──
 check('Welcome is value first: headline, add field, paste, optional setup', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const want = ['Make the next thing clear', 'Paste a task or class-group message, or keep a photo of a notice open while you add the details.', 'Get one clear next step now.', 'Add something due', 'Paste a message', 'Use a photo as reference',
-    'Coming up', 'Example', 'Tomorrow', 'Physics assignment', 'Set up my timetable', 'Study without a timetable', 'Try a sample day',
+  const want = ['Make the next thing clear', 'Add what\'s due or paste a class-group message, and get one clear next step.', 'Add something due', 'Paste a message', 'Use a photo as reference',
+    'Coming up', 'Example', 'Tomorrow', 'Physics assignment', 'Set up my timetable', 'Study without a timetable',
     'Made by a student, for students. Works offline.', 'Show me around', 'I already have an account'];
   const t = visibleText(html).replace(/\s+/g, ' ');
   const missing = want.filter(w => !t.includes(w));
   if (missing.length) return `missing: ${missing.join(' | ')}`;
   return html.includes('placeholder="e.g. Lab record due tomorrow"') && html.indexOf('Add something due') < html.indexOf('Set up my timetable')
-    && html.indexOf('Set up my timetable') < html.indexOf('Study without a timetable') && html.indexOf('Study without a timetable') < html.indexOf('Try a sample day') ? true : 'order or placeholder wrong';
+    && html.indexOf('Set up my timetable') < html.indexOf('Study without a timetable') && !html.includes('Try a sample day') && html.includes('onboardingSampleDay()') ? true : 'order or placeholder wrong';
 });
 
 check('Welcome keeps Show me around and log in, and the add action only calls globals', () => {

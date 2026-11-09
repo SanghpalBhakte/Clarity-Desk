@@ -25,7 +25,7 @@ test.describe('Photo as reference', () => {
     expect(Math.abs(paste!.y - ref!.y)).toBeLessThan(6);
     expect(ref!.y).toBeGreaterThan(add!.y + add!.height);
     expect(ref!.height).toBeLessThan(add!.height);
-    await expect(page.locator('.ob-lede')).toContainText('Paste a task or class-group message, or keep a photo of a notice open while you add the details.');
+    await expect(page.locator('.ob-lede')).toContainText('Add what\'s due or paste a class-group message, and get one clear next step.');
   });
 
   test('a non-image is rejected and the welcome stays', async ({ page }) => {
