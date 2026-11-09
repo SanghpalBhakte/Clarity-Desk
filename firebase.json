@@ -29,7 +29,9 @@
         "package-lock.json",
         "playwright.config.ts",
         "firebase-config.local.example.js",
-        "firebase-config.local.js"
+        "firebase-config.local.js",
+        "skills-lock.json",
+        "data/skills/**"
       ],
       "rewrites": [
         {
@@ -121,7 +123,9 @@
         "package-lock.json",
         "playwright.config.ts",
         "firebase-config.local.example.js",
-        "firebase-config.local.js"
+        "firebase-config.local.js",
+        "skills-lock.json",
+        "data/skills/**"
       ],
       "rewrites": [
         {
