@@ -6017,6 +6017,8 @@ body::before {
   padding: 0 var(--ds-space-3) var(--ds-space-3);
 }
 .today-focus-mark .btn { flex: 1 1 0; min-height: 40px; justify-content: center; }
+.today-focus-date { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.today-focus-date.is-shown { position: static; width: auto; height: 40px; opacity: 1; pointer-events: auto; }
 
 /* Phones: the class card above already shows the current / next class, so
    the schedule list leaves that row out (desktop keeps the full list).
