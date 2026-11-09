@@ -5888,6 +5888,60 @@ function loadNotifPrefs() {
   return defaults;
 }
 
+// Reminder presets: one tap fills the five choice fields below, nothing new is
+// stored (the saved shape is still the flat prefs). Times are left alone.
+// Balanced equals the defaults. A mix that matches none shows as Custom.
+const NOTIF_PRESETS = {
+  calm:     { label: 'Calm',     taskUpcoming: 'day_before', taskOverdue: 'same_day', classReminders: '1_hour', attendanceAlerts: 'weekly',  ongoingNudges: 'off', note: 'Tasks the day before, one overdue reminder a day, classes an hour ahead, attendance weekly, no nudges.' },
+  balanced: { label: 'Balanced', taskUpcoming: 'day_before', taskOverdue: 'same_day', classReminders: '15_min', attendanceAlerts: 'instant', ongoingNudges: 'off', note: 'Tasks the day before, one overdue reminder a day, classes 15 minutes ahead, attendance as it drops.' },
+  off:      { label: 'Off',      taskUpcoming: 'off',        taskOverdue: 'off',      classReminders: 'off',    attendanceAlerts: 'off',     ongoingNudges: 'off', note: 'No reminders. You can still switch single ones back on below.' }
+};
+const NOTIF_PRESET_FIELDS = { taskUpcoming: 'np-task-upcoming', taskOverdue: 'np-task-overdue', classReminders: 'np-class-reminders', attendanceAlerts: 'np-attendance-alerts', ongoingNudges: 'np-ongoing-nudges' };
+function notifPresetOf(vals) {
+  return Object.keys(NOTIF_PRESETS).find(k => Object.keys(NOTIF_PRESET_FIELDS).every(f => NOTIF_PRESETS[k][f] === vals[f])) || 'custom';
+}
+function notifPresetsHtml(prefs) {
+  const cur = notifPresetOf(prefs);
+  return `<div class="np-presets" role="group" aria-label="Reminder presets">
+          <div class="np-presets-row">${Object.keys(NOTIF_PRESETS).map(k => `<button type="button" class="np-preset" data-preset="${k}" aria-pressed="${cur === k}" onclick="npApplyPreset('${k}')">${NOTIF_PRESETS[k].label}</button>`).join('')}<span class="np-custom" id="np-custom" ${cur === 'custom' ? '' : 'hidden'}>Custom</span></div>
+          <div class="np-presets-note" id="np-preset-note" role="status"></div>
+        </div>`;
+}
+function npReadFields() {
+  const v = {};
+  for (const f in NOTIF_PRESET_FIELDS) v[f] = document.getElementById(NOTIF_PRESET_FIELDS[f])?.value;
+  return v;
+}
+function npSyncPresets() {
+  const cur = notifPresetOf(npReadFields());
+  document.querySelectorAll('.np-preset').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === cur)));
+  const c = document.getElementById('np-custom'); if (c) c.hidden = cur !== 'custom';
+}
+function npSetFields(vals) {
+  let first = null;
+  for (const f in NOTIF_PRESET_FIELDS) {
+    const el = document.getElementById(NOTIF_PRESET_FIELDS[f]);
+    if (el && vals[f] !== undefined) { el.value = vals[f]; first = first || el; }
+  }
+  const nudgeRow = document.getElementById('np-nudge-time-row');
+  if (nudgeRow) nudgeRow.style.display = (vals.ongoingNudges || document.getElementById('np-ongoing-nudges')?.value) === 'off' ? 'none' : 'flex';
+  if (first) first.dispatchEvent(new Event('change', { bubbles: true })); // autosave + sync
+}
+window.npApplyPreset = function(key) {
+  const pr = NOTIF_PRESETS[key]; if (!pr) return;
+  const prev = npReadFields();
+  npSetFields(pr);
+  const note = document.getElementById('np-preset-note');
+  if (note) {
+    note.textContent = '';
+    note.append(`${pr.label}: ${pr.note} `);
+    const undo = document.createElement('button');
+    undo.type = 'button'; undo.className = 'np-undo'; undo.textContent = 'Undo';
+    undo.onclick = () => { npSetFields(prev); note.textContent = 'Back to what you had.'; };
+    note.append(undo);
+  }
+};
+
 function saveNotifPrefs(prefs) {
   safeSetStorage(KEY_NOTIF_PREFS, prefs);
   syncToCloud();
@@ -18191,6 +18245,7 @@ function renderSettings() {
       ` : ''}
 
       <div style="display:flex;flex-direction:column;gap:14px">
+        ${notifPresetsHtml(nPrefs)}
         <div style="font-weight:700;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Task Deadlines</div>
         
         <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
@@ -18439,6 +18494,7 @@ let settingsTypingTimer = null;
 let settingsPendingSave = null;
 function settingsAutoSave(e) {
   const t = e.target;
+  if (t && t.id && t.id.startsWith('np-') && e.type === 'change') npSyncPresets();
   if (!t || !(SETTINGS_AUTOSAVE_IDS.has(t.id) || (t.classList && t.classList.contains('s-aim-subj')))) return;
   clearTimeout(settingsTypingTimer);
   settingsTypingTimer = null;
