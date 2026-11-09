@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u248",
+    date: "2026-11-09",
+    title: "Search engines now list only claritydesk.web.app, not the old address",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The old campusos-83365 address keeps working only so students can move their desk.",
+    points: [
+      "Release checks now use claritydesk.web.app first."
+    ]
+  },
+  {
     id: "u247",
     date: "2026-11-09",
     title: "Google sign-in now runs through claritydesk.web.app on every address",
