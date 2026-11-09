@@ -77,3 +77,23 @@ test('Study Shortcuts put the subject of the top task first', async ({ page }) =
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_links') || '[]').map((x: any) => x.subject));
   expect(saved).toEqual(['Maths', 'Physics', 'Chemistry', 'Data Structures']);
 });
+
+test('a quiet day offers one calm next step, and the exam line links to Settings', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('__seeded')) return;
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    const exam = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    sessionStorage.setItem('__seeded', '1');
+    localStorage.setItem('cos_onboarding_dismissed', 'true');
+    localStorage.setItem('cos_onboarding_done', '1');
+    localStorage.setItem('cos_profile', JSON.stringify({ name: 'Test', studyMode: 'self', examDate: exam, examLabel: 'Finals' }));
+    localStorage.setItem('cos_custom_tasks', '[]');
+  });
+  await page.goto('/');
+  const dash = page.locator('#page-dashboard');
+  await expect(dash).toContainText('All caught up. No urgent tasks.');
+  await dash.getByRole('button', { name: "Add the next thing that's due" }).click();
+  await expect(page.locator('#quick-add-input')).toBeFocused();
+  await dash.locator('.desk-greeting-note').getByRole('button', { name: 'Change' }).click();
+  await expect(page.locator('#s-exam-label')).toBeVisible();
+});
