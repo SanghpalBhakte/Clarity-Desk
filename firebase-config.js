@@ -67,9 +67,13 @@
     };
   } else if (!window.CAMPUS_OS_FIREBASE_CONFIG) {
     // Fallback template declaration (overridden by localStorage or user setup modal)
+    // On claritydesk.web.app sign-in runs on the same address, so browsers
+    // that block cross-site storage (Safari) keep the redirect sign-in
+    // working. Every other host keeps the old sign-in address.
+    const sameSiteAuth = typeof location !== 'undefined' && location.hostname === 'claritydesk.web.app';
     window.CAMPUS_OS_FIREBASE_CONFIG = {
       apiKey:            "AIzaSyD1st-UB9NbBme9z-8M0upwJ0ndQrr8J2E",
-      authDomain:        "campusos-83365.firebaseapp.com",
+      authDomain:        sameSiteAuth ? "claritydesk.web.app" : "campusos-83365.firebaseapp.com",
       projectId:         "campusos-83365",
       storageBucket:     "campusos-83365.appspot.com",
       messagingSenderId: "248625780152",
