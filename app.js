@@ -10634,7 +10634,7 @@ function renderDashboard() {
   // countdown is the one figure with no other home, so it gets a quiet line
   // under the greeting (the context line already covers the final week).
   const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7 && !onHoliday)
-    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}).</div>`
+    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). <button type="button" class="holiday-note-action" onclick="openCountdownSettings()" title="Change the exam countdown in Settings">Change</button></div>`
     : '';
 
   const holidaySoon = isHolidayScheduled() ? loadHoliday() : null;
@@ -10643,7 +10643,7 @@ function renderDashboard() {
     : '';
 
   const sylTodayText = syllabusTodayLine();
-  const sylTodayHTML = sylTodayText && !onHoliday ? `<div class="desk-greeting-note syl-today-note">${icons.book()} ${sylTodayText}</div>` : '';
+  const sylTodayHTML = sylTodayText && !onHoliday ? `<div class="desk-greeting-note syl-today-note">${icons.book()} ${sylTodayText} <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')" title="Open Subject Hubs to tick off topics">Open</button></div>` : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
@@ -11010,7 +11010,8 @@ function renderDashboard() {
                   </div>
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
                 </div>`;
-            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : 'All caught up. No urgent tasks.')}</div>`}
+            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : 'All caught up. No urgent tasks.')}</div>
+              ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayText ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
             ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
           </div>
