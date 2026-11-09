@@ -141,14 +141,14 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 // ── Task 2: welcome and name screen ──
 check('Welcome is value first: headline, add field, paste, optional setup', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const want = ['Make the next thing clear', 'Add what\'s due or paste a class-group message, and get one clear next step.', 'Add something due', 'Paste a message', 'Use a photo as reference',
-    'Coming up', 'Example', 'Tomorrow', 'Physics assignment', 'Set up my timetable', 'Study without a timetable',
-    'Made by a student, for students. Works offline.', 'Show me around', 'I already have an account'];
+  const want = ['Make the next thing clear.', 'Add one deadline, message, or photo. Clarity Desk turns it into a next step you can start today.', 'Add deadline', 'Paste a class-group message', 'Use a photo',
+    'Coming up', 'Example', 'Tomorrow', 'Physics assignment', 'Have a timetable?', 'study without one',
+    'Made by a student, for students. Works offline.', 'Show me around', 'Log in'];
   const t = visibleText(html).replace(/\s+/g, ' ');
   const missing = want.filter(w => !t.includes(w));
   if (missing.length) return `missing: ${missing.join(' | ')}`;
-  return html.includes('placeholder="e.g. Lab record due tomorrow"') && html.indexOf('Add something due') < html.indexOf('Set up my timetable')
-    && html.indexOf('Set up my timetable') < html.indexOf('Study without a timetable') && !html.includes('Try a sample day') && html.includes('onboardingSampleDay()') ? true : 'order or placeholder wrong';
+  return html.includes('placeholder="e.g. Lab report due Friday"') && html.indexOf('Add deadline') < html.indexOf('Have a timetable?')
+    && html.indexOf('Have a timetable?') < html.indexOf('study without one') && !html.includes('Try a sample day') && html.includes('onboardingSampleDay()') ? true : 'order or placeholder wrong';
 });
 
 check('Welcome keeps Show me around and log in, and the add action only calls globals', () => {
@@ -212,12 +212,12 @@ check('After the name step the welcome never comes back, even mid tour', () => {
 
 // ── Task 3: one timetable card and the "how to add it" dialog ──
 const todayHtml = (app) => { app.state.currentPage = 'dashboard'; app.renderDashboard(); return domCache['page-dashboard'].innerHTML; };
-check('A new Today shows one timetable card with one button and a quiet self-study link', () => {
+check('A new Today shows one quiet timetable line under the tasks and a quiet self-study link', () => {
   seed(); const html = todayHtml(makeApp());
   const cards = (html.match(/class="desk-setup-guide/g) || []).length;
   const t = visibleText(html).replace(/\s+/g, ' ');
-  const ok = cards === 1 && t.includes("Let's add your timetable") && t.includes('Takes about a minute. The rest can wait.')
-    && html.includes('onclick="showAddTimetableChoice()"') && html.includes('onclick="setupSelfStudy()"') && t.includes('No timetable? I study on my own');
+  const ok = cards === 1 && t.includes('Have a timetable?') && html.indexOf('desk-setup-guide') > html.indexOf('quick-add-input')
+    && html.includes('onclick="showAddTimetableChoice()"') && html.includes('onclick="setupSelfStudy()"') && t.includes('study without one');
   return ok ? true : `cards=${cards} ${t.slice(0, 160)}`;
 });
 

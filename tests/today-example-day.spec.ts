@@ -11,7 +11,7 @@ test('empty Today opens the example day, saves nothing and returns focus', async
     localStorage.setItem('cos_onboarding_done', '1');
   });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Add your timetable' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Add it when you.re ready/ })).toBeVisible();
   const before = await page.evaluate(() => JSON.stringify(Object.keys(localStorage).filter(k => k.startsWith('cos_')).sort().map(k => [k, k === 'cos_usage' ? '' : localStorage.getItem(k)])));
   const link = page.getByRole('button', { name: 'See an example day' });
   await link.focus();
@@ -27,5 +27,5 @@ test('empty Today opens the example day, saves nothing and returns focus', async
   await expect(link).toBeFocused();
   const after = await page.evaluate(() => JSON.stringify(Object.keys(localStorage).filter(k => k.startsWith('cos_')).sort().map(k => [k, k === 'cos_usage' ? '' : localStorage.getItem(k)])));
   expect(after).toBe(before);
-  await expect(page.getByRole('button', { name: 'Add your timetable' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Add it when you.re ready/ })).toBeVisible();
 });

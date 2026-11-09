@@ -11,21 +11,21 @@ async function welcome(page: Page) {
   await expect(page.locator('#onboarding-backdrop')).toBeVisible();
 }
 async function pick(page: Page, file: any) {
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Use a photo as reference' }).click()]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Use a photo' }).click()]);
   await chooser.setFiles(file);
 }
 const sheet = (page: Page) => page.locator('#photo-step-backdrop');
 
 test.describe('Photo as reference', () => {
-  test('sits beside Paste a message, below the primary action, with honest copy', async ({ page }) => {
+  test('sits beside Paste a class-group message, below the primary action, with honest copy', async ({ page }) => {
     await welcome(page);
-    const add = await page.getByRole('button', { name: 'Add something due' }).boundingBox();
-    const paste = await page.getByRole('button', { name: 'Paste a message' }).boundingBox();
-    const ref = await page.getByRole('button', { name: 'Use a photo as reference' }).boundingBox();
+    const add = await page.locator('#onboarding-backdrop').getByRole('button', { name: 'Add deadline' }).boundingBox();
+    const paste = await page.getByRole('button', { name: 'Paste a class-group message' }).boundingBox();
+    const ref = await page.getByRole('button', { name: 'Use a photo' }).boundingBox();
     expect(Math.abs(paste!.y - ref!.y)).toBeLessThan(6);
     expect(ref!.y).toBeGreaterThan(add!.y + add!.height);
     expect(ref!.height).toBeLessThan(add!.height);
-    await expect(page.locator('.ob-lede')).toContainText('Add what\'s due or paste a class-group message, and get one clear next step.');
+    await expect(page.locator('.ob-lede')).toContainText('Add one deadline, message, or photo. Clarity Desk turns it into a next step you can start today.');
   });
 
   test('a non-image is rejected and the welcome stays', async ({ page }) => {
@@ -53,10 +53,10 @@ test.describe('Photo as reference', () => {
     await page.keyboard.press('Escape');
     await expect(sheet(page)).toHaveCount(0);
     await expect(page.locator('#onboarding-backdrop')).toHaveJSProperty('inert', false);
-    await expect(page.getByRole('button', { name: 'Use a photo as reference' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Use a photo' })).toBeFocused();
     await pick(page, photo());
     await sheet(page).getByRole('button', { name: 'Cancel and go back' }).click();
-    await expect(page.getByRole('button', { name: 'Use a photo as reference' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Use a photo' })).toBeFocused();
     await expect(page.locator('#onboarding-backdrop')).toBeVisible();
   });
 
@@ -110,7 +110,7 @@ test.describe('Photo as reference', () => {
 
   test('Paste a message still opens the message import', async ({ page }) => {
     await welcome(page);
-    await page.getByRole('button', { name: 'Paste a message' }).click();
+    await page.getByRole('button', { name: 'Paste a class-group message' }).click();
     await expect(page.getByTestId('wa-import-modal')).toBeVisible();
   });
 
