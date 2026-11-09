@@ -6359,7 +6359,8 @@ const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
   'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved',
-  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped'];
+  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped', 'ref_visit', 'first_open'];
+const USAGE_REFS = ['reel', 'linkedin', 'insta-story'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
 let _scanStartedAt = 0;
@@ -6439,12 +6440,20 @@ function trackAppOpen() {
   if (!usageActive()) return;
   const dev = detectDevice();
   trackUsage('app_open', dev.os, dev.standalone ? 'app' : dev.inApp ? 'inapp' : 'browser');
+  // Content link tag (?ref=reel). Whitelisted, once per tag per device. Runs before
+  // loadUsage() below so its saved flag is not overwritten by that older copy.
+  try {
+    const ref = (new URLSearchParams(location.search).get('ref') || '').toLowerCase();
+    if (USAGE_REFS.includes(ref)) trackUsageOnce('ref_' + ref, 'ref_visit', ref);
+  } catch (_) {}
   const u = loadUsage();
   const today = todayStr();
   if (!u.firstOpen) {
     u.firstOpen = today;
-    if (hasExistingUserData()) { u.day2 = true; u.once.firstClass = true; }
+    const existing = hasExistingUserData();
+    if (existing) { u.day2 = true; u.once.firstClass = true; }
     safeSetStorage(KEY_USAGE, u);
+    trackUsage('first_open', existing ? 'existing' : 'new');
   } else if (!u.day2 && today > u.firstOpen) {
     u.day2 = true;
     safeSetStorage(KEY_USAGE, u);
