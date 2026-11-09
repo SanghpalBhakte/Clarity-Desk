@@ -170,6 +170,39 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u250",
+    date: "2026-11-09",
+    title: "Your first deadline now saves in one tap",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Your first deadline now saves in one tap",
+    points: [
+      "New students have no subjects yet, so General is picked for you instead of an error",
+      "\"Lab report due Friday\" becomes the title \"Lab report\" with Friday as the due date",
+      "Today no longer says \"Classes done for today\" when you haven't added a timetable",
+      "On phones, the timetable line now sits under your tasks",
+      "The welcome line now says what happens: your deadlines are put in order"
+    ]
+  },
+  {
+    id: "u249",
+    date: "2026-11-09",
+    title: "A calmer first screen: add a deadline first, timetable when you're ready",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "A calmer first screen: add a deadline first, timetable when you're ready",
+    points: [
+      "Welcome sits on the page (no floating card); the field and \"Add deadline\" are one line",
+      "\"Paste a class-group message\" and \"Use a photo\" are plain links; the example row is clearly an example",
+      "Today: the timetable is one quiet line under your tasks instead of a big card",
+      "Sidebar: Desk (Today, Timetable, Tasks), then Study, then Preferences, with lighter lines",
+      "Ask Desk and your profile button are quieter in the top bar",
+      "Timetable with no classes: \"Your week is still open.\" with Add class, Scan timetable photo, and a study-without-one link"
+    ]
+  },
+  {
     id: "u248",
     date: "2026-11-09",
     title: "Search engines now list only claritydesk.web.app, not the old address",
