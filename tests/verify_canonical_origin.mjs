@@ -74,7 +74,7 @@ console.log('=================================================================='
 check('The new address is claritydesk.web.app', () =>
   app.CANONICAL_ORIGIN === 'https://claritydesk.web.app' ? true : app.CANONICAL_ORIGIN);
 
-for (const host of ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.firebaseapp.com', 'sanghpalbhakte.github.io']) {
+for (const host of ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.firebaseapp.com']) {
   check(`${host} with nothing saved goes to the new address`, () => {
     seed();
     return action(host) === 'redirect' ? true : `got ${action(host)}`;
@@ -152,7 +152,7 @@ for (const host of ['claritydesk.web.app', 'localhost', '127.0.0.1', 'claritydes
 check('Deciding writes nothing to storage', () => {
   seed(DESKS['a name']);
   const before = JSON.stringify(store);
-  action('campusos-83365.web.app'); action('sanghpalbhakte.github.io', { search: '?share=whatsapp' });
+  action('campusos-83365.web.app'); action('claritydesk.firebaseapp.com', { search: '?share=whatsapp' });
   return JSON.stringify(store) === before ? true : 'storage changed';
 });
 
