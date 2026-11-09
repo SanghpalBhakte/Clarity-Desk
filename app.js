@@ -8454,7 +8454,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
     if (!f) return '';
     const overdue = f.kind === 'task' && /overdue/i.test(f.sub || '');
     const call = f.kind === 'unmarked' ? `setTTDay(${dayIdx}); navigateTo('timetable')`
-      : f.kind === 'task' ? `navigateTo('assignments')`
+      : f.kind === 'task' ? (task ? 'openTaskFromToday(this.dataset.task)' : `navigateTo('assignments')`)
       : `openSubjectHub(this.dataset.subject)`;
     const markKey = f.kind === 'unmarked' && f.markKey ? f.markKey : null;
     out.markKey = markKey;
@@ -8474,7 +8474,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       </div>` : '';
     return `
     <div class="today-focus is-${f.kind}"${markKey || fixHTML ? ' data-mark' : ''} role="region" aria-label="Next step">
-      <button type="button" class="today-focus-main" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">
+      <button type="button" class="today-focus-main" data-subject="${attrSafe(f.subject || '')}"${f.kind === 'task' && task ? ` data-task="${attrSafe(task.id)}"` : ''} onclick="${call}">
         <span class="today-focus-text">
           <span class="today-focus-title">${escHtml_cd(f.title)}</span>
           <span class="today-focus-sub${overdue ? ' is-overdue' : ''}">${escHtml_cd(f.sub)}</span>
@@ -10967,8 +10967,12 @@ function renderDashboard() {
         <div class="dashboard-panel">
           <div class="panel-header">
             <div class="panel-title">Tasks &amp; Deadlines</div>
-            <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${urgentTasks.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
+              <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
+            </div>
           </div>
+          ${urgentTasks.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
 
           <!-- Open task rows -->
           <div style="position:relative;padding-left:4px">
@@ -10982,12 +10986,12 @@ function renderDashboard() {
                   <div class="task-checkbox ${done ? 'checked' : ''}" onclick="toggleAssignment('${a.id}')" title="Mark completed">
                     ${done ? icons.check() : ''}
                   </div>
-                  <div style="flex:1;min-width:0;cursor:pointer" onclick="navigateTo('assignments')">
+                  <div style="flex:1;min-width:0;cursor:pointer" data-task="${escAttr_cd(a.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
                     <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${escHtml_cd(a.title)}</div>
                     <div class="task-ledger-meta" style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
                       <span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(a.subject || 'General')}</span>
-                      <span>·</span>
-                      <span>${isOngoing ? 'Standing' : formatDate(a.dueDate)}</span>
+                      ${isOngoing ? '' : `<span>·</span>
+                      <span>${formatDate(a.dueDate)}</span>`}
                     </div>
                   </div>
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
@@ -15419,6 +15423,30 @@ window.toggleTaskRow = (id) => {
   if (taskSelectMode) return;
   taskOpenId = taskOpenId === id ? null : id;
   renderAssignments();
+};
+
+// A task tapped on Today opens on Tasks with its row open and in view. A
+// filter that hides it is cleared, and its folded section opens.
+window.openTaskFromToday = (id) => {
+  const task = allTasks().find(a => a.id === id);
+  if (!task) { navigateTo('assignments'); return; }
+  taskSelectMode = false;
+  taskSelection.clear();
+  taskOpenId = id;
+  if (task.status === 'submitted') taskDoneOpen = true;
+  else if (task.noDeadline || (task.taskType === 'mission' && !task.dueDate)) taskOpenFolds.goals = true;
+  else { const d = dueDaysLeft(task.dueDate); if (d === null || d > 7) taskOpenFolds.later = true; }
+  navigateTo('assignments');
+  setTimeout(() => {
+    if (!document.getElementById(`ac-${id}`)) {
+      state.assignFilter = 'all';
+      state.assignTypeFilter = 'all';
+      state.assignSubjectFilter = 'all';
+      renderAssignments();
+    }
+    const row = document.getElementById(`ac-${id}`);
+    if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+  }, 80);
 };
 
 window.selectAllCompletedTasks = () => {
