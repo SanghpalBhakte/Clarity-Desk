@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u247",
+    date: "2026-11-09",
+    title: "Google sign-in now runs through claritydesk.web.app on every address",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "First step of retiring the old campusos-83365 addresses: they are no longer needed for signing in.",
+    points: [
+
+    ]
+  },
+  {
     id: "u246",
     date: "2026-11-09",
     title: "In Safari, closing the example day puts you back on the link you tapped",
