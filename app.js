@@ -18605,6 +18605,14 @@ function renderSettings() {
       <button class="btn-secondary" onclick="showDevNotesModal()">See what's new</button>
     </div>
 
+    <h3 class="st-sub">Privacy</h3>
+    <div style="margin-bottom:20px">
+      <div class="st-row"><div><div class="st-row-title">On your device</div><div class="st-row-sub">Your timetable, attendance, tasks and Vault files are stored in this browser and work offline. Nothing is sold, and there are no ads.</div></div></div>
+      <div class="st-row"><div><div class="st-row-title">If you sign in</div><div class="st-row-sub">Signing in is optional. It copies your desk to your own private cloud space so your devices match. Only you can read it.</div></div></div>
+      <div class="st-row"><div><div class="st-row-title">When you scan</div><div class="st-row-sub">A photo or pasted text you scan is sent to an AI service to be read. Nothing is saved until you review it and say yes.</div></div></div>
+      <div class="st-row"><div><div class="st-row-title">Visit counts</div><div class="st-row-sub">${GOATCOUNTER_CODE ? 'Anonymous step counts like "scanned a timetable" can be turned off in Settings above. ' : ''}The site host also counts page visits with no cookies and no names. That count has no switch yet.</div></div></div>
+    </div>
+
     <h3 class="st-sub">Tell me what breaks</h3>
     <div class="card" style="padding:18px">
       <div style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:14px;line-height:1.6">
