@@ -257,6 +257,15 @@ check('cos_usage is left out of backups and cloud sync', () => {
   return bad.length === 0 ? true : `found in ${bad}`;
 });
 
+check('The Cloudflare visit beacon obeys the same off switch (cos_usage.optOut)', () => {
+  const html = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
+  const at = html.indexOf('cfTokens[location.hostname]');
+  const guard = html.slice(html.indexOf('var cfOptOut'), html.indexOf('cfBeacon.defer'));
+  const ok = /localStorage\.getItem\('cos_usage'\)/.test(guard) && /\.optOut/.test(guard)
+    && /cfTokens\[location\.hostname\] && !navigator\.webdriver && !cfOptOut/.test(html) && at > 0;
+  return ok ? true : 'beacon is not gated by cos_usage.optOut';
+});
+
 check('A content link tag (?ref=reel) is sent once per device', () => {
   seed(); location.search = '?ref=reel';
   app.trackAppOpen(); app.trackAppOpen();

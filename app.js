@@ -18603,7 +18603,7 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:20px">
       <label style="display:flex;align-items:flex-start;gap:8px;font-size:var(--text-base);color:var(--text-primary);cursor:pointer">
         <input type="checkbox" id="s-usage" ${loadUsage().optOut ? '' : 'checked'} onchange="onUsageToggle(this)" style="margin-top:3px;accent-color:var(--accent)">
-        <span>Share anonymous usage counts<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Counts steps like "scanned a timetable" or "came back the next day" so we can fix where students get stuck. No names, no email, no timetable or attendance, no cookies.</span></span>
+        <span>Share anonymous usage counts<span style="display:block;font-size:var(--text-sm);color:var(--text-muted)">Counts steps like "scanned a timetable" or "came back the next day" so we can fix where students get stuck. Also covers the plain page-visit count (takes effect the next time you open the app). No names, no email, no timetable or attendance, no cookies.</span></span>
       </label>
     </div>` : ''}
 
@@ -18639,7 +18639,7 @@ function renderSettings() {
       <div class="st-row"><div><div class="st-row-title">On your device</div><div class="st-row-sub">Your timetable, attendance, tasks and Vault files are stored in this browser and work offline. Nothing is sold, and there are no ads.</div></div></div>
       <div class="st-row"><div><div class="st-row-title">If you sign in</div><div class="st-row-sub">Signing in is optional. It copies your desk to your own private cloud space so your devices match. Only you can read it.</div></div></div>
       <div class="st-row"><div><div class="st-row-title">When you scan</div><div class="st-row-sub">A photo or pasted text you scan is sent to an AI service to be read. Nothing is saved until you review it and say yes.</div></div></div>
-      <div class="st-row"><div><div class="st-row-title">Visit counts</div><div class="st-row-sub">${GOATCOUNTER_CODE ? 'Anonymous step counts like "scanned a timetable" can be turned off in Settings above. ' : ''}The site host also counts page visits with no cookies and no names. That count has no switch yet.</div></div></div>
+      <div class="st-row"><div><div class="st-row-title">Visit counts</div><div class="st-row-sub">We count anonymous visits and steps like "scanned a timetable", with no cookies and no names. ${GOATCOUNTER_CODE ? 'Turn it off with "Share anonymous usage counts" in Settings above.' : ''}</div></div></div>
     </div>
 
     <h3 class="st-sub">Tell me what breaks</h3>
