@@ -6428,7 +6428,8 @@ const GOATCOUNTER_CODE = 'sanghpal';
 const USAGE_HOSTS = ['claritydesk.web.app', 'claritydesk.firebaseapp.com', 'campusos-83365.web.app', 'campusos-83365.firebaseapp.com'];
 const USAGE_EVENTS = ['app_open', 'welcome_shown', 'welcome_choice', 'scan_started', 'scan_review_shown', 'scan_failed',
   'first_class_saved', 'signin_started', 'signin_done', 'day2_return', 'bunk_calc_used', 'wa_links_saved',
-  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped', 'ref_visit', 'first_open'];
+  'name_given', 'name_skipped', 'tour_step', 'tour_done', 'tour_skipped', 'ref_visit', 'first_open',
+  'week4_return', 'attendance_two_weeks'];
 const USAGE_REFS = ['reel', 'linkedin', 'insta-story'];
 const USAGE_PART_RE = /^[a-z0-9_-]{1,24}$/;
 const USAGE_QUEUE_MAX = 30;
@@ -6505,6 +6506,30 @@ function usageScanBucket() {
 // On open: the device kind, then "came back on a later day" once. A
 // student who already had a desk when counting began is not counted as
 // new (no first-class or next-day events for them).
+// Whole days between two YYYY-MM-DD strings (timezone-free), or 0 if unreadable.
+function usageDaysBetween(from, to) {
+  const ms = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN; };
+  const d = Math.round((ms(to) - ms(from)) / 86400000);
+  return Number.isFinite(d) ? d : 0;
+}
+
+// How many different Monday-start weeks have at least one attendance mark, counting
+// up to `cap`. Reads cos_attendance[date] only; the dates are the keys, no subject is read.
+function attendanceWeeksMarked(cap) {
+  const att = safeGetStorage(KEY_ATTENDANCE, null);
+  if (!att || typeof att !== 'object') return 0;
+  const weeks = new Set();
+  for (const date of Object.keys(att)) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    const day = att[date];
+    if (!m || !day || typeof day !== 'object' || !Object.keys(day).length) continue;
+    const t = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    weeks.add(Math.floor((t - ((new Date(t).getUTCDay() + 6) % 7) * 86400000) / (7 * 86400000)));
+    if (weeks.size >= cap) break;
+  }
+  return weeks.size;
+}
+
 function trackAppOpen() {
   if (!usageActive()) return;
   const dev = detectDevice();
@@ -6520,7 +6545,7 @@ function trackAppOpen() {
   if (!u.firstOpen) {
     u.firstOpen = today;
     const existing = hasExistingUserData();
-    if (existing) { u.day2 = true; u.once.firstClass = true; }
+    if (existing) { u.day2 = true; u.once.firstClass = true; u.once.attTwoWeeks = true; }
     safeSetStorage(KEY_USAGE, u);
     trackUsage('first_open', existing ? 'existing' : 'new');
   } else if (!u.day2 && today > u.firstOpen) {
@@ -6528,6 +6553,10 @@ function trackAppOpen() {
     safeSetStorage(KEY_USAGE, u);
     trackUsage('day2_return');
   }
+  // Habit signals, each sent once per device. Read-only: nothing here changes attendance data.
+  // trackUsageOnce re-reads cos_usage, so it is safe after the saves above.
+  if (u.firstOpen && usageDaysBetween(u.firstOpen, today) >= 28) trackUsageOnce('week4', 'week4_return');
+  if (!u.once.attTwoWeeks && attendanceWeeksMarked(2) >= 2) trackUsageOnce('attTwoWeeks', 'attendance_two_weeks');
   flushUsageQueue();
   // Delayed: FEEDBACK_URL is defined further down this file.
   setTimeout(() => { if (navigator.onLine !== false) flushFeedbackQueue(); }, 4000);

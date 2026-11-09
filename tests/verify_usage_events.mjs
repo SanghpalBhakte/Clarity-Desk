@@ -172,6 +172,51 @@ check('"Came back on a later day" is sent exactly once', () => {
   return d2 === 1 && opens === 4 ? true : `day2=${d2} opens=${opens}`;
 });
 
+check('"Still here after four weeks" is sent once, on the 28th day and not before', () => {
+  seed();
+  app.trackAppOpen();
+  NOW += 27 * 86400000; app.trackAppOpen();
+  const early = paths().filter(p => p === 'week4_return').length;
+  NOW += 86400000; app.trackAppOpen(); app.trackAppOpen();
+  NOW += 30 * 86400000; app.trackAppOpen();
+  const later = paths().filter(p => p === 'week4_return').length;
+  return early === 0 && later === 1 ? true : `before day 28: ${early}, total: ${later}`;
+});
+
+check('"Marked attendance in two different weeks" needs two weeks, is sent once, and ignores empty days', () => {
+  seed();
+  app.trackAppOpen();
+  const count = () => paths().filter(p => p === 'attendance_two_weeks').length;
+  store.cos_attendance = JSON.stringify({ '2026-10-27': { a: 'present' }, '2026-10-30': { b: 'absent' } });
+  NOW += 86400000; app.trackAppOpen();
+  const sameWeek = count();
+  store.cos_attendance = JSON.stringify({ '2026-10-27': { a: 'present' }, '2026-11-03': {} });
+  app.trackAppOpen();
+  const emptyDay = count();
+  store.cos_attendance = JSON.stringify({ '2026-10-27': { a: 'present' }, '2026-11-02': { a: 'present' } });
+  app.trackAppOpen(); app.trackAppOpen();
+  return sameWeek === 0 && emptyDay === 0 && count() === 1 ? true : `sameWeek=${sameWeek} emptyDay=${emptyDay} final=${count()}`;
+});
+
+check('A student who already had attendance when counting began is not counted for the habit event', () => {
+  seed({
+    cos_custom_tasks: JSON.stringify([{ id: 't1', title: 'Lab journal', dueDate: '2026-10-28' }]),
+    cos_attendance: JSON.stringify({ '2026-10-20': { a: 'present' }, '2026-10-27': { a: 'present' } })
+  });
+  app.trackAppOpen(); app.trackAppOpen();
+  return !paths().includes('attendance_two_weeks') ? true : `sent: ${paths()}`;
+});
+
+check('Habit events send only their fixed names and never write attendance', () => {
+  seed();
+  app.trackAppOpen();
+  const att = JSON.stringify({ '2026-10-20': { a: 'present' }, '2026-10-27': { a: 'present' } });
+  store.cos_attendance = att;
+  NOW += 29 * 86400000; app.trackAppOpen();
+  const habit = paths().filter(p => p === 'week4_return' || p === 'attendance_two_weeks');
+  return habit.length === 2 && store.cos_attendance === att ? true : `habit=${habit} attendanceUnchanged=${store.cos_attendance === att}`;
+});
+
 check('App open says the device kind only (android/browser), nothing else', () => {
   seed(); app.trackAppOpen();
   return paths()[0] === 'app_open/android/browser' ? true : `got ${paths()[0]}`;
@@ -252,6 +297,8 @@ check('Every event is wired to the screen it measures', () => {
     first_class_saved: "trackUsageOnce('firstClass', 'first_class_saved')",
     signin: ["'signin_started', 'google'", "'signin_started', 'email_link'", "'signin_started', create ? 'password_new' : 'password'", "'signin_done', 'google'", "'signin_done', 'email_link'", "'signin_done', 'password'"],
     app_open: 'try { trackAppOpen(); }',
+    week4_return: "trackUsageOnce('week4', 'week4_return')",
+    attendance_two_weeks: "trackUsageOnce('attTwoWeeks', 'attendance_two_weeks')",
     look_button: 'onclick="onboardingLookAround()"',
     settings_toggle: 'onchange="onUsageToggle(this)"',
     online_flush: 'flushUsageQueue();\n  });'
