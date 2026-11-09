@@ -235,8 +235,8 @@ function saveAssignments() {
 // ── Firebase Configuration & Cloud Sync ───────────────────────
 const DEFAULT_FIREBASE_CONFIG = {
   apiKey:            "AIzaSyD1st-UB9NbBme9z-8M0upwJ0ndQrr8J2E",
-  // Same rule as firebase-config.js: sign in on the same address on claritydesk.web.app.
-  authDomain:        (typeof location !== 'undefined' && location.hostname === 'claritydesk.web.app') ? "claritydesk.web.app" : "campusos-83365.firebaseapp.com",
+  // Same as firebase-config.js: every address signs in through claritydesk.web.app.
+  authDomain:        "claritydesk.web.app",
   projectId:         "campusos-83365",
   storageBucket:     "campusos-83365.appspot.com",
   messagingSenderId: "248625780152",
