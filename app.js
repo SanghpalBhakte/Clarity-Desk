@@ -10111,12 +10111,14 @@ function onboardingPinReference(url) {
   watch.observe(document.body, { childList: true });
 }
 
-// Read-only preview opened from the example row. Nothing here is saved; the
-// welcome stays underneath (inert) and gets focus back when the preview closes.
+// Read-only preview opened from the welcome's example row or the empty Today
+// setup card. Nothing here is saved; the welcome (if open) stays underneath
+// (inert), and focus goes back to whatever opened the preview.
 window.onboardingSampleDay = function() {
   if (document.getElementById('sample-day-backdrop')) return;
-  trackUsage('welcome_choice', 'sample');
   const welcome = document.getElementById('onboarding-backdrop');
+  const opener = document.activeElement;
+  if (welcome) trackUsage('welcome_choice', 'sample');
   const rows = [['9:00 AM', 'Data Structures lecture', 'Room 204'], ['11:00 AM', 'Maths tutorial', 'Room 110'], ['2:00 PM', 'DS lab', 'Lab 3']];
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -10125,6 +10127,7 @@ window.onboardingSampleDay = function() {
     document.getElementById('sample-day-backdrop')?.remove();
     document.removeEventListener('keydown', onKey, true);
     if (welcome) { welcome.inert = false; welcome.querySelector('.ob-soon-btn')?.focus(); }
+    else if (opener && opener.isConnected) opener.focus();
   };
   const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   document.addEventListener('keydown', onKey, true);
@@ -10133,7 +10136,7 @@ window.onboardingSampleDay = function() {
   backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sample-day-title">
       <h2 id="sample-day-title" class="add-tt-title">A sample day</h2>
-      <div class="add-tt-sub">Just a look. Nothing here is saved to your desk.</div>
+      <div class="add-tt-sub">Example only. Nothing here is saved to your desk.</div>
       <div class="ob-sample">${rows.map(r => `<div class="ob-soon-row"><span class="ob-soon-when">${r[0]}</span><span class="ob-soon-what">${r[1]}<small>${r[2]}</small></span></div>`).join('')}
         <div class="ob-soon-row"><span class="ob-soon-when">Tomorrow</span><span class="ob-soon-what">Lab record due</span></div></div>
       <div class="add-tt-foot"><button type="button" class="btn-primary" onclick="closeSampleDay()">Got it</button></div>
@@ -10711,6 +10714,7 @@ function renderDashboard() {
       <div class="setup-first-sub">${firstStep.desc}</div>
       <button class="btn-primary setup-first-btn" onclick="${firstStep.action}">Add your timetable</button>
       <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">No timetable? I study on my own</button>
+      <button type="button" class="setup-first-alt" onclick="onboardingSampleDay()">See an example day</button>
     </div>` : `
     <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
