@@ -170,6 +170,66 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u240",
+    date: "2026-11-09",
+    title: "Reminders now have Calm, Balanced and Off presets you can undo",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Reminders now have Calm, Balanced and Off presets you can undo",
+    points: [
+
+    ]
+  },
+  {
+    id: "u239",
+    date: "2026-11-09",
+    title: "The first screen's example row now opens a sample day, and the intro and privacy note are shorter",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The first screen's example row now opens a sample day, and the intro and privacy note are shorter",
+    points: [
+
+    ]
+  },
+  {
+    id: "u238",
+    date: "2026-11-09",
+    title: "The attendance ring marker is thinner and softer",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The attendance ring marker is thinner and softer",
+    points: [
+
+    ]
+  },
+  {
+    id: "u237",
+    date: "2026-11-09",
+    title: "The first screen reads cleaner: clearer setup choices, a calmer example row and tighter spacing",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The first screen reads cleaner: clearer setup choices, a calmer example row and tighter spacing",
+    points: [
+
+    ]
+  },
+  {
+    id: "u236",
+    date: "2026-11-05",
+    title: "Count visits from Reel and LinkedIn links, and tell new students from existing ones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Adds two anonymous usage counts: ref_visit (only for ?ref=reel, linkedin or insta-story, once per device) and first_open (new or existing, once per device).",
+    points: [
+      "Nothing else is sent."
+    ]
+  },
+  {
     id: "u235",
     date: "2026-11-09",
     title: "The first screen now lets you add something due right away, or keep a photo of a notice open while you fill in the details",
