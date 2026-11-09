@@ -11,7 +11,7 @@ async function welcome(page: Page) {
   await expect(page.locator('#onboarding-backdrop')).toBeVisible();
 }
 async function pick(page: Page, file: any) {
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Photo as reference' }).click()]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Use a photo as reference' }).click()]);
   await chooser.setFiles(file);
 }
 const sheet = (page: Page) => page.locator('#photo-step-backdrop');
@@ -21,7 +21,7 @@ test.describe('Photo as reference', () => {
     await welcome(page);
     const add = await page.getByRole('button', { name: 'Add something due' }).boundingBox();
     const paste = await page.getByRole('button', { name: 'Paste a message' }).boundingBox();
-    const ref = await page.getByRole('button', { name: 'Photo as reference' }).boundingBox();
+    const ref = await page.getByRole('button', { name: 'Use a photo as reference' }).boundingBox();
     expect(Math.abs(paste!.y - ref!.y)).toBeLessThan(6);
     expect(ref!.y).toBeGreaterThan(add!.y + add!.height);
     expect(ref!.height).toBeLessThan(add!.height);
@@ -53,10 +53,10 @@ test.describe('Photo as reference', () => {
     await page.keyboard.press('Escape');
     await expect(sheet(page)).toHaveCount(0);
     await expect(page.locator('#onboarding-backdrop')).toHaveJSProperty('inert', false);
-    await expect(page.getByRole('button', { name: 'Photo as reference' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Use a photo as reference' })).toBeFocused();
     await pick(page, photo());
     await sheet(page).getByRole('button', { name: 'Cancel and go back' }).click();
-    await expect(page.getByRole('button', { name: 'Photo as reference' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Use a photo as reference' })).toBeFocused();
     await expect(page.locator('#onboarding-backdrop')).toBeVisible();
   });
 
