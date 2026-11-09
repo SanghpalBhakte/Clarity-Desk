@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u235",
+    date: "2026-11-09",
+    title: "The first screen now lets you add something due right away, or keep a photo of a notice open while you fill in the details",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The first screen now lets you add something due right away, or keep a photo of a notice open while you fill in the details",
+    points: [
+
+    ]
+  },
+  {
     id: "u234",
     date: "2026-11-08",
     title: "Press N on a laptop to add a task, and calendar arrows plus Present/Absent are easier to tap",
