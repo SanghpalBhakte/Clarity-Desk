@@ -75,6 +75,20 @@ const KEY_MOVED_PROMPT        = 'cos_moved_prompt';
 // Device-only, left out of backups and sync.
 const KEY_USAGE               = 'cos_usage';
 
+// ── Size caps (one place) ─────────────────────────────────────
+// Changing a cap here changes it everywhere it is checked. The task caps are
+// also applied when saved tasks are read (sanitizeTask), so raising one is
+// safe but lowering one would cut text students already saved: don't.
+const TASK_TITLE_MAX         = 150;               // characters, sanitizeTask and WhatsApp import
+const TASK_DESC_MAX          = 500;               // characters, sanitizeTask
+const VAULT_IMPORT_LABEL_MAX = 150;               // characters, vault links saved from a WhatsApp export
+const VAULT_FILE_MAX_BYTES   = 1024 * 1024;       // one file kept as a data URL (no IndexedDB)
+const VAULT_IDB_MAX_BYTES    = 10 * 1024 * 1024;  // one file kept in IndexedDB on this device
+const VAULT_CLOUD_MAX_BYTES  = 50 * 1024 * 1024;  // all vault files in one account
+const VAULT_BULK_MAX_ROWS    = 50;                // one "add several" batch, so one sync stays small
+const PUSH_WARN_BYTES        = 700000;            // cloud copy: warn (Firestore doc limit is 1 MiB)
+const PUSH_FULL_BYTES        = 900000;            // cloud copy: stop pushing
+
 // ── Safe Storage Helpers ─────────────────────────────────────
 function formatDisplayTime(t) {
   if (!t || typeof t !== 'string') return t || '';
@@ -504,7 +518,7 @@ function markSynced() {
 // Size of the last desk copy measured for the cloud (bytes); null until a push ran.
 let lastCloudBytes = null;
 function syncSizeNote() {
-  return currentUser && lastCloudBytes ? `Cloud copy ${Math.max(1, Math.round(lastCloudBytes / 1024))} KB of about 900 KB` : '';
+  return currentUser && lastCloudBytes ? `Cloud copy ${Math.max(1, Math.round(lastCloudBytes / 1024))} KB of about ${PUSH_FULL_BYTES / 1000} KB` : '';
 }
 let syncPushSeq = 0;   // counts pushes so a late delete failure only rolls back its own push
 
@@ -3735,10 +3749,10 @@ function sanitizeTask(t) {
     id:          String(t.id || `c-${Date.now()}`),
     subject:     finalSubject,
     code:        finalCode,
-    title:       String(t.title || 'Untitled Task').slice(0, 150),
+    title:       String(t.title || 'Untitled Task').slice(0, TASK_TITLE_MAX),
     taskType:    taskType,
     noDeadline:  isNoDeadline,
-    description: String(t.description !== undefined && t.description !== null ? t.description : '—').slice(0, 500),
+    description: String(t.description !== undefined && t.description !== null ? t.description : '—').slice(0, TASK_DESC_MAX),
     dueDate:     finalDueDate,
     priority:    ['high', 'medium', 'low'].includes(t.priority) ? t.priority : 'medium',
     status:      t.status === 'submitted' ? 'submitted' : 'pending',
@@ -4311,9 +4325,7 @@ function showSyncUndoToast(n) {
 }
 
 // ── Push guards ──
-// Firestore caps one doc at 1 MiB: warn at 700 KB, stop pushing at 900 KB.
-const PUSH_WARN_BYTES = 700000;
-const PUSH_FULL_BYTES = 900000;
+// Firestore caps one doc at 1 MiB: warn at PUSH_WARN_BYTES, stop at PUSH_FULL_BYTES (size caps block at the top).
 function pushGuard(payload) {
   const json = JSON.stringify(payload) || '';
   let bytes = json.length;
@@ -4998,7 +5010,6 @@ function computeSyncDeletePaths(prev, cur, emptiedOnPurpose = false) {
 // tombstone says a device deleted it (a phone that hasn't synced in a while
 // must not remove files it hasn't heard of yet).
 const VAULT_CLOUD_PART_BYTES = 700 * 1024;
-const VAULT_CLOUD_MAX_BYTES = 50 * 1024 * 1024;
 const VAULT_CLOUD_SWEEP_MS = 6 * 60 * 60 * 1000;
 let vaultCloudSweeping = false;
 let vaultCloudLastSweep = { uid: '', sig: '', at: 0 };
@@ -5279,7 +5290,6 @@ function saveCustomLinks(links) {
 // one big file used to stop sync for everything. fileId is worked out from
 // the file itself, so the device that has the file finds it again even
 // after another device renames the placeholder.
-const VAULT_FILE_MAX_BYTES = 1024 * 1024;
 const VAULT_FULL_MESSAGE = 'Not saved: Clarity Desk’s storage on this phone is full. Remove a file from the vault or add this as a link.';
 
 function vaultFileTooBigMessage(bytes) {
@@ -5365,7 +5375,6 @@ function saveLinksFittingStorage(links) {
 //   { label, url: '', icon, isUpload, fileSize, fileId, idb: true, bytes, mime }
 // It stays on this device: the cloud gets the same placeholder as before.
 // If IndexedDB can't be used, files stay data: URLs with the 1 MB limit.
-const VAULT_IDB_MAX_BYTES = 10 * 1024 * 1024;
 const VAULT_BACKUP_FILE_CAP = 30 * 1024 * 1024;
 const VAULT_NO_ROOM_MESSAGE = 'Not saved: there is no room left on this phone for this file. Remove a file from the vault or add it as a link.';
 const VAULT_MISSING_MESSAGE = 'This file is missing on this device. Add it again or restore it from a backup.';
@@ -15883,8 +15892,8 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
 
       <div class="form-group">
         <label class="form-label">Description / Instructions</label>
-        <textarea class="form-input form-textarea" id="task-desc"
-          placeholder="Milestones, notes, syllabus topics, or links...">${editTask ? editTask.description : ''}</textarea>
+        <textarea class="form-input form-textarea" id="task-desc" maxlength="${TASK_DESC_MAX}"
+          placeholder="Milestones, notes, syllabus topics, or links...">${editTask ? escHtml_cd(editTask.description) : ''}</textarea>
       </div>
 
       <label class="checkbox-inline">
@@ -16375,7 +16384,7 @@ function waToggleOpen(id) {
 function waEdit(id, field, value) {
   const c = _wa && _wa.items.find(x => x.id === id);
   if (!c) return;
-  if (field === 'title') c.title = String(value).trim().slice(0, 150) || c.title;
+  if (field === 'title') c.title = String(value).trim().slice(0, TASK_TITLE_MAX) || c.title;
   else if (field === 'kind' && WA_KIND_LABEL[value]) c.kind = value;
   else if (field === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [y, m, d] = value.split('-').map(Number);
@@ -16583,7 +16592,7 @@ function waSaveLinks() {
       created.add(key);
     }
     if (!Array.isArray(entry.resources)) entry.resources = [];
-    entry.resources.push({ label: String(l.title || l.domain).slice(0, 150), url: l.url, icon: vaultIconForUrl(l.url) || 'link', isUpload: false, fileSize: '' });
+    entry.resources.push({ label: String(l.title || l.domain).slice(0, VAULT_IMPORT_LABEL_MAX), url: l.url, icon: vaultIconForUrl(l.url) || 'link', isUpload: false, fileSize: '' });
     added.push({ key, url: l.url });
   }
   if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
@@ -16727,7 +16736,6 @@ function renderSummary() {
 // Nothing here writes anything: it only changes what is drawn.
 let _vaultQuery = '';
 const VAULT_STORAGE_GUESS = 5000000;   // characters one site may keep in a phone browser (estimate)
-const VAULT_BULK_MAX_ROWS = 50;        // one "add several" batch, so one sync stays small
 const VAULT_FILE_ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.zip,.py,.java,.cpp,.c,.js';
 
 function vaultEsc(s) {
