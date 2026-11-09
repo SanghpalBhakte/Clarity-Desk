@@ -133,6 +133,14 @@ check('First step: a task with one comes up to 2 days early and says Start; with
   return mk('2026-09-30', '   ') === null && mk('2026-09-30') === null ? true : 'blank step still came early';
 });
 
+check('First step: an early first-step task waits behind an attendance warning', () => {
+  seed(); at(DAY + 'T09:00:00'); const { buildTodayFocus: f } = makeApp();
+  const risk = { name: 'DS', pct: 52, targetPct: 75, classesToAttend: 9 };
+  const early = f({ dayClasses: [], dateStr: DAY, currentMin: 540, riskSubject: risk, task: { id: 'x', title: 'Lab report', dueDate: '2026-10-01', firstStep: 'Read the aim' } });
+  const due = f({ dayClasses: [], dateStr: DAY, currentMin: 540, riskSubject: risk, task: { id: 'x', title: 'Lab report', dueDate: DAY, firstStep: 'Read the aim' } });
+  return early.kind === 'risk' && due.kind === 'task' ? true : [early.kind, due.kind].join(',');
+});
+
 check('First step: Today picks the due-today task first, else the soonest task with a step', () => {
   const tasks = [
     { id: 'a', title: 'Essay', dueDate: '2026-09-30', status: 'pending', taskType: 'assignment', isCustom: true },
