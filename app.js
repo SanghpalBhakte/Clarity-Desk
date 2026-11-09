@@ -15191,6 +15191,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     </div>
 
     ${syllabusCardHTML(subj)}
+    <div class="hub-links hub-report"><button type="button" onclick="reportSubjectProblem(${nameArg})">Something look wrong here? Tell me</button></div>
   `;
 }
 
@@ -18768,7 +18769,10 @@ async function shrinkScreenshot(file, maxBytes = FEEDBACK_SHOT_MAX_BYTES) {
   return null;
 }
 
-window.openFeedbackForm = function() {
+// ctx (optional): { type, about } opens the form with that type chosen and a
+// first line saying what the report is about. The student can edit or delete it.
+window.openFeedbackForm = function(ctx) {
+  const about = (ctx && typeof ctx.about === 'string') ? ctx.about.trim().slice(0, 120) : '';
   document.getElementById('feedback-backdrop')?.remove();
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -18806,7 +18810,19 @@ window.openFeedbackForm = function() {
     </div>`;
   wireBackdropClickClose(backdrop);
   document.body.appendChild(backdrop);
-  document.getElementById('fb-message')?.focus();
+  const box = document.getElementById('fb-message');
+  if (about && box) {
+    box.value = `About: ${about}\n\nWhat looks wrong: `;
+    const typeSel = document.getElementById('fb-type');
+    if (typeSel && FEEDBACK_TYPES[ctx.type]) typeSel.value = ctx.type;
+  }
+  if (box) { box.focus(); box.setSelectionRange?.(box.value.length, box.value.length); }
+};
+
+// Subject Hub "Something look wrong here?" link: the subject name is filled in
+// for the student to see and edit before they send anything.
+window.reportSubjectProblem = function(name) {
+  window.openFeedbackForm({ type: 'bug', about: `Subject Hub, ${name}` });
 };
 
 window.submitFeedback = async function() {
