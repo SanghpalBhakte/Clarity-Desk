@@ -8385,6 +8385,8 @@ function buildTodayFocus(o = {}) {
     }
   }
 
+  // A first-step task that is not due yet waits behind an attendance warning.
+  let early = null;
   if (task && task.dueDate) {
     const days = dueDaysLeft(task.dueDate);
     const id = `task:${task.id}`;
@@ -8392,11 +8394,12 @@ function buildTodayFocus(o = {}) {
     const step = typeof task.firstStep === 'string' ? task.firstStep.trim() : '';
     if (days !== null && (days <= 0 || (step && days <= 2)) && !skip.has(id)) {
       const when = days === 0 ? 'Due today' : days > 0 ? `Due ${days === 1 ? 'tomorrow' : `in ${days} days`}` : `${-days} day${days === -1 ? '' : 's'} overdue`;
-      return {
+      const row = {
         kind: 'task', id, go: step ? 'Start' : 'Open',
         title: task.title,
         sub: step ? `Start: ${step} \u00b7 ${when.charAt(0).toLowerCase()}${when.slice(1)}` : when
       };
+      if (days > 0) early = row; else return row;
     }
   }
 
@@ -8411,7 +8414,7 @@ function buildTodayFocus(o = {}) {
       };
     }
   }
-  return null;
+  return early;
 }
 
 const FOCUS_DISMISS_KEY = 'cd_focus_dismissed';   // local only, not a cos_* key, not synced
