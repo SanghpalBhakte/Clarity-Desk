@@ -25,7 +25,7 @@ test.describe('Photo as reference', () => {
     expect(Math.abs(paste!.y - ref!.y)).toBeLessThan(6);
     expect(ref!.y).toBeGreaterThan(add!.y + add!.height);
     expect(ref!.height).toBeLessThan(add!.height);
-    await expect(page.locator('.ob-lede')).toContainText('Add one deadline, message, or photo. Clarity Desk turns it into a next step you can start today.');
+    await expect(page.locator('.ob-lede')).toContainText('Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.');
   });
 
   test('a non-image is rejected and the welcome stays', async ({ page }) => {

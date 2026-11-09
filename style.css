@@ -2566,6 +2566,8 @@ a.card:hover,
 
 /* First Today: the timetable is one quiet line under the work, no card. */
 .desk-setup-guide.setup-first { background: none; border: 0; box-shadow: none; padding: 0; margin: 20px 0 0; }
+/* Phones reorder Today with flex order; the timetable line stays last. */
+#page-dashboard .desk-setup-guide.setup-first { order: 99; }
 .setup-first-line { margin: 0; font-size: var(--text-md); color: var(--text-secondary); }
 .setup-first-btn { min-height: 44px; padding: 0 2px; font-size: var(--text-md); font-weight: 700; color: var(--color-thread, var(--accent)); }
 .setup-first-btn:hover, .setup-first-btn:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
