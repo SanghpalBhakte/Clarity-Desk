@@ -128,6 +128,12 @@ self.addEventListener('fetch', (e) => {
   if (url.hostname.includes('googleapis.com') || url.hostname.includes('firebase') || url.hostname.includes('groq.com')) {
     return;
   }
+  // Firebase's reserved pages on this site (/__/auth/handler for Google
+  // sign-in on claritydesk.web.app, /__/firebase/init.json) must always come
+  // from the network: a cached app shell there would break sign-in.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/__/')) {
+    return;
+  }
 
   // Network-First for Navigation and JS files to prevent stale cache lock.
   // A slow network never fails, so after NETWORK_WAIT_MS the saved copy is
