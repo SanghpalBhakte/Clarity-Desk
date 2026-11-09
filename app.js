@@ -6263,7 +6263,8 @@ function installBannerKind(dev = detectDevice()) {
 // address; anyone else gets a card with ways to bring their desk along.
 // Unknown hosts (localhost, preview channels) are left alone.
 const CANONICAL_ORIGIN = 'https://claritydesk.web.app';
-const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.firebaseapp.com', 'sanghpalbhakte.github.io'];
+// sanghpalbhakte.github.io was retired 2026-11-09 (GitHub Pages off, removed from sign-in domains).
+const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', 'claritydesk.firebaseapp.com'];
 // Preferences, and bookkeeping the app writes on its own during any visit,
 // that are no loss to leave behind. Any other cos_* key counts as desk data.
 const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,

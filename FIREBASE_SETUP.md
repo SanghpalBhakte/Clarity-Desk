@@ -40,7 +40,6 @@ Follow these 5 steps in the [Firebase Console](https://console.firebase.google.c
    * `campusos-83365.firebaseapp.com`
    * `claritydesk.web.app` (second Hosting site, same build)
    * `claritydesk.firebaseapp.com`
-   * `sanghpalbhakte.github.io`
    * `localhost`
    * *(Any custom domain you attach)*
 
@@ -77,7 +76,6 @@ Follow these 5 steps in the [Firebase Console](https://console.firebase.google.c
    * Add:
      * `https://campusos-83365.web.app/*`
      * `https://campusos-83365.firebaseapp.com/*`
-     * `https://sanghpalbhakte.github.io/*`
      * `http://localhost:*`
    * Under **API restrictions**, choose **Restrict key** and select:
      * *Identity Toolkit API*
