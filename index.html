@@ -494,7 +494,10 @@
     'claritydesk.web.app': 'e8919947f5de47419941a28c201a81f0',
     'claritydesk.firebaseapp.com': 'e8919947f5de47419941a28c201a81f0'
   };
-  if (cfTokens[location.hostname] && !navigator.webdriver) {
+  // Same switch as the in-app "Share anonymous usage counts" toggle (cos_usage.optOut).
+  var cfOptOut = false;
+  try { cfOptOut = !!(JSON.parse(localStorage.getItem('cos_usage') || '{}') || {}).optOut; } catch (e) {}
+  if (cfTokens[location.hostname] && !navigator.webdriver && !cfOptOut) {
     var cfBeacon = document.createElement('script');
     cfBeacon.defer = true;
     cfBeacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
