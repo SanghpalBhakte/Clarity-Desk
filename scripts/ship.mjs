@@ -35,10 +35,10 @@ const DRY = args.includes('--dry-run');
 const SKIP_TESTS = args.includes('--skip-tests');
 let message = args.filter((a) => !a.startsWith('--')).join(' ').trim();
 const EXCLUDE = ['Claude outputs'].map((p) => `:(exclude)${p}`);
-const SITE = 'https://campusos-83365.web.app';
+const SITE = 'https://claritydesk.web.app';
 // Both Hosting sites (targets "app" and "claritydesk" in .firebaserc) get the same deploy;
 // each one is smoke-tested. SITE stays the one the live version check reads.
-const SITES = [SITE, 'https://claritydesk.web.app'];
+const SITES = [SITE, 'https://campusos-83365.web.app'];
 // app.js, style.css and data.js load from jsDelivr (Cloudflare) pinned to a git
 // commit, with this site as the fallback; desk-assistant.js, scanners.js, timetable-ocr.js, deadline-import.js and welcome-tour.js come along
 // through app.js's import(). See index.html.

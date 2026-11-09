@@ -75,10 +75,21 @@ console.log('=================================================================='
 
 const published = walk(ROOT).filter(p => !matchers.some(match => match(p))).sort();
 
+// The one allowed difference: the old address (target "app") tells search
+// engines not to list it, so only claritydesk.web.app shows up in results.
+const OLD_SITE_NOINDEX = JSON.stringify({ source: '**', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] });
+const isNoindex = (e) => JSON.stringify(e) === OLD_SITE_NOINDEX;
+
 scenario('Every Hosting site deploys the same config', () => {
-  const strip = ({ target, ...rest }) => JSON.stringify(rest);
+  const strip = ({ target, headers = [], ...rest }) =>
+    JSON.stringify({ ...rest, headers: target === 'app' ? headers.filter(e => !isNoindex(e)) : headers });
   const differ = hostings.filter(h => strip(h) !== strip(hosting)).map(h => h.target || '(no target)');
   return differ.length === 0 ? true : `firebase.json hosting entries differ from "${hosting.target}": ${differ.join(', ')}`;
+});
+
+scenario('Only the old address asks search engines not to list it', () => {
+  const bad = hostings.filter(h => (h.headers || []).some(isNoindex) !== (h.target === 'app')).map(h => h.target || '(no target)');
+  return bad.length === 0 ? true : `noindex header wrong on: ${bad.join(', ')}`;
 });
 scenario('Nothing outside the app runtime files is published', () => {
   const extra = published.filter(p => !RUNTIME_FILES.includes(p));

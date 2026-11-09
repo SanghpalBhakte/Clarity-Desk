@@ -41,13 +41,13 @@ jobs:
         run: npm run test:smoke
         continue-on-error: true
         env:
-          SMOKE_BASE_URL: https://campusos-83365.web.app
+          SMOKE_BASE_URL: https://claritydesk.web.app
 
       - id: smoke2
         run: npm run test:smoke
         continue-on-error: true
         env:
-          SMOKE_BASE_URL: https://claritydesk.web.app
+          SMOKE_BASE_URL: https://campusos-83365.web.app
 
       - name: Open, update or close the tracking issue
         uses: actions/github-script@v9
@@ -62,7 +62,7 @@ jobs:
               .find(i => !i.pull_request && i.title === title);
             const failed = process.env.OUTCOME !== 'success';
             if (failed) {
-              const body = `The smoke test against https://campusos-83365.web.app and https://claritydesk.web.app failed.\n\nRun log: ${process.env.RUN_URL}`;
+              const body = `The smoke test against https://claritydesk.web.app and https://campusos-83365.web.app failed.\n\nRun log: ${process.env.RUN_URL}`;
               if (open) await github.rest.issues.createComment({ owner, repo, issue_number: open.number, body });
               else await github.rest.issues.create({ owner, repo, title, body });
               core.setFailed('Live smoke test failed');
