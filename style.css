@@ -5616,7 +5616,7 @@ body::before {
 /* Empty rings must still read as rings: a visible track, not a near-page-colour one. */
 .sj-ring-track { fill: none; stroke: color-mix(in srgb, var(--text-primary) 20%, transparent); stroke-width: 5; }
 .sj-ring-fill { fill: none; stroke-width: 5; stroke-linecap: round; }
-.sj-ring-tick { stroke: var(--color-text-tertiary); stroke-width: 1.5; }
+.sj-ring-tick { stroke: var(--color-text-tertiary); stroke-width: 1; opacity: .45; }
 .sj-ring.risk .sj-ring-fill { stroke: var(--color-error); }
 .sj-ring.watch .sj-ring-fill { stroke: var(--color-warning); }
 .sj-ring.safe .sj-ring-fill { stroke: var(--color-success); }
@@ -7205,7 +7205,7 @@ body.holiday-mode .holiday-banner {
 @media (min-width: 1100px) { .hub { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; } }
 .hub-head { display: flex; align-items: center; gap: 18px; }
 .hub-ring .sj-ring-track, .hub-ring .sj-ring-fill { stroke-width: 10; }
-.hub-ring .sj-ring-tick { stroke: var(--text-primary); stroke-width: 2.5; stroke-linecap: round; }
+.hub-ring .sj-ring-tick { stroke: var(--text-primary); stroke-width: 1.5; stroke-linecap: round; opacity: .45; }
 .hub-ring-code { font-family: var(--font-display, var(--font)); font-size: 26px; font-weight: 700; fill: var(--text-primary); letter-spacing: -0.02em; }
 .hub-ring-code.is-long { font-size: 18px; }
 .hub-ring-pct { font-size: 12px; font-weight: 700; fill: var(--text-muted); }
