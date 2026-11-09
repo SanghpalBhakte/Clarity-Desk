@@ -17,6 +17,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import vm from 'vm';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -173,6 +174,19 @@ check('Share tags and canonical point at the new address (index.html and 404.htm
       if (!m || !m[1].startsWith('https://claritydesk.web.app/')) bad.push(`${f}: ${re.source} -> ${m ? m[1] : 'missing'}`);
     }
   }
+  return bad.length ? bad.join('; ') : true;
+});
+
+check('Sign-in runs on claritydesk.web.app there, and on the old sign-in address everywhere else', () => {
+  const src = fs.readFileSync(`${ROOT}/firebase-config.js`, 'utf8');
+  const domainOn = (hostname) => {
+    const ctx = { window: {}, location: { hostname } };
+    vm.runInNewContext(src, ctx);
+    return ctx.window.CAMPUS_OS_FIREBASE_CONFIG.authDomain;
+  };
+  const want = { 'claritydesk.web.app': 'claritydesk.web.app', 'campusos-83365.web.app': 'campusos-83365.firebaseapp.com',
+    'claritydesk.firebaseapp.com': 'campusos-83365.firebaseapp.com', '127.0.0.1': 'campusos-83365.firebaseapp.com' };
+  const bad = Object.entries(want).filter(([h, d]) => domainOn(h) !== d).map(([h, d]) => `${h}: ${domainOn(h)} (want ${d})`);
   return bad.length ? bad.join('; ') : true;
 });
 
