@@ -80,6 +80,7 @@ const KEY_USAGE               = 'cos_usage';
 // also applied when saved tasks are read (sanitizeTask), so raising one is
 // safe but lowering one would cut text students already saved: don't.
 const TASK_TITLE_MAX         = 150;               // characters, sanitizeTask and WhatsApp import
+const TASK_STEP_MAX          = 80;                // characters, a task's optional first step
 const TASK_DESC_MAX          = 500;               // characters, sanitizeTask
 const VAULT_IMPORT_LABEL_MAX = 150;               // characters, vault labels from a WhatsApp export or "add several"
 const VAULT_FILE_MAX_BYTES   = 1024 * 1024;       // one file kept as a data URL (no IndexedDB)
@@ -3739,6 +3740,9 @@ function sanitizeTask(t) {
   // When this task was last changed on a device (sync stamp). Only kept when
   // it is a real number, so older tasks keep exactly their old shape.
   if (Number.isFinite(t.updatedAt)) extra.updatedAt = t.updatedAt;
+  // The student's own first step ("Read the aim, 15 min"). Kept only when set.
+  const step = typeof t.firstStep === 'string' ? t.firstStep.trim().slice(0, TASK_STEP_MAX) : '';
+  if (step) extra.firstStep = step;
   // Ongoing goals: the days you said "Did it today" (newest 120 kept).
   if (isNoDeadline && Array.isArray(t.checkins)) {
     const days = [...new Set(t.checkins.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort().slice(-120);
@@ -8384,11 +8388,14 @@ function buildTodayFocus(o = {}) {
   if (task && task.dueDate) {
     const days = dueDaysLeft(task.dueDate);
     const id = `task:${task.id}`;
-    if (days !== null && days <= 0 && !skip.has(id)) {
+    // A task with a first step comes up to 2 days early: starting is the point.
+    const step = typeof task.firstStep === 'string' ? task.firstStep.trim() : '';
+    if (days !== null && (days <= 0 || (step && days <= 2)) && !skip.has(id)) {
+      const when = days === 0 ? 'Due today' : days > 0 ? `Due ${days === 1 ? 'tomorrow' : `in ${days} days`}` : `${-days} day${days === -1 ? '' : 's'} overdue`;
       return {
-        kind: 'task', id, go: 'Open',
+        kind: 'task', id, go: step ? 'Start' : 'Open',
         title: task.title,
-        sub: days === 0 ? 'Due today' : `${-days} day${days === -1 ? '' : 's'} overdue`
+        sub: step ? `Start: ${step} \u00b7 ${when.charAt(0).toLowerCase()}${when.slice(1)}` : when
       };
     }
   }
@@ -8429,7 +8436,9 @@ window.dismissTodayFocus = function(id) {
 function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out = {}, skipUnmarked = false }) {
   try {
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    const task = (urgentTasks || []).find(a => a.dueDate && !a.noDeadline);
+    const dated = (urgentTasks || []).filter(a => a.dueDate && !a.noDeadline);
+    const daysOf = (a) => { const d = dueDaysLeft(a.dueDate); return d === null ? Infinity : d; };
+    const task = dated.find(a => daysOf(a) <= 0) || dated.find(a => a.firstStep && daysOf(a) <= 2) || null;
     let riskSubject = null;
     if (!isHolidayActive()) getSubjectList().forEach(sj => {
       const att = getSubjectAttendance(sj);
@@ -15868,6 +15877,12 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
           value="${editTask ? editTask.title.replace(/"/g, '&quot;') : ''}">
       </div>
 
+      <div class="form-group">
+        <label class="form-label" for="task-step">First step (optional)</label>
+        <input type="text" class="form-input" id="task-step" maxlength="${TASK_STEP_MAX}" autocomplete="off"
+          placeholder="e.g. Read the aim, 15 min" value="${editTask && editTask.firstStep ? escAttr_cd(editTask.firstStep) : ''}">
+      </div>
+
         <div class="form-group" id="task-due-group">
           <div class="form-label-row">
             <label class="form-label" id="task-due-label" for="task-due">Due Date <span class="req" id="task-due-req" style="${isOngoing ? 'display:none' : ''}">*</span></label>
@@ -15959,6 +15974,7 @@ function submitAddTask(editTaskId = null) {
   const noDeadlineEl = document.getElementById('task-no-deadline');
   const marksEl      = document.getElementById('task-marks');
   const descEl       = document.getElementById('task-desc');
+  const stepEl       = document.getElementById('task-step');
   const typeEl       = document.getElementById('task-type');
   const priorityEl   = document.querySelector('input[name="task-priority"]:checked');
 
@@ -15997,6 +16013,7 @@ function submitAddTask(editTaskId = null) {
   const [subject, code] = subjectEl.value.split('|||');
   const taskType = typeEl?.value || 'assignment';
   const finalDueDate = isNoDeadline ? '' : (dueEl ? dueEl.value : '');
+  const firstStep = (stepEl?.value || '').trim().slice(0, TASK_STEP_MAX);
 
   if (editTaskId) {
     let task = state.customTasks.find(t => t.id === editTaskId);
@@ -16011,6 +16028,7 @@ function submitAddTask(editTaskId = null) {
       task.priority    = priorityEl?.value || 'medium';
       task.marks       = parseInt(marksEl?.value) || 0;
       if (keepInHoliday) task.keepInHoliday = true; else delete task.keepInHoliday;
+      if (firstStep) task.firstStep = firstStep; else delete task.firstStep;
     } else {
       task = {
         id:          editTaskId,
@@ -16026,6 +16044,7 @@ function submitAddTask(editTaskId = null) {
         marks:       parseInt(marksEl?.value) || 0,
         isCustom:    true,
         ...(keepInHoliday ? { keepInHoliday: true } : {}),
+        ...(firstStep ? { firstStep } : {}),
       };
       state.customTasks.push(task);
     }
@@ -16044,6 +16063,7 @@ function submitAddTask(editTaskId = null) {
       marks:       parseInt(marksEl?.value) || 0,
       isCustom:    true,
       ...(keepInHoliday ? { keepInHoliday: true } : {}),
+      ...(firstStep ? { firstStep } : {}),
     };
     state.customTasks.push(task);
   }
