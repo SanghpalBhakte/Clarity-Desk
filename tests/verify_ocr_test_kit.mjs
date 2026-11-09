@@ -219,7 +219,7 @@ if (PROXY) {
   // Open the page at the real site address (served from this local server)
   // so the proxy sees the same Origin a student's browser sends -- the live
   // proxy never has to allow localhost.
-  const SITE = 'https://campusos-83365.web.app';
+  const SITE = 'https://claritydesk.web.app';
   await page.route(`${SITE}/**`, async (route) => {
     const r = await fetch(`http://127.0.0.1:${server.address().port}${new URL(route.request().url()).pathname}`);
     await route.fulfill({ status: r.status, headers: { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream' }, body: Buffer.from(await r.arrayBuffer()) });

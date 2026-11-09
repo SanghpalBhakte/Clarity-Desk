@@ -168,7 +168,7 @@ page.on('console', m => {
 if (PROXY) {
   // Same trick as the timetable kit: open the page at the real site address
   // so the live proxy sees the Origin a student's browser sends.
-  const SITE = 'https://campusos-83365.web.app';
+  const SITE = 'https://claritydesk.web.app';
   await page.route(`${SITE}/**`, async (route) => {
     const r = await fetch(`http://127.0.0.1:${server.address().port}${new URL(route.request().url()).pathname}`);
     await route.fulfill({ status: r.status, headers: { 'Content-Type': r.headers.get('content-type') || 'application/octet-stream' }, body: Buffer.from(await r.arrayBuffer()) });
