@@ -918,10 +918,11 @@ img { display: block; max-width: 100%; }
 .avatar {
   width: 30px; height: 30px;
   border-radius: 50%;
-  background: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
   display: grid;
   place-items: center;
-  color: var(--brand-primary-text, #ffffff);
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 700;
   flex-shrink: 0;
@@ -930,8 +931,8 @@ img { display: block; max-width: 100%; }
 }
 
 .avatar:hover {
-  transform: scale(1.08);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
 }
 
 /* ── Sidebar (desktop ≥768px) ─────────────────────────────── */
@@ -2516,7 +2517,8 @@ a.card:hover,
 .ob-hint { margin-top: 10px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
 @media (min-width: 768px) {
   .ob-screen { min-height: 0; margin: auto; padding: 40px 28px; }
-  #onboarding-modal-box.ob-screen { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 20px 48px rgba(0, 0, 0, 0.12); }
+  /* Laptop: the welcome sits on the paper, no floating card. */
+  #onboarding-modal-box.ob-screen { max-width: 600px; }
   .ob-step .ob-actions { margin-top: 8px; }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -2562,12 +2564,16 @@ a.card:hover,
   #onboarding-backdrop { height: 100dvh; }
 }
 
-/* First Today: one ask, one button, one quiet way out. */
-.setup-first-title { font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
-.setup-first-sub { margin-top: 4px; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
-.setup-first-btn { width: 100%; min-height: 48px; margin-top: 16px; justify-content: center; font-size: var(--text-base); }
+/* First Today: the timetable is one quiet line under the work, no card. */
+.desk-setup-guide.setup-first { background: none; border: 0; box-shadow: none; padding: 0; margin: 20px 0 0; }
+.setup-first-line { margin: 0; font-size: var(--text-md); color: var(--text-secondary); }
+.setup-first-btn { min-height: 44px; padding: 0 2px; font-size: var(--text-md); font-weight: 700; color: var(--color-thread, var(--accent)); }
+.setup-first-btn:hover, .setup-first-btn:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
+.setup-first-alts { margin: 0; font-size: var(--text-sm); color: var(--text-muted); }
 .setup-first-alt { display: block; margin: 12px auto 0; padding: 6px 8px; font-size: var(--text-sm); color: var(--text-muted); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
 .setup-first-alt:hover, .setup-first-alt:focus-visible { color: var(--text-secondary); text-decoration-color: currentColor; }
+.setup-first-alts .setup-first-alt { display: inline-block; margin: 0; padding: 8px 2px; min-height: 40px; color: var(--text-secondary); text-decoration-color: var(--border); }
+.setup-first-alts .setup-first-alt:hover, .setup-first-alts .setup-first-alt:focus-visible { color: var(--text-primary); text-decoration-color: currentColor; }
 .setup-ask-title { font-weight: 600; color: var(--text-primary); }
 .setup-ask-sub { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.45; }
 .setup-ask-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -4356,26 +4362,25 @@ button:disabled {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm, 8px);
-  background: var(--surface-2);
+  background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s ease;
 }
 .btn-assistant-toggle:hover {
-  background: var(--surface-3, var(--surface-2));
-  color: var(--accent);
-  border-color: var(--accent);
+  background: var(--color-hover-fill);
+  color: var(--text-primary);
 }
 .btn-assistant-toggle:active {
   transform: translateY(0) scale(0.97);
 }
 .btn-assistant-toggle[aria-expanded="true"] {
-  background: var(--accent);
-  color: var(--text-on-fill);
-  border-color: var(--accent);
+  background: var(--color-hover-fill);
+  color: var(--text-primary);
+  border-color: var(--border);
 }
 
 @media (max-width: 600px) {
@@ -7738,25 +7743,25 @@ body.holiday-mode .holiday-banner {
   .tk-subj-next { display: block; min-width: 0; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
-/* Laptop sidebar, same language as Tasks: ruled section heads, hairline rows,
-   the current page in bold accent with its bar. The collapsed icon rail keeps
-   its own rules. */
+/* Laptop sidebar: small quiet group labels and space instead of rules; the
+   current page is bold with the thread bar. The collapsed icon rail keeps its
+   own rules. */
 @media (min-width: 1024px) {
   html:not(.sidebar-collapsed) .sidebar { padding: 16px 16px; gap: 0; }
-  html:not(.sidebar-collapsed) .sidebar-section-label { margin: 18px 0 0; padding: 0 0 4px; border-bottom: 1.5px solid var(--text-primary); font-family: var(--font-display); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text-primary); }
+  html:not(.sidebar-collapsed) .sidebar-section-label { margin: 22px 0 2px; padding: 0 4px 2px; font-family: var(--font-display); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
   html:not(.sidebar-collapsed) .sidebar-section-label:first-child { margin-top: 4px; }
-  html:not(.sidebar-collapsed) .nav-item { min-height: 44px; padding: 0 4px; border-radius: 0; border-bottom: 1px solid var(--color-rule); font-family: var(--font-display); font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); }
+  html:not(.sidebar-collapsed) .nav-item { min-height: 40px; padding: 0 4px; border-radius: 0; border-bottom: 0; font-family: var(--font-display); font-size: 0.9375rem; font-weight: 500; color: var(--text-secondary); }
   html:not(.sidebar-collapsed) .nav-item:hover { background: transparent; box-shadow: none; text-decoration: underline; text-decoration-color: var(--color-rule); text-underline-offset: 4px; }
   html:not(.sidebar-collapsed) .nav-item svg { color: var(--text-secondary); }
-  html:not(.sidebar-collapsed) .nav-item.active { background: transparent; box-shadow: none; font-weight: 700; color: var(--color-thread, var(--accent)); }
+  html:not(.sidebar-collapsed) .nav-item.active { background: transparent; box-shadow: none; font-weight: 700; color: var(--text-primary); }
   html:not(.sidebar-collapsed) .nav-item.active svg { color: inherit; }
-  html:not(.sidebar-collapsed) .nav-item.active::before { left: -16px; top: 0; bottom: 0; width: 3px; border-radius: 0; }
+  html:not(.sidebar-collapsed) .nav-item.active::before { left: -16px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--color-thread, var(--accent)); }
 }
 
 /* Welcome, value first: one field and one clear button; the rest is optional. */
 .ob-value { gap: 0; }
-.ob-hero { margin: 26px 0 12px; text-wrap: balance; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 8vw, 34px); line-height: 1.12; letter-spacing: -0.025em; color: var(--text-primary); }
-.ob-lede { margin: 0 0 24px; max-width: 36ch; font-size: var(--text-md); line-height: 1.55; color: var(--text-secondary); text-wrap: pretty; }
+.ob-hero { margin: 26px 0 12px; text-wrap: balance; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 8vw, 44px); line-height: 1.12; letter-spacing: -0.025em; color: var(--text-primary); }
+.ob-lede { margin: 0 0 24px; max-width: 46ch; font-size: var(--text-md); line-height: 1.55; color: var(--text-secondary); text-wrap: pretty; }
 .ob-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ob-add { display: flex; flex-direction: column; gap: 10px; }
 .ob-add-input { width: 100%; box-sizing: border-box; min-height: 52px; padding: 0 16px; font-size: var(--text-md); color: var(--text-primary); background: var(--surface); border: 1px solid color-mix(in srgb, var(--text-muted) 80%, var(--surface)); border-radius: 14px; }
@@ -7765,28 +7770,37 @@ body.holiday-mode .holiday-banner {
 .ob-add-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
 .ob-add-btn { width: 100%; min-height: 52px; justify-content: center; font-size: var(--text-md); font-weight: 700; }
 .ob-add-btn:focus-visible, .ob-paste:focus-visible, .ob-more-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ob-paste { align-self: flex-start; margin-top: 6px; padding: 10px 4px; min-height: 44px; font-size: var(--text-md); font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.ob-paste:hover { color: var(--accent-hover); }
+.ob-paste { align-self: flex-start; margin-top: 6px; padding: 10px 4px; min-height: 44px; font-size: var(--text-md); font-weight: 600; color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; transition: color 0.15s, text-decoration-color 0.15s; }
+.ob-paste:hover { color: var(--text-primary); text-decoration-color: currentColor; }
 .ob-paste:active, .ob-more-btn:active { opacity: 0.7; }
 .ob-soon { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
-.ob-soon-h { display: flex; align-items: center; gap: 0; margin: 0 0 8px; font-size: var(--text-sm); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
-.ob-soon-tag { font-weight: 600; color: var(--text-secondary); white-space: pre; }
-.ob-soon.is-example .ob-soon-what { color: var(--text-secondary); }
+.ob-soon-h { display: flex; align-items: center; gap: 0; margin: 0 0 8px; font-family: var(--font-display); font-size: var(--text-base); font-weight: 700; color: var(--text-primary); }
+.ob-soon-tag { font-family: var(--font-sans); font-weight: 400; font-style: italic; color: var(--text-muted); white-space: pre; }
+/* The example never looks saved: dashed rules and muted ink. */
+.ob-soon.is-example .ob-soon-row { border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
+.ob-soon.is-example .ob-soon-when { color: var(--text-muted); font-weight: 600; }
+.ob-soon.is-example .ob-soon-what { color: var(--text-muted); }
 .ob-soon-row { display: flex; gap: 14px; align-items: baseline; padding: 6px 0; font-size: var(--text-md); }
 .ob-soon-when { flex: none; min-width: 74px; font-weight: 700; color: var(--text-primary); }
 .ob-soon-what { color: var(--text-primary); overflow-wrap: anywhere; }
 .ob-soon-what small { display: block; color: var(--text-muted); font-size: var(--text-sm); }
-.ob-more { display: flex; flex-direction: column; margin-top: 10px; padding-top: 4px; border-top: 1px solid var(--border); }
-.ob-more-btn { text-align: left; min-height: 44px; padding: 8px 2px; font-size: var(--text-md); font-weight: 500; color: var(--text-secondary); }
-.ob-more-btn:first-child { font-weight: 700; color: var(--text-primary); }
-.ob-more-btn:not(.ob-more-quiet) { display: flex; align-items: center; gap: 10px; }
-.ob-more-btn:not(.ob-more-quiet)::after { content: ""; flex: none; width: 7px; height: 7px; border-top: 1.5px solid var(--text-muted); border-right: 1.5px solid var(--text-muted); transform: rotate(45deg); }
-.ob-more-btn:first-child::after { border-color: var(--text-secondary); }
-.ob-more-btn:hover { color: var(--text-primary); }
-.ob-more-quiet { min-height: 44px; font-weight: 400; font-size: var(--text-sm); color: var(--text-muted); }
+.ob-more { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; margin: 18px 0 0; font-size: var(--text-md); color: var(--text-secondary); }
+.ob-more-or { color: var(--text-muted); }
+.ob-more-btn { text-align: left; min-height: 44px; padding: 8px 2px; font-size: var(--text-md); font-weight: 700; color: var(--color-thread, var(--accent)); }
+.ob-more-btn:hover { text-decoration: underline; text-underline-offset: 4px; }
+.ob-more-quiet { font-weight: 600; color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; }
 .ob-value .ob-note { margin-top: 6px; color: var(--text-secondary); }
-.ob-foot { margin: 8px 0 0; font-size: var(--text-sm); color: var(--text-secondary); text-align: center; }
-.ob-value .ob-actions { margin-top: 0; flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 4px; }
+.ob-foot { margin: 28px 0 0; font-size: var(--text-sm); color: var(--text-muted); }
+.ob-value .ob-actions { margin-top: 0; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; gap: 4px; }
+.ob-value .ob-actions .ob-quiet { padding-inline: 2px 14px; color: var(--text-secondary); }
+/* Wide enough: field and button read as one capture line. */
+@media (min-width: 560px) {
+  .ob-add { flex-direction: row; gap: 0; padding: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; transition: border-color 0.15s; }
+  .ob-add:focus-within { border-color: var(--text-muted); }
+  .ob-add-input, .ob-add-input:hover { flex: 1; min-width: 0; min-height: 46px; border: 0; background: transparent; padding: 0 12px; }
+  .ob-add-input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 10px; }
+  .ob-add-btn { width: auto; min-height: 46px; padding: 0 20px; border-radius: 12px; }
+}
 .ob-value .ob-actions .btn-secondary { width: auto; min-height: 44px; font-size: var(--text-sm); }
 .ob-sample { margin: 8px 0 16px; }
 .ob-capture { display: flex; flex-wrap: wrap; gap: 2px 20px; margin-top: 2px; }
@@ -7815,3 +7829,15 @@ body.holiday-mode .holiday-banner {
 .np-custom { margin-left: 4px; font-size: var(--text-sm); color: var(--text-muted); }
 .np-presets-note { margin-top: 8px; min-height: 1.4em; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.45; }
 .np-undo { min-height: 44px; padding: 0 6px; font: inherit; font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; cursor: pointer; }
+
+/* Timetable with no classes: an open page, one filled action, no card. */
+.tt-open { padding: 28px 2px 8px; max-width: 520px; }
+.tt-open-title { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: var(--text-lg); letter-spacing: -0.01em; color: var(--text-primary); text-wrap: balance; }
+.tt-open.is-week .tt-open-title { font-size: clamp(24px, 5vw, 30px); }
+.tt-open-sub { margin: 6px 0 18px; font-size: var(--text-md); line-height: 1.55; color: var(--text-secondary); }
+.tt-open-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+.tt-open-acts .btn-primary, .tt-open-acts .btn-secondary { min-height: 44px; padding: 0 18px; font-size: var(--text-base); }
+.tt-open-link { margin-top: 10px; min-height: 44px; padding: 0 2px; font-size: var(--text-sm); color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; }
+.tt-open-link:hover, .tt-open-link:focus-visible { color: var(--text-primary); text-decoration-color: currentColor; }
+/* The open page has its own Add class; a second floating one would compete. */
+body:has(#page-timetable.active .tt-open) .fab { display: none !important; }

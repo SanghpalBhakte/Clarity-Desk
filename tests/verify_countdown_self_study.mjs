@@ -120,7 +120,7 @@ check('Final week context line uses the label', () => {
 check('Self-study Today: asks for a countdown, not a scan or attendance', () => {
   seed(profile({ name: 'Ravi', studyMode: 'self' })); const app = makeApp();
   const html = today(app);
-  if (html.includes("Let's add your timetable")) return 'still asking to scan a timetable';
+  if (html.includes("Have a timetable?")) return 'still asking to scan a timetable';
   if (html.includes('Set your attendance so far')) return 'still asking for attendance';
   if (html.includes('Add your timetable to see your day here')) return 'timetable line shown';
   if (!html.includes('Set your exam countdown')) return 'countdown step missing';
@@ -145,7 +145,7 @@ check('College student with a timetable still sees schedule and attendance panel
 check('No timetable yet: Today hides schedule, attendance, notices and the subtitle', () => {
   seed(profile({ name: 'Asha', batch: 'A2' })); const app = makeApp();
   const html = today(app);
-  if (!html.includes("Let's add your timetable")) return 'timetable card missing';
+  if (!html.includes("Have a timetable?")) return 'timetable card missing';
   if (!html.includes('id="quick-add-input"')) return 'quick-add missing';
   if ((html.match(/class="dashboard-panel" style="display:none"/g) || []).length !== 2) return 'schedule/attendance panels not hidden';
   if (html.includes('<div class="panel-title">Notices</div>') || html.includes('today-focus')) return 'extra cards shown';
@@ -168,11 +168,11 @@ check('Self-study with a date set: no setup card left', () => {
   return html.includes('days to GATE') ? true : 'countdown missing';
 });
 
-check('College path unchanged and offers "I study on my own"', () => {
+check('College path unchanged and offers "study without one"', () => {
   seed(); const app = makeApp();
   const html = today(app);
-  if (!html.includes("Let's add your timetable") || !html.includes('showAddTimetableChoice()')) return 'college options missing';
-  return html.includes('I study on my own') ? true : 'self-study choice missing';
+  if (!html.includes("Have a timetable?") || !html.includes('showAddTimetableChoice()')) return 'college options missing';
+  return html.includes('study without one') && html.includes('setupSelfStudy()') ? true : 'self-study choice missing';
 });
 
 check('Welcome is Show me around / Log in only; self-study is a Today setup choice', () => {

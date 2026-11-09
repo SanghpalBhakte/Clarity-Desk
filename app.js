@@ -10159,26 +10159,26 @@ window.showOnboardingModal = function() {
     <div class="ob-screen" id="onboarding-modal-box" role="dialog" aria-modal="true" aria-label="Welcome to Clarity Desk">
       <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
       <div id="onboarding-step-1" class="ob-step ob-value">
-        <h1 class="ob-hero">Make the next thing clear</h1>
-        <p class="ob-lede">Add what's due or paste a class-group message, and get one clear next step.</p>
+        <h1 class="ob-hero">Make the next thing clear.</h1>
+        <p class="ob-lede">Add one deadline, message, or photo. Clarity Desk turns it into a next step you can start today.</p>
         <form class="ob-add" onsubmit="event.preventDefault(); onboardingAddDue()">
           <label class="ob-sr" for="ob-due">What is due?</label>
-          <input type="text" id="ob-due" class="ob-add-input" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="e.g. Lab record due tomorrow">
-          <button type="submit" class="btn-primary ob-add-btn">Add something due</button>
+          <input type="text" id="ob-due" class="ob-add-input" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="e.g. Lab report due Friday">
+          <button type="submit" class="btn-primary ob-add-btn">Add deadline</button>
         </form>
         <div class="ob-capture">
-          <button type="button" class="ob-paste" onclick="onboardingPasteMessage()">Paste a message</button>
-          <button type="button" class="ob-paste" onclick="onboardingTakePhoto()">Use a photo as reference</button>
+          <button type="button" class="ob-paste" onclick="onboardingPasteMessage()">Paste a class-group message</button>
+          <button type="button" class="ob-paste" onclick="onboardingTakePhoto()">Use a photo</button>
         </div>
         ${onboardingComingUpHtml()}
-        <div class="ob-more">
-          <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Set up my timetable</button>
-          <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); setupSelfStudy()">Study without a timetable</button>
-        </div>
+        <p class="ob-more">Have a timetable?
+          <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Add it when you\'re ready \u2192</button>
+          <span class="ob-more-or">or <button type="button" class="ob-more-btn ob-more-quiet" onclick="dismissOnboarding(); setupSelfStudy()">study without one</button></span>
+        </p>
         <p class="ob-foot">Made by a student, for students. Works offline.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
         <div class="ob-actions">
           <button class="btn-secondary ob-quiet" onclick="onboardingShowName()">Show me around</button>
-          <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">I already have an account</button>
+          <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">Log in</button>
         </div>
       </div>
     </div>
@@ -10701,6 +10701,9 @@ function renderDashboard() {
       <div class="setup-ask-sub">${s.desc}</div>
       ${body}
     </div>`;
+  // No timetable yet: the task line leads and the timetable is one quiet line
+  // under the work, not a card above it.
+  const setupLast = !!firstStep && firstStep.id === 'tt';
   const setupBanner = !firstStep ? '' : firstStep.id === 'group' ? setupAsk(firstStep, `
       <div class="setup-ask-actions">
         ${groupChoices.map(b => `<button class="btn btn-sm btn-secondary" data-batch="${escHtml_cd(b).replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="onbPickGroup(this.dataset.batch)">${escHtml_cd(b)}</button>`).join('')}
@@ -10712,11 +10715,8 @@ function renderDashboard() {
       </div>
       ${_onbBunkOpen ? bunkCalcHtml('today') : `<button type="button" class="setup-first-alt setup-ask-link" onclick="onbShowBunk()">Just check how many I can miss</button>`}`) : firstStep.id === 'tt' ? `
     <div class="desk-setup-guide setup-first" role="complementary" aria-label="Add your timetable">
-      <div class="setup-first-title">${firstStep.label}</div>
-      <div class="setup-first-sub">${firstStep.desc}</div>
-      <button class="btn-primary setup-first-btn" onclick="${firstStep.action}">Add your timetable</button>
-      <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">No timetable? I study on my own</button>
-      <button type="button" class="setup-first-alt" onclick="onboardingSampleDay(this)">See an example day</button>
+      <p class="setup-first-line">Have a timetable? <button type="button" class="setup-first-btn" onclick="${firstStep.action}">Add it when you're ready →</button></p>
+      <p class="setup-first-alts">or <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">study without one</button><span aria-hidden="true"> · </span><button type="button" class="setup-first-alt" onclick="onboardingSampleDay(this)">see an example day</button></p>
     </div>` : `
     <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
@@ -10840,7 +10840,7 @@ function renderDashboard() {
     ${welcomeBackHTML}
     ${beaconHTML}
     ${focusHTML}
-    ${setupBanner}
+    ${setupLast ? '' : setupBanner}
 
     <!-- 3. WORKBENCH & AMBIENT PANEL -->
     <div class="dashboard-layout">
@@ -10934,7 +10934,7 @@ function renderDashboard() {
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
             <input type="text" id="quick-add-input" class="form-input" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
-            <button class="btn btn-sm btn-secondary" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">Add</button>
+            <button class="btn btn-sm ${setupLast ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">${setupLast ? 'Add deadline' : 'Add'}</button>
           </div>
         </div>
 
@@ -10994,6 +10994,7 @@ function renderDashboard() {
 
       </div>
     </div>
+    ${setupLast ? setupBanner : ''}
   `;
   dashboardSettled = true;
 }
@@ -11300,15 +11301,17 @@ function renderTimetable() {
 
   let content = '';
   if (!classes.length) {
+    // A whole empty week reads as an open page; one empty day stays short.
+    const weekEmpty = [0, 1, 2, 3, 4, 5, 6].every(d => !(liveTT[d] || []).length);
     content = `
-      <div class="empty-state-card" style="margin-top:8px">
-        <span class="empty-state-icon">${icons.calendar()}</span>
-        <div class="empty-state-title">No Classes on ${DAY_NAMES[day]}</div>
-        <div class="empty-state-desc">No classes scheduled for this day. You can add class slots manually or scan your class timetable photo.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px">
-          <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)" style="font-size:var(--text-base);padding:6px 14px">+ Add Class Entry</button>
-          <button class="btn-secondary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:6px 14px">${icons.camera()} Scan Photo</button>
+      <div class="tt-open${weekEmpty ? ' is-week' : ''}">
+        <h2 class="tt-open-title">${weekEmpty ? 'Your week is still open.' : `No classes on ${DAY_NAMES[day]}.`}</h2>
+        <p class="tt-open-sub">${weekEmpty ? 'Add a class by hand or scan your timetable. You can also study without one.' : 'Add a class by hand or scan a photo of your timetable.'}</p>
+        <div class="tt-open-acts">
+          <button class="btn-primary" onclick="showTimetableEntryModal(${day}, null)">Add class</button>
+          <button class="btn-secondary" onclick="triggerTimetableImport()">${icons.camera()} Scan timetable photo</button>
         </div>
+        ${weekEmpty && !isSelfStudyMode() ? '<button type="button" class="tt-open-link" onclick="setupSelfStudy()">I study without a timetable</button>' : ''}
       </div>`;
   } else {
     content = classes.map((c, idx) => {

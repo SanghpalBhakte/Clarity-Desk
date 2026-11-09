@@ -133,7 +133,7 @@ check('Empty Today: one setup card with the scan first, no stat tiles, no repeat
   const html = domCache['page-dashboard'].innerHTML;
   if (html.includes('vitals-strip')) return 'stat tiles shown on an empty desk';
   if ((html.match(/class="desk-setup-guide/g) || []).length !== 1) return 'expected exactly one setup card';
-  if (!html.includes("Let's add your timetable") || !html.includes('showAddTimetableChoice()')) return 'setup card missing its button';
+  if (!html.includes("Have a timetable?") || !html.includes('showAddTimetableChoice()')) return 'setup card missing its button';
   if (html.includes('Set Schedule') || html.includes('Add your schedule')) return 'old repeated schedule prompt still shown';
   if (html.includes('chrono-beacon is-free')) return 'rest-day card shown with no timetable';
   if (html.includes('No classes today. Good time')) return 'misleading "no classes today" line';
@@ -145,7 +145,7 @@ check('With a timetable: no repeated stat tiles, the schedule shows, and the nam
   const html = domCache['page-dashboard'].innerHTML;
   if (html.includes('vitals-strip')) return 'stat tiles are back (they only repeated the sections below)';
   if (!html.includes("Today's Schedule") || !html.includes('Attendance') || !html.includes('Tasks &amp; Deadlines')) return 'a Today section is missing';
-  if (html.includes("Let's add your timetable")) return 'still asking to scan';
+  if (html.includes("Have a timetable?")) return 'still asking to scan';
   return html.includes('What should we call you?') ? true : 'name ask missing after timetable';
 });
 
