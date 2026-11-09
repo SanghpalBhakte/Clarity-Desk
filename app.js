@@ -9894,10 +9894,170 @@ function hasExistingUserData() {
   return false;
 }
 
-// Welcome: full screen. Three questions students actually ask, each answered
-// by a small note made of real app pieces, then Show me around (name, then
-// the tour) or Log in. Sample text only; nothing here reads stored data.
+// Welcome: full screen, value first. Type or paste something due right away;
+// timetable, self-study and a sample day sit below as optional. Show me around
+// (name, then the tour) and Log in stay as quiet links.
 const OB_LOGO = `<img src="favicon.svg" alt="" width="24" height="24" style="border-radius:6px">`;
+
+// First screen helpers. "Coming up" shows the student's own next dated task;
+// a first-run student has none, so an example row is shown and labeled.
+function onboardingComingUpHtml() {
+  let task = null;
+  try {
+    const today = localDateKey(new Date());
+    task = (state.customTasks || []).filter(t => t && t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= today)
+      .sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0] || null;
+  } catch (e) { task = null; }
+  let when = 'Tomorrow', title = 'Lab record due', example = true;
+  if (task) {
+    example = false; title = String(task.title || 'Task');
+    const d = new Date(task.dueDate + 'T00:00:00'), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - t0) / 86400000);
+    when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  return `<section class="ob-soon" aria-label="Coming up">
+          <h2 class="ob-soon-h">Coming up${example ? '<span class="ob-soon-tag">Example</span>' : ''}</h2>
+          <div class="ob-soon-row"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></div>
+        </section>`;
+}
+
+// Primary action: the typed text goes through the same Add Task review as the
+// Tasks bar (tkQuickAdd), so nothing is saved unchecked.
+window.onboardingAddDue = function() {
+  const text = (document.getElementById('ob-due')?.value || '').trim();
+  trackUsage('welcome_choice', 'task');
+  window.dismissOnboarding();
+  tkQuickAdd({ value: text });
+};
+
+window.onboardingPasteMessage = function() {
+  trackUsage('welcome_choice', 'paste');
+  window.dismissOnboarding();
+  showWhatsAppImport();
+};
+
+// Photo as reference: the phone camera (or the gallery) opens, the student
+// checks the photo, and it then stays pinned inside the Add Task form so the
+// notice can be read while the details are typed. The app cannot read photos
+// and tasks have no attachment field, so the photo lives only in memory
+// (an object URL) and is dropped when the form closes. Nothing is saved.
+window.onboardingTakePhoto = function() {
+  const opener = document.activeElement;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.setAttribute('capture', 'environment');
+  input.setAttribute('aria-label', 'Choose or take a photo of the notice');
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('That file is not a photo. Pick an image file.', 'error'); return; }
+    trackUsage('welcome_choice', 'photo');
+    onboardingShowPhoto(file, opener);
+  };
+  input.click();
+};
+
+function onboardingShowPhoto(file, opener) {
+  document.getElementById('photo-step-backdrop')?.remove();
+  const url = URL.createObjectURL(file);
+  const welcome = document.getElementById('onboarding-backdrop');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'photo-step-backdrop';
+  let kept = false;
+  // Closes the sheet and releases the welcome behind it. The photo URL is
+  // released unless Continue handed it to the Add Task form.
+  const teardown = () => {
+    document.removeEventListener('keydown', onKey);
+    if (welcome) welcome.inert = false;
+    backdrop.remove();
+    if (!kept) URL.revokeObjectURL(url);
+  };
+  // Escape closes; Tab and Shift+Tab stay inside the sheet.
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); teardown(); if (opener && opener.isConnected) opener.focus(); return; }
+    if (e.key !== 'Tab') return;
+    const items = [...backdrop.querySelectorAll('button')];
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (!backdrop.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  document.addEventListener('keydown', onKey);
+  window.closePhotoStep = () => { teardown(); if (opener && opener.isConnected) opener.focus(); };
+  window.retakePhotoStep = () => { teardown(); window.onboardingTakePhoto(); };
+  window.continuePhotoStep = () => {
+    kept = true;
+    teardown();
+    window.dismissOnboarding();
+    showAddTaskModal();
+    onboardingPinReference(url);
+  };
+  backdrop.onclick = (e) => { if (e.target === backdrop) window.closePhotoStep(); };
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="photo-step-title" aria-describedby="photo-step-desc">
+      <h2 id="photo-step-title" class="add-tt-title">Keep this notice open</h2>
+      <div id="photo-step-desc" class="add-tt-sub">It stays on screen while you add the details. The app does not read the photo or save it, and it goes away when you finish.</div>
+      <img class="ob-photo" src="${url}" alt="Your photo of the notice">
+      <div class="ob-photo-actions">
+        <button type="button" class="btn-primary" aria-label="Continue to the Add Task form" onclick="continuePhotoStep()">Continue</button>
+        <button type="button" class="btn-secondary" aria-label="Retake the photo" onclick="retakePhotoStep()">Retake</button>
+        <button type="button" class="btn-secondary" aria-label="Cancel and go back" onclick="closePhotoStep()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  if (welcome) welcome.inert = true;
+  backdrop.querySelector('.btn-primary')?.focus();
+}
+
+// Pins the photo inside the open Add Task form. It is removed with the form
+// (saved, cancelled or replaced) and its memory is released then.
+function onboardingPinReference(url) {
+  const modal = document.querySelector('#add-task-backdrop .modal');
+  if (!modal) { URL.revokeObjectURL(url); return; }
+  const fig = document.createElement('figure');
+  fig.className = 'ob-ref';
+  fig.innerHTML = `
+    <img class="ob-photo" src="${url}" alt="Reference photo of the notice">
+    <figcaption>Reference photo. Not saved.
+      <button type="button" class="ob-ref-btn" aria-label="Hide reference photo" aria-expanded="true">Hide</button>
+      <button type="button" class="ob-ref-btn" aria-label="Remove reference photo">Remove</button>
+    </figcaption>`;
+  const [hide, remove] = fig.querySelectorAll('.ob-ref-btn');
+  hide.onclick = () => { const on = fig.classList.toggle('is-hidden'); hide.textContent = on ? 'Show' : 'Hide'; hide.setAttribute('aria-label', on ? 'Show reference photo' : 'Hide reference photo'); hide.setAttribute('aria-expanded', String(!on)); };
+  remove.onclick = () => { fig.remove(); URL.revokeObjectURL(url); document.querySelector('#add-task-backdrop #task-title')?.focus(); };
+  modal.querySelector('.modal-header')?.after(fig);
+  const bd = document.getElementById('add-task-backdrop');
+  const watch = new MutationObserver(() => {
+    if (!bd.isConnected) { URL.revokeObjectURL(url); watch.disconnect(); }
+  });
+  watch.observe(document.body, { childList: true });
+}
+
+// Read-only preview. Nothing here is saved, and the welcome closes first so
+// closing the preview lands on Today.
+window.onboardingSampleDay = function() {
+  trackUsage('welcome_choice', 'sample');
+  window.dismissOnboarding();
+  const rows = [['9:00 AM', 'Data Structures lecture', 'Room 204'], ['11:00 AM', 'Maths tutorial', 'Room 110'], ['2:00 PM', 'DS lab', 'Lab 3']];
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.id = 'sample-day-backdrop';
+  const close = () => document.getElementById('sample-day-backdrop')?.remove();
+  window.closeSampleDay = close;
+  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sample-day-title">
+      <h2 id="sample-day-title" class="add-tt-title">A sample day</h2>
+      <div class="add-tt-sub">Just a look. Nothing here is saved to your desk.</div>
+      <div class="ob-sample">${rows.map(r => `<div class="ob-soon-row"><span class="ob-soon-when">${r[0]}</span><span class="ob-soon-what">${r[1]}<small>${r[2]}</small></span></div>`).join('')}
+        <div class="ob-soon-row"><span class="ob-soon-when">Tomorrow</span><span class="ob-soon-what">Lab record due</span></div></div>
+      <div class="add-tt-foot"><button type="button" class="btn-primary" onclick="closeSampleDay()">Got it</button></div>
+    </div>`;
+  document.body.appendChild(backdrop);
+};
 
 window.showOnboardingModal = function() {
   if (document.getElementById('onboarding-backdrop')) return;
@@ -9906,24 +10066,30 @@ window.showOnboardingModal = function() {
   backdrop.className = 'modal-backdrop ob-full';
   backdrop.id = 'onboarding-backdrop';
 
-  const qa = (q, a, tone) => `
-        <div class="ob-q">
-          <div class="ob-q-text">${q}</div>
-          <div class="ob-q-note ob-tone-${tone}"><span class="ob-q-dot" aria-hidden="true"></span>${a}</div>
-        </div>`;
-
   backdrop.innerHTML = `
     <div class="ob-screen" id="onboarding-modal-box" role="dialog" aria-modal="true" aria-label="Welcome to Clarity Desk">
       <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
-      <div id="onboarding-step-1" class="ob-step">
-        <div class="ob-qs">
-          ${qa('Which room is the next class in?', '<b>Room 204</b> Data Structures, in 12 min', 'accent')}
-          ${qa('Can I skip this one?', '<b>Yep.</b> You can still miss 3 and stay above your line', 'green')}
-          ${qa("When's the lab record due?", "<b>Tomorrow</b> and you haven't started", 'warm')}
+      <div id="onboarding-step-1" class="ob-step ob-value">
+        <h1 class="ob-hero">Make the next thing clear</h1>
+        <p class="ob-lede">Paste a task or class-group message, or keep a photo of a notice open while you add the details.<br>Get one clear next step now.</p>
+        <form class="ob-add" onsubmit="event.preventDefault(); onboardingAddDue()">
+          <label class="ob-sr" for="ob-due">What is due?</label>
+          <input type="text" id="ob-due" class="ob-add-input" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="e.g. Lab record due tomorrow">
+          <button type="submit" class="btn-primary ob-add-btn">Add something due</button>
+        </form>
+        <div class="ob-capture">
+          <button type="button" class="ob-paste" onclick="onboardingPasteMessage()">Paste a message</button>
+          <button type="button" class="ob-paste" onclick="onboardingTakePhoto()">Photo as reference</button>
         </div>
-        <p class="ob-pitch">Clarity Desk keeps all of this on your phone, so you're never asking around. Works without internet too.</p>
+        ${onboardingComingUpHtml()}
+        <div class="ob-more">
+          <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Set up my timetable</button>
+          <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); setupSelfStudy()">Study without a timetable</button>
+          <button type="button" class="ob-more-btn ob-more-quiet" onclick="onboardingSampleDay()">Try a sample day</button>
+        </div>
+        <p class="ob-foot">Made by a student, for students. Works offline.</p>
         <div class="ob-actions">
-          <button class="btn-primary" onclick="onboardingShowName()">Show me around</button>
+          <button class="btn-secondary ob-quiet" onclick="onboardingShowName()">Show me around</button>
           <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">I already have an account</button>
         </div>
         ${usageActive() ? `<div class="ob-note">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}

@@ -139,20 +139,21 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 });
 
 // ── Task 2: welcome and name screen ──
-check('Welcome shows the three student questions and their answers', () => {
+check('Welcome is value first: headline, add field, paste, optional setup', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const want = ['Which room is the next class in?', 'Room 204', 'Data Structures, in 12 min', 'Can I skip this one?', 'Yep.', 'You can still miss 3 and stay above your line',
-    "When's the lab record due?", 'Tomorrow', "and you haven't started", "Clarity Desk keeps all of this on your phone, so you're never asking around. Works without internet too.",
-    'Show me around', 'I already have an account'];
+  const want = ['Make the next thing clear', 'Paste a task or class-group message, or keep a photo of a notice open while you add the details.', 'Get one clear next step now.', 'Add something due', 'Paste a message', 'Photo as reference',
+    'Coming up', 'Example', 'Tomorrow', 'Lab record due', 'Set up my timetable', 'Study without a timetable', 'Try a sample day',
+    'Made by a student, for students. Works offline.', 'Show me around', 'I already have an account'];
   const t = visibleText(html).replace(/\s+/g, ' ');
   const missing = want.filter(w => !t.includes(w));
-  return missing.length ? `missing: ${missing.join(' | ')}` : true;
+  if (missing.length) return `missing: ${missing.join(' | ')}`;
+  return html.includes('placeholder="e.g. Lab record due tomorrow"') && html.indexOf('Add something due') < html.indexOf('Set up my timetable')
+    && html.indexOf('Set up my timetable') < html.indexOf('Study without a timetable') && html.indexOf('Study without a timetable') < html.indexOf('Try a sample day') ? true : 'order or placeholder wrong';
 });
 
-check('Welcome has exactly two buttons: Show me around and log in', () => {
+check('Welcome keeps Show me around and log in, and the add action only calls globals', () => {
   seed(); makeApp(); const html = welcomeHtml();
-  const buttons = (html.match(/<button/g) || []).length;
-  return buttons === 2 && html.includes('onboardingShowName()') && html.includes('onboardingLogin()') && !html.includes('onboarding-step-2') && !html.includes('ob-bunk') ? true : `buttons=${buttons}`;
+  return html.includes('onboardingShowName()') && html.includes('onboardingLogin()') && html.includes('onboardingAddDue()') && html.includes('onboardingPasteMessage()') && html.includes('onboardingTakePhoto()') && !html.includes('onboarding-step-2') && !html.includes('ob-bunk') ? true : 'actions missing';
 });
 
 check('Name screen asks what friends call you, with a skip', () => {
