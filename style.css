@@ -5467,6 +5467,10 @@ body::before {
 .tk-subj::after { content: ""; position: absolute; inset: -8px -6px; }
 .tk-subj:hover { color: var(--color-action-primary); text-decoration: underline; }
 .tk-subj:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 2px; }
+/* Long subject names stay on one line in the row's meta, cut with an ellipsis
+   (the full name is in the title and on the subject page). */
+.tk-subj { display: inline-flex; min-width: 0; max-width: 100%; }
+.tk-subj-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tk-due.today { color: var(--color-accent-text); font-weight: 700; }
 .tk-due.soon { color: var(--color-text-primary); font-weight: 600; }
 .tk-prio { color: var(--color-error); font-weight: 700; }
@@ -7597,6 +7601,7 @@ body.holiday-mode .holiday-banner {
 .tk-side-head { display: none; }
 .tk-subj-pick { flex: none; min-height: 44px; margin-bottom: -1px; padding: 0; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: left; }
 .tk-subj-pick[aria-pressed="true"] { font-weight: 700; color: var(--text-primary); border-bottom-color: var(--color-thread, var(--accent)); }
+.tk-subj-pick .tk-subj-name { display: block; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tk-subj-next { display: none; }
 
 /* Sections: an ink rule under the heading, hairlines between rows. */
@@ -7617,6 +7622,11 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-card .assignment-body:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 #page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 2; }
 #page-assignments .tk-meta { gap: 0; font-size: 0.8125rem; }
+/* One line: the details keep their width and only a long subject name gives
+   way (ellipsis), so a wrapped line never starts with a stray dot. */
+#page-assignments .tk-meta { flex-wrap: nowrap; min-width: 0; }
+#page-assignments .tk-meta > span { flex: none; white-space: nowrap; }
+#page-assignments .tk-meta > .tk-subj { flex: 0 1 auto; min-width: 0; }
 #page-assignments .tk-meta > span + span::before { content: '·'; margin: 0 5px; color: var(--text-secondary); font-weight: 400; }
 #page-assignments .tk-due.overdue { display: inline; color: var(--status-error, var(--color-error)); }
 #page-assignments .tk-due.overdue::before { width: auto; height: auto; border: 0; }
@@ -7641,6 +7651,9 @@ body.holiday-mode .holiday-banner {
 .tk-fold-sign { flex: none; width: 24px; text-align: center; color: var(--text-secondary); }
 /* A chevron, not '+': next to the add bar a '+' read as "add a goal". */
 .tk-fold-sign::before { content: ''; display: inline-block; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-3px) rotate(45deg); }
+/* Open, the titles are listed right below, so the header stops repeating them. */
+.tk-group-later[open] > .tk-fold-head .tk-fold-sum,
+.tk-group-goals[open] > .tk-fold-head .tk-fold-sum { visibility: hidden; }
 .tk-fold[open] > .tk-fold-head .tk-fold-sign::before { transform: translateY(1px) rotate(-135deg); }
 .tk-fold-head:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 #page-assignments .tk-fold > .tk-card:last-child { border-bottom: 0; }
@@ -7651,7 +7664,12 @@ body.holiday-mode .holiday-banner {
 .tk-add-plus { flex: none; width: 44px; height: 44px; padding: 0; border: 0; background: none; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--color-thread, var(--accent)); cursor: pointer; }
 .tk-add input { flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 1rem; color: var(--text-primary); }
 .tk-add input::placeholder { color: var(--text-muted); }
-.tk-add input:focus-visible { outline: 0 !important; }
+.tk-add input { text-overflow: ellipsis; }
+/* The bar is the field: no square ring inside the rounded edge (the global
+   text-field rule is more specific, hence [name]). Keyboard focus thickens the
+   bar's own rounded edge instead. */
+.tk-add input[name="q"]:focus-visible { outline: 0 !important; }
+.tk-add:has(input:focus-visible) { box-shadow: 0 0 0 1px var(--color-thread, var(--accent)); }
 .tk-add-paste { flex: none; min-height: 44px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.8125rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
 
 /* Two weeks strip (laptops only): one column a day, ticks for deadlines,
@@ -7708,13 +7726,16 @@ body.holiday-mode .holiday-banner {
   #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; max-width: 840px; }
   #page-assignments .tk-kicker { justify-content: flex-start; gap: 16px; }
   #page-assignments .tk-side { grid-area: side; align-self: start; }
-  .tk-subjects { flex-direction: column; gap: 0; margin: 0; padding: 0; overflow: visible; border-bottom: 0; white-space: normal; }
+  /* One shared name column (as wide as the longest name, at most 45%), so
+     every row's next deadline starts at the same place. */
+  .tk-subjects { display: grid; grid-template-columns: fit-content(45%) minmax(0, 1fr); gap: 0 12px; margin: 0; padding: 0; overflow: visible; border-bottom: 0; white-space: normal; }
+  .tk-subjects .tk-side-head { grid-column: 1 / -1; }
   .tk-side-head { display: block; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
-  .tk-subj-pick { display: flex; gap: 12px; align-items: center; width: 100%; min-height: 48px; margin: 0; border-bottom: 1px solid var(--color-rule); }
-  .tk-subj-pick .tk-subj-name { flex: none; width: 56px; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); }
+  .tk-subj-pick { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; width: 100%; min-height: 48px; margin: 0; border-bottom: 1px solid var(--color-rule); }
+  .tk-subj-pick .tk-subj-name { min-width: 56px; max-width: none; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); }
   .tk-subj-pick[aria-pressed="true"] { border-bottom-color: var(--color-rule); }
   .tk-subj-pick[aria-pressed="true"] .tk-subj-name { color: var(--color-thread, var(--accent)); text-decoration: underline; text-underline-offset: 4px; }
-  .tk-subj-next { display: block; flex: 1; min-width: 0; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tk-subj-next { display: block; min-width: 0; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* Laptop sidebar, same language as Tasks: ruled section heads, hairline rows,
