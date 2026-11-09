@@ -7764,6 +7764,8 @@ body.holiday-mode .holiday-banner {
 .ob-value { gap: 0; }
 .ob-hero { margin: 26px 0 12px; text-wrap: balance; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 8vw, 44px); line-height: 1.12; letter-spacing: -0.025em; color: var(--text-primary); }
 .ob-lede { margin: 0 0 24px; max-width: 46ch; font-size: var(--text-md); line-height: 1.55; color: var(--text-secondary); text-wrap: pretty; }
+.ob-date { margin: 26px 0 0; font-size: var(--text-sm); color: var(--text-muted); }
+.ob-date + .ob-hero { margin-top: 6px; }
 .ob-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ob-add { display: flex; flex-direction: column; gap: 10px; }
 .ob-add-input { width: 100%; box-sizing: border-box; min-height: 52px; padding: 0 16px; font-size: var(--text-md); color: var(--text-primary); background: var(--surface); border: 1px solid color-mix(in srgb, var(--text-muted) 80%, var(--surface)); border-radius: 14px; }
@@ -7777,7 +7779,7 @@ body.holiday-mode .holiday-banner {
 .ob-paste:active, .ob-more-btn:active { opacity: 0.7; }
 .ob-soon { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
 .ob-soon-h { display: flex; align-items: center; gap: 0; margin: 0 0 8px; font-family: var(--font-display); font-size: var(--text-base); font-weight: 700; color: var(--text-primary); }
-.ob-soon-tag { font-family: var(--font-sans); font-weight: 400; font-style: italic; color: var(--text-muted); white-space: pre; }
+.ob-soon-h.is-tag { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); }
 /* The example never looks saved: dashed rules and muted ink. */
 .ob-soon.is-example .ob-soon-row { border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
 .ob-soon.is-example .ob-soon-when { color: var(--text-muted); font-weight: 600; }
@@ -7794,7 +7796,8 @@ body.holiday-mode .holiday-banner {
 .ob-value .ob-note { margin-top: 6px; color: var(--text-secondary); }
 .ob-foot { margin: 28px 0 0; font-size: var(--text-sm); color: var(--text-muted); }
 .ob-value .ob-actions { margin-top: 0; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; gap: 4px; }
-.ob-value .ob-actions .ob-quiet { padding-inline: 2px 14px; color: var(--text-secondary); }
+.ob-value .ob-actions .ob-quiet { padding-inline: 2px 14px; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; }
+.ob-value .ob-actions .ob-quiet:hover { color: var(--text-primary); }
 /* Wide enough: field and button read as one capture line. */
 @media (min-width: 560px) {
   .ob-add { flex-direction: row; gap: 0; padding: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; transition: border-color 0.15s; }
