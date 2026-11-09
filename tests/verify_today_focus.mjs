@@ -154,6 +154,39 @@ check('First step: sanitizeTask keeps it trimmed and capped, drops blanks, and l
   return kept === 'Read the aim' && capped === 80 && !blank && !old && !odd ? true : [kept, capped, blank, old, odd].join(',');
 });
 
+check('Slipped task: Today offers Done / Tomorrow / Pick a day for your own overdue task', () => {
+  const tasks = [{ id: 'c-9', title: 'Lab report', dueDate: '2026-09-27', status: 'pending', taskType: 'assignment', isCustom: true }];
+  const { html } = today(DAY + 'T09:00:00', { cos_custom_tasks: JSON.stringify(tasks) });
+  const h = html();
+  const ok = h.includes('resolveTask(this.dataset.id, { done: true })') && h.includes('moveTaskTomorrow(') && h.includes('Pick a day') && h.includes('type="date"');
+  if (/need[s]? attention/.test(h)) return 'old overdue wording still shown';
+  return focusOf(h) === 'task' && ok && h.includes('1 task slipped. Pick a new day or mark it done.') ? true : 'buttons or kinder line missing';
+});
+
+check('Slipped task: Done, Tomorrow and a picked day change only that task, and Undo puts it back', () => {
+  const tasks = [{ id: 'c-9', title: 'Lab report', dueDate: '2026-09-27', status: 'pending', taskType: 'assignment', isCustom: true }];
+  const { app } = today(DAY + 'T09:00:00', { cos_custom_tasks: JSON.stringify(tasks) });
+  let undo = null;
+  const realCreate = document.createElement, realGet = document.getElementById;
+  document.createElement = (tag) => { const el = realCreate(tag); el.addEventListener = (ev, fn) => { if (ev === 'click') undo = fn; }; return el; };
+  document.getElementById = (id) => id === 'toast-container' ? { appendChild() {}, lastElementChild: { classList: { add() {}, remove() {} }, appendChild() {}, remove() {} } } : realGet(id);
+  try {
+    const t = () => app.state.customTasks.find(x => x.id === 'c-9');
+    const stored = () => JSON.parse(store.cos_custom_tasks).find(x => x.id === 'c-9');
+    window.resolveTask('c-9', { done: true });
+    if (t().status !== 'submitted' || stored().status !== 'submitted') return 'done not saved';
+    undo();
+    if (t().status !== 'pending' || stored().status !== 'pending') return 'undo did not restore status';
+    window.moveTaskTomorrow('c-9');
+    if (t().dueDate !== '2026-09-30') return 'tomorrow gave ' + t().dueDate;
+    undo();
+    if (t().dueDate !== '2026-09-27') return 'undo did not restore date';
+    window.resolveTask('c-9', { dueDate: '2026-10-05' });
+    if (stored().dueDate !== '2026-10-05') return 'picked day not saved';
+    return window.resolveTask('c-9', { dueDate: 'nonsense' }) === false && window.resolveTask('nope', { done: true }) === false ? true : 'bad input changed something';
+  } finally { document.createElement = realCreate; document.getElementById = realGet; }
+});
+
 check('Risk: names the subject and how many classes to attend; silly numbers are not shown', () => {
   seed(); const { buildTodayFocus: f } = makeApp();
   const r = (n) => f({ dayClasses: [], dateStr: DAY, riskSubject: { name: 'DS', pct: 52, targetPct: 75, classesToAttend: n } });

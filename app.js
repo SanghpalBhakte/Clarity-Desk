@@ -6826,7 +6826,7 @@ function buildTaskReminder(kind, t, dateKey, overdueDays = 1) {
   if (kind === 'same_day') {
     return { tag: `upcoming_sameday_${t.id}_${dateKey}`, title: `Task Due Today: ${t.title}`, body: `${subject} · Due today!`, url };
   }
-  return { tag: `overdue_${t.id}_${dateKey}`, title: `Task Overdue: ${t.title}`, body: `${subject} is ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue.`, url };
+  return { tag: `overdue_${t.id}_${dateKey}`, title: `Still open: ${t.title}`, body: `${subject} is ${overdueDays} day${overdueDays > 1 ? 's' : ''} overdue.`, url };
 }
 
 // Gentle nudge for ongoing (no-deadline) tasks. Warm wording, never
@@ -8288,7 +8288,7 @@ function buildDashboardContextLine(opts = {}) {
       return examDaysLeft === 0 ? `${examLabel}: <strong>today</strong>. You are ready.`
         : `<strong>${examDaysLeft} day${examDaysLeft !== 1 ? 's' : ''}</strong> to ${examLabel}. A little each day is enough.`;
     }
-    if (overdue > 0) return `${overdue} overdue task${overdue !== 1 ? 's' : ''} need${overdue === 1 ? 's' : ''} attention.`;
+    if (overdue > 0) return `${overdue} task${overdue !== 1 ? 's' : ''} slipped. Pick a new day when you're ready.`;
     return pending > 0
       ? `No classes, no rush. ${pending} task${pending !== 1 ? 's' : ''} on your desk when you're ready.`
       : 'No classes, no rush. Your timetable is safe for when classes start again.';
@@ -8301,7 +8301,7 @@ function buildDashboardContextLine(opts = {}) {
 
   // Overdue tasks — second priority
   if (overdue > 0) {
-    return `${overdue} overdue task${overdue !== 1 ? 's' : ''} need${overdue === 1 ? 's' : ''} attention before anything else.`;
+    return `${overdue} task${overdue !== 1 ? 's' : ''} slipped. Pick a new day or mark ${overdue === 1 ? 'it' : 'them'} done.`;
   }
 
   // Exam imminent (≤ 7 days)
@@ -8455,21 +8455,30 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       : `openSubjectHub(this.dataset.subject)`;
     const markKey = f.kind === 'unmarked' && f.markKey ? f.markKey : null;
     out.markKey = markKey;
+    // A slipped task of the student's own: Done / Tomorrow / Pick a day, each with Undo.
+    const fixId = overdue && task && (state.customTasks || []).some(x => x.id === task.id) ? task.id : null;
+    const fixHTML = fixId ? `
+      <div class="today-focus-mark" role="group" aria-label="Sort out ${attrSafe(f.title)}">
+        <button type="button" class="btn btn-secondary" data-id="${attrSafe(fixId)}" onclick="resolveTask(this.dataset.id, { done: true })">${icons.check()}<span>Done</span></button>
+        <button type="button" class="btn btn-secondary" data-id="${attrSafe(fixId)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
+        <button type="button" class="btn btn-secondary" onclick="pickTaskDay(this)">Pick a day</button>
+        <input type="date" class="today-focus-date" data-id="${attrSafe(fixId)}" min="${todayStr()}" aria-label="New due date for ${attrSafe(f.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
+      </div>` : '';
     const markHTML = markKey ? `
       <div class="today-focus-mark">
         <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="${attrSafe(f.title)} as attended" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'attended')">${icons.check()}<span>Present</span></button>
         <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="${attrSafe(f.title)} as skipped" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'skipped')">${icons.x()}<span>Absent</span></button>
       </div>` : '';
     return `
-    <div class="today-focus is-${f.kind}"${markKey ? ' data-mark' : ''} role="region" aria-label="Next step">
+    <div class="today-focus is-${f.kind}"${markKey || fixHTML ? ' data-mark' : ''} role="region" aria-label="Next step">
       <button type="button" class="today-focus-main" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">
         <span class="today-focus-text">
           <span class="today-focus-title">${escHtml_cd(f.title)}</span>
           <span class="today-focus-sub${overdue ? ' is-overdue' : ''}">${escHtml_cd(f.sub)}</span>
         </span>
-        ${markKey ? '' : `<span class="today-focus-go">${f.go} ${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span>`}
+        ${markKey || fixHTML ? '' : `<span class="today-focus-go">${f.go} ${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span>`}
       </button>
-      <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>${markHTML}
+      <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>${markHTML}${fixHTML}
     </div>`;
   } catch (e) {
     return '';
@@ -9225,13 +9234,49 @@ window.cancelQuickAdd = function() {
   flushDeferredRender();
 };
 
+// Close or move one slipped task, with Undo. Today's next-step row and the
+// Weekly Review both use this, so there is one place that does it.
+function resolveTask(taskId, change = {}) {
+  const t = state.customTasks.find(x => x.id === taskId);
+  if (!t) return false;
+  const before = { status: t.status, dueDate: t.dueDate };
+  if (change.done) t.status = 'submitted';
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(change.dueDate || '')) t.dueDate = change.dueDate;
+  else return false;
+  saveCustomTasks();
+  haptic();
+  renderPage(state.currentPage);
+  updateNavBadges();
+  const d = new Date(t.dueDate + 'T00:00:00'), tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
+  const label = change.done ? 'Done' : `Moved to ${localDateKey(d) === localDateKey(tmr) ? 'tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;
+  showUndoToast(`${label}: ${t.title}`, () => {
+    const x = state.customTasks.find(y => y.id === taskId);
+    if (!x) return;
+    x.status = before.status; x.dueDate = before.dueDate;
+    saveCustomTasks();
+    renderPage(state.currentPage);
+    updateNavBadges();
+  });
+  return true;
+}
+window.resolveTask = resolveTask;
+window.moveTaskTomorrow = function(taskId) {
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  resolveTask(taskId, { dueDate: localDateKey(d) });
+};
+// "Pick a day": opens the phone's own date picker; where that can't open
+// on its own, the field is shown instead.
+window.pickTaskDay = function(btn) {
+  const inp = btn && btn.parentElement && btn.parentElement.querySelector('.today-focus-date');
+  if (!inp) return;
+  try { inp.showPicker(); } catch (e) { inp.classList.add('is-shown'); inp.focus(); }
+};
+
 window.handleRolloverAction = function(taskId, action) {
   const t = state.customTasks.find(x => x.id === taskId);
   if (!t) return;
   if (action === 'done') {
-    t.status = 'submitted';
-    saveCustomTasks();
-    renderPage('review');
+    resolveTask(taskId, { done: true });
   } else if (action === 'reschedule') {
     const el = document.getElementById(`rollover-card-${taskId}`);
     if (el) {
@@ -9256,12 +9301,8 @@ window._rsSave = function(taskId) {
   if (!t) return;
   const inp = document.getElementById(`resched-${taskId}`);
   const val = (inp || {}).value;
-  if (val) {
-    t.dueDate = val;
-    saveCustomTasks();
-  }
   document.querySelectorAll('input[id^="resched-"]').forEach(e => e.remove());
-  renderPage('review');
+  if (!val || !resolveTask(taskId, { dueDate: val })) renderPage('review');
 };
 
 function getWeekId(d = new Date()) {
