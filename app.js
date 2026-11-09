@@ -9917,7 +9917,9 @@ function onboardingComingUpHtml() {
   }
   return `<section class="ob-soon${example ? ' is-example' : ''}" aria-label="Coming up">
           <h2 class="ob-soon-h">Coming up${example ? '<span class="ob-soon-tag"><span aria-hidden="true"> \u00b7 </span>Example</span>' : ''}</h2>
-          <div class="ob-soon-row"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></div>
+          ${example
+            ? `<button type="button" class="ob-soon-row ob-soon-btn" aria-label="Example: ${escHtml_cd(title)}, due ${escHtml_cd(when.toLowerCase())}. See a sample day" onclick="onboardingSampleDay()"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></button>`
+            : `<div class="ob-soon-row"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></div>`}
         </section>`;
 }
 
@@ -10036,16 +10038,23 @@ function onboardingPinReference(url) {
   watch.observe(document.body, { childList: true });
 }
 
-// Read-only preview. Nothing here is saved, and the welcome closes first so
-// closing the preview lands on Today.
+// Read-only preview opened from the example row. Nothing here is saved; the
+// welcome stays underneath (inert) and gets focus back when the preview closes.
 window.onboardingSampleDay = function() {
+  if (document.getElementById('sample-day-backdrop')) return;
   trackUsage('welcome_choice', 'sample');
-  window.dismissOnboarding();
+  const welcome = document.getElementById('onboarding-backdrop');
   const rows = [['9:00 AM', 'Data Structures lecture', 'Room 204'], ['11:00 AM', 'Maths tutorial', 'Room 110'], ['2:00 PM', 'DS lab', 'Lab 3']];
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.id = 'sample-day-backdrop';
-  const close = () => document.getElementById('sample-day-backdrop')?.remove();
+  const close = () => {
+    document.getElementById('sample-day-backdrop')?.remove();
+    document.removeEventListener('keydown', onKey, true);
+    if (welcome) { welcome.inert = false; welcome.querySelector('.ob-soon-btn')?.focus(); }
+  };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  document.addEventListener('keydown', onKey, true);
   window.closeSampleDay = close;
   backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
   backdrop.innerHTML = `
@@ -10057,6 +10066,8 @@ window.onboardingSampleDay = function() {
       <div class="add-tt-foot"><button type="button" class="btn-primary" onclick="closeSampleDay()">Got it</button></div>
     </div>`;
   document.body.appendChild(backdrop);
+  if (welcome) welcome.inert = true;
+  backdrop.querySelector('.btn-primary')?.focus();
 };
 
 window.showOnboardingModal = function() {
@@ -10071,7 +10082,7 @@ window.showOnboardingModal = function() {
       <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
       <div id="onboarding-step-1" class="ob-step ob-value">
         <h1 class="ob-hero">Make the next thing clear</h1>
-        <p class="ob-lede">Paste a task or class-group message, or keep a photo of a notice open while you add the details.<br>Get one clear next step now.</p>
+        <p class="ob-lede">Add what's due or paste a class-group message, and get one clear next step.</p>
         <form class="ob-add" onsubmit="event.preventDefault(); onboardingAddDue()">
           <label class="ob-sr" for="ob-due">What is due?</label>
           <input type="text" id="ob-due" class="ob-add-input" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="e.g. Lab record due tomorrow">
@@ -10085,14 +10096,12 @@ window.showOnboardingModal = function() {
         <div class="ob-more">
           <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Set up my timetable</button>
           <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); setupSelfStudy()">Study without a timetable</button>
-          <button type="button" class="ob-more-btn ob-more-quiet" onclick="onboardingSampleDay()">Try a sample day</button>
         </div>
-        <p class="ob-foot">Made by a student, for students. Works offline.</p>
+        <p class="ob-foot">Made by a student, for students. Works offline.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
         <div class="ob-actions">
           <button class="btn-secondary ob-quiet" onclick="onboardingShowName()">Show me around</button>
           <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">I already have an account</button>
         </div>
-        ${usageActive() ? `<div class="ob-note">We count anonymous visits (no names, no data) to improve the app. Turn it off in Settings.</div>` : ''}
       </div>
     </div>
   `;
