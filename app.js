@@ -10862,8 +10862,22 @@ function renderDashboard() {
     .map(x => x.c);
   const moreClasses = dayClasses.length - shownClasses.length;
 
+  // Shortcuts follow the day: the subject of the class now or next comes
+  // first, then the subject of the top task, then the rest in saved order.
+  // Display order only: the Vault is not changed.
   const allQuickLinks = isEmptyDesk ? [] : loadCustomLinks();
-  const quickLinksPreview = allQuickLinks.slice(0, 3);
+  const dayKeys = [heroClass && heroClass.subject, urgentTasks[0] && urgentTasks[0].subject]
+    .map(x => (x ? getCanonicalSubjectKey(x) : ''));
+  const linkRank = (s) => {
+    const keys = [s.subject, s.code].filter(Boolean).map(getCanonicalSubjectKey);
+    const i = dayKeys.findIndex(k => k && keys.includes(k));
+    return i === -1 ? dayKeys.length : i;
+  };
+  const quickLinksPreview = allQuickLinks
+    .map((s, i) => ({ s, i, r: linkRank(s) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .slice(0, 3)
+    .map(x => x.s);
   const moreLinks = allQuickLinks.length - quickLinksPreview.length;
 
   // With the day bar up, the line under the greeting points at it instead of
@@ -11052,7 +11066,7 @@ function renderDashboard() {
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${quickLinksPreview.map(s => `
-                <div class="filter-chip" style="font-size:var(--text-xs);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub(${jsArg_cd(s.subject)})" title="Open ${escAttr_cd(s.subject)} Subject Hub">
+                <div class="filter-chip" style="font-size:var(--text-xs);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub(${jsArg_cd(s.subject)})" title="Open ${escAttr_cd(s.subject)} Subject Hub (Study Vault links)">
                   <span style="width:6px;height:6px;border-radius:50%;background:${s.color || 'var(--accent)'}"></span>
                   <span>${escHtml_cd(s.subject)}</span>
                 </div>

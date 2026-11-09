@@ -46,6 +46,7 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 ## Today as a projection
 - Today (`renderDashboard`) stores nothing of its own: it reads the same data as the other pages and every row leads to its source. A task row (and the task focus row) calls `openTaskFromToday(id)`: Tasks opens with that row open and in view, clearing a filter that hides it and opening its folded section. A class opens its Subject Hub; the schedule leads to Timetable, attendance to Review.
 - Task queue: up to 4 pending tasks, late first, then by due date, then ongoing work ("Why this order?" says so); "+N more" opens Tasks.
+- Study Shortcuts: up to 3 `cos_custom_links` subjects, the subject of the class now/next first, then the top task's subject (matched by `getCanonicalSubjectKey` on name or code), then saved order. Display order only.
 - The brief's names mapped to the real data (no shape changes): Task = `cos_custom_tasks` (`subject`, `dueDate`, `noDeadline`, `taskType`, `priority`, `firstStep`) plus the status map `cos_assignments`; class session = a slot in `cos_custom_timetable`; attendance mark = `cos_attendance[date][attendanceKeyFor(cls)]`; resource = a `cos_custom_links` record.
 
 ## Cloud sync (optional, Firestore)
