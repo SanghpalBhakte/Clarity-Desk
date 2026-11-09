@@ -92,8 +92,30 @@ test('a quiet day offers one calm next step, and the exam line links to Settings
   await page.goto('/');
   const dash = page.locator('#page-dashboard');
   await expect(dash).toContainText('All caught up. No urgent tasks.');
+  // The greeting line states where things stand; only the Tasks panel prompts.
+  await expect(dash.locator('.desk-greeting-sub')).toHaveText('Nothing on your plan right now.');
   await dash.getByRole('button', { name: "Add the next thing that's due" }).click();
   await expect(page.locator('#quick-add-input')).toBeFocused();
   await dash.locator('.desk-greeting-note').getByRole('button', { name: 'Change' }).click();
   await expect(page.locator('#s-exam-label')).toBeVisible();
+});
+
+test('Study Shortcuts put the next class first, then the top task', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-09-29T09:00:00') }); // a Tuesday, before the 10:00 class
+  const tt = { 0: [], 1: [], 2: [{ subject: 'Data Structures Lab', code: 'DSL', time: '10:00', end: '12:00', room: 'FF-28', teacher: 'Prof. VJM', type: 'lab' }], 3: [], 4: [], 5: [], 6: [] };
+  const links = ['Maths', 'Physics', 'Chemistry', 'Data Structures Lab'].map((subject) => ({ subject, code: '', color: '#394B63', resources: [{ label: 'x', url: 'https://example.com' }] }));
+  await page.addInitScript(({ tt, links }) => {
+    localStorage.setItem('cos_onboarding_dismissed', 'true');
+    localStorage.setItem('cos_onboarding_done', '1');
+    localStorage.setItem('cos_profile', JSON.stringify({ name: 'Test' }));
+    localStorage.setItem('cos_custom_timetable', JSON.stringify(tt));
+    localStorage.setItem('cos_custom_links', JSON.stringify(links));
+    localStorage.setItem('cos_custom_tasks', JSON.stringify([{ id: 'c-ph', subject: 'Physics', code: 'PH', title: 'Problem set', taskType: 'assignment', dueDate: '2026-09-30', priority: 'medium', status: 'pending' }]));
+  }, { tt, links });
+  await page.goto('/');
+  const chips = page.locator('#page-dashboard .dash-shortcuts .filter-chip');
+  await expect(chips).toHaveCount(3);
+  await expect(chips.nth(0)).toContainText('Data Structures Lab');
+  await expect(chips.nth(1)).toContainText('Physics');
+  await expect(chips.nth(2)).toContainText('Maths');
 });
