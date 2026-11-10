@@ -8411,7 +8411,7 @@ function buildTodayFocus(o = {}) {
         markKey: unmarked.length === 1 ? attendanceKeyFor(last) : null,
         subject: unmarked.length === 1 ? last.subject : '',
         title: unmarked.length === 1 ? `${last.subject} still needs attendance` : `${unmarked.length} classes aren't marked yet`,
-        sub: unmarked.length === 1 ? `It ended at ${formatDisplayTime(last.end)}. Only marked classes count toward your %.` : 'Only marked classes count toward your %.'
+        sub: unmarked.length === 1 ? `It ended at ${formatDisplayTime(last.end)}. Attendance uses marked classes only.` : 'Attendance uses marked classes only.'
       };
     }
   }
