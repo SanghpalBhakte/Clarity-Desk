@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u269",
+    date: "2026-11-10",
+    title: "Today: the unmarked-class note now reads \"Attendance uses marked classes only.\"",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today: the unmarked-class note now reads \"Attendance uses marked classes only.\"",
+    points: [
+
+    ]
+  },
+  {
     id: "u268",
     date: "2026-11-10",
     title: "Attendance toast is shorter and sits above the bottom bar on phones; Today's status line stays on one line on PC",
