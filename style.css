@@ -792,6 +792,7 @@ img { display: block; max-width: 100%; }
   color: #fff;
   font: inherit;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .skip-link:not(:focus-visible) {
