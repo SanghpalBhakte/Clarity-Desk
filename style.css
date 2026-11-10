@@ -2540,6 +2540,9 @@ a.card:hover,
 #onboarding-modal-box.ob-screen { max-width: 440px; background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 .ob-brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: var(--text-md); }
 .ob-brand svg { color: var(--accent); }
+.ob-close { margin: -10px -12px -10px auto; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--text-muted); cursor: pointer; }
+.ob-brand .ob-close svg { color: inherit; }
+.ob-close:hover { color: var(--text-primary); }
 .ob-step { flex: 1; display: flex; flex-direction: column; }
 .ob-step .ob-actions { margin-top: auto; }
 .ob-step .ob-actions .btn-primary, .ob-step .ob-actions .btn-secondary { min-height: 48px; font-size: var(--text-md); }
@@ -6540,7 +6543,10 @@ html.more-sheet-open .more-sheet {
 .holiday-note-action {
   background: none; border: 0; padding: 0; margin-left: auto;
   color: var(--accent); font: inherit; font-weight: 600; cursor: pointer;
+  position: relative;
 }
+/* Same look, taller touch area (the text alone is about 19px high). */
+.holiday-note-action::after { content: ''; position: absolute; inset: -13px -8px; }
 .holiday-note-action:hover { text-decoration: underline; }
 
 /* Holiday mode feel: only while a break is on (body.holiday-mode from
