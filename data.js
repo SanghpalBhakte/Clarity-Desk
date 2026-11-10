@@ -170,6 +170,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u268",
+    date: "2026-11-10",
+    title: "Attendance toast is shorter and sits above the bottom bar on phones; Today's status line stays on one line on PC",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Attendance toast is shorter and sits above the bottom bar on phones; Today's status line stays on one line on PC",
+    points: [
+
+    ]
+  },
+  {
+    id: "u267",
+    date: "2026-11-10",
+    title: "Today on PC: a tighter header so the third task shows without scrolling",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today on PC: a tighter header so the third task shows without scrolling",
+    points: [
+
+    ]
+  },
+  {
+    id: "u266",
+    date: "2026-11-10",
+    title: "Attendance: after you mark a class, you see where that subject stands (for example 82% and you can miss 3)",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Attendance: after you mark a class, you see where that subject stands (for example 82% and you can miss 3)",
+    points: [
+
+    ]
+  },
+  {
+    id: "u265",
+    date: "2026-11-10",
+    title: "Today: shows the date, and says plainly when a class still needs attendance",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today: shows the date, and says plainly when a class still needs attendance",
+    points: [
+
+    ]
+  },
+  {
+    id: "u264",
+    date: "2026-11-10",
+    title: "Today on a PC: the attendance question moves to the right column so your schedule and tasks stay on the first screen",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today on a PC: the attendance question moves to the right column so your schedule and tasks stay on the first screen",
+    points: [
+
+    ]
+  },
+  {
+    id: "u263",
+    date: "2026-11-10",
+    title: "Today: the class card is the only raised block; the attendance question is now plain text with a rule",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today: the class card is the only raised block; the attendance question is now plain text with a rule",
+    points: [
+
+    ]
+  },
+  {
     id: "u262",
     date: "2026-11-09",
     title: "We can now tell whether students are still using the app after four weeks, without tracking anyone",
