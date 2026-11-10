@@ -109,7 +109,7 @@ check('Unmarked: names the class, or counts them when there are several', () => 
   seed(); const { buildTodayFocus: f } = makeApp();
   const one = f({ dayClasses: [DSL, OE2], attendanceData: {}, dateStr: DAY, currentMin: 13 * 60 });
   const two = f({ dayClasses: [DSL, OE2], attendanceData: {}, dateStr: DAY, currentMin: 15 * 60 });
-  if (one.title !== 'Mark Data Structures Lab') return one.title;
+  if (one.title !== 'Data Structures Lab still needs attendance') return one.title;
   return two.title === "2 classes aren't marked yet" && two.id !== one.id ? true : two.title + ' / ' + two.id;
 });
 
@@ -216,7 +216,7 @@ check('Today shows the row for an ended, unmarked class and it carries the Mark 
   const { html } = today(DAY + 'T13:00:00');
   const h = html();
   if (focusOf(h) !== 'unmarked') return 'kind ' + focusOf(h);
-  return h.includes('Mark Data Structures Lab') && h.includes("setTTDay(2); navigateTo('timetable')") && h.includes('dismissTodayFocus(this.dataset.id)') ? true : 'markup missing';
+  return h.includes('Data Structures Lab still needs attendance') && h.includes("setTTDay(2); navigateTo('timetable')") && h.includes('dismissTodayFocus(this.dataset.id)') ? true : 'markup missing';
 });
 
 check('Marking the class clears the row; nothing shows when there is nothing to do', () => {
