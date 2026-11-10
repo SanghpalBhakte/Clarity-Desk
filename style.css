@@ -7866,3 +7866,34 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
   margin-top: var(--ds-space-2);
 }
 #page-dashboard .setup-ask-title { font-family: var(--font-display); font-size: var(--text-md); font-weight: 700; }
+
+/* ── Today on PC (1100px+): the attendance question sits in the right column,
+   above the Attendance panel, so the schedule and tasks stay on the first screen.
+   DOM order is unchanged (the setup card still precedes .dashboard-layout); the
+   layout wrapper just stops being a box. Rows 1-9 are reserved for the full-width
+   items above (masthead, welcome-back, class card, focus row) so a missing or an
+   extra one cannot shift the columns; unused rows have no height. ── */
+@media (min-width: 1100px) {
+  #page-dashboard.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-rows: repeat(9, auto) auto 1fr;
+    column-gap: 32px;
+    align-items: start;
+  }
+  #page-dashboard.active > * { grid-column: 1 / -1; }
+  #page-dashboard.active > .dashboard-layout { display: contents; }
+  #page-dashboard.active .dashboard-left { grid-column: 1; grid-row: 10 / span 2; }
+  #page-dashboard.active .desk-setup-guide:not(.setup-first) {
+    grid-column: 2;
+    grid-row: 10;
+    margin: 0 0 var(--ds-space-5, 20px);
+  }
+  #page-dashboard.active .dashboard-right-panel { grid-column: 2; grid-row: 11; }
+  #page-dashboard.active .desk-setup-guide.setup-first { grid-row: 12; }
+  /* Nothing to guide yet: keep one primary action in the column. */
+  #page-dashboard.active .dashboard-panel:has(.att-stat-figure.is-target) .panel-action { display: none; }
+}
+@media (min-width: 1280px) {
+  #page-dashboard.active { grid-template-columns: minmax(0, 1fr) 300px; column-gap: 40px; }
+}
