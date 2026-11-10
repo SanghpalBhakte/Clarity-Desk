@@ -13506,12 +13506,25 @@ function detectDeskPollution() {
   if (plan.archivedSlots.length) return true;
 
   // Nothing removed, so each kept slot lines up with its original: any
-  // rename is a merge or normalization the cleanup would apply.
+  // rename is a merge or normalization the cleanup would apply. The one
+  // exception is a subject saved once whose name only loses or shortens its
+  // "Lab" word ("Chemistry Lab" -> "Chemistry", "... Laboratory" -> "... Lab"):
+  // nothing is duplicated, so no banner, unless that makes it share a name
+  // with another class.
+  const low = n => String(n || '').trim().toLowerCase();
+  const labWord = /\s+(?:lab|laboratory|practicals?)\.?$/;
+  const before = new Set(), afterNames = new Set();
   for (const d of [1, 2, 3, 4, 5, 6, 0]) {
     const after = plan.newTimetable[d] || [];
-    if (teachingTT[d].some((c, i) => !after[i] || after[i].subject !== c.subject)) return true;
+    for (let i = 0; i < teachingTT[d].length; i++) {
+      const c = teachingTT[d][i];
+      if (!after[i]) return true;
+      before.add(low(c.subject));
+      afterNames.add(low(after[i].subject));
+      if (after[i].subject !== c.subject && low(after[i].subject).replace(labWord, '') !== low(c.subject).replace(labWord, '')) return true;
+    }
   }
-  return false;
+  return afterNames.size < before.size;
 }
 
 function loadDeclutterBackup() {

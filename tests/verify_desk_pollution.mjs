@@ -145,6 +145,24 @@ check('10. A typo with the same number still merges ("Open Electiv 1" -> "Open E
   return a.detectDeskPollution() === true ? true : 'real numbered duplicate not flagged';
 });
 
+// A subject that is saved once is not a duplicate, even when the cleanup
+// would tidy its name ("Chemistry Lab" -> "Chemistry", marked as a lab).
+check('11. One "Chemistry Lab" class saved as a lecture shows no banner', () => {
+  seed(week({ 1: [lecture('Maths'), lecture('Chemistry Lab', '11:00')] }));
+  return a.detectDeskPollution() === false ? true : 'single subject flagged as a duplicate';
+});
+
+check('12. One "... Laboratory" lab shows no banner', () => {
+  seed(week({ 1: [lecture('Maths'), { subject: 'Database Management Systems Laboratory', code: 'DBMSL', time: '11:00', end: '13:00', type: 'lab', batches: [] }] }));
+  return a.detectDeskPollution() === false ? true : 'single lab flagged as a duplicate';
+});
+
+check('13. A class spelled differently from a subject with saved attendance still shows the banner', () => {
+  seed(week({ 1: [lecture('Maths'), lecture('Data Structure', '11:00')] }));
+  localStorage.setItem('cos_attendance_baseline', JSON.stringify({ DS: { subjectName: 'Data Structures', subjectCode: 'DS', present: 5, absent: 1, leave: 0, notEntered: 0 } }));
+  return a.detectDeskPollution() === true ? true : 'split subject not flagged';
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);
