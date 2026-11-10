@@ -365,6 +365,17 @@ await check('Client: wiring (Settings button, online retry, start-up retry, queu
   return missing.length === 0 && !exportFn.includes('FEEDBACK') ? true : `missing: ${missing.join(' | ')}`;
 });
 
+await check('Client: Subject Hub "looks wrong" link opens the same form with the subject filled in as plain text', () => {
+  const fn = appSrc.slice(appSrc.indexOf('window.openFeedbackForm = function(ctx)'), appSrc.indexOf('window.submitFeedback'));
+  const problems = [];
+  if (!appSrc.includes('onclick="reportSubjectProblem(${nameArg})"')) problems.push('hub link not wired');
+  if (!/window\.reportSubjectProblem = function\(name\)[\s\S]*openFeedbackForm\(\{ type: 'bug'/.test(appSrc)) problems.push('reportSubjectProblem missing');
+  if (!fn.includes('box.value = `About: ${about}')) problems.push('prefill must go in .value, not innerHTML');
+  if (!fn.includes('FEEDBACK_TYPES[ctx.type]')) problems.push('type not validated');
+  if (!fn.includes('.slice(0, 120)')) problems.push('about not capped');
+  return problems.length === 0 ? true : problems.join('; ');
+});
+
 console.log('\n========================================');
 console.log(`FEEDBACK: ${passed}/${total} passed`);
 console.log('========================================');
