@@ -7903,3 +7903,20 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 
 /* Live class row: where this subject stands ("82% · can miss 3"), in the meta line. */
 .chrono-beacon-standing { font-weight: 600; color: var(--text-secondary); }
+
+/* Today on PC: a tighter masthead so the third task row is not clipped at 1440x900. */
+@media (min-width: 1100px) {
+  #page-dashboard .desk-masthead { padding: 18px 0 14px; margin-bottom: 14px; }
+  /* The one-line status sentence stays on one line in the wide column, so the greeting never grows. */
+  #page-dashboard .desk-greeting-sub { max-width: none; }
+}
+
+/* Phones: toasts sit above the bottom bar instead of over it. */
+@media (max-width: 767px) {
+  #toast-container {
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+    left: 12px; right: 12px;
+    max-width: none;
+    align-items: stretch;
+  }
+}
