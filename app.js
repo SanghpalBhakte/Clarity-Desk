@@ -9668,7 +9668,9 @@ window.setAttendance = function(dateStr, classKey, status) {
       if (streak >= 3) msg += ` (Streak: ${streak})`;
       const cls = (loadTimetable()[new Date(`${dateStr}T00:00:00`).getDay()] || []).find(c => attendanceKeyFor(c) === classKey);
       const standing = cls ? standingForClass(cls) : '';
-      showUndoToast(standing ? `${msg} · ${cls.code || cls.subject} ${standing}` : msg, undo, type);
+      // With counts: "DS · 100% · on target" (short enough for a phone; the live row keeps the full line).
+      const short = standing.replace(/ to reach \d+%$/, '');
+      showUndoToast(standing ? `${cls.code || cls.subject} · ${short}${streak >= 3 ? ` · ${streak} in a row` : ''}` : msg, undo, type);
     };
   }
   
