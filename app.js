@@ -9651,23 +9651,29 @@ window.setAttendance = function(dateStr, classKey, status) {
     rerenderAttendancePages();
   };
   
+  // The toast waits until the mark is saved, so its numbers include it.
+  let showToastAfterSave = null;
   if (data[dateStr][classKey] === status) {
     delete data[dateStr][classKey];
     showToast('Attendance status cleared', 'info');
   } else {
     data[dateStr][classKey] = status;
     haptic();
-    if (status === 'attended') {
-      const streak = calculateAttendanceStreak();
-      showUndoToast(streak >= 3 ? `Attendance logged: Attended ✓ (Streak: ${streak})` : 'Attendance logged: Attended ✓', undo, 'success');
-    } else if (ATT_STATUS_LABEL[status]) {
-      showUndoToast(`Attendance logged: ${ATT_STATUS_LABEL[status]}`, undo, 'info');
-    } else {
-      showUndoToast('Attendance logged: Skipped', undo, 'info');
-    }
+    const logged = status === 'attended' ? 'Attended ✓' : (ATT_STATUS_LABEL[status] || 'Skipped');
+    const type = status === 'attended' ? 'success' : 'info';
+    // Counted before this mark is saved, as before.
+    const streak = status === 'attended' ? calculateAttendanceStreak() : 0;
+    showToastAfterSave = () => {
+      let msg = `Attendance logged: ${logged}`;
+      if (streak >= 3) msg += ` (Streak: ${streak})`;
+      const cls = (loadTimetable()[new Date(`${dateStr}T00:00:00`).getDay()] || []).find(c => attendanceKeyFor(c) === classKey);
+      const standing = cls ? standingForClass(cls) : '';
+      showUndoToast(standing ? `${msg} · ${cls.code || cls.subject} ${standing}` : msg, undo, type);
+    };
   }
   
   safeSetStorage(KEY_ATTENDANCE, data);
+  if (showToastAfterSave) showToastAfterSave();
   maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
   rerenderAttendancePages();
@@ -10730,6 +10736,7 @@ function renderDashboard() {
   } else if (activeClass) {
     const classKey = attendanceKeyFor(activeClass);
     const status = attendanceData[dateStr]?.[classKey] || 'unset';
+    const liveStanding = standingForClass(activeClass);
     beaconHTML = `
       <div class="chrono-beacon is-live" role="region" aria-label="Current class in session"${liveHasEnd ? ` data-beacon="live" data-start="${liveStartMin}" data-end="${liveEndMin}"` : ''}>
         <div class="chrono-beacon-main">
@@ -10740,6 +10747,7 @@ function renderDashboard() {
           <div class="chrono-beacon-meta">
             ${activeClass.room ? `<span>${escHtml_cd(activeClass.room)}</span>` : ''}
             ${activeClass.teacher ? `<span>${escHtml_cd(formatTeacherName(activeClass.teacher))}</span>` : ''}
+            ${liveStanding ? `<span class="chrono-beacon-standing">${escHtml_cd(liveStanding)}</span>` : ''}
           </div>
           ${upNextClass ? `<div class="chrono-beacon-then">Then <strong>${escHtml_cd(upNextClass.subject)}</strong> at ${formatDisplayTime(upNextClass.time)}${upNextClass.room ? ` · ${escHtml_cd(upNextClass.room)}` : ''}</div>` : ''}
         </div>
@@ -12118,6 +12126,33 @@ function computeNowGuidance(attended, held, targetPct = getAttendanceTarget()) {
   // smallest n with 100(a + n) >= t(h + n)
   const need = t * h - 100 * a, per = 100 - t;
   return { isSafe: false, classesToAttend: Math.floor((need + per - 1) / per), safeSkips: 0, reachable: true };
+}
+
+// What a mark did, in a few words, for the toast and the live class row:
+// "82% · can miss 3" or "71% · attend the next 4 to reach 75%". Display only.
+// Empty when there is nothing to say yet (no counts), or the line can't be reached.
+function attendanceStandingLine(a) {
+  if (!a || a.pct === null || a.pct === undefined) return '';
+  const raw = Number(a.pctLabel ?? (a.exactPct ?? a.pct));
+  const pct = `${Number.isFinite(raw) ? raw : (a.exactPct ?? a.pct)}%`;
+  if (a.isSafe) return a.safeSkips > 0 ? `${pct} · can miss ${a.safeSkips}` : `${pct} · on target`;
+  if (!Number.isFinite(a.classesToAttend) || a.classesToAttend < 1 || a.classesToAttend > 60) return pct;
+  return `${pct} · attend the next ${a.classesToAttend} to reach ${a.targetPct}%`;
+}
+
+// The subject card a timetable class belongs to (by canonical name, else code).
+function subjectItemForClass(c) {
+  if (!c || !c.subject) return null;
+  const name = getCanonicalSubjectName(c.subject);
+  const code = String(c.code || '').toLowerCase();
+  return getSubjectList().find(s => s.name === name || (code && String(s.code || '').toLowerCase() === code)) || null;
+}
+
+// Standing of the class' subject right now ('' during a break or with no counts).
+function standingForClass(c) {
+  if (isHolidayActive()) return '';
+  const subj = subjectItemForClass(c);
+  return subj ? attendanceStandingLine(getSubjectAttendance(subj)) : '';
 }
 
 // End of semester, from the ERP's "Total Sessions" (planned count):

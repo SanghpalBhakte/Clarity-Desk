@@ -7900,3 +7900,6 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 
 /* Today: quiet date line above the greeting (same voice as the welcome's .ob-date). */
 .desk-date { margin: 0 0 6px; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); }
+
+/* Live class row: where this subject stands ("82% · can miss 3"), in the meta line. */
+.chrono-beacon-standing { font-weight: 600; color: var(--text-secondary); }
