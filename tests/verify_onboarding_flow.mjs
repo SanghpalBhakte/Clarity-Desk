@@ -143,7 +143,7 @@ check('Welcome is value first: headline, add field, paste, optional setup', () =
   seed(); makeApp(); const html = welcomeHtml();
   const want = ['Make the next thing clear.', 'Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.', 'Add deadline', 'Paste a class-group message', 'Use a photo',
     '\u00b7 Today', 'Example', 'Tomorrow', 'Physics assignment', 'Have a timetable?', 'study without one',
-    'Made by a student, for students. Works offline.', 'Show me around', 'Log in'];
+    'Made by a student, for students. No account needed: your desk stays on this device and works offline.', 'Show me around', 'Log in'];
   const t = visibleText(html).replace(/\s+/g, ' ');
   const missing = want.filter(w => !t.includes(w));
   if (missing.length) return `missing: ${missing.join(' | ')}`;

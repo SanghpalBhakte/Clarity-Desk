@@ -91,7 +91,7 @@ test('a quiet day offers one calm next step, and the exam line links to Settings
   });
   await page.goto('/');
   const dash = page.locator('#page-dashboard');
-  await expect(dash).toContainText('All caught up. No urgent tasks.');
+  await expect(dash).toContainText('No tasks yet.');
   // The greeting line states where things stand; only the Tasks panel prompts.
   await expect(dash.locator('.desk-greeting-sub')).toHaveText('Nothing on your plan right now.');
   await dash.getByRole('button', { name: "Add the next thing that's due" }).click();

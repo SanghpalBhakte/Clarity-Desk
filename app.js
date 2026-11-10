@@ -2655,11 +2655,11 @@ function handleTimetableImageUpload(event) {
 
   // Validate file type & size (< 12 MB)
   if (!file.type.startsWith('image/')) {
-    alert('Please upload an image file (JPG, PNG, WEBP, etc.)');
+    appConfirm("That file isn't a picture. Choose a photo or a screenshot.", 'OK');
     return;
   }
   if (file.size > 12 * 1024 * 1024) {
-    alert('Image is too large (max 12 MB). Please compress or crop it first.');
+    appConfirm('That picture is over 12 MB. Crop it or take a screenshot of it, then try again.', 'OK');
     return;
   }
 
@@ -3326,29 +3326,17 @@ function handleAuthError(err) {
     return;
   }
 
-  if (code === 'auth/unauthorized-domain') {
-    const domain = window.location.hostname;
-    alert(`Unauthorized Domain: '${domain}'\n\nTo allow Google Sign-In on this domain:\n1. Open Firebase Console → Authentication → Settings → Authorized Domains.\n2. Add '${domain}' to authorized domains.`);
-    return;
-  }
-
-  if (code === 'auth/api-key-not-valid' || code === 'auth/invalid-api-key') {
-    alert("Firebase API Key Error: The API key for this project is invalid or restricted in Google Cloud Console. Please verify authorized API key restrictions.");
-    return;
-  }
-
-  if (code === 'auth/operation-not-allowed') {
-    alert("Google Sign-In Disabled: Google auth provider is not enabled in Firebase Console.\n\nGo to Firebase Console → Authentication → Sign-in method → Enable Google.");
-    return;
-  }
-
   if (code === 'auth/network-request-failed') {
-    alert("Network Error: Could not connect to Google Authentication servers. Please check your internet connection and try again.");
+    appConfirm("Couldn't reach Google. Check your connection and try again.\n\nYour desk keeps working offline in the meantime.", 'OK');
     return;
   }
 
-  alert(`Google Sign-In Error (${code || 'unknown'}):\n${msg || 'An unexpected authentication error occurred.'}`);
+  // Set-up faults (domain, key, provider) are ours to fix, not the student's.
+  console.warn('[Auth] sign-in failed:', code || 'unknown', msg || '');
+  appConfirm(SIGNIN_DOWN_MSG, 'OK');
 }
+
+const SIGNIN_DOWN_MSG = "Sign-in isn't working right now. That's on our side, not yours.\n\nYour desk works without an account and nothing is lost. Please try again later.";
 
 function loginWithGoogle(sdkTried = false) {
   // Google refuses sign-in inside Instagram/Facebook browsers.
@@ -3363,8 +3351,8 @@ function loginWithGoogle(sdkTried = false) {
     initFirebase();
   }
   if (!auth) {
-    const detail = firebaseInitError || "Firebase Auth service is not loaded.";
-    alert(`Google Sign-In Unavailable:\n\n${detail}`);
+    console.warn('[Auth] sign-in unavailable:', firebaseInitError || 'Firebase Auth service is not loaded.');
+    appConfirm(SIGNIN_DOWN_MSG, 'OK');
     return;
   }
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -3478,7 +3466,8 @@ function showEmailSignInModal(step = 'email', sdkTried = false) {
   }
   if (!auth) initFirebase();
   if (!auth) {
-    alert(`Email Sign-In Unavailable:\n\n${firebaseInitError || 'Firebase Auth service is not loaded.'}`);
+    console.warn('[Auth] sign-in unavailable:', firebaseInitError || 'Firebase Auth service is not loaded.');
+    appConfirm(SIGNIN_DOWN_MSG, 'OK');
     return;
   }
   document.getElementById('email-signin-modal-backdrop')?.remove();
@@ -8373,6 +8362,11 @@ function buildDashboardContextLine(opts = {}) {
     return 'No classes today and no tasks pending.';
   }
 
+  // Free day with tasks: there were no classes to be "done" with.
+  if (isWeekend) {
+    return `No classes today. ${pending} task${pending !== 1 ? 's' : ''} pending.`;
+  }
+
   // Normal day with classes remaining
   if (classesLeft > 0) {
     return `${classesLeft} class${classesLeft !== 1 ? 'es' : ''} remaining today.${pending > 0 ? ` ${pending} task${pending !== 1 ? 's' : ''} pending.` : ''}`;
@@ -8441,7 +8435,7 @@ function buildTodayFocus(o = {}) {
       return {
         kind: 'risk', id, go: 'Open', subject: riskSubject.name,
         title: `Attend the next ${n} ${riskSubject.name} class${n === 1 ? '' : 'es'}`,
-        sub: `Now ${riskSubject.pctLabel ?? riskSubject.pct}%, target ${riskSubject.targetPct}%`
+        sub: `Now ${riskSubject.pctLabel ?? riskSubject.exactPct ?? riskSubject.pct}%, target ${riskSubject.targetPct}%`
       };
     }
   }
@@ -8776,6 +8770,7 @@ function clearUpcomingAttendanceForNewSchedule(newTT) {
 
 // In-app yes/no, because the native confirm() is auto-cancelled in installed PWAs and
 // in-app browsers (the button then silently does nothing). `msg` is plain text, shown as text.
+// With no onYes it is a plain notice: one button, nothing to cancel.
 function appConfirm(msg, okLabel, onYes) {
   document.getElementById('app-confirm-backdrop')?.remove();
   const backdrop = document.createElement('div');
@@ -8785,14 +8780,14 @@ function appConfirm(msg, okLabel, onYes) {
     <div class="modal" style="max-width:400px;width:92vw">
       <div class="modal-body" data-msg style="font-size:var(--text-base);line-height:1.45;padding-top:20px;white-space:pre-line"></div>
       <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
-        <button type="button" class="btn-secondary" data-act="no">Cancel</button>
+        ${onYes ? '<button type="button" class="btn-secondary" data-act="no">Cancel</button>' : ''}
         <button type="button" class="btn-primary" data-act="yes">${okLabel}</button>
       </div>
     </div>`;
   backdrop.querySelector('[data-msg]').textContent = msg;   // text only: messages carry subject/task names
   backdrop.addEventListener('click', (e) => {
     const act = e.target.closest && e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'yes') { backdrop.remove(); onYes(); }
+    if (act === 'yes') { backdrop.remove(); if (onYes) onYes(); }
     else if (act === 'no' || e.target === backdrop) backdrop.remove();
   });
   document.body.appendChild(backdrop);
@@ -10105,6 +10100,8 @@ function onboardingDateLine(d = new Date(), tail = ' \u00b7 Today') {
 // Tasks bar (tkQuickAdd), so nothing is saved unchecked.
 window.onboardingAddDue = function() {
   const text = (document.getElementById('ob-due')?.value || '').trim();
+  // Nothing typed: stay on the welcome, the field is the place to start.
+  if (!text) { document.getElementById('ob-due')?.focus(); return; }
   trackUsage('welcome_choice', 'task');
   window.dismissOnboarding();
   tkQuickAdd({ value: text });
@@ -10261,7 +10258,7 @@ window.showOnboardingModal = function() {
 
   backdrop.innerHTML = `
     <div class="ob-screen" id="onboarding-modal-box" role="dialog" aria-modal="true" aria-label="Welcome to Clarity Desk">
-      <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span></div>
+      <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span><button type="button" class="ob-close" onclick="onboardingExplore()" aria-label="Close welcome" title="Look around first">${icons.x()}</button></div>
       <div id="onboarding-step-1" class="ob-step ob-value">
         <p class="ob-date">${onboardingDateLine()}</p>
         <h1 class="ob-hero">Make the next thing clear.</h1>
@@ -10280,7 +10277,7 @@ window.showOnboardingModal = function() {
           <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Add it when you\'re ready \u2192</button>
           <span class="ob-more-or">or <button type="button" class="ob-more-btn ob-more-quiet" onclick="setupSelfStudy(); dismissOnboarding()">study without one</button></span>
         </p>
-        <p class="ob-foot">Made by a student, for students. Works offline.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
+        <p class="ob-foot">Made by a student, for students. No account needed: your desk stays on this device and works offline.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
         <div class="ob-actions">
           <button class="btn-secondary ob-quiet" onclick="onboardingShowName()">Show me around</button>
           <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">Log in</button>
@@ -10289,6 +10286,15 @@ window.showOnboardingModal = function() {
     </div>
   `;
 
+  // Escape leaves the welcome for Today, unless a sheet is open on top of it.
+  // Listens on the document because nothing in the welcome has focus on arrival.
+  const onEsc = (e) => {
+    if (!backdrop.isConnected) { document.removeEventListener('keydown', onEsc); return; }
+    if (e.key !== 'Escape' || backdrop.inert || document.querySelectorAll('.modal-backdrop').length > 1) return;
+    e.preventDefault();
+    window.onboardingExplore();
+  };
+  document.addEventListener('keydown', onEsc);
   document.body.appendChild(backdrop);
   trackUsage('welcome_shown');
 };
@@ -10341,6 +10347,22 @@ window.dismissOnboarding = function() {
   }
   document.getElementById('onboarding-backdrop')?.remove();
   renderPage(state.currentPage);
+};
+
+// Settings > About: the same tour again, without touching first-run state.
+window.replayTour = async function() {
+  navigateTo('dashboard');
+  try {
+    const T = await import('./welcome-tour.js');
+    T.startTour({ name: (loadProfile().name || '').split(' ')[0] });
+  } catch (err) {
+    showToast("The tour couldn't load. Try again when you're online.", 'error');
+  }
+};
+
+window.onboardingExplore = function() {
+  trackUsage('welcome_choice', 'explore_own');
+  window.dismissOnboarding();
 };
 
 // Log in and "Continue without account" close the welcome the same way. The
@@ -11052,7 +11074,7 @@ function renderDashboard() {
                   </div>
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
                 </div>`;
-            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : 'All caught up. No urgent tasks.')}</div>
+            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayText ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
             ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
@@ -15955,6 +15977,13 @@ async function tkQuickAdd(input) {
   const t = document.getElementById('task-title');
   const title = dateKey ? text.replace(/\s+(?:is\s+)?due\b.*$/i, '').trim() : '';
   if (t) t.value = title || text;
+  // No date could be read: say the date is only a default, never pass it off as read.
+  if (!dateKey) {
+    const due = document.getElementById('task-due');
+    due?.insertAdjacentHTML('afterend',
+      '<div id="task-due-guess" role="status" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px;line-height:1.4">No date found in what you typed, so this is set to tomorrow. Change it if that is wrong.</div>');
+    due?.addEventListener('input', () => document.getElementById('task-due-guess')?.remove(), { once: true });
+  }
 }
 window.tkQuickAdd = tkQuickAdd;
 
@@ -16019,19 +16048,19 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
       ${editTask ? '' : `<button type="button" class="wa-modal-link" onclick="showWhatsAppImport()">Got a message or circular with deadlines? Paste it</button>`}
 
       <div class="form-group">
+        <label class="form-label" for="task-title">Task Title <span class="req">*</span></label>
+        <input type="text" class="form-input" id="task-title" data-testid="task-title"
+          placeholder="e.g. Master Dynamic Programming, Lab Report 3, or Pay Fee" maxlength="120"
+          value="${editTask ? editTask.title.replace(/"/g, '&quot;') : ''}">
+      </div>
+
+      <div class="form-group">
         <label class="form-label" for="task-subject">Subject / Category <span class="req">*</span></label>
         <select class="form-select" id="task-subject" data-testid="task-subject">
           <option value="">Select subject or category…</option>
           ${subjectOptions}
           <option value="${generalValue}" ${isGeneralSel ? 'selected' : ''}>General</option>
         </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="task-title">Task Title <span class="req">*</span></label>
-        <input type="text" class="form-input" id="task-title" data-testid="task-title"
-          placeholder="e.g. Master Dynamic Programming, Lab Report 3, or Pay Fee" maxlength="120"
-          value="${editTask ? editTask.title.replace(/"/g, '&quot;') : ''}">
       </div>
 
       <div class="form-group">
@@ -16114,7 +16143,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
   `;
   wireBackdropClickClose(backdrop, false);
   document.body.appendChild(backdrop);
-  setTimeout(() => document.getElementById('task-subject')?.focus(), 50);
+  setTimeout(() => document.getElementById('task-title')?.focus(), 50);
 
   // Close on Esc
   const escHandler = (e) => {
@@ -16148,12 +16177,12 @@ function submitAddTask(editTaskId = null) {
   let valid = true;
   let firstInvalid = null;
 
-  if (!subjectEl || !subjectEl.value) {
-    if (subjectEl) { subjectEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = subjectEl; }
-    valid = false;
-  }
   if (!titleEl || !titleEl.value.trim()) {
     if (titleEl) { titleEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = titleEl; }
+    valid = false;
+  }
+  if (!subjectEl || !subjectEl.value) {
+    if (subjectEl) { subjectEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = subjectEl; }
     valid = false;
   }
   if (!isNoDeadline && (!dueEl || !dueEl.value)) {
@@ -18672,6 +18701,12 @@ function renderSettings() {
     <div class="card" style="padding:18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div style="font-size:var(--text-base);color:var(--text-secondary)">Dev Notes: what changed in each update.</div>
       <button class="btn-secondary" onclick="showDevNotesModal()">See what's new</button>
+    </div>
+
+    <h3 class="st-sub">Show me around</h3>
+    <div class="card" style="padding:18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-size:var(--text-base);color:var(--text-secondary)">A short walk through the app. Skip it any time.</div>
+      <button class="btn-secondary" onclick="replayTour()">Start the tour</button>
     </div>
 
     <h3 class="st-sub">Privacy</h3>
