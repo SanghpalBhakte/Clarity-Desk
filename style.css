@@ -7959,3 +7959,57 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
     align-items: stretch;
   }
 }
+
+/* Today: exam countdown and syllabus share one line of 44px-tall links. */
+.desk-note-links { gap: 8px; flex-wrap: wrap; margin: -4px 0 -12px; }
+.desk-note-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.desk-note-link:hover { color: var(--color-action-primary); text-decoration: underline; }
+
+/* Weekly Review: classes left to mark, one attendance line, the rest folded. */
+.rv-mark-rows { margin-bottom: 0; border-top: 0; }
+.rv-mark-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--color-rule); }
+.rv-mark-day { flex: 0 0 52px; font-weight: 700; color: var(--text-secondary); }
+.rv-mark-day span { display: block; font-size: var(--text-xs); font-weight: 500; color: var(--text-muted); }
+.rv-mark-sub { font-size: var(--text-sm); color: var(--text-muted); }
+.rv-mark-actions { display: flex; gap: 8px; margin-left: auto; }
+.rv-mark-actions .btn.att-week-btn { min-width: 76px; min-height: 44px; justify-content: center; border-radius: 999px; }
+.rv-all-marked { color: var(--text-secondary); }
+.rv-more { border-bottom: 1px solid var(--color-rule); margin-bottom: 18px; }
+.rv-more > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-height: 48px; padding: 6px 0; list-style: none; font-weight: 600; color: var(--text-primary); cursor: pointer; }
+.rv-more > summary::-webkit-details-marker { display: none; }
+.rv-more > summary::after { content: '+'; margin-left: auto; font-size: var(--text-lg); color: var(--text-muted); }
+.rv-more[open] > summary::after { content: '–'; }
+.rv-more > summary span { font-size: var(--text-sm); font-weight: 400; color: var(--text-muted); }
+.rv-health .rv-more { border-top: 1px solid var(--color-rule); }
+.rv-att-line { margin: 0 0 10px; line-height: 1.5; color: var(--text-secondary); }
+.rv-att-line strong { margin-right: 4px; font-size: var(--text-2xl); font-weight: 700; color: var(--status-success); }
+.rv-att-line strong.is-low { color: var(--status-error); }
+.rv-att-bar { position: relative; height: 6px; margin: 0 0 14px; border-radius: 3px; background: var(--surface-2); }
+.rv-att-bar i { display: block; height: 100%; border-radius: 3px; background: var(--text-secondary); }
+.rv-att-bar b { position: absolute; top: -4px; width: 2px; height: 14px; background: var(--color-action-primary); }
+
+/* Subject Hubs, empty: three plain ways to start, as ruled rows. */
+.hubs-empty-lead { max-width: 46ch; margin: 16px 0 12px; line-height: 1.5; color: var(--text-secondary); }
+.hubs-empty-lead strong { display: block; margin-bottom: 4px; font-size: var(--text-lg); color: var(--text-primary); }
+.hubs-empty-rows { max-width: 560px; border-top: 1px solid var(--color-rule); }
+.hubs-empty-rows .more-sheet-item { padding: 12px 4px; border-bottom: 1px solid var(--color-rule); border-radius: 0; }
+
+/* Study Vault: ruled rows, not boxes; Edit and Delete behind one button (vaultRowMenu). */
+#vault-grid .links-grid { gap: 0 28px; }
+#vault-grid .link-subject-card { overflow: visible; background: transparent; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; box-shadow: none; }
+#vault-grid .link-subject-header { padding: 6px 0; border-bottom: 0; }
+#vault-grid .link-resources { gap: 0; padding: 0; }
+#vault-grid .resource-item-row { border-top: 1px solid var(--color-rule); }
+#vault-grid .resource-link { min-height: 48px; padding: 8px 0; background: transparent; border: 0; border-radius: 0; }
+#vault-grid .resource-link:hover { background: transparent; color: var(--color-action-primary); }
+#vault-grid .vault-card-actions { gap: 4px 20px; padding: 4px 0 12px; border-top: 1px solid var(--color-rule); }
+#vault-grid .btn-add-resource { min-height: 44px; padding: 0; background: transparent; }
+#vault-grid .btn-add-resource:hover { background: transparent; color: var(--accent); text-decoration: underline; }
+.vault-row-menu { position: relative; flex-shrink: 0; }
+.vault-row-menu > summary { display: grid; place-items: center; width: 44px; height: 44px; list-style: none; border-radius: var(--radius-xs); font-size: 1.2rem; color: var(--text-muted); cursor: pointer; }
+.vault-row-menu > summary::-webkit-details-marker { display: none; }
+.vault-row-menu > summary:hover, .vault-row-menu[open] > summary { background: var(--surface-2); color: var(--text-primary); }
+.vault-row-menu-list { position: absolute; right: 0; top: 100%; z-index: 5; display: flex; flex-direction: column; min-width: 160px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xs); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); }
+.vault-row-menu-list button { min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--radius-xs); background: none; font: inherit; font-weight: 600; text-align: left; white-space: nowrap; color: var(--text-primary); cursor: pointer; }
+.vault-row-menu-list button:hover { background: var(--surface-2); }
+.vault-row-menu-list button.is-danger { color: var(--status-error); }

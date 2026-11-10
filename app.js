@@ -9444,10 +9444,10 @@ function renderReview() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0">
-        <button class="btn btn-sm btn-secondary" style="flex-shrink:0" onclick="navigateTo('dashboard')">← Back to Today</button>
+        <button class="btn btn-sm btn-secondary" style="flex-shrink:0" onclick="navigateTo('dashboard')">← Today</button>
         <div>
-          <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">Weekly reflection</div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted)">Review last week's coursework and plan your next 7 days</div>
+          <div style="font-size:var(--text-xl);font-weight:700;color:var(--text-primary)">Weekly Review</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted)">Last week's work, classes left to mark, the next 7 days</div>
         </div>
       </div>
     </div>
@@ -9470,7 +9470,7 @@ function renderReview() {
               </div>
               <div class="rv-row-actions">
                 <button class="btn btn-sm btn-secondary" onclick="handleRolloverAction('${a.id}', 'done')" title="Mark Done">${icons.check()} Done</button>
-                <button class="btn btn-sm btn-secondary" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">${icons.calendar()} Reschedule</button>
+                <button class="btn btn-sm btn-secondary" onclick="handleRolloverAction('${a.id}', 'reschedule')" title="Reschedule for this week">${icons.calendar()} Move to this week</button>
               </div>
             </li>
           `).join('')}
@@ -9478,7 +9478,7 @@ function renderReview() {
       ` : ''}
     </section>
 
-    <div class="section-heading">Weekly class attendance</div>
+    <div class="section-heading">Classes</div>
     ${renderWeeklyAttendanceTracker()}
 
     <div class="section-heading">The next 7 days</div>
@@ -9486,7 +9486,7 @@ function renderReview() {
 
     <div style="margin-top:24px;margin-bottom:32px;text-align:center">
       <button class="btn btn-primary" onclick="completeWeeklyReset()" style="width:100%;max-width:400px;padding:12px;font-size:var(--text-md);font-weight:700">
-        Done reviewing, back to Today
+        Done, back to Today
       </button>
     </div>
   `;
@@ -9760,6 +9760,13 @@ function renderWeeklyAttendanceTracker() {
 
   let attendanceDaysHTML = '';
   let hasAnyClassesInWeek = false;
+  // Classes that are over and still have no mark: the only ones that
+  // need a tap. The full week stays one tap away for changes.
+  const toMarkRows = [];
+  let classCount = 0;
+  const todayKey = todayStr();
+  const nowDate = new Date();
+  const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
 
   weekDays.forEach(d => {
     const dateStr = localDateKey(d);
@@ -9789,6 +9796,23 @@ function renderWeeklyAttendanceTracker() {
         if (isLab) totalLabsAttended++;
       } else if (status === 'skipped' || status === 'od_pending' || status === 'od_rejected') {
         totalSkipped++;
+      }
+
+      classCount++;
+      const isOver = dateStr < todayKey || (dateStr === todayKey && timeToMinutes(c.end || c.time) <= nowMin);
+      if (status === 'unset' && isOver) {
+        toMarkRows.push(`
+        <li class="rv-mark-row">
+          <div class="rv-mark-day">${dayName.slice(0, 3)}<span>${formatDate(dateStr).replace(/\s\d{4}$/, '')}</span></div>
+          <div class="rv-row-text">
+            <div class="rv-row-title">${escHtml_cd(c.subject)}</div>
+            <div class="rv-mark-sub">${formatDisplayTimeRange(c.time, c.end)} · ${isLab ? 'Lab' : 'Lecture'}</div>
+          </div>
+          <div class="rv-mark-actions">
+            <button class="btn att-week-btn is-present" onclick="setAttendance('${dateStr}', '${classKey}', 'attended')" aria-label="Mark ${escAttr_cd(c.subject)} as present on ${formatDate(dateStr)}" aria-pressed="false">Present</button>
+            <button class="btn att-week-btn is-absent" onclick="setAttendance('${dateStr}', '${classKey}', 'skipped')" aria-label="Mark ${escAttr_cd(c.subject)} as absent on ${formatDate(dateStr)}" aria-pressed="false">Absent</button>
+          </div>
+        </li>`);
       }
 
       return `
@@ -9852,6 +9876,10 @@ function renderWeeklyAttendanceTracker() {
     `;
   }
 
+  const toMarkHTML = toMarkRows.length
+    ? `<div class="section-heading">To mark</div><ul class="rv-rows rv-mark-rows">${toMarkRows.join('')}</ul>`
+    : `<p class="rv-sentence rv-all-marked">${weekOffset === 0 ? 'Every class so far is marked.' : 'Week marked. Nicely.'}</p>`;
+
   const guidance = calculateSmartAttendanceGuidance(totalAttended, totalSkipped, getAttendanceTarget());
   const streak = calculateAttendanceStreak();
 
@@ -9866,54 +9894,32 @@ function renderWeeklyAttendanceTracker() {
     `;
   }).join('');
 
+  const marked = totalAttended + totalSkipped;
+  const pctText = guidance.pct !== null ? (guidance.pctLabel ?? guidance.pct) + '%' : '';
+  const target = getAttendanceTarget();
+  const barPct = guidance.pct !== null ? Math.max(0, Math.min(100, Number(guidance.pct))) : 0;
+
   return `
     <div style="margin-bottom:24px">
       ${weekSelectorHTML}
-      ${attendanceDaysHTML}
+      ${toMarkHTML}
 
-      <!-- Gamified Attendance & Safe Bunk Guidance Card -->
-      <div class="rv-health" style="padding:16px 0;margin-bottom:16px;border-top:1px solid var(--color-rule)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-          <div>
-            <div style="font-weight:700;font-size:var(--text-md);color:var(--text-primary);display:flex;align-items:center;gap:8px">
-              <span>Attendance and safe skips</span>
-              ${streak > 0 ? `<span class="rv-busy">${streak}-class streak</span>` : ''}
-            </div>
-            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">Target: <strong>${getAttendanceTarget()}%</strong> minimum attendance</div>
-          </div>
-          <span class="type-badge" style="font-size:var(--text-sm);padding:3px 9px;background:${guidance.isSafe ? 'color-mix(in srgb, var(--status-success) 14%, transparent)' : 'color-mix(in srgb, var(--status-error) 14%, transparent)'};color:${guidance.isSafe ? 'var(--status-success)' : 'var(--status-error)'}">
-            ${guidance.badgeLabel}
-          </span>
-        </div>
+      <details class="rv-more" ${state.reviewAllOpen ? 'open' : ''} ontoggle="state.reviewAllOpen = this.open">
+        <summary>All ${classCount} class${classCount !== 1 ? 'es' : ''} that week <span>change a mark, OD, didn't happen</span></summary>
+        ${attendanceDaysHTML}
+      </details>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px;margin-bottom:12px">
-          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:var(--text-lg);font-weight:700;color:var(--green)">${totalAttended}</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted)">Present</div>
-          </div>
-          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:var(--text-lg);font-weight:700;color:var(--red)">${totalSkipped}</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted)">Absent</div>
-          </div>
-          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.pct !== null ? (guidance.pctLabel ?? guidance.pct) + '%' : '0%'}</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted)">Current Rate</div>
-          </div>
-          <div style="background:var(--surface-2);padding:10px;border-radius:6px;text-align:center">
-            <div style="font-size:var(--text-lg);font-weight:700;color:${guidance.isSafe ? 'var(--green)' : 'var(--red)'}">${guidance.isSafe ? guidance.safeSkips : guidance.classesToAttend}</div>
-            <div style="font-size:var(--text-xs);color:var(--text-muted)">${guidance.isSafe ? 'Safe Skips' : 'Classes Needed'}</div>
-          </div>
-        </div>
-
-        <div style="font-size:var(--text-base);color:var(--text-primary);background:var(--surface-2);padding:10px 12px;border-radius:6px;line-height:1.45;border:1px solid var(--border)">
-          ${guidance.message}
-        </div>
-
+      <div class="rv-health">
+        <p class="rv-att-line">
+          ${pctText ? `<strong class="${guidance.isSafe ? '' : 'is-low'}">${pctText}</strong> <span>of ${marked} marked class${marked !== 1 ? 'es' : ''} this week. ${guidance.message}</span>` : `<span>${guidance.message}</span>`}
+        </p>
+        ${pctText ? `<div class="rv-att-bar" role="img" aria-label="${pctText} this week, your line is ${target}%"><i style="width:${barPct}%"></i><b style="left:${target}%"></b></div>` : ''}
+        ${streak > 0 ? `<p class="rv-done">${streak}-class streak.</p>` : ''}
         ${subjectBreakdownHTML ? `
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-            <div style="font-size:var(--text-sm);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:6px">Per-Subject Breakdown</div>
+          <details class="rv-more" ${state.reviewSubjectsOpen ? 'open' : ''} ontoggle="state.reviewSubjectsOpen = this.open">
+            <summary>By subject</summary>
             ${subjectBreakdownHTML}
-          </div>
+          </details>
         ` : ''}
       </div>
     </div>
@@ -10695,7 +10701,7 @@ function renderDashboard() {
   // countdown is the one figure with no other home, so it gets a quiet line
   // under the greeting (the context line already covers the final week).
   const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7 && !onHoliday)
-    ? `<div class="desk-greeting-note">${icons.target()} ${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())} (${formatDate(liveProfile.examDate)}). <button type="button" class="holiday-note-action" onclick="openCountdownSettings()" title="Change the exam countdown in Settings">Change</button></div>`
+    ? `<button type="button" class="desk-note-link" onclick="openCountdownSettings()" title="${escAttr_cd(formatDate(liveProfile.examDate))}. Change the exam countdown in Settings">${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())}</button>`
     : '';
 
   const holidaySoon = isHolidayScheduled() ? loadHoliday() : null;
@@ -10703,8 +10709,12 @@ function renderDashboard() {
     ? `<div class="desk-greeting-note">${icons.sun()} Holiday starts on ${holidayDayLabel(holidaySoon.since, true)}. <button type="button" class="holiday-note-action" onclick="showHolidayModal()">Change</button></div>`
     : '';
 
-  const sylTodayText = syllabusTodayLine();
-  const sylTodayHTML = sylTodayText && !onHoliday ? `<div class="desk-greeting-note syl-today-note">${icons.book()} ${sylTodayText} <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')" title="Open Subject Hubs to tick off topics">Open</button></div>` : '';
+  // Exams and syllabus share one line, so the Now focus stays near the top.
+  const sylTodayPct = onHoliday ? null : syllabusTodayPct();
+  const sylTodayHTML = sylTodayPct !== null ? `<button type="button" class="desk-note-link syl-today-note" onclick="navigateTo('subjects')" title="${syllabusTodayLine()}. Open Subject Hubs to tick off topics">Syllabus ${sylTodayPct}%</button>` : '';
+  const deskNoteLinksHTML = (examNoteHTML || sylTodayHTML)
+    ? `<div class="desk-greeting-note desk-note-links">${[examNoteHTML, sylTodayHTML].filter(Boolean).join('<span aria-hidden="true">·</span>')}</div>`
+    : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
@@ -10967,13 +10977,12 @@ function renderDashboard() {
             <button type="button" class="setup-first-alt greet-ask-skip" onclick="onbSaveGreetingName(true)">Not now</button>
           </div>` : ''}
           ${greetingSub ? `<div class="desk-greeting-sub">${greetingSub}</div>` : ''}
-          ${examNoteHTML}
+          ${deskNoteLinksHTML}
           ${holidaySoonHTML}
-          ${sylTodayHTML}
         </div>
         ${(dayIdx === 0 || dayIdx === 6) && !onHoliday ? `
         <div style="display:flex;align-items:center;gap:8px;align-self:flex-end">
-          <button class="btn btn-sm btn-secondary weekly-review-link" onclick="navigateTo('review')" title="Weekly reflection &amp; guidance" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
+          <button class="btn btn-sm btn-secondary weekly-review-link" onclick="navigateTo('review')" title="Open the Weekly Review" style="font-size:var(--text-sm);padding:5px 12px;white-space:nowrap;flex-shrink:0">
             Weekly Review →
           </button>
         </div>` : ''}
@@ -11075,7 +11084,7 @@ function renderDashboard() {
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
                 </div>`;
             }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
-              ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayText ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
+              ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
             ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
           </div>
@@ -14926,10 +14935,16 @@ function syllabusCardHTML(subj) {
 }
 
 // One quiet line for Today, or '' when there is no syllabus yet.
+function syllabusTodayPct() {
+  const entries = visibleSyllabusEntries();
+  if (!entries.length) return null;
+  return Math.round(entries.reduce((s, e) => s + syllabusStats(e).pct, 0) / entries.length);
+}
+
 function syllabusTodayLine() {
   const entries = visibleSyllabusEntries();
   if (!entries.length) return '';
-  const avg = Math.round(entries.reduce((s, e) => s + syllabusStats(e).pct, 0) / entries.length);
+  const avg = syllabusTodayPct();
   const next = entries
     .map(e => ({ e, ex: e.examDate ? syllabusExamInfo(e) : null }))
     .filter(x => x.ex && x.ex.days >= 0)
@@ -14967,18 +14982,20 @@ function renderSubjectsOverview(el, subjects) {
       <div class="page-header">
         <div>
           <div class="page-title">Subject Hubs</div>
-          <div class="page-subtitle">Course schedules, attendance baselines, tasks &amp; study resources organized per subject</div>
+          <div class="page-subtitle">One page per subject for its classes, attendance, tasks and notes</div>
         </div>
       </div>
-      <div class="empty-state-card" style="margin-top:16px">
-        <span class="empty-state-icon">${icons.book()}</span>
-        <div class="empty-state-title">No Subjects Set Up Yet</div>
-        <div class="empty-state-desc">Import your timetable schedule or enter an initial attendance baseline to automatically create your Subject Hubs.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
-          <button class="btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-base);padding:7px 14px">${icons.camera()} Scan Timetable Photo</button>
-          <button class="btn-secondary" onclick="showBaselineModal(null, 'manual')" style="font-size:var(--text-base);padding:7px 14px">${icons.chartLine()} Set Attendance Baseline</button>
-          <button class="btn-secondary" onclick="showAddSyllabusSubjectModal()" style="font-size:var(--text-base);padding:7px 14px">+ Add a subject</button>
-        </div>
+      <p class="hubs-empty-lead"><strong>Your shelf is still empty.</strong> Add your subjects once and each one gets a page for its classes, attendance, tasks and notes.</p>
+      <div class="hubs-empty-rows">
+        <button type="button" class="more-sheet-item" onclick="triggerTimetableImport()">
+          ${icons.camera()}<span><strong>Scan a timetable photo</strong><small>We read your subjects from it. You check them before anything is saved.</small></span>
+        </button>
+        <button type="button" class="more-sheet-item" onclick="showAddSyllabusSubjectModal()">
+          ${icons.book()}<span><strong>Add a subject</strong><small>Just its name for now. Good if you study without a timetable.</small></span>
+        </button>
+        <button type="button" class="more-sheet-item" onclick="showBaselineModal(null, 'manual')">
+          ${icons.chartLine()}<span><strong>Enter attendance so far</strong><small>Type the counts from your college portal, and we carry on from there.</small></span>
+        </button>
       </div>
     `;
     return;
@@ -17084,14 +17101,24 @@ function vaultResourceMatches(s, r, tokens) {
   return tokens.every(t => hay.includes(t));
 }
 
+function vaultRowMenu(label, items) {
+  return `
+            <details class="vault-row-menu">
+              <summary aria-label="${label}" title="More"><span aria-hidden="true">⋯</span></summary>
+              <div class="vault-row-menu-list" onclick="this.parentNode.open = false">
+                ${items.map(([text, fn, danger]) => `<button type="button" class="${danger ? 'is-danger' : ''}" onclick="${fn}">${text}</button>`).join('')}
+              </div>
+            </details>`;
+}
+
 function vaultResourceRow(si, ri, r) {
   const label = vaultEsc(r.label);
   const badge = `<span class="vault-type">${vaultTypeLabel(r)}</span>`;
-  const actions = `
-            <div class="resource-actions">
-              <button class="icon-btn-xs" onclick="editLinkResource(${si},${ri})" title="Edit resource" aria-label="Edit resource">${icons.edit()}</button>
-              <button class="icon-btn-xs icon-btn-danger" onclick="deleteLinkResource(${si},${ri})" title="Delete resource" aria-label="Delete resource">${icons.x()}</button>
-            </div>`;
+  // Edit and Delete sit behind one button, so a slip of the thumb cannot delete.
+  const actions = vaultRowMenu(`More for ${label}`, [
+    ['Edit', `editLinkResource(${si},${ri})`],
+    ['Delete', `deleteLinkResource(${si},${ri})`, true],
+  ]);
   if (vaultPlaceholderFetchable(r)) {
     const here = vaultPlaceholderHere(r);
     return `
@@ -17249,24 +17276,25 @@ function renderVaultGrid() {
           <span class="link-subject-count">${all.length} item${all.length !== 1 ? 's' : ''}</span>
         </button>
         <span class="link-code">${vaultEsc(s.code)}</span>
-        <div class="link-subject-actions">
-          <button class="icon-btn-sm" onclick="editLinkSubject(${si})" title="Edit subject" aria-label="Edit subject">${icons.edit()}</button>
-          <button class="icon-btn-sm icon-btn-danger" onclick="deleteLinkSubject(${si})" title="Delete subject" aria-label="Delete subject">${icons.trash()}</button>
+        <div class="link-subject-actions">${vaultRowMenu(`More for ${vaultEsc(s.subject)}`, [
+          ['Rename subject', `editLinkSubject(${si})`],
+          ['Delete subject', `deleteLinkSubject(${si})`, true],
+        ])}
         </div>
       </div>
 
       <div class="link-resources">
         ${hits.length === 0 ? `
-          <div style="font-size:var(--text-sm);color:var(--text-muted);font-style:italic;padding:8px 0">No materials attached yet. Click below to add files or links.</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);padding:8px 0">Nothing here yet.</div>
         ` : hits.map(x => vaultResourceRow(si, x.ri, x.r)).join('')}
       </div>
 
       <div class="vault-card-actions">
         <button class="btn-add-resource" onclick="addLinkResource(${si})">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Vault Material / Upload
+          Add a file or link
         </button>
-        <button class="btn-add-resource" onclick="openVaultBulk(${si})">Add several at once</button>
+        <button class="btn-add-resource" onclick="openVaultBulk(${si})">Add several</button>
       </div>
     </div>`;
   }).join('');
@@ -20208,7 +20236,7 @@ function setupFABDrag() {
   if (window.innerWidth <= 768 && !localStorage.getItem('fabHintDismissed')) {
     hintEl = document.createElement('div');
     hintEl.className = 'fab-hint';
-    hintEl.innerText = 'Drag me left/right';
+    hintEl.innerText = 'In the way? Slide me sideways.';
     fab.appendChild(hintEl);
 
     // Exit 1: tap the hint itself
