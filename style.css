@@ -7853,3 +7853,16 @@ body.holiday-mode .holiday-banner {
 .tt-open-link:hover, .tt-open-link:focus-visible { color: var(--text-primary); text-decoration-color: currentColor; }
 /* The open page has its own Add class; a second floating one would compete. */
 body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
+
+/* ── Today first look: one surface. The class beacon is the only raised block;
+   the attendance ask is an open ruled step (type + hairlines), not a second card. ── */
+#page-dashboard .desk-setup-guide.setup-ask {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--color-rule);
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--ds-space-4) 0 0;
+  margin-top: var(--ds-space-2);
+}
+#page-dashboard .setup-ask-title { font-family: var(--font-display); font-size: var(--text-md); font-weight: 700; }
