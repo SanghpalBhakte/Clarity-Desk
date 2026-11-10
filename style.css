@@ -7897,3 +7897,6 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 @media (min-width: 1280px) {
   #page-dashboard.active { grid-template-columns: minmax(0, 1fr) 300px; column-gap: 40px; }
 }
+
+/* Live class row: where this subject stands ("82% · can miss 3"), in the meta line. */
+.chrono-beacon-standing { font-weight: 600; color: var(--text-secondary); }
