@@ -10278,7 +10278,7 @@ window.showOnboardingModal = function() {
         ${onboardingComingUpHtml()}
         <p class="ob-more">Have a timetable?
           <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Add it when you\'re ready \u2192</button>
-          <span class="ob-more-or">or <button type="button" class="ob-more-btn ob-more-quiet" onclick="dismissOnboarding(); setupSelfStudy()">study without one</button></span>
+          <span class="ob-more-or">or <button type="button" class="ob-more-btn ob-more-quiet" onclick="setupSelfStudy(); dismissOnboarding()">study without one</button></span>
         </p>
         <p class="ob-foot">Made by a student, for students. Works offline.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
         <div class="ob-actions">

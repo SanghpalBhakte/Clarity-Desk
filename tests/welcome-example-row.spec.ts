@@ -26,4 +26,16 @@ test.describe('Welcome example row', () => {
     await expect(row).toBeFocused();
     expect(await page.evaluate(() => localStorage.getItem('cos_onboarding_dismissed'))).toBeNull();
   });
+
+  // Choosing self-study on the welcome must change Today straight away: the
+  // timetable ask goes and the countdown ask takes its place.
+  test('study without one: Today stops asking for a timetable at once', async ({ page }) => {
+    await page.goto('/');
+    const welcome = page.locator('#onboarding-backdrop');
+    await welcome.getByRole('button', { name: 'study without one' }).click();
+    await expect(welcome).toHaveCount(0);
+    await expect(page.getByText('Set your exam countdown')).toBeVisible();
+    await expect(page.getByText('Have a timetable?')).toHaveCount(0);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_profile') || '{}').studyMode)).toBe('self');
+  });
 });
