@@ -2944,7 +2944,7 @@ function renderTimetablePreviewModalContent(backdrop) {
             ${visibleSchedule.length} class${visibleSchedule.length !== 1 ? 'es' : ''} shown ${selectedTimetablePreviewBatch !== 'all' ? `(Filtered for Batch ${selectedTimetablePreviewBatch})` : ''} ${pendingExtractionNeedsReview ? '· <span style="color:var(--yellow);font-weight:600">Check every row</span>' : uncertainCount > 0 ? `· <span style="color:var(--yellow);font-weight:600">${uncertainCount} ${uncertainCount !== 1 ? 'rows need' : 'row needs'} a check</span>` : '· <span style="color:var(--green);font-weight:600">All rows read clearly</span>'}
           </div>
         </div>
-        <button class="modal-close" onclick="document.getElementById('tt-preview-backdrop').remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('tt-preview-backdrop').remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       ${pendingExtractionNeedsReview ? `
@@ -5197,7 +5197,7 @@ function showNoticeChannelModal(targetKey) {
           <span style="font-size:var(--text-xl)">${isOfficial ? icons.bell() : icons.graduation()}</span>
           <span class="modal-title">${isOfficial ? 'Configure Notice Source' : 'Configure ERP Portal Link'}</span>
         </div>
-        <button class="modal-close" onclick="document.getElementById('notice-channel-modal-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('notice-channel-modal-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
         <div style="font-size:var(--text-base);color:var(--text-muted);line-height:1.45">
@@ -10743,7 +10743,7 @@ function renderDashboard() {
       <div class="chrono-beacon is-live" role="region" aria-label="Current class in session"${liveHasEnd ? ` data-beacon="live" data-start="${liveStartMin}" data-end="${liveEndMin}"` : ''}>
         <div class="chrono-beacon-main">
           <div class="chrono-beacon-head"><span class="chrono-beacon-badge">In Session</span></div>
-          <div class="chrono-beacon-title" onclick="openSubjectHub(${jsArg_cd(activeClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
+          <div class="chrono-beacon-title" role="button" tabindex="0" onclick="openSubjectHub(${jsArg_cd(activeClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
             ${escHtml_cd(activeClass.subject)}
           </div>
           <div class="chrono-beacon-meta">
@@ -10770,7 +10770,7 @@ function renderDashboard() {
       <div class="chrono-beacon" role="region" aria-label="Next upcoming class" data-beacon="next" data-start="${nextStartMin}" data-end="${timeToMinutes(nextClass.end || '23:59')}">
         <div class="chrono-beacon-main">
           <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Next class</span><span class="chrono-beacon-time">${formatDisplayTime(nextClass.time)}</span></div>
-          <div class="chrono-beacon-title" onclick="openSubjectHub(${jsArg_cd(nextClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
+          <div class="chrono-beacon-title" role="button" tabindex="0" onclick="openSubjectHub(${jsArg_cd(nextClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
             ${escHtml_cd(nextClass.subject)}
           </div>
           <div class="chrono-beacon-meta">
@@ -10972,7 +10972,7 @@ function renderDashboard() {
         <!-- SCHEDULE LEDGER -->
         <div class="dashboard-panel"${hideSchedulePanel || dayBarOn ? ' style="display:none"' : ''}>
           <div class="panel-header">
-            <div class="panel-title">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
+            <div class="panel-title" role="heading" aria-level="2">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
           </div>
           <!-- Open ledger: no card box -->
@@ -10988,7 +10988,7 @@ function renderDashboard() {
                 return `
                   <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${isPast && status === 'unset' && !markedAbove ? ' needs-mark' : ''}${c === heroClass ? ' is-in-hero' : ''}">
                     <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
-                    <div class="schedule-slot-info" style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
+                    <div class="schedule-slot-info" role="button" tabindex="0" style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
                       <div class="schedule-slot-title">${escHtml_cd(c.subject)}</div>
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? escHtml_cd(c.room) + ' · ' : ''}${c.teacher ? escHtml_cd(formatTeacherName(c.teacher)) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
@@ -11022,7 +11022,7 @@ function renderDashboard() {
         <!-- TASKS & DEADLINES -->
         <div class="dashboard-panel">
           <div class="panel-header">
-            <div class="panel-title">Tasks &amp; Deadlines</div>
+            <div class="panel-title" role="heading" aria-level="2">Tasks &amp; Deadlines</div>
             <div style="display:flex;align-items:center;gap:10px">
               ${urgentTasks.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
               <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
@@ -11039,7 +11039,7 @@ function renderDashboard() {
               const pCls = a.priority === 'high' ? 'priority-high' : a.priority === 'medium' ? 'priority-medium' : 'priority-low';
               return `
                 <div class="task-ledger-item ${pCls}">
-                  <div class="task-checkbox ${done ? 'checked' : ''}" onclick="toggleAssignment('${a.id}')" title="Mark completed">
+                  <div class="task-checkbox ${done ? 'checked' : ''}" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}" title="Mark completed">
                     ${done ? icons.check() : ''}
                   </div>
                   <div style="flex:1;min-width:0;cursor:pointer" data-task="${escAttr_cd(a.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
@@ -11060,7 +11060,7 @@ function renderDashboard() {
 
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-            <input type="text" id="quick-add-input" class="form-input" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
+            <input type="text" id="quick-add-input" class="form-input" aria-label="Add a task" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
             <button class="btn btn-sm ${setupLast ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">${setupLast ? 'Add deadline' : 'Add'}</button>
           </div>
         </div>
@@ -11073,7 +11073,7 @@ function renderDashboard() {
         <!-- ATTENDANCE: Redesigned ambient right panel -->
         <div class="dashboard-panel"${hideAttendancePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
-            <div class="panel-title">Attendance</div>
+            <div class="panel-title" role="heading" aria-level="2">Attendance</div>
             <button class="panel-action" onclick="navigateTo('review')">Guidance →</button>
           </div>
           <div>
@@ -11104,7 +11104,7 @@ function renderDashboard() {
         ${quickLinksPreview.length > 0 ? `
           <div class="dashboard-panel dash-shortcuts">
             <div class="panel-header">
-              <div class="panel-title">Study Shortcuts</div>
+              <div class="panel-title" role="heading" aria-level="2">Study Shortcuts</div>
               <button class="panel-action" onclick="navigateTo('links')">Vault →</button>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -11502,7 +11502,7 @@ function renderTimetable() {
           </div>
           <div class="tt-divider"></div>
           <div class="tt-info">
-            <div class="tt-subject" onclick="openSubjectHub(${jsArg_cd(c.subject)})" title="Open ${escAttr_cd(c.subject)} Hub">${escHtml_cd(c.subject)} ${escHtml_cd(codeSuffix)}<span class="tt-chev">${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span></div>
+            <div class="tt-subject" role="button" tabindex="0" onclick="openSubjectHub(${jsArg_cd(c.subject)})" title="Open ${escAttr_cd(c.subject)} Hub">${escHtml_cd(c.subject)} ${escHtml_cd(codeSuffix)}<span class="tt-chev">${svg('<path d="M9 6l6 6-6 6"/>', 14)}</span></div>
             ${metaBits.length ? `<div class="tt-meta">${metaBits.join('')}</div>` : ''}
           </div>
           <div class="tt-actions ${isTeaching ? 'has-att' : ''}" style="display:flex;align-items:center;gap:6px">
@@ -13093,7 +13093,7 @@ function showBaselineModal(preselectedSubject = null, initialTab = 'manual') {
           <h2 class="modal-title" style="margin:0;font-size:clamp(var(--text-lg), 5vw, var(--text-xl));font-weight:700">Set your current attendance</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Add your present and absent counts once. Clarity Desk will continue from there.</div>
         </div>
-        <button class="modal-close" onclick="document.getElementById('baseline-modal-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('baseline-modal-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       <!-- Mode Selector Tabs: Set Manually | Scan from Photo -->
@@ -13514,7 +13514,7 @@ function showDeclutterDeskModal() {
           <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Tidy my subjects</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Tidy up your subjects so you only see your own classes, once each.</div>
         </div>
-        <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:var(--text-sm);color:var(--text-secondary);line-height:1.45">
@@ -13952,7 +13952,7 @@ function renderDeclutterPreviewModal(plan, userBatch) {
           <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Here's your tidied desk</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Nothing changes until you tap Clean up.</div>
         </div>
-        <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('declutter-modal-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       <!-- Overview Stats Grid -->
@@ -14151,7 +14151,7 @@ function showRestoreDeskModal() {
           <h2 class="modal-title" style="margin:0;font-size:var(--text-xl);font-weight:700">Restore Previous Desk Setup</h2>
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:3px">Roll back your timetable, attendance baselines, and logs to before the last cleanup.</div>
         </div>
-        <button class="modal-close" onclick="document.getElementById('restore-desk-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('restore-desk-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       <div style="background:var(--surface-2);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:var(--text-base)">
@@ -15000,7 +15000,7 @@ function renderSubjectsOverview(el, subjects) {
     const projection = attV2ProjectionText(labIsWorse(att) ? att.labPart : att);
 
     return `
-      <div class="card attendance-subject-card sj-card ${tier}" style="position:relative;cursor:pointer${picked(s) ? ';outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub(${jsArg_cd(s.name)})`}" title="${escAttr_cd(subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub')}">
+      <div class="card attendance-subject-card sj-card ${tier}" role="button" tabindex="0" style="position:relative;cursor:pointer${picked(s) ? ';outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub(${jsArg_cd(s.name)})`}" title="${escAttr_cd(subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub')}">
         <svg class="sj-ring ${tier}${animateRings ? ' animate' : ''}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${escAttr_cd(s.name)} attendance ${label}, target ${att.targetPct}%">
           <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
           <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
@@ -15280,7 +15280,7 @@ function showTimetableEntryModal(day = state.ttDay, idx = null) {
     <div class="modal" onclick="event.stopPropagation()" style="max-width:480px">
       <div class="modal-header">
         <h2 class="modal-title">${item ? 'Edit Class Entry' : 'Add Class Entry'}</h2>
-        <button class="modal-close" onclick="document.getElementById('tt-entry-modal-backdrop').remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('tt-entry-modal-backdrop').remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       <div class="form-group">
@@ -16014,12 +16014,12 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
     <div class="modal add-task-modal" data-testid="add-task-modal" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h2 class="modal-title">${editTask ? 'Edit Task' : initialType === 'mission' ? 'Create Mission' : 'Add Task'}</h2>
-        <button class="modal-close" onclick="document.getElementById('add-task-backdrop').remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('add-task-backdrop').remove()" aria-label="Close">${icons.x()}</button>
       </div>
       ${editTask ? '' : `<button type="button" class="wa-modal-link" onclick="showWhatsAppImport()">Got a message or circular with deadlines? Paste it</button>`}
 
       <div class="form-group">
-        <label class="form-label">Subject / Category <span class="req">*</span></label>
+        <label class="form-label" for="task-subject">Subject / Category <span class="req">*</span></label>
         <select class="form-select" id="task-subject" data-testid="task-subject">
           <option value="">Select subject or category…</option>
           ${subjectOptions}
@@ -16028,7 +16028,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
       </div>
 
       <div class="form-group">
-        <label class="form-label">Task Title <span class="req">*</span></label>
+        <label class="form-label" for="task-title">Task Title <span class="req">*</span></label>
         <input type="text" class="form-input" id="task-title" data-testid="task-title"
           placeholder="e.g. Master Dynamic Programming, Lab Report 3, or Pay Fee" maxlength="120"
           value="${editTask ? editTask.title.replace(/"/g, '&quot;') : ''}">
@@ -16095,7 +16095,7 @@ function showAddTaskModal(editTaskId = null, prefilledSubject = null, defaultTyp
       </div>
 
       <div class="form-group">
-        <label class="form-label">Description / Instructions</label>
+        <label class="form-label" for="task-desc">Description / Instructions</label>
         <textarea class="form-input form-textarea" id="task-desc" maxlength="${TASK_DESC_MAX}"
           placeholder="Milestones, notes, syllabus topics, or links...">${editTask ? escHtml_cd(editTask.description) : ''}</textarea>
       </div>
@@ -17676,7 +17676,7 @@ function showLinkSubjectModal(si, existing) {
     <div class="modal" style="max-width:400px;width:92vw">
       <div class="modal-header">
         <span class="modal-title">${isNew ? 'Create Subject Vault' : 'Edit Subject Vault'}</span>
-        <button class="modal-close" onclick="document.getElementById('link-subject-modal-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('link-subject-modal-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
         <div>
@@ -17861,7 +17861,7 @@ function showLinkResourceModal(si, ri, existing) {
     <div class="modal" style="max-width:440px;width:92vw" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="modal-title">${isNew ? 'Add Vault Material' : 'Edit Vault Material'}</span>
-        <button class="modal-close" onclick="document.getElementById('link-resource-modal-backdrop')?.remove()">${icons.x()}</button>
+        <button class="modal-close" onclick="document.getElementById('link-resource-modal-backdrop')?.remove()" aria-label="Close">${icons.x()}</button>
       </div>
 
       <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--surface-2);padding:4px;border-radius:var(--radius-sm)">
@@ -18228,29 +18228,29 @@ function renderSettings() {
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Used to personalize your dashboard greeting, timetable headers, and course schedule.</div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Full Name</label>
+          <label class="form-label" for="s-name">Full Name</label>
           <input type="text" class="form-input" id="s-name" value="${(p.name || '').replace(/"/g, '&quot;')}" placeholder="Full name (e.g. Alex Morgan)">
         </div>
         <div class="form-group">
-          <label class="form-label">Student ID / Roll Number</label>
+          <label class="form-label" for="s-roll">Student ID / Roll Number</label>
           <input type="text" class="form-input" id="s-roll" value="${(p.rollNo || '').replace(/"/g, '&quot;')}" placeholder="Student ID or Roll number (e.g. 2026/CS/042)">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">College / University / School</label>
+        <label class="form-label" for="s-college">College / University / School</label>
         <input type="text" class="form-input" id="s-college" value="${(p.college || '').replace(/"/g, '&quot;')}" placeholder="College or University name">
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Major / Branch / Department</label>
+          <label class="form-label" for="s-branch">Major / Branch / Department</label>
           <input type="text" class="form-input" id="s-branch" value="${(p.branch || '').replace(/"/g, '&quot;')}" placeholder="e.g. Computer Science, Mechanical, Biology">
         </div>
         <div class="form-group">
-          <label class="form-label">Year / Semester / Term</label>
+          <label class="form-label" for="s-year">Year / Semester / Term</label>
           <input type="text" class="form-input" id="s-year" value="${(p.year || '').replace(/"/g, '&quot;')}" placeholder="e.g. 3rd Semester, Year 2, Fall 2026">
         </div>
         <div class="form-group">
-          <label class="form-label">Practical Batch / Section</label>
+          <label class="form-label" for="s-batch">Practical Batch / Section</label>
           <input type="text" class="form-input" id="s-batch" value="${(p.batch || '').replace(/"/g, '&quot;')}" placeholder="e.g. A1, A2, B2, D1">
         </div>
       </div>
@@ -18263,11 +18263,11 @@ function renderSettings() {
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">ERP Portal Card Title</label>
+          <label class="form-label" for="nc-wa-title">ERP Portal Card Title</label>
           <input type="text" class="form-input" id="nc-wa-title" value="${(channels.whatsappTitle || 'ERP Portal').replace(/"/g, '&quot;')}" placeholder="e.g. ERP Portal">
         </div>
         <div class="form-group">
-          <label class="form-label">ERP Portal Link / URL</label>
+          <label class="form-label" for="nc-wa-url">ERP Portal Link / URL</label>
           <input type="url" class="form-input" id="nc-wa-url" value="${(channels.whatsappUrl || '').replace(/"/g, '&quot;')}" placeholder="https://erp.yourcollege.edu">
         </div>
       </div>

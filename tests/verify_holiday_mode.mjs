@@ -207,7 +207,7 @@ check('Today: holiday banner with End early, quiet empty state, no class names o
   const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
   const ok = html.includes('holiday-banner') && html.includes('Holiday mode') && html.includes('Back on 3 Nov') && html.includes('15 days to go') && html.includes('endHolidayEarly()') && html.includes('End early')
-    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title">Today's Schedule/.test(html)
+    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title"[^>]*>Today's Schedule/.test(html)
     && !html.includes('Data Structures') && !html.includes('data-beacon=') && !html.includes('classes remaining')
     && !html.includes('today-focus is-unmarked') && !html.includes('today-focus is-risk');
   return ok ? true : 'holiday Today markup wrong';
@@ -289,7 +289,7 @@ check('Today: resting tasks leave the list, every real deadline stays, attendanc
   const html = domCache['page-dashboard'].innerHTML;
   // Four rows max: the overdue and dated tasks come first, the kept ongoing one is "+1 more".
   const ok = !html.includes('Read one paper a week') && html.includes('+1 more task')
-    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title">Attendance/.test(html) && html.includes('Lab journal') && html.includes('Old quiz') && html.includes('DBMS assignment')
+    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title"[^>]*>Attendance/.test(html) && html.includes('Lab journal') && html.includes('Old quiz') && html.includes('DBMS assignment')
     && html.includes('1 ongoing task is resting');
   return ok ? true : 'Today task list wrong';
 });
