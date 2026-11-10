@@ -170,6 +170,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u262",
+    date: "2026-11-09",
+    title: "We can now tell whether students are still using the app after four weeks, without tracking anyone",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "We can now tell whether students are still using the app after four weeks, without tracking anyone",
+    points: [
+
+    ]
+  },
+  {
+    id: "u261",
+    date: "2026-11-09",
+    title: "Subject pages now have a quick \"Something look wrong here?\" link that starts a report with the subject filled in",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject pages now have a quick \"Something look wrong here?\" link that starts a report with the subject filled in",
+    points: [
+
+    ]
+  },
+  {
+    id: "u260",
+    date: "2026-11-09",
+    title: "Turning off usage counts now also stops the page-visit count",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Turning off usage counts now also stops the page-visit count",
+    points: [
+
+    ]
+  },
+  {
+    id: "u259",
+    date: "2026-11-09",
+    title: "Settings now says plainly what stays on your device, what syncs, and what is counted",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings now says plainly what stays on your device, what syncs, and what is counted",
+    points: [
+
+    ]
+  },
+  {
     id: "u258",
     date: "2026-11-09",
     title: "Today no longer says \"add a task\" twice on a quiet self-study day",
