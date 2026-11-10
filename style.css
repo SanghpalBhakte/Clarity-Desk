@@ -779,6 +779,39 @@ img { display: block; max-width: 100%; }
   transform: scale(0.96);
 }
 
+/* Keyboard users: jump past the top bar and nav. Hidden until focused. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 99999;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.skip-link:not(:focus-visible) {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-focus-ring, var(--accent));
+}
+
+.content-area:focus {
+  outline: none;
+}
+
 .topbar-theme-toggle:focus-visible {
   box-shadow: 0 0 0 2px var(--color-focus-ring, var(--accent));
 }
