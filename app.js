@@ -8409,8 +8409,9 @@ function buildTodayFocus(o = {}) {
         // One class: the row marks it in place (Present / Absent), so Today
         // has a single place to mark it. Several: the row links to Timetable.
         markKey: unmarked.length === 1 ? attendanceKeyFor(last) : null,
-        title: unmarked.length === 1 ? `Mark ${last.subject}` : `${unmarked.length} classes aren't marked yet`,
-        sub: unmarked.length === 1 ? `Ended at ${formatDisplayTime(last.end)}. Your attendance % only counts marked classes.` : 'Your attendance % only counts marked classes.'
+        subject: unmarked.length === 1 ? last.subject : '',
+        title: unmarked.length === 1 ? `${last.subject} still needs attendance` : `${unmarked.length} classes aren't marked yet`,
+        sub: unmarked.length === 1 ? `It ended at ${formatDisplayTime(last.end)}. Only marked classes count toward your %.` : 'Only marked classes count toward your %.'
       };
     }
   }
@@ -8499,8 +8500,8 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       </div>` : '';
     const markHTML = markKey ? `
       <div class="today-focus-mark">
-        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="${attrSafe(f.title)} as attended" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'attended')">${icons.check()}<span>Present</span></button>
-        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="${attrSafe(f.title)} as skipped" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'skipped')">${icons.x()}<span>Absent</span></button>
+        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="Mark ${attrSafe(f.subject)} as attended" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'attended')">${icons.check()}<span>Present</span></button>
+        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="Mark ${attrSafe(f.subject)} as skipped" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'skipped')">${icons.x()}<span>Absent</span></button>
       </div>` : '';
     return `
     <div class="today-focus is-${f.kind}"${markKey || fixHTML ? ' data-mark' : ''} role="region" aria-label="Next step">
@@ -10086,10 +10087,10 @@ function onboardingComingUpHtml() {
 }
 
 // Quiet date line over the welcome headline: "Monday, 9 November · Today".
-function onboardingDateLine(d = new Date()) {
+function onboardingDateLine(d = new Date(), tail = ' \u00b7 Today') {
   const wd = d.toLocaleDateString('en-GB', { weekday: 'long' });
   const mo = d.toLocaleDateString('en-GB', { month: 'long' });
-  return `${wd}, ${d.getDate()} ${mo} \u00b7 Today`;
+  return `${wd}, ${d.getDate()} ${mo}${tail}`;
 }
 
 // Primary action: the typed text goes through the same Add Task review as the
@@ -10921,6 +10922,7 @@ function renderDashboard() {
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
+          <div class="desk-date">${onboardingDateLine(now, '')}</div>
           <div class="desk-greeting">${askName ? `Hey there.` : greeting}</div>
           ${askName ? `
           <div class="greet-ask">
