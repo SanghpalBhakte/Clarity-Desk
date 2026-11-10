@@ -307,7 +307,7 @@ check('4B. Timetable 2D grid reconstructs cells and separates metadata cleanly',
 check('5A. Empty states across all screens provide clear, action-first guidance', () => {
   const dummyEl = { innerHTML: '' };
   mod.renderSubjectsOverview(dummyEl, []);
-  if (!dummyEl.innerHTML.includes('No Subjects Set Up Yet') || !dummyEl.innerHTML.includes('Scan Timetable Photo')) {
+  if (!dummyEl.innerHTML.includes('Your shelf is still empty') || !dummyEl.innerHTML.includes('Scan a timetable photo')) {
     return 'Subject Hubs empty state missing buttons';
   }
   return true;
