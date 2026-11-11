@@ -998,8 +998,12 @@ function maybeCelebrateAttendanceTarget(wasOnTarget) {
 // One-tap "a new version is ready" banner, shown when the service worker
 // detects an update -- unlike showToast() this does not auto-dismiss,
 // since the user should decide when it's a good moment to reload.
+// A refresh while the welcome is open would throw away what the student
+// typed, so the strip waits and dismissOnboarding shows it once it closes.
+let updateBannerWaiting = false;
 function showUpdateAvailableBanner() {
   if (document.getElementById('update-available-banner')) return;
+  if (document.getElementById('onboarding-backdrop')) { updateBannerWaiting = true; return; }
   // One strip at a time: the update wins; the install card returns after it.
   document.getElementById('install-banner')?.remove();
   scheduleInstallBanner(10000);
@@ -1016,6 +1020,7 @@ function showUpdateAvailableBanner() {
   `;
   document.body.appendChild(banner);
 }
+window.showUpdateAvailableBanner = showUpdateAvailableBanner;
 
 // Last cloud push failed (not offline: Firestore just queues those). Shown
 // on the badge until a push works again; data is always safe on the phone.
@@ -10991,6 +10996,9 @@ window.onboardingSampleDay = function(from) {
 
 window.showOnboardingModal = function() {
   if (document.getElementById('onboarding-backdrop')) return;
+  // An update strip already up waits too, instead of covering the welcome.
+  const strip = document.getElementById('update-available-banner');
+  if (strip) { strip.remove(); updateBannerWaiting = true; }
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop ob-full';
@@ -11087,6 +11095,7 @@ window.dismissOnboarding = function() {
   }
   document.getElementById('onboarding-backdrop')?.remove();
   renderPage(state.currentPage);
+  if (updateBannerWaiting) { updateBannerWaiting = false; showUpdateAvailableBanner(); }
 };
 
 // Settings > About: the same tour again, without touching first-run state.

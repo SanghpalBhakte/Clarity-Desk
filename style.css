@@ -7882,6 +7882,26 @@ body.holiday-mode .holiday-banner {
 .ob-value .ob-actions { margin-top: 0; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; gap: 4px; }
 .ob-value .ob-actions .ob-quiet { padding-inline: 2px 14px; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; }
 .ob-value .ob-actions .ob-quiet:hover { color: var(--text-primary); }
+/* Phones: the privacy line and the two quiet exits sit at the bottom edge,
+   so Add stays the one strong action and the exits are always in view. */
+@media (max-width: 767px) {
+  .ob-value .ob-foot { margin-top: auto; padding-top: 20px; }
+}
+/* Short phones (an SE at 375x667): the same screen, tighter, so Show me
+   around and Log in still fit without scrolling. */
+@media (max-width: 767px) and (max-height: 740px) {
+  .ob-screen { padding-top: max(18px, env(safe-area-inset-top)); padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .ob-date { margin-top: 14px; }
+  .ob-hero { font-size: clamp(26px, 7vw, 30px); margin-bottom: 8px; }
+  .ob-lede { margin-bottom: 14px; font-size: var(--text-base); }
+  .ob-add { gap: 8px; }
+  .ob-add-input, .ob-add-btn { min-height: 48px; }
+  .ob-soon { margin-top: 4px; padding-top: 8px; }
+  .ob-soon-h { margin-bottom: 4px; }
+  .ob-more { margin-top: 8px; }
+  .ob-more-btn { min-height: 40px; padding-block: 6px; }
+  .ob-value .ob-foot { padding-top: 12px; }
+}
 /* Wide enough: field and button read as one capture line. */
 @media (min-width: 560px) {
   .ob-add { flex-direction: row; gap: 0; padding: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; transition: border-color 0.15s; }
