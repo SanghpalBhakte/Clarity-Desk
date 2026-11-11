@@ -9,6 +9,9 @@ const PAGES = ['dashboard', 'timetable', 'assignments', 'subjects', 'calendar', 
 
 for (const theme of ['light', 'dark']) {
   test(`no serious accessibility problems (${theme})`, async ({ page }) => {
+    // A Thursday mid-morning with classes, so Today shows its mark buttons and
+    // day bar on every run, not only on days the real clock lands on a class.
+    await page.clock.setFixedTime(new Date('2026-09-24T10:20:00'));
     await page.addInitScript((t) => {
       localStorage.setItem('cos_onboarding_dismissed', 'true');
       localStorage.setItem('cos_onboarding_done', '1');

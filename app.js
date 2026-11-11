@@ -9171,8 +9171,8 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       </div>` : '';
     const markHTML = markKey ? `
       <div class="today-focus-mark">
-        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="Mark ${attrSafe(f.subject)} as attended" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'attended')">${icons.check()}<span>Present</span></button>
-        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="Mark ${attrSafe(f.subject)} as skipped" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'skipped')">${icons.x()}<span>Absent</span></button>
+        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="Present, mark ${attrSafe(f.subject)} as attended" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'attended')">${icons.check()}<span>Present</span></button>
+        <button type="button" class="btn btn-secondary beacon-att" aria-pressed="false" aria-label="Absent, mark ${attrSafe(f.subject)} as skipped" data-key="${attrSafe(markKey)}" onclick="setAttendance('${dateStr}', this.dataset.key, 'skipped')">${icons.x()}<span>Absent</span></button>
       </div>` : '';
     return `
     <div class="today-focus is-${f.kind}"${markKey || fixHTML ? ' data-mark' : ''} role="region" aria-label="Next step">
@@ -9233,10 +9233,14 @@ function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead
       const status = marks[key] || 'unset';
       const next = status === 'unset' ? 'attended' : status === 'attended' ? 'skipped' : status === 'skipped' ? 'skipped' : 'attended';
       const said = label[status] || (ATT_STATUS_LABEL[status] ? ATT_STATUS_LABEL[status].toLowerCase() : 'not marked');
+      // The spoken name starts with the short name shown on the block, so
+      // voice control ("tap OS") finds it.
+      const short = dayBarShortName(c);
+      const named = short === c.subject ? short : `${short}, ${c.subject}`;
       return `<button type="button" class="day-bar-block is-${status === 'attended' ? 'present' : status === 'skipped' ? 'absent' : status === 'unset' ? 'unset' : 'other'}"
         style="left:${pos(from).toFixed(2)}%;width:calc(${(pos(to) - pos(from)).toFixed(2)}% - 3px);top:${lane * 50}px"
-        data-key="${attrSafe(key)}" aria-label="${attrSafe(`${c.subject}, ${formatDisplayTime(c.time)}: ${said}. Tap to change.`)}"
-        onclick="setAttendance('${dateStr}', this.dataset.key, '${next}')">${escHtml_cd(dayBarShortName(c))}</button>`;
+        data-key="${attrSafe(key)}" aria-label="${attrSafe(`${named}, ${formatDisplayTime(c.time)}: ${said}. Tap to change.`)}"
+        onclick="setAttendance('${dateStr}', this.dataset.key, '${next}')">${escHtml_cd(short)}</button>`;
     }).join('');
     const ticks = [];
     for (let m = start; m <= end; m += 60) {
@@ -11464,10 +11468,10 @@ function renderDashboard() {
         </div>
         ${liveHasEnd ? `<div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(liveEndMin - currentMin)}</span><span class="chrono-beacon-count-label">left in class</span></div>` : ''}
         <div class="chrono-beacon-actions">
-          <button class="btn beacon-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">
+          <button class="btn beacon-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Present, mark ${escHtml_cd(activeClass.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">
             ${icons.check()}<span>Present</span>
           </button>
-          <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">
+          <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Absent, mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">
             ${icons.x()}<span>Absent</span>
           </button>
           ${attStatusChipHTML(status)}
@@ -11701,8 +11705,8 @@ function renderDashboard() {
                       <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? escHtml_cd(c.room) + ' · ' : ''}${c.teacher ? escHtml_cd(formatTeacherName(c.teacher)) + ' · ' : ''}${c.type || 'lecture'}</div>
                     </div>
                     ${isPast && !markedAbove ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                      <button class="btn btn-xs slot-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">Present</button>
-                      <button class="btn btn-xs slot-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">Absent</button>
+                      <button class="btn btn-xs slot-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Present, mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">Present</button>
+                      <button class="btn btn-xs slot-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Absent, mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">Absent</button>
                       ${attStatusChipHTML(status)}
                     </div>` : isNow ? `<span class="schedule-slot-now">Now</span>` : ''}
                   </div>`;
