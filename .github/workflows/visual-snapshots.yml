@@ -29,7 +29,18 @@ jobs:
 
       - run: npm ci
 
-      - run: npx playwright install --with-deps chromium
+      # GitHub's runners sometimes cannot reach Ubuntu's apt mirrors, which failed
+      # whole runs for reasons that have nothing to do with the code. Retry, then
+      # fall back to the browser alone (the runner image already carries its libraries).
+      - name: Install Chromium
+        run: |
+          for attempt in 1 2; do
+            timeout 150 npx playwright install --with-deps chromium && exit 0
+            echo "Install attempt $attempt failed or hung; retrying"
+            sleep 15
+          done
+          echo "apt is unreachable: installing the browser without system packages"
+          npx playwright install chromium
 
       - run: npx playwright test tests/clarity-visual-verification.spec.ts --update-snapshots=changed
 
