@@ -127,7 +127,7 @@ test.describe('Clarity Desk core flows', () => {
 
     const present = page.locator('#page-timetable button[aria-label$=" as attended"]').first();
     const label = (await present.getAttribute('aria-label'))!;
-    const subject = label.replace(/^Mark /, '').replace(/ as attended$/, '');
+    const subject = label.replace(/^Present, mark /, '').replace(/ as attended$/, '');
     await present.click();
     const presentNow = page.locator(`#page-timetable button[aria-label="${label}"]`).first();
     await expect(presentNow).toHaveAttribute('aria-pressed', 'true');
@@ -138,7 +138,7 @@ test.describe('Clarity Desk core flows', () => {
     await page.evaluate(() => (window as any).navigate('timetable'));
     await expect(presentNow).toHaveAttribute('aria-pressed', 'true');
 
-    const absent = page.locator(`#page-timetable button[aria-label="Mark ${subject} as skipped"]`).first();
+    const absent = page.locator(`#page-timetable button[aria-label="Absent, mark ${subject} as skipped"]`).first();
     await absent.click();
     await expect(absent).toHaveAttribute('aria-pressed', 'true');
     await expect(presentNow).toHaveAttribute('aria-pressed', 'false');
