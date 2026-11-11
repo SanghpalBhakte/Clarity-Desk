@@ -170,6 +170,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u289",
+    date: "2026-11-11",
+    title: "Screen readers now read \"Trying again…\" and the form-errors summary on their own, not stuck onto a celebration",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Screen readers now read \"Trying again…\" and the form-errors summary on their own, not stuck onto a celebration",
+    points: [
+
+    ]
+  },
+  {
+    id: "u288",
+    date: "2026-11-11",
+    title: "Changes you made offline are no longer replaced by your account's older copy when the app reopens",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Changes you made offline are no longer replaced by your account's older copy when the app reopens",
+    points: [
+
+    ]
+  },
+  {
     id: "u287",
     date: "2026-11-11",
     title: "Sync now counts as done only when every part of a change has reached your account, and a failed sync keeps showing that a change is waiting",
