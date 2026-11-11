@@ -6435,18 +6435,16 @@ html.more-sheet-open .more-sheet {
   max-width: min(360px, 90vw);
   background: var(--surface-3, var(--surface-2));
   color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--green) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--color-action-primary) 35%, var(--border));
   cursor: pointer;
 }
-.celebrate-icon {
+/* A closed ring: "this is complete", drawn from the accent, no emoji. */
+.celebrate-ring {
   flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  font-size: 1.15rem;
-  background: color-mix(in srgb, var(--green) 16%, transparent);
+  border: 2.5px solid var(--color-action-primary);
 }
 .celebrate-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .celebrate-body strong { font-size: 0.92rem; font-weight: 700; }

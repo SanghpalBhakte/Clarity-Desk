@@ -578,9 +578,17 @@ function closeToast(t, now = false) {
 
 // Failures first (newest first), then ordinary toasts in arrival order.
 function showNextToast() {
-  if (toastState.visible) return;
-  const next = toastState.failQueue.shift() || toastState.ordinaryQueue.shift();
-  if (next) presentToast(next);
+  if (!toastState.visible) {
+    const next = toastState.failQueue.shift() || toastState.ordinaryQueue.shift();
+    if (next) presentToast(next);
+  }
+  // A celebration that waited behind a failure shows once none is left.
+  const failUp = (toastState.visible && toastState.visible.kind === 'fail') || toastState.failQueue.length;
+  if (celebrationWaiting && !failUp) {
+    const run = celebrationWaiting;
+    celebrationWaiting = null;
+    run();
+  }
 }
 
 // Puts a toast on screen. A toast coming back after stepping aside keeps
@@ -879,15 +887,22 @@ window.reportFormErrors = reportFormErrors;
 // A calm "well done" card for real milestones (all tasks done, attendance
 // back on target, countdown days). Shares the toast container so screen
 // readers announce it; tap to close, otherwise it fades after ~4.5s.
+// The card is drawn with a ring, never an emoji: `icon` is kept for the
+// callers but not shown. It sits outside the queue and never covers a
+// failure: while one is up, it waits.
+let celebrationWaiting = null;
 function showCelebration(icon, title, subtitle = '') {
+  if ((toastState.visible && toastState.visible.kind === 'fail') || toastState.failQueue.length) {
+    celebrationWaiting = () => showCelebration(icon, title, subtitle);
+    return;
+  }
   const container = getToastContainer();
 
   const card = document.createElement('div');
   card.className = 'toast celebrate-card';
   const iconEl = document.createElement('span');
-  iconEl.className = 'celebrate-icon';
+  iconEl.className = 'celebrate-ring';
   iconEl.setAttribute('aria-hidden', 'true');
-  iconEl.textContent = icon;
   const body = document.createElement('span');
   body.className = 'celebrate-body';
   const titleEl = document.createElement('strong');
@@ -20633,7 +20648,7 @@ function init() {
   // Network connectivity status listeners
   window.addEventListener('online', () => {
     resetPushBackoff();
-    showToast('Back online', 'note', { key: 'note:online', where: true });
+    showToast('Back online', 'note', { key: 'note:online', where: !!currentUser });
     flushPendingSync();
     updateSyncUI();
     flushFeedbackQueue();

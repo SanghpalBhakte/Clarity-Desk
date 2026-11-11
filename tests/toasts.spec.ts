@@ -952,6 +952,9 @@ test.describe('voice', () => {
     expect(await page.evaluate(() => document.getElementById('cd-announce')!.textContent)).toBe('All caught up. Every task is done.');
     expect(await page.evaluate(() => document.getElementById('cd-alert')!.textContent)).toBe('');
     expect(await page.evaluate(() => { const s = (window as any).toastState; return [s.visible, ...s.ordinaryQueue].filter(Boolean).length; })).toBe(0);
+    // Its own box, not an ordinary toast's.
+    await expect(card).toHaveClass(/celebrate-card/);
+    expect(await card.evaluate((el) => [getComputedStyle(el).paddingRight, getComputedStyle(el).paddingBottom])).toEqual(['18px', '12px']);
   });
 
   test('a celebration waits while a failure is up', async ({ page }) => {
