@@ -37,10 +37,9 @@ const PRECACHE_ASSETS = [
   './icon-512.png',
   './icon-512-maskable.png',
   './badge-96.png',
-  'fonts/quicksand.woff2',
-  'fonts/nunito.woff2',
-  'fonts/nunito-italic.woff2',
-  'fonts/comfortaa.woff2'
+  'fonts/instrument-sans.woff2',
+  'fonts/instrument-sans-italic.woff2',
+  'fonts/bricolage-grotesque.woff2'
 ];
 
 // The app shell must be saved, or this version does not install (the old one

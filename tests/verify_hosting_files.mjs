@@ -21,7 +21,7 @@ const RUNTIME_FILES = [
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
   'og-image.png', 'robots.txt',
-  'fonts/quicksand.woff2', 'fonts/nunito.woff2', 'fonts/nunito-italic.woff2', 'fonts/comfortaa.woff2'
+  'fonts/instrument-sans.woff2', 'fonts/instrument-sans-italic.woff2', 'fonts/bricolage-grotesque.woff2'
 ];
 // Runtime files a fresh clone may legitimately lack (none at the moment).
 const OPTIONAL = new Set();
@@ -196,10 +196,10 @@ scenario('Fonts are self-hosted: @font-face in the page <head>, files published,
   for (const f of ['index.html', '404.html']) {
     const head = fs.readFileSync(path.join(ROOT, f), 'utf8').split('</head>')[0];
     if (/fonts\.(googleapis|gstatic)\.com/.test(head)) bad.push(`${f}: still calls Google Fonts`);
-    for (const fam of ['Quicksand', 'Comfortaa', 'Nunito']) if (!head.includes(`font-family:'${fam}'`)) bad.push(`${f}: no @font-face for ${fam}`);
+    for (const fam of ['Instrument Sans', 'Bricolage Grotesque']) if (!head.includes(`font-family:'${fam}'`)) bad.push(`${f}: no @font-face for ${fam}`);
     for (const file of head.match(/fonts\/[\w-]+\.woff2/g) || []) if (!fs.existsSync(path.join(ROOT, file))) bad.push(`${f}: ${file} missing`);
   }
-  for (const file of ['quicksand', 'nunito', 'nunito-italic', 'comfortaa']) if (!sw.includes(`'fonts/${file}.woff2'`)) bad.push(`sw.js does not precache ${file}`);
+  for (const file of ['instrument-sans', 'instrument-sans-italic', 'bricolage-grotesque']) if (!sw.includes(`'fonts/${file}.woff2'`)) bad.push(`sw.js does not precache ${file}`);
   return bad.length === 0 ? true : bad.join('; ');
 });
 
