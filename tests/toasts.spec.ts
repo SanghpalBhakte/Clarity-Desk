@@ -745,3 +745,115 @@ test.describe('toast contrast', () => {
     });
   }
 });
+
+// ── Errors next to the field (Task 5) ────────────────────────────
+const noteFor = (page: Page, sel: string) => page.evaluate((s) => {
+  const el = document.querySelector(s) as HTMLElement | null;
+  if (!el) return { missing: true } as any;
+  const id = el.id ? `fe-${el.id}` : '';
+  const note = id ? document.getElementById(id) : null;
+  return { text: note ? note.textContent : null, invalid: el.getAttribute('aria-invalid'), describedby: el.getAttribute('aria-describedby') || '', id };
+}, sel);
+const setValue = (page: Page, sel: string, v: string) => page.evaluate(([s, val]) => {
+  const el = document.querySelector(s) as HTMLInputElement;
+  el.value = val;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}, [sel, v]);
+const run = (page: Page, js: string) => page.evaluate((code) => { (0, eval)(code); }, js);
+const today = () => { const d = new Date(Date.now() + 2000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+type Row = { name: string; open: string; trigger: string; field: string; note: string; valid: string | null };
+const SYL = JSON.stringify([{ subjectKey: 'physics', subjectName: 'Physics', examDate: '', topics: [
+  { id: 't1', title: 'Optics', status: 'todo', importance: 2 }, { id: 't2', title: 'Waves', status: 'todo', importance: 2 }] }]);
+const LINKS = JSON.stringify([{ name: 'Physics', code: 'PHY', color: '#394B63', resources: [] }]);
+const ROWS: Row[] = [
+  { name: 'timetable row subject', open: `showTimetablePreviewModal([{ day: 'Mon', time: '09:00', end: '10:00', subject: '', type: 'lecture' }])`, trigger: `confirmSaveExtractedTimetable()`, field: '#preview-subject-0', note: 'Monday, 9:00 AM: add the subject name.', valid: 'Physics' },
+  { name: 'timetable row time', open: `showTimetablePreviewModal([{ day: 'Tue', time: '25:99', end: '26:99', subject: 'Physics', type: 'lecture' }])`, trigger: `confirmSaveExtractedTimetable()`, field: '#preview-time-0', note: 'Tuesday row: write the time like 9:30 AM.', valid: '9:30 AM' },
+  { name: 'timetable no classes', open: `showTimetablePreviewModal([])`, trigger: `confirmSaveExtractedTimetable()`, field: '#tt-preview-batch-select', note: 'Add at least one class, or pick "All batches".', valid: null },
+  { name: 'holiday start', open: `showHolidayModal(); document.getElementById('holiday-start').value = '2020-01-01'`, trigger: `confirmHolidayModal()`, field: '#holiday-start', note: 'Pick a first day off from today on', valid: '__today__' },
+  { name: 'holiday end', open: `showHolidayModal(); document.getElementById('holiday-start').value = '__today__'; const o = document.getElementById('holiday-open'); if (o && o.checked) o.click(); document.getElementById('holiday-end').value = '2020-01-01'`, trigger: `confirmHolidayModal()`, field: '#holiday-end', note: 'The last day off has to be on or after the first', valid: '2099-01-01' },
+  { name: 'baseline subject', open: `showBaselineModal(); const s = document.getElementById('ab-subject-select'); if (s) { s.value = '__new__'; s.dispatchEvent(new Event('change', { bubbles: true })); }`, trigger: `saveSubjectBaselineFromModal()`, field: '#ab-new-subject-name', note: 'Pick the subject this baseline is for', valid: 'Physics' },
+  { name: 'topic name', open: `localStorage.setItem('cos_syllabus', ${JSON.stringify(SYL)}); showEditSyllabusTopicModal('physics', 't1'); document.getElementById('syl-edit-title').value = ''`, trigger: `saveSyllabusTopicEdit('physics', 't1')`, field: '#syl-edit-title', note: 'Give the topic a name', valid: 'Optics II' },
+  { name: 'topic duplicate', open: `localStorage.setItem('cos_syllabus', ${JSON.stringify(SYL)}); showEditSyllabusTopicModal('physics', 't1'); document.getElementById('syl-edit-title').value = 'Waves'`, trigger: `saveSyllabusTopicEdit('physics', 't1')`, field: '#syl-edit-title', note: 'That topic is already in the list', valid: 'Optics II' },
+  { name: 'syllabus subject', open: `showAddSyllabusSubjectModal()`, trigger: `confirmAddSyllabusSubject()`, field: '#syl-subj-name', note: 'Type the subject name, like Physics', valid: 'Physics' },
+  { name: 'timetable class subject', open: `showTimetableEntryModal(1, null); document.getElementById('tte-subject').value = ''`, trigger: `saveTimetableEntry(1, null)`, field: '#tte-subject', note: 'Type the subject name, like Physics', valid: 'Physics' },
+  { name: 'add task title', open: `showAddTaskModal(); document.getElementById('task-subject').selectedIndex = 1`, trigger: `document.querySelector('[data-testid="task-save"]').click()`, field: '#task-title', note: 'Add a title, like "Lab record"', valid: 'Lab record' },
+  { name: 'add task date', open: `showAddTaskModal(); document.getElementById('task-title').value = 'Lab record'; document.getElementById('task-subject').selectedIndex = 1; document.getElementById('task-due').value = ''`, trigger: `document.querySelector('[data-testid="task-save"]').click()`, field: '#task-due', note: 'Enter a date, like tomorrow or 12 Nov', valid: '2099-01-01' },
+  { name: 'vault subject', open: `addLinkSubject()`, trigger: `saveLinkSubject(null)`, field: '#lsm-name', note: 'Type the subject name, like Physics', valid: 'Physics' },
+  { name: 'vault name or link', open: `localStorage.setItem('cos_custom_links', ${JSON.stringify(LINKS)}); addLinkResource(0)`, trigger: `saveLinkResource(0, null)`, field: '#lrm-label', note: 'Add a name and a file or link', valid: 'Notes' },
+  { name: 'vault bad link', open: `localStorage.setItem('cos_custom_links', ${JSON.stringify(LINKS)}); addLinkResource(0); document.getElementById('lrm-label').value = 'Notes'; document.getElementById('lrm-url').value = 'javascript:alert(1)'`, trigger: `saveLinkResource(0, null)`, field: '#lrm-url', note: 'Links need to start with http:// or https://', valid: 'https://example.com/notes' },
+  { name: 'feedback message', open: `openFeedbackForm({ type: 'bug' })`, trigger: `submitFeedback()`, field: '#fb-message', note: 'Write your message first', valid: 'The timetable is wrong' },
+];
+
+test.describe('field errors', () => {
+  test.beforeEach(async ({ page }) => { await openApp(page); });
+
+  for (const r of ROWS) {
+    test(`field: ${r.name}`, async ({ page }) => {
+      await run(page, r.open.replace(/__today__/g, today()));
+      await run(page, r.trigger);
+      const n = await noteFor(page, r.field);
+      expect(n.text).toBe(r.note);
+      expect(n.invalid).toBe('true');
+      expect(n.describedby.split(' ')).toContain(n.id);
+      expect(await page.locator('#toast-container .toast.toast-show').count()).toBe(0);
+      if (r.valid) {
+        await setValue(page, r.field, r.valid.replace(/__today__/g, today()));
+        const after = await noteFor(page, r.field);
+        if (!after.missing) {
+          expect(after.text).toBeNull();
+          expect(after.invalid).toBeNull();
+        }
+      }
+    });
+  }
+
+  test('empty add task: notes under each field, first focused, one summary, no toast', async ({ page }) => {
+    await run(page, `showAddTaskModal(); document.getElementById('task-due').value = ''`);
+    await page.locator('[data-testid="task-save"]').click();
+    for (const [sel, note] of [['#task-title', 'Add a title, like "Lab record"'], ['#task-subject', 'Pick a subject or category'], ['#task-due', 'Enter a date, like tomorrow or 12 Nov']]) {
+      const n = await noteFor(page, sel);
+      expect(n.text).toBe(note);
+      expect(n.invalid).toBe('true');
+    }
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('task-title');
+    expect(await page.evaluate(() => document.getElementById('cd-announce')!.textContent)).toBe('3 fields need a look: task title, subject / category and due date.');
+    expect(await page.locator('#toast-container .toast').count()).toBe(0);
+  });
+
+  test('re-submitting keeps focus in the invalid field the student is in', async ({ page }) => {
+    await run(page, `showAddTaskModal(); document.getElementById('task-due').value = ''`);
+    await page.locator('[data-testid="task-save"]').click();
+    await page.locator('#task-due').focus();
+    await run(page, `submitAddTask()`);
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('task-due');
+  });
+
+  test('clears only when valid', async ({ page }) => {
+    await run(page, `localStorage.setItem('cos_custom_links', ${JSON.stringify(LINKS)}); addLinkResource(0); document.getElementById('lrm-label').value = 'Notes'; document.getElementById('lrm-url').value = 'javascript:x'`);
+    await run(page, `saveLinkResource(0, null)`);
+    const url = page.locator('#lrm-url');
+    await url.focus();
+    await url.fill('javascript:y');
+    expect((await noteFor(page, '#lrm-url')).text).toBe('Links need to start with http:// or https://');
+    await url.fill('https://example.com/a');
+    const n = await noteFor(page, '#lrm-url');
+    expect([n.text, n.invalid]).toEqual([null, null]);
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('lrm-url');
+  });
+
+  test('keeps existing describedby', async ({ page }) => {
+    await run(page, `showAddTaskModal(); document.getElementById('task-subject').selectedIndex = 1; document.getElementById('task-title').setAttribute('aria-describedby', 'hint1')`);
+    await page.locator('[data-testid="task-save"]').click();
+    expect((await noteFor(page, '#task-title')).describedby).toBe('hint1 fe-task-title');
+    await setValue(page, '#task-title', 'Lab record');
+    expect((await noteFor(page, '#task-title')).describedby).toBe('hint1');
+  });
+
+  test('note text is plain text', async ({ page }) => {
+    await run(page, `showAddTaskModal(); const t = document.getElementById('task-title'); fieldError(t, '<img src=x onerror="window.__fx=1">')`);
+    expect(await page.evaluate(() => document.getElementById('fe-task-title')!.textContent)).toBe('<img src=x onerror="window.__fx=1">');
+    expect(await page.evaluate(() => (window as any).__fx)).toBeUndefined();
+  });
+});

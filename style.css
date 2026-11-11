@@ -3409,6 +3409,18 @@ a.card:hover,
 .form-textarea.error {
   border-color: var(--red);
 }
+.form-input[aria-invalid="true"],
+.form-select[aria-invalid="true"],
+.form-textarea[aria-invalid="true"] { border-color: var(--color-error); }
+/* A form mistake, right under its field (plain text, not announced). */
+.field-note {
+  margin: 6px 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-error);
+}
 
 .form-textarea {
   resize: vertical;

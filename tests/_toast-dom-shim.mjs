@@ -1,5 +1,6 @@
 // Node tests run app.js against a small fake page. The toast code uses a few
-// standard DOM methods those fakes leave out; this fills them in as no-ops
+// standard DOM methods those fakes leave out (also used by the field-error
+// notes); this fills them in as no-ops
 // (append forwards to appendChild) whenever a test assigns globalThis.document.
 // Import it first: `import './_toast-dom-shim.mjs';`
 const fill = (e) => {
@@ -13,6 +14,12 @@ const fill = (e) => {
   e.replaceWith ??= () => {};
   e.contains ??= () => false;
   e.querySelector ??= () => null;
+  // Field-error notes (fieldError / clearFieldError).
+  e.getAttribute ??= () => null;
+  e.removeAttribute ??= () => {};
+  e.insertAdjacentElement ??= () => {};
+  e.addEventListener ??= () => {};
+  e.removeEventListener ??= () => {};
   e.append ??= function (...cs) {
     cs.forEach((c) => { if (typeof this.appendChild === 'function') this.appendChild(typeof c === 'string' ? { textContent: c } : c); });
   };
@@ -27,6 +34,10 @@ Object.defineProperty(globalThis, 'document', {
     if (d && typeof d.createElement === 'function' && !d.__toastShim) {
       const make = d.createElement;
       d.createElement = (...a) => fill(make.apply(d, a));
+      if (typeof d.getElementById === 'function') {
+        const byId = d.getElementById;
+        d.getElementById = (...a) => fill(byId.apply(d, a));
+      }
       d.__toastShim = true;
     }
     doc = d;

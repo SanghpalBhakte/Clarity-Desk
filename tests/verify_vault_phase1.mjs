@@ -47,10 +47,12 @@ globalThis.console.warn = () => {};
 
 let domCache = {};
 const toasts = [];
+const notes = [];   // field-error notes placed next to a field
 const el = (tag) => {
   const o = { tagName: tag, style: {}, children: [], classList: { add() {}, remove() {} }, textContent: '', innerHTML: '',
     appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(toastText(c)); },
-    remove() { o.removed = true; }, addEventListener() {}, removeEventListener() {}, setAttribute() {}, focus() {} };
+    remove() { o.removed = true; }, addEventListener() {}, removeEventListener() {}, setAttribute() {}, focus() {},
+    insertAdjacentElement(pos, n) { notes.push(n.textContent); } };
   return o;
 };
 const domStub = (id) => (domCache[id] ||= Object.assign(el('div'), { id, value: '' }));
@@ -124,7 +126,7 @@ check('Single add: javascript: is refused with a message and nothing is saved', 
   domStub('lrm-label').value = 'Evil'; domStub('lrm-url').value = 'javascript:alert(1)'; domStub('lrm-icon').value = 'link';
   globalThis._uploadedFileMeta = null;
   globalThis.saveLinkResource(0, null);
-  return getLinks()[0].resources.length === 1 && toasts.some(t => /http/.test(t)) ? true : `toasts=${toasts}`;
+  return getLinks()[0].resources.length === 1 && notes.some(t => /http/.test(t)) ? true : `notes=${notes}`;
 });
 
 check('Single add: "drive.google.com/abc" is saved as https://drive.google.com/abc', () => {

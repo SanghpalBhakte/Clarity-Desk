@@ -791,6 +791,91 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   }
 }
 
+// ── Errors next to the field ─────────────────────────────────
+// A form mistake shows as a short note right under the field (plain text,
+// not a live region), the field gets aria-invalid and points at the note,
+// and the note goes away once the value is valid. Only a summary of
+// several mistakes is announced; there is no toast.
+let fieldNoteSeq = 0;
+function fieldNoteId(input) {
+  if (input.id) return `fe-${input.id}`;
+  if (!input._feId) input._feId = `fe-n${++fieldNoteSeq}`;
+  return input._feId;
+}
+// The field's accessible name: its label or aria-label, never the placeholder.
+function fieldName(input) {
+  let text = input.getAttribute('aria-label') || '';
+  if (!text && input.id) {
+    const lab = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+    if (lab) text = lab.textContent;
+  }
+  if (!text && input.closest) {
+    const wrap = input.closest('label') || input.closest('.form-group');
+    const lab = wrap && (wrap.tagName === 'LABEL' ? wrap : wrap.querySelector('label'));
+    if (lab) text = lab.textContent;
+  }
+  return text.replace(/[*✱]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() || 'one field';
+}
+function clearFieldError(input) {
+  if (!input) return;
+  const id = fieldNoteId(input);
+  const note = document.getElementById(id);
+  if (note) note.remove();
+  input.removeAttribute('aria-invalid');
+  const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter((x) => x && x !== id);
+  if (ids.length) input.setAttribute('aria-describedby', ids.join(' '));
+  else input.removeAttribute('aria-describedby');
+  input.classList.remove('error', 'shake');
+  if (input._feCheck) {
+    input.removeEventListener('input', input._feCheck);
+    input.removeEventListener('change', input._feCheck);
+    input._feCheck = null;
+  }
+}
+// anchor: the note goes right after this element (default: the field).
+function fieldError(input, msg, isValid, anchor) {
+  if (!input) return;
+  const id = fieldNoteId(input);
+  let note = document.getElementById(id);
+  if (!note) {
+    note = document.createElement('p');
+    note.className = 'field-note';
+    note.id = id;
+  }
+  note.textContent = msg;
+  (anchor || input).insertAdjacentElement('afterend', note);
+  input.setAttribute('aria-invalid', 'true');
+  const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (!ids.includes(id)) input.setAttribute('aria-describedby', [...ids, id].join(' '));
+  input.classList.add('error');
+  if (input._feCheck) {
+    input.removeEventListener('input', input._feCheck);
+    input.removeEventListener('change', input._feCheck);
+  }
+  const ok = isValid || ((v) => String(v || '').trim() !== '');
+  input._feCheck = () => { if (ok(input.value)) clearFieldError(input); };
+  input.addEventListener('input', input._feCheck);
+  input.addEventListener('change', input._feCheck);
+}
+// errors: [{ input, msg, isValid?, anchor? }]. True when there were any.
+function reportFormErrors(errors) {
+  const list = (errors || []).filter((e) => e && e.input);
+  if (!list.length) return false;
+  list.forEach((e) => fieldError(e.input, e.msg, e.isValid, e.anchor));
+  const ae = document.activeElement;
+  const inInvalid = !!ae && list.some((e) => e.input === ae);
+  if (!inInvalid && typeof list[0].input.focus === 'function') list[0].input.focus();
+  if (list.length > 1) {
+    const names = list.map((e) => fieldName(e.input));
+    const joined = `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    announceToast(`${list.length} fields need a look: ${joined}.`, false);
+  }
+  return true;
+}
+window.fieldError = fieldError;
+window.clearFieldError = clearFieldError;
+window.reportFormErrors = reportFormErrors;
+
 // A calm "well done" card for real milestones (all tasks done, attendance
 // back on target, countdown days). Shares the toast container so screen
 // readers announce it; tap to close, otherwise it fades after ~4.5s.
@@ -3303,7 +3388,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       </td>
       <td>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.time || '10:00')}" placeholder="10:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
+          <input type="text" class="form-input" id="preview-time-${originalIdx}" aria-label="Start time" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.time || '10:00')}" placeholder="10:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
           <span style="color:var(--text-muted)">-</span>
           <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.end || '11:00')}" placeholder="11:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'end', this.value)">
         </div>
@@ -3509,23 +3594,36 @@ window.confirmSaveExtractedTimetable = function() {
   const toSave = pendingExtractedSchedule.filter(item => shouldKeepClassForUserBatch(item, selectedTimetablePreviewBatch));
 
   if (!toSave.length) {
-    showToast("No classes to save for the selected batch. Add at least one class row or select 'All Batches'.", "info");
+    const msg = 'Add at least one class, or pick "All batches".';
+    const batchEl = document.getElementById('tt-preview-batch-select');
+    const saveRow = document.querySelector('#tt-preview-backdrop .btn-primary[onclick^="confirmSaveExtractedTimetable"]')?.parentElement;
+    if (batchEl && saveRow) reportFormErrors([{ input: batchEl, msg, isValid: () => pendingExtractedSchedule.some(i => shouldKeepClassForUserBatch(i, selectedTimetablePreviewBatch)), anchor: saveRow.previousElementSibling || saveRow }]);
+    else showToast(msg, 'note');
     return;
   }
 
   // 1. Validate that all kept entries have valid subject names
+  const dayFull = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
   for (let i = 0; i < toSave.length; i++) {
     const item = toSave[i];
+    const idx = pendingExtractedSchedule.indexOf(item);
+    const day = dayFull[item.day] || item.day;
     const subj = (item.subject || '').trim();
+    const subjEl = document.getElementById(`preview-subject-${idx}`);
     if (!subj && item.type !== 'off') {
-      showToast(`A class on ${item.day} at ${formatDisplayTime(item.time)} is missing a Subject name. Please fill it in or delete the row.`, "error");
+      const msg = `${day}, ${formatDisplayTime(item.time)}: add the subject name.`;
+      if (subjEl) reportFormErrors([{ input: subjEl, msg }]); else showToast(msg, 'fail');
       return;
     }
 
     // Validate times
     const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
     if (!timeNorm.isValid) {
-      showToast(`Class "${subj || 'Class'}" on ${item.day} has an invalid time format. Use HH:MM.`, "error");
+      const msg = `${day} row: write the time like 9:30 AM.`;
+      const timeEl = document.getElementById(`preview-time-${idx}`);
+      // The note sits under the row's wide subject cell; the time cell is narrow.
+      if (timeEl) reportFormErrors([{ input: timeEl, msg, isValid: (v) => normalizeTimetableTime(`${v} - ${item.end || '11:00'}`).isValid, anchor: subjEl || timeEl }]);
+      else showToast(msg, 'fail');
       return;
     }
   }
@@ -9417,13 +9515,13 @@ function confirmHolidayModal() {
   const openEnded = !!document.getElementById('holiday-open')?.checked;
   const end = document.getElementById('holiday-end')?.value || '';
   if (!HOLIDAY_DATE_RE.test(start) || start < today) {
-    showToast('Pick a first day off from today on.', 'error');
+    reportFormErrors([{ input: document.getElementById('holiday-start'), msg: 'Pick a first day off from today on', isValid: (v) => HOLIDAY_DATE_RE.test(v) && v >= todayStr() }]);
     return;
   }
   let until = null;
   if (!openEnded) {
     if (!HOLIDAY_DATE_RE.test(end) || end < start) {
-      showToast('The last day off must be on or after the first.', 'error');
+      reportFormErrors([{ input: document.getElementById('holiday-end'), msg: 'The last day off has to be on or after the first', isValid: (v) => HOLIDAY_DATE_RE.test(v) && v >= start }]);
       return;
     }
     const d = new Date(end + 'T12:00:00');
@@ -13840,14 +13938,8 @@ function saveSubjectBaselineFromModal() {
   }
 
   if (!subjName) {
-    if (customNameEl) {
-      customNameEl.classList.add('error', 'shake');
-      customNameEl.focus();
-    } else if (selectEl) {
-      selectEl.classList.add('error', 'shake');
-      selectEl.focus();
-    }
-    showToast('Please specify a subject name for this baseline.', 'error');
+    const nameShown = customNameEl && customNameEl.offsetParent !== null;
+    reportFormErrors([{ input: nameShown ? customNameEl : (selectEl || customNameEl), msg: 'Pick the subject this baseline is for' }]);
     return;
   }
 
@@ -15049,13 +15141,17 @@ window.showEditSyllabusTopicModal = function(subjectKey, id) {
 
 window.saveSyllabusTopicEdit = function(subjectKey, id) {
   const title = String(document.getElementById('syl-edit-title')?.value || '').replace(/\s+/g, ' ').trim();
-  if (!title) { showToast('Give the topic a name', 'error'); return; }
+  const titleEl = document.getElementById('syl-edit-title');
+  if (!title) { reportFormErrors([{ input: titleEl, msg: 'Give the topic a name' }]); return; }
   const importance = Number(document.getElementById('syl-edit-imp')?.value) || 2;
   const marks = Number(document.getElementById('syl-edit-marks')?.value);
   const ok = updateSyllabusEntry(subjectKey, (e) => {
     const t = e.topics.find(x => x.id === id);
     if (!t) return false;
-    if (e.topics.some(x => x.id !== id && x.title.toLowerCase() === title.toLowerCase())) { showToast('That topic is already in the list', 'error'); return false; }
+    if (e.topics.some(x => x.id !== id && x.title.toLowerCase() === title.toLowerCase())) {
+      reportFormErrors([{ input: titleEl, msg: 'That topic is already in the list', isValid: (v) => { const n = v.replace(/\s+/g, ' ').trim().toLowerCase(); return !!n && !e.topics.some(x => x.id !== id && x.title.toLowerCase() === n); } }]);
+      return false;
+    }
     t.title = title.slice(0, SYL_MAX_TITLE);
     t.importance = importance;
     if (marks > 0) t.marks = marks; else delete t.marks;
@@ -15259,7 +15355,10 @@ window.confirmAddSyllabusSubject = function() {
   const raw = String(document.getElementById('syl-subj-name')?.value || '').replace(/\s+/g, ' ').trim();
   const name = getCanonicalSubjectName(raw) || raw;
   const key = getCanonicalSubjectKey(raw);
-  if (!key || key === 'general' || isLikelyGarbledSubjectName(name)) { showToast('Type the subject name, e.g. Physics', 'error'); return; }
+  if (!key || key === 'general' || isLikelyGarbledSubjectName(name)) {
+    reportFormErrors([{ input: document.getElementById('syl-subj-name'), msg: 'Type the subject name, like Physics', isValid: (v) => { const k = getCanonicalSubjectKey(v.trim()); return !!k && k !== 'general'; } }]);
+    return;
+  }
   const existing = getSubjectList().find(s => getCanonicalSubjectKey(s.name) === key);
   const subjectName = existing ? existing.name : name;
   const list = loadSyllabus();
@@ -15829,11 +15928,7 @@ function saveTimetableEntry(oldDay, idx) {
     if (!subject) subject = 'Off';
   } else {
     if (!subject) {
-      if (subjectEl) {
-        subjectEl.classList.add('error', 'shake');
-        subjectEl.focus();
-      }
-      showToast('Please enter a subject name.', 'error');
+      reportFormErrors([{ input: subjectEl, msg: 'Type the subject name, like Physics' }]);
       return;
     }
     if (!code) code = 'SUB';
@@ -16615,25 +16710,12 @@ function submitAddTask(editTaskId = null) {
     }
   });
 
-  let valid = true;
-  let firstInvalid = null;
-
-  if (!titleEl || !titleEl.value.trim()) {
-    if (titleEl) { titleEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = titleEl; }
-    valid = false;
-  }
-  if (!subjectEl || !subjectEl.value) {
-    if (subjectEl) { subjectEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = subjectEl; }
-    valid = false;
-  }
-  if (!isNoDeadline && (!dueEl || !dueEl.value)) {
-    if (dueEl) { dueEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = dueEl; }
-    valid = false;
-  }
-
-  if (!valid) {
-    if (firstInvalid) firstInvalid.focus();
-    showToast(isNoDeadline ? 'Please provide a subject and title.' : 'Please provide a subject, title, and due date.', 'error');
+  const errors = [];
+  if (!titleEl || !titleEl.value.trim()) errors.push({ input: titleEl, msg: 'Add a title, like "Lab record"' });
+  if (!subjectEl || !subjectEl.value) errors.push({ input: subjectEl, msg: 'Pick a subject or category' });
+  if (!isNoDeadline && (!dueEl || !dueEl.value)) errors.push({ input: dueEl, msg: 'Enter a date, like tomorrow or 12 Nov' });
+  if (errors.length) {
+    if (!reportFormErrors(errors)) showToast('Add a title, a subject and a date', 'fail');
     return;
   }
 
@@ -18175,8 +18257,7 @@ window.saveLinkSubject = function(si) {
   const code  = document.getElementById('lsm-code')?.value?.trim();
   const color = document.getElementById('lsm-color')?.value || '#394B63';
   if (!name) {
-    if (nameEl) { nameEl.classList.add('error', 'shake'); nameEl.focus(); }
-    showToast('Subject name is required.', 'error');
+    reportFormErrors([{ input: nameEl, msg: 'Type the subject name, like Physics' }]);
     return;
   }
   const links = loadCustomLinks();
@@ -18417,14 +18498,12 @@ window.saveLinkResource = function(si, ri) {
   if (pending && label) { vaultSaveFileResource(si, ri, pending, label, icon); return; }
 
   if (!label || (!url && !keepPlaceholder)) {
-    if (!label && labelEl) { labelEl.classList.add('error', 'shake'); labelEl.focus(); }
-    else if (!url && urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
-    showToast('Resource name and file/link are required.', 'error');
+    const msg = 'Add a name and a file or link';
+    reportFormErrors([!label ? { input: labelEl, msg } : { input: urlEl, msg }]);
     return;
   }
   if (url && !vaultSafeUrl(url)) {
-    if (urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
-    showToast('Only web links starting with http:// or https:// can be saved.', 'error');
+    reportFormErrors([{ input: urlEl, msg: 'Links need to start with http:// or https://', isValid: (v) => !!vaultSafeUrl(vaultNormalizeUrl(v)) }]);
     return;
   }
   const item = keepPlaceholder ? { ...existing, label, icon } : {
@@ -19372,7 +19451,7 @@ window.submitFeedback = async function() {
   const errBox = document.getElementById('fb-error');
   const sendBtn = document.getElementById('fb-send');
   if (!FEEDBACK_TYPES[type] || !message) {
-    showToast('Write a message first.', 'error');
+    reportFormErrors([{ input: document.getElementById('fb-message'), msg: 'Write your message first' }]);
     return;
   }
   const file = document.getElementById('fb-shot')?.files?.[0];
