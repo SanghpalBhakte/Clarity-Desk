@@ -6734,6 +6734,29 @@ body.holiday-mode .holiday-banner {
 .dash-why-line { margin: -4px 0 8px; font-size: var(--text-xs); color: var(--text-muted); }
 /* Nothing pending: one calm next step, no invented urgency. */
 .dash-quiet-next { margin: -4px 0 4px; font-size: var(--text-sm); color: var(--text-muted); }
+/* Tasks long past their date: one calm line under today's tasks, opened in place. */
+.stale-tasks { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 4px; }
+.stale-tasks.is-alone { margin-top: 0; border-top: 0; padding-top: 0; }
+.stale-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-size: var(--text-sm); color: var(--text-secondary); }
+.stale-what strong { color: var(--text-primary); font-weight: 600; }
+.stale-acts { display: flex; gap: 14px; margin-left: auto; }
+.stale-toggle, .stale-all {
+  min-height: 40px; padding: 4px 0; background: none; border: none; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); font-weight: 600;
+}
+.stale-toggle { color: var(--accent); }
+.stale-all { color: var(--text-muted); }
+.stale-toggle:hover, .stale-all:hover { text-decoration: underline; text-underline-offset: 3px; }
+.stale-toggle:focus-visible, .stale-all:focus-visible, .stale-open:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+.stale-list { list-style: none; margin: 2px 0 0; padding: 0; }
+.stale-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+.stale-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; background: none; border: none; cursor: pointer; font: inherit; text-align: left; color: var(--text-primary); }
+.stale-title { max-width: 100%; font-weight: 600; font-size: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stale-meta { font-size: var(--text-xs); color: var(--text-muted); }
+.stale-row-acts { position: relative; display: flex; gap: 6px; flex-shrink: 0; }
+.stale-row-acts .btn { min-height: 36px; }
+/* Attendance with nothing marked: one sentence, no empty bar. */
+.dashboard-right-panel > .dashboard-panel:first-child .setup-ask { margin: 0; }
 
 /* Desktop: the "mark this class" row sits beside its text instead of
    taking a full-width row of its own, so the class card stays the hero. */
