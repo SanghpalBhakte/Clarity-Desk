@@ -34,10 +34,10 @@ jobs:
       # fall back to the browser alone (the runner image already carries its libraries).
       - name: Install Chromium
         run: |
-          for attempt in 1 2 3; do
-            npx playwright install --with-deps chromium && exit 0
-            echo "Install attempt $attempt failed; retrying in 30 s"
-            sleep 30
+          for attempt in 1 2; do
+            timeout 150 npx playwright install --with-deps chromium && exit 0
+            echo "Install attempt $attempt failed or hung; retrying"
+            sleep 15
           done
           echo "apt is unreachable: installing the browser without system packages"
           npx playwright install chromium
