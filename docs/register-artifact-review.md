@@ -60,3 +60,4 @@ Checked against the board at 320×812, 375×812, 188px wide (200% zoom) and a la
   - The attendance sentence says when it rests on portal counts only or on marks over 3 weeks old.
 - **Rejected:** a per-class attendance tick strip (no such history exists); a countdown shown only in colour; a separate "Now" card above the rail.
 - **Still open (later):** the Tasks headline content rule (slice 3), the sidebar destinations, one shared definition across the four colour sets, and the app icon (needs a safe PWA icon change).
+- **Polish after the first screenshots:** marked classes fold their buttons behind "Change"; the attendance warning is one plain sentence, not a card; "Next class:" reads as one line; the add line's example is shorter. The dark "filled box" on a late task was the hover shade; hover now applies only on devices that can hover.
