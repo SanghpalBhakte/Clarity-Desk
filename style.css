@@ -1622,9 +1622,11 @@ a.card:hover,
   border-bottom: none;
 }
 
-.task-ledger-item:hover {
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
+@media (hover: hover) {
+  .task-ledger-item:hover {
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* Priority rail — a small dot on left rather than a full border */
@@ -8135,3 +8137,13 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 .due-fix .btn { min-height: 44px; padding: 0 14px; }
 .stale-bulk { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 0; font-size: var(--text-sm); color: var(--text-muted); }
 .att-stale-note { margin-top: 6px; font-size: var(--text-xs); color: var(--text-muted); }
+
+/* Register: Today polish — marked rows fold, risk as one line */
+.rail-marks.is-folded { display: none; }
+.rail-row.show-marks .rail-marks.is-folded { display: flex; }
+.rail-change { grid-column: 3; grid-row: 1 / span 2; align-self: center; justify-self: end; min-height: 44px; min-width: 44px; padding: 0 2px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.rail-change:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
+#page-dashboard .today-focus.today-risk { align-items: flex-start; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; background: none; box-shadow: none; padding: 0 0 6px; }
+.today-risk-line { flex: 1; min-width: 0; margin: 0; padding-top: 11px; font-size: var(--text-sm); line-height: 1.45; color: var(--color-text-primary); }
+.today-risk-subj { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+.today-risk-subj:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 3px; }

@@ -9168,6 +9168,16 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
     const call = f.kind === 'unmarked' ? `setTTDay(${dayIdx}); navigateTo('timetable')`
       : f.kind === 'task' ? (task ? 'openTaskFromToday(this.dataset.task)' : `navigateTo('assignments')`)
       : `openSubjectHub(this.dataset.subject)`;
+    if (f.kind === 'risk' && riskSubject) {
+      const n = riskSubject.classesToAttend;
+      const pct = riskSubject.pctLabel ?? riskSubject.exactPct ?? riskSubject.pct;
+      out.markKey = null;
+      return `
+    <div class="today-focus is-risk today-risk" role="region" aria-label="Next step">
+      <p class="today-risk-line"><button type="button" class="today-risk-subj" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">${escHtml_cd(riskSubject.name)}</button> is at ${escHtml_cd(String(pct))}%, under your ${riskSubject.targetPct}%. Go to the next ${n === 1 ? 'class' : `${n} in a row`} to get back.</p>
+      <button type="button" class="today-focus-x" data-id="${attrSafe(f.id)}" onclick="dismissTodayFocus(this.dataset.id)" aria-label="Not now" title="Not now">${icons.x()}</button>
+    </div>`;
+    }
     const markKey = f.kind === 'unmarked' && f.markKey ? f.markKey : null;
     out.markKey = markKey;
     // A slipped task of the student's own: Done / Tomorrow / Pick a day, each with Undo.
@@ -9290,6 +9300,14 @@ function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead
 // otherwise. The rail root carries data-beacon so tickBeacon updates the
 // countdown each minute and rebuilds Today at a class boundary.
 const RAIL_MAX_ROWS = 6;
+window.railShowMarks = function(btn) {
+  const row = btn.closest('.rail-row');
+  if (!row) return;
+  row.classList.add('show-marks');
+  btn.hidden = true;
+  const on = row.querySelector('.rail-att.is-on') || row.querySelector('.rail-att');
+  if (on) on.focus();
+};
 function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx }) {
   try {
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -9316,13 +9334,18 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
     const markButtons = (x) => {
       const name = attrSafe(x.c.subject);
       const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${val === 'attended' ? 'attended' : 'skipped'}" data-key="${attrSafe(x.key)}" onclick="setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
-      return `<div class="rail-marks" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}${attStatusChipHTML(x.status)}</div>`;
+      const group = `<div class="rail-marks${x.status === 'unset' ? '' : ' is-folded'}" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}${attStatusChipHTML(x.status)}</div>`;
+      // Once marked, the mark is in words on the row; "Change" brings the buttons back.
+      return x.status === 'unset' ? group
+        : `<button type="button" class="rail-change" aria-label="Change the mark for ${name}" onclick="railShowMarks(this)">Change</button>${group}`;
     };
     const metaOf = (x) => {
       const bits = [];
       if (x.state === 'live') bits.push(x.to !== null ? `In class · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : 'In class');
       else if (x.state === 'next') bits.push('Next');
-      else if (x.state === 'ended') bits.push(x.status === 'attended' ? 'Marked present' : x.status === 'skipped' ? 'Marked absent' : ATT_STATUS_LABEL[x.status] ? 'Marked' : 'Ended · not marked');
+      const markWord = x.status === 'attended' ? 'Marked present' : x.status === 'skipped' ? 'Marked absent' : ATT_STATUS_LABEL[x.status] ? `Marked · ${ATT_STATUS_LABEL[x.status]}` : '';
+      if (x.state === 'live' && markWord) bits.push(markWord);
+      else if (x.state === 'ended') bits.push(markWord || 'Ended · not marked');
       if (x.c.room) bits.push(escHtml_cd(x.c.room));
       else if (x.c.type && x.state !== 'live') bits.push(escHtml_cd(String(x.c.type).charAt(0).toUpperCase() + String(x.c.type).slice(1)));
       if (sameTime(x)) bits.push('same time');
@@ -9356,7 +9379,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       ${unmarked >= 2 ? `<button type="button" class="rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
       ${more > 0 ? `<button type="button" class="dash-more-link" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${more} more class${more !== 1 ? 'es' : ''} →</button>` : ''}
       ${over && allMarked ? `<p class="rail-then">${icons.check()} Day marked. Books down, feet up.</p>` : ''}
-      ${over && lookAhead ? `<p class="rail-then">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</p>` : ''}`;
+      ${over && lookAhead ? `<p class="rail-then"><span>Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</span></p>` : ''}`;
   } catch (e) {
     return '';
   }
@@ -11860,7 +11883,7 @@ function renderDashboard() {
 
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-            <input type="text" id="quick-add-input" class="form-input" aria-label="Add a task" enterkeyhint="done" placeholder="+ Add a task… e.g. 'Lab report due Friday'" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
+            <input type="text" id="quick-add-input" class="form-input" aria-label="Add a task" enterkeyhint="done" placeholder="+ e.g. Lab report due Friday" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
             <button class="btn btn-sm ${setupLast ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">${setupLast ? 'Add deadline' : 'Add'}</button>
           </div>
         </div>

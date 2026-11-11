@@ -51,9 +51,15 @@ test('after a class: Present / Absent on the rail, the choice is announced and i
   expect((await present.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await present.click();
   await page.clock.runFor(300);
-  await expect(ds.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(ds.locator('.rail-meta')).toContainText('Marked present');
+  await expect(ds.getByRole('button', { name: /^Present/ })).toBeHidden();
   await expect(today.getByRole('button', { name: /^I was at all/ })).toHaveCount(0);
+  // Once marked the buttons fold away; "Change" brings them back with the mark selected.
+  const change = ds.getByRole('button', { name: 'Change the mark for Data Structures' });
+  expect((await change.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await change.click();
+  await expect(ds.getByRole('button', { name: /^Present/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(ds.getByRole('button', { name: /^Present/ })).toBeFocused();
   await page.locator('.toast', { hasText: 'Present' }).getByRole('button', { name: 'Undo' }).click();
   await page.clock.runFor(300);
   await expect(ds.locator('.rail-meta')).toContainText('Ended · not marked');
@@ -150,6 +156,26 @@ test('a recently late task sorts out in its own Due row; no "General" filler', a
   await expect(row).not.toContainText('General');
   await expect(today.locator('.task-ledger-item', { hasText: 'CN worksheet' })).toContainText('CN');
   await expect(today.locator('.today-focus')).toHaveCount(0);
+});
+
+test('a subject under the line is one plain sentence, not a card, and can be put aside', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 812 });
+  const today = await open(page, '2026-09-24T07:00:00', {
+    cos_attendance_baseline: { DBMS: { subjectName: 'Database Management Systems', subjectCode: 'DBMS', present: 17, absent: 6, leave: 0, notEntered: 0 } },
+    cos_att_v2_state: { mode: 'v2', decidedAt: '2026-09-01T00:00:00Z' },
+  });
+  const line = today.locator('.today-risk-line');
+  await expect(line).toHaveText(/^Database Management Systems is at [\d.]+%, under your 75%\. Go to the next (class|\d+ in a row) to get back\.$/);
+  const box = await today.locator('.today-risk').evaluate((e) => getComputedStyle(e).backgroundColor + '|' + getComputedStyle(e).boxShadow);
+  expect(box).toBe('rgba(0, 0, 0, 0)|none');
+  expect(await line.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'the sentence is not cut off').toBe(true);
+  await today.getByRole('button', { name: 'Not now' }).click();
+  await expect(today.locator('.today-risk')).toHaveCount(0);
+});
+
+test('day over: the next-class sentence reads as one line of text', async ({ page }) => {
+  const today = await open(page, '2026-09-24T18:00:00');
+  await expect(today.locator('.rail-then', { hasText: 'Next class:' })).toHaveText('Next class: Tomorrow at 9:00 AM · Data Structures');
 });
 
 test('attendance from portal counts only says where the number comes from', async ({ page }) => {
