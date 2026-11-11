@@ -964,3 +964,32 @@ test.describe('voice', () => {
     await expect(page.locator('#toast-container .celebrate-card')).toHaveCount(1);
   });
 });
+
+test.describe('sync failure retry', () => {
+  test('Retry pushes again, says Trying again…, and closes when the account confirms', async ({ page }) => {
+    await openSignedIn(page);
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await settlePush(page, false);
+    await expect(shown(page).locator('.toast-line1')).toHaveText('Couldn’t sync to your account');
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await expect(shown(page).locator('.toast-line1')).toHaveText('Trying again…');
+    await page.waitForFunction(() => (window as any).__pushes.length > 0);
+    await settlePush(page, true);
+    await page.clock.runFor(400);
+    await expect(page.locator('#toast-container .toast-fail')).toHaveCount(0);
+    expect(await badge(page)).toMatch(/^Synced/);
+  });
+
+  test('a failed Retry turns back into the same failure', async ({ page }) => {
+    await openSignedIn(page);
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await settlePush(page, false);
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await page.waitForFunction(() => (window as any).__pushes.length > 0);
+    await settlePush(page, false);
+    await expect(shown(page).locator('.toast-line1')).toHaveText('Couldn’t sync to your account');
+    await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(1);
+  });
+});

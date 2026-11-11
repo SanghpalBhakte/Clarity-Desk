@@ -99,7 +99,7 @@ check('Back online with a change waiting: one push; with nothing waiting: none',
 });
 
 check('The online event flushes waiting changes', () =>
-  /addEventListener\('online', \(\) => \{[^}]*flushPendingSync\(\);/.test(appSrc) ? true : 'online not wired');
+  /addEventListener\('online', \(\) => \{\n(?:[^\n]*\n){0,4}?\s*flushPendingSync\(\);/.test(appSrc) ? true : 'online not wired');
 
 check('The cloud push is wired to these handlers', () =>
   appSrc.includes('ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);') ? true : 'push not wired');

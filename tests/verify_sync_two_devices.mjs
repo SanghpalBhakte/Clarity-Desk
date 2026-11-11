@@ -264,7 +264,7 @@ await check('A ~950 KB payload skips set() and reports a full cloud copy; data s
   D.app.pushLocalDataToCloud('u1');
   await tick();
   const msg = toasts.join(' | ');
-  return D.sets.length === 0 && D.app.pushFailed === 'cloud-full' && /full/i.test(msg) && /safe on this device/i.test(msg) && linksOf(D)[0].resources.length === 1
+  return D.sets.length === 0 && D.app.pushFailed === 'cloud-full' && /full/i.test(msg) && /safe on this phone/i.test(msg) && linksOf(D)[0].resources.length === 1
     ? true : JSON.stringify({ sets: D.sets.length, failed: D.app.pushFailed, msg });
 });
 

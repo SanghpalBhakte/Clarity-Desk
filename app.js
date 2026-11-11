@@ -1034,8 +1034,30 @@ function syncSizeNote() {
 }
 let syncPushSeq = 0;   // counts pushes so a late delete failure only rolls back its own push
 
+// Retry on the sync failure toast: push now; true once the account confirms
+// it (false on an error, or after 20 s without an answer).
+let pushRetryWaiters = [];
+function settlePushRetry(ok) {
+  const waiting = pushRetryWaiters;
+  pushRetryWaiters = [];
+  waiting.forEach(fn => fn(ok));
+}
+function retryCloudPush() {
+  if (!currentUser || !db) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const done = (ok) => { clearTimeout(timer); resolve(ok); };
+    const timer = setTimeout(() => { pushRetryWaiters = pushRetryWaiters.filter(f => f !== done); resolve(false); }, 20000);
+    pushRetryWaiters.push(done);
+    lastPushed = null;   // send it even if it looks already sent
+    pushLocalDataToCloud(currentUser.uid);
+  });
+}
+
 function onCloudPushOk() {
   localPushPendingAt = 0;
+  settlePushRetry(true);
+  dismissToast('fail:sync:push');
+  dismissToast('fail:sync:full');
   resetPushBackoff();
   markSynced();
   vaultCloudSweep();
@@ -1048,6 +1070,7 @@ function onCloudPushError(err) {
   const code = (err && err.code) || 'unknown';
   console.warn('Cloud push error:', err);
   lastPushed = null;   // the next push must not be skipped as "already sent"
+  settlePushRetry(false);
   if (code === 'permission-denied') { updateSyncUI('denied'); return; }
   cloudPushFailed = code;
   updateSyncUI('failed');
@@ -1055,7 +1078,7 @@ function onCloudPushError(err) {
     // Size guard: nothing was sent. Retrying can't help until the desk shrinks.
     if (!cloudFullToastShown) {
       cloudFullToastShown = true;
-      showToast('Your cloud copy is full, so this change was not synced. Everything is safe on this device. Remove large vault links or old tasks to sync again.', 'error');
+      showToast('Couldn’t sync: your cloud copy is full', 'fail', { key: 'fail:sync:full', detail: 'Everything is safe on this phone. Remove large vault links or old tasks to sync again.' });
     }
     return;
   }
@@ -1070,9 +1093,15 @@ function onCloudPushError(err) {
   }
   if (!cloudPushFailToastShown) {
     cloudPushFailToastShown = true;
-    showToast(code === 'invalid-argument'
-      ? 'Couldn’t sync: your desk is too big for one save. Everything is still on this phone. Remove large vault files to fix it.'
-      : 'Couldn’t sync to your account. Everything is still saved on this phone, and it will try again on your next change.', 'error');
+    if (code === 'invalid-argument') {
+      showToast('Couldn’t sync: your desk is too big for one save', 'fail', { key: 'fail:sync:push', detail: 'Everything is still saved on this phone. Remove large vault files to fix it.' });
+    } else {
+      showToast('Couldn’t sync to your account', 'fail', {
+        key: 'fail:sync:push',
+        detail: 'Everything is still saved on this phone. It tries again on your next change.',
+        action: { label: 'Retry', fn: () => retryToast('fail:sync:push', retryCloudPush) },
+      });
+    }
   }
 }
 
@@ -4102,7 +4131,7 @@ function completeEmailSignIn(email, link) {
       updateSyncUI();
       if (state.currentPage === 'settings') renderSettings();
     }
-    showToast('Signed in. Your desk will sync across your devices.', 'success');
+    showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
     return result;
   }).catch(err => {
     handleEmailAuthError(err);
@@ -4118,7 +4147,7 @@ function finishPasswordSignIn(result) {
     updateSyncUI();
     if (state.currentPage === 'settings') renderSettings();
   }
-  showToast('Signed in. Your desk will sync across your devices.', 'success');
+  showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
 }
 
 function passwordSignIn(create) {
@@ -4776,7 +4805,7 @@ function syncUndoWhen(at) {
 function showSyncUndoReview() {
   document.getElementById('sync-undo-backdrop')?.remove();
   const plan = syncUndoPlan();
-  if (!plan) { showToast('Nothing to undo.', 'info'); return; }
+  if (!plan) { showToast('Nothing to undo', 'note'); return; }
   const names = [...plan.tasks.map(t => t.title || 'Task'), ...plan.links.map(r => r.label || 'Vault item')];
   const shown = names.slice(0, 8).map(n => `<li>${escHtml_cd(n)}</li>`).join('') + (names.length > 8 ? `<li>and ${names.length - 8} more</li>` : '');
   const plural = (n) => `${n} item${n === 1 ? '' : 's'}`;
@@ -5251,7 +5280,7 @@ function applyCloudDataToLocalState(data) {
     lastCloudPayloadHash = null;
     if (!mergeWriteFailedTold) {
       mergeWriteFailedTold = true;
-      showToast("This phone's storage is full, so updates from your other devices couldn't be saved here. Everything on this phone is safe. Remove a big vault file to make room.", 'error');
+      showToast('This phone’s storage is full', 'fail', { key: 'fail:storage:local', detail: 'Updates from your other devices couldn’t be saved here. Everything on this phone is safe. Remove a big vault file to make room.' });
     }
   }
 }
@@ -5419,7 +5448,7 @@ function pushLocalDataToCloud(uid) {
   if (!guard.ok) { onCloudPushError({ code: 'cloud-full' }); return; }
   if (guard.level === 'warn' && !cloudFullWarned) {
     cloudFullWarned = true;
-    showToast('Your cloud copy is getting full. Everything is still saved on this device.', 'info');
+    showToast('Your cloud copy is getting full', 'note', { detail: 'Everything is still saved on this phone.' });
   }
   const hash = calculatePayloadHash(payload);
   if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) { localPushPendingAt = 0; return; }
@@ -6461,13 +6490,13 @@ function saveNotifPrefs(prefs) {
 
 async function requestNotificationPermission() {
   if (typeof Notification === 'undefined') {
-    showToast('Notifications not supported by your browser', 'error');
+    showToast('This browser can’t show reminders', 'note');
     return false;
   }
 
   const currentPermission = Notification.permission;
   if (currentPermission === 'denied') {
-    showToast('Notifications blocked in browser settings. Please allow in address bar site settings.', 'error');
+    showToast('Reminders are blocked in this browser', 'note', { detail: 'Allow notifications in the site settings next to the address bar.' });
     const prefs = loadNotifPrefs();
     prefs.enabled = false;
     saveNotifPrefs(prefs);
@@ -6481,13 +6510,13 @@ async function requestNotificationPermission() {
     prefs.enabled = (permission === 'granted');
     saveNotifPrefs(prefs);
     if (permission === 'granted') {
-      showToast('Notifications enabled!', 'success');
+      showToast('Reminders are on', 'done', { detail: 'You’ll get them on this device' });
       dispatchNotification('Clarity Desk Notifications', {
         body: 'You will now receive alerts for class reminders, task deadlines, attendance warnings, and notices.',
         tag: 'welcome-notif'
       });
     } else if (permission === 'denied') {
-      showToast('Notifications blocked. Please enable them in browser site settings.', 'error');
+      showToast('Reminders are blocked in this browser', 'note', { detail: 'Allow notifications in the site settings next to the address bar.' });
     }
     if (state.currentPage === 'settings') renderSettings();
     return permission === 'granted';
@@ -6618,7 +6647,7 @@ async function enableClosedAppPush({ quiet = false } = {}) {
     savePushDevice({ id: res.data.device, secret: res.data.secret, lastSyncOk: false });
     const synced = await syncPushReminders({ retried: true });
     if (!quiet) {
-      showToast(synced ? 'Reminders will arrive even when the app is closed ✓' : 'Reminders are on. They will sync when you are back online.', 'success');
+      showToast(synced ? 'Reminders are on, even when the app is closed' : 'Reminders are on', 'done', synced ? {} : { detail: 'They sync when you’re back online' });
       setTimeout(() => showReminderSheet('tips'), 600);
     }
     if (state.currentPage === 'settings') renderSettings();
@@ -7301,9 +7330,9 @@ function dispatchNotification(title, options = {}) {
   if (Notification.permission !== 'granted') {
     if (options.showInAppFallback !== false) {
       if (Notification.permission === 'denied') {
-        showToast('Notifications blocked in browser settings. Enable in site settings to receive alerts.', 'error');
+        showToast('Reminders are blocked in this browser', 'note', { detail: 'Allow notifications in the site settings next to the address bar.' });
       } else if (Notification.permission === 'default') {
-        showToast('Notification permission not requested yet. Click Enable Notifications in Settings.', 'info');
+        showToast('Reminders aren’t on yet', 'note', { detail: 'Turn them on in Settings' });
       }
     }
     return;
@@ -10643,7 +10672,7 @@ window.onboardingTakePhoto = function() {
   input.onchange = () => {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { showToast('That file is not a photo. Pick an image file.', 'error'); return; }
+    if (!file.type.startsWith('image/')) { showToast('That file isn’t a photo', 'fail', { detail: 'Pick an image file.' }); return; }
     trackUsage('welcome_choice', 'photo');
     onboardingShowPhoto(file, opener);
   };
@@ -10871,7 +10900,7 @@ window.replayTour = async function() {
     const T = await import('./welcome-tour.js');
     T.startTour({ name: (loadProfile().name || '').split(' ')[0] });
   } catch (err) {
-    showToast("The tour couldn't load. Try again when you're online.", 'error');
+    showToast('Couldn’t load the tour', 'fail', { detail: 'Try again when you’re online.' });
   }
 };
 
@@ -19469,11 +19498,11 @@ window.submitFeedback = async function() {
     const saved = queueFeedback(entry);
     if (!saved) {
       setBusy(false);
-      showToast('Could not save your report on this device. Your message is still in the box; copy it and try again later.', 'error');
+      showToast('Couldn’t save your report on this phone', 'fail', { key: 'fail:report', detail: 'Your message is still in the box. Copy it and send it later.' });
       return;
     }
     close();
-    showToast(`You’re offline. Your report is saved and will be sent when you’re back online${file && !entry.shot ? ' (without the screenshot)' : ''}.`, 'info');
+    showToast('You’re offline. Your report is saved', 'note', { detail: `It’s sent when you’re back online${file && !entry.shot ? ' (without the screenshot)' : ''}.` });
   };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return queueOffline();
 
@@ -19483,11 +19512,16 @@ window.submitFeedback = async function() {
   const result = await postFeedback(entry, shot);
   if (result.ok) {
     close();
-    showToast(result.photo === false ? 'Report sent, but the screenshot could not be attached. Thank you!' : 'Report sent. Thank you!', 'success');
+    dismissToast('fail:report');
+    showToast(result.photo === false ? 'Report sent without the screenshot' : 'Report sent', 'done', { detail: 'Thank you' });
     return;
   }
   if (result.network) return queueOffline();
-  showToast('Could not send your report.', 'error');
+  showToast('Couldn’t send your report', 'fail', {
+    key: 'fail:report',
+    detail: 'Your message is still here.',
+    action: { label: 'Retry', fn: () => retryToast('fail:report', async () => { await window.submitFeedback(); return !document.getElementById('feedback-backdrop'); }) },
+  });
   if (errBox) {
     errBox.innerHTML = `${escHtml_cd(result.error)} <a href="${bugReportUrl()}" target="_blank" rel="noopener">Report it on GitHub instead</a>`;
     errBox.style.display = 'block';
@@ -19547,7 +19581,7 @@ async function flushFeedbackQueue() {
   const added = (safeGetStorage(KEY_FEEDBACK_QUEUE, []) || []).filter(e => !handled.has(e.id));
   safeSetStorage(KEY_FEEDBACK_QUEUE, keep.concat(added));
   feedbackFlushing = false;
-  if (sent) showToast(`${sent} saved report${sent !== 1 ? 's' : ''} sent. Thank you!`, 'success');
+  if (sent) showToast(`${sent} saved report${sent !== 1 ? 's' : ''} sent`, 'done', { detail: 'Thank you' });
   if (dropped) showToast(`${dropped} saved report${dropped !== 1 ? 's' : ''} could not be sent and ${dropped !== 1 ? 'were' : 'was'} dropped.`, 'error');
 }
 
@@ -19636,7 +19670,7 @@ function saveSettings(opts = {}) {
   // It adds listeners each call, so not on every auto-save.
   if (!opts.quiet) setupFABDrag();
   syncToCloud();
-  if (!opts.quiet) showToast('Settings saved ✓', 'success');
+  if (!opts.quiet) showToast('Settings saved', 'done', { where: true });
 }
 
 function saveNoticeChannelsFromSettings() {
@@ -19673,7 +19707,11 @@ function exportData() {
     const go = () => vaultLinksForBackup(data.customLinks, plan).then(links => {
       data.customLinks = links;
       downloadBackupFile(data);
-    }).catch(() => showToast('Backup failed. Please try again.', 'error'));
+    }).catch(() => showToast('Couldn’t make the backup file', 'fail', {
+      key: 'fail:backup',
+      detail: 'Nothing changed on this phone.',
+      action: { label: 'Retry', fn: () => retryToast('fail:backup', () => { exportData(); return true; }) },
+    }));
     // In-app dialog: the native confirm() is auto-cancelled in installed apps,
     // which used to cancel the whole backup without a word.
     if (plan.left.length) appConfirm(`${plan.left.length} vault file${plan.left.length !== 1 ? 's' : ''} (${formatBytes(plan.leftBytes)}) won’t fit in the backup (it holds up to ${VAULT_BACKUP_FILE_CAP / 1048576} MB of files) and will be left out: ${plan.left.join(', ')}. They stay in the app. Download the backup anyway?`, 'Download anyway', go);
@@ -19690,7 +19728,7 @@ function downloadBackupFile(data) {
   a.href = url; a.download = `clarity-desk-backup-${todayStr()}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast('Backup downloaded ✓', 'success');
+  showToast('Backup file downloaded', 'done');
 }
 
 function importData(event) {
@@ -19770,11 +19808,11 @@ function importData(event) {
       if (vaultDropped.length) {
         showToast(`Restored. ${vaultDropped.length} vault file${vaultDropped.length !== 1 ? 's were' : ' was'} too big for this phone’s storage; ${vaultDropped.length !== 1 ? 'they’re' : 'it’s'} still in your backup file.`, 'info');
       } else {
-        showToast('Desk data restored ✓', 'success');
+        showToast('Your desk is restored from the backup', 'done', { where: true });
       }
       renderSettings();
     } catch (err) {
-      showToast('Could not read backup file. Please select a valid Clarity Desk JSON backup.', 'error');
+      showToast('Couldn’t read that backup file', 'fail', { detail: 'Pick a Clarity Desk backup file (.json).' });
     }
   };
   reader.readAsText(file);
@@ -20595,14 +20633,14 @@ function init() {
   // Network connectivity status listeners
   window.addEventListener('online', () => {
     resetPushBackoff();
-    showToast(currentUser ? 'Back online. Cloud sync is on ✓' : 'Back online ✓', 'success');
+    showToast('Back online', 'note', { key: 'note:online', where: true });
     flushPendingSync();
     updateSyncUI();
     flushFeedbackQueue();
     flushUsageQueue();
   });
   window.addEventListener('offline', () => {
-    showToast('You’re offline. Changes are saved on this device.', 'info');
+    showToast('You’re offline', 'note', { key: 'note:online', detail: 'Changes stay on this phone until you’re back' });
     updateSyncUI('offline');
   });
 
