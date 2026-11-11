@@ -82,8 +82,8 @@ check('Unit 4: First-run setup checklist presents 3-step sequence for new users 
 // 5. Unit 5: Local/offline save status clarity
 check('Unit 5: Topbar displays visible storage status badge indicating local saving and offline status', () => {
   if (!htmlSrc.includes('class="storage-status-badge"')) return 'storage-status-badge missing in index.html';
-  if (!htmlSrc.includes('Saved locally')) return 'Default "Saved locally" text missing';
-  if (!jsSrc.includes('Saved locally') || !jsSrc.includes('Offline · Saved')) return 'Storage status state copy missing in app.js';
+  if (!htmlSrc.includes('On this phone only')) return 'Default "On this phone only" text missing';
+  if (!jsSrc.includes('On this phone only') || !jsSrc.includes('Offline · saved here')) return 'Storage status state copy missing in app.js';
   if (!cssSrc.includes('.storage-status-badge {')) return 'CSS styling missing in style.css';
   return true;
 });

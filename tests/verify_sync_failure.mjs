@@ -3,7 +3,7 @@
 // ==================================================================
 // Locked down here:
 //  - a failed push (not offline, not denied) turns the badge into
-//    "Sync failed · Saved here" and shows one toast per visit;
+//    "Couldn’t sync · saved here" and shows one toast per visit;
 //  - "your desk is too big" is named when Firestore rejects the size;
 //  - the next successful push puts "Cloud synced" back;
 //  - permission-denied and offline keep their own states;
@@ -22,8 +22,11 @@ globalThis.window = globalThis;
 globalThis.console.warn = () => {};
 let dom = {};
 const toasts = [];
-const el = (tag) => { const o = { tagName: tag, style: {}, children: [], textContent: '', classList: { add() {}, remove() {} }, setAttribute(k, v) { o[k] = v; }, remove() {}, addEventListener() {},
-  appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(c.children.map(x => x.textContent).join(' ')); } }; return o; };
+const textOf = (n) => n.textContent || (n.children || []).map(textOf).join(' ');
+const el = (tag) => { const o = { tagName: tag, style: { setProperty() {} }, dataset: {}, children: [], textContent: '', classList: { add() {}, remove() {}, contains: () => false }, setAttribute(k, v) { o[k] = v; }, remove() {}, addEventListener() {},
+  querySelector: () => null, contains: () => false, replaceWith() {},
+  append(...cs) { cs.forEach((c) => o.children.push(typeof c === 'string' ? { textContent: c } : c)); },
+  appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(textOf(c).trim()); } }; return o; };
 globalThis.document = {
   getElementById: (id) => (dom[id] ||= Object.assign(el('div'), { id })),
   querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, removeEventListener() {},
@@ -40,7 +43,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
 `);
 const make = () => new Function(`${code}\n let pushed = 0; return { onCloudPushOk, onCloudPushError, updateSyncUI, hasPendingSync, flushPendingSync, syncToCloud, pushes() { return pushed; }, signIn(u) { currentUser = u; db = {}; pushLocalDataToCloud = () => { pushed++; }; } };`)();
 const badge = () => dom['sync-text'].textContent;
-function fresh() { dom = {}; toasts.length = 0; nav.onLine = true; const a = make(); a.signIn({ uid: 'u1' }); return a; }
+function fresh() { dom = {}; toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } } nav.onLine = true; const a = make(); a.signIn({ uid: 'u1' }); return a; }
 
 let total = 0, passed = 0; const errors = [];
 function check(name, fn) {
@@ -53,14 +56,14 @@ console.log('=================================================================='
 console.log('☁️  TELLING STUDENTS WHEN SYNC FAILS');
 console.log('==================================================================');
 
-check('A failed push shows "Sync failed · Saved here" and one toast', () => {
+check('A failed push shows "Couldn’t sync · saved here" and one toast', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' });
-  return badge() === 'Sync failed · Saved here' && toasts.length === 1 && /still saved on this phone/.test(toasts[0]) ? true : `${badge()} ${toasts}`;
+  return badge() === 'Couldn’t sync · saved here' && toasts.length === 1 && /still saved on this phone/.test(toasts[0]) ? true : `${badge()} ${toasts}`;
 });
 
 check('A second failure in the same visit adds no second toast; a plain redraw keeps the warning', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' }); a.onCloudPushError({ code: 'unavailable' }); a.updateSyncUI();
-  return toasts.length === 1 && badge() === 'Sync failed · Saved here' ? true : `${toasts.length} ${badge()}`;
+  return toasts.length === 1 && badge() === 'Couldn’t sync · saved here' ? true : `${toasts.length} ${badge()}`;
 });
 
 check('Too big for Firestore: the toast says so and points at large vault files', () => {
@@ -73,20 +76,20 @@ check('The next successful push brings back "Synced · time"', () => {
   return /^Synced · \d{1,2}:\d{2} [AP]M$/.test(badge()) ? true : badge();
 });
 
-check('Permission denied keeps its own "Sync denied" state', () => {
+check('Permission denied keeps its own "Sync blocked · saved here" state', () => {
   const a = fresh(); a.onCloudPushError({ code: 'permission-denied' });
-  return badge() === 'Sync denied' && toasts.length === 0 ? true : `${badge()} ${toasts}`;
+  return badge() === 'Sync blocked · saved here' && toasts.length === 0 ? true : `${badge()} ${toasts}`;
 });
 
-check('Offline still shows "Offline · Saved" even after a failure', () => {
+check('Offline still shows "Offline · saved here" even after a failure', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' }); nav.onLine = false; a.updateSyncUI();
-  return badge() === 'Offline · Saved' ? true : badge();
+  return badge() === 'Offline · saved here' ? true : badge();
 });
 
-check('A change waiting for the cloud shows "Waiting to sync", online or offline', () => {
+check('A change waiting for the cloud shows "Syncing…" online and "Waiting to sync" offline', () => {
   const a = fresh(); a.syncToCloud();
   const online = badge(); nav.onLine = false; a.updateSyncUI();
-  return online === 'Waiting to sync' && badge() === 'Waiting to sync' ? true : `${online} / ${badge()}`;
+  return online === 'Syncing…' && badge() === 'Waiting to sync' ? true : `${online} / ${badge()}`;
 });
 
 check('Back online with a change waiting: one push; with nothing waiting: none', () => {
@@ -96,10 +99,10 @@ check('Back online with a change waiting: one push; with nothing waiting: none',
 });
 
 check('The online event flushes waiting changes', () =>
-  /addEventListener\('online', \(\) => \{[^}]*flushPendingSync\(\);/.test(appSrc) ? true : 'online not wired');
+  /addEventListener\('online', \(\) => \{\n(?:[^\n]*\n){0,4}?\s*flushPendingSync\(\);/.test(appSrc) ? true : 'online not wired');
 
 check('The cloud push is wired to these handlers', () =>
-  appSrc.includes('ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);') ? true : 'push not wired');
+  appSrc.includes('const writes = [ref.set(payload, { merge: true })];') && appSrc.includes('Promise.all(writes).then(() => onCloudPushOk(sent)).catch(onCloudPushError);') ? true : 'push not wired');
 
 console.log('\n========================================');
 console.log(`SYNC FAILURE NOTICE: ${passed}/${total} passed`);

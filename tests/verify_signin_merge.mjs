@@ -1,3 +1,4 @@
+import './_toast-dom-shim.mjs';
 // ==================================================================
 // Clarity Desk: FIRST SIGN-IN REVIEW (offline-first sync, step 5)
 // ==================================================================
@@ -21,7 +22,8 @@ globalThis.window = globalThis;
 globalThis.console.warn = () => {};
 const toasts = [];
 const shown = [];   // ids of elements added to document.body
-const domStub = (id) => ({ id, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild(c) { if (id === 'toast-container' && c) toasts.push(String((c.children || []).map(x => x.textContent).join(' ') || c.textContent || c.innerHTML || '')); }, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null, addEventListener() {}, lastElementChild: null });
+const textOf = (n) => (n.textContent || (n.children || []).map(textOf).join(' ')).trim();
+const domStub = (id) => ({ id, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild(c) { if (id === 'toast-container' && c) toasts.push(String(textOf(c) || c.innerHTML || '')); }, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null, addEventListener() {}, lastElementChild: null });
 const els = {};
 globalThis.document = {
   getElementById: (id) => els[id] || null, querySelector: () => null, querySelectorAll: () => [],
@@ -161,7 +163,7 @@ async function check(name, fn) {
     if (res === true) { passed++; console.log(`✓ [PASS] ${name}`); }
     else { errors.push({ name, error: res }); console.error(`✗ [FAIL] ${name}: ${res}`); }
   } catch (err) { errors.push({ name, error: err.message }); console.error(`✗ [ERROR] ${name}: ${err.stack}`); }
-  cacheDoc = null; shown.length = 0; toasts.length = 0;
+  cacheDoc = null; shown.length = 0; toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
   for (const k of Object.keys(els)) if (k !== 'toast-container') delete els[k];
 }
 const REVIEW_ID = 'signin-review-backdrop';
@@ -310,7 +312,7 @@ await check('undoSignin() restores the exact earlier tasks, vault, timetable and
     await signIn(D);
     if (!D.app.undoSignin) return 'undoSignin missing';
     D.app.applySigninChoice(choice, clone(cloud));
-    toasts.length = 0;
+    toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
     const setsBefore = D.sets.length;
     const ok = D.app.undoSignin();
     await flushPush(D);
@@ -326,7 +328,7 @@ await check('An Undo toast is shown after a choice', async () => {
   const D = phoneWithData();
   await signIn(D);
   if (!D.app.applySigninChoice) return 'applySigninChoice missing';
-  toasts.length = 0;
+  toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
   D.app.applySigninChoice('both', clone(cloud));
   const t = els['toast-container'];
   return toasts.some(x => /kept|account|phone/i.test(x)) ? true : JSON.stringify(toasts);

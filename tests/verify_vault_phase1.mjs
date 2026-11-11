@@ -1,3 +1,4 @@
+import './_toast-dom-shim.mjs';
 // ==================================================================
 // Clarity Desk: STUDY VAULT PHASE 1 (safe output, search, add several)
 // ==================================================================
@@ -46,10 +47,12 @@ globalThis.console.warn = () => {};
 
 let domCache = {};
 const toasts = [];
+const notes = [];   // field-error notes placed next to a field
 const el = (tag) => {
   const o = { tagName: tag, style: {}, children: [], classList: { add() {}, remove() {} }, textContent: '', innerHTML: '',
-    appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(c.children.map(x => x.textContent).join(' ')); },
-    remove() { o.removed = true; }, addEventListener() {}, removeEventListener() {}, setAttribute() {}, focus() {} };
+    appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(toastText(c)); },
+    remove() { o.removed = true; }, addEventListener() {}, removeEventListener() {}, setAttribute() {}, focus() {},
+    insertAdjacentElement(pos, n) { notes.push(n.textContent); } };
   return o;
 };
 const domStub = (id) => (domCache[id] ||= Object.assign(el('div'), { id, value: '' }));
@@ -83,7 +86,7 @@ const flush = () => new Promise(r => setTimeout.__real ? r() : Promise.resolve()
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];
   Object.assign(store, extra);
-  QUOTA = Infinity; domCache = {}; toasts.length = 0; timers.length = 0;
+  QUOTA = Infinity; domCache = {}; toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } } timers.length = 0;
 }
 const file = (name, size) => ({ name, size });
 
@@ -123,7 +126,7 @@ check('Single add: javascript: is refused with a message and nothing is saved', 
   domStub('lrm-label').value = 'Evil'; domStub('lrm-url').value = 'javascript:alert(1)'; domStub('lrm-icon').value = 'link';
   globalThis._uploadedFileMeta = null;
   globalThis.saveLinkResource(0, null);
-  return getLinks()[0].resources.length === 1 && toasts.some(t => /http/.test(t)) ? true : `toasts=${toasts}`;
+  return getLinks()[0].resources.length === 1 && notes.some(t => /http/.test(t)) ? true : `notes=${notes}`;
 });
 
 check('Single add: "drive.google.com/abc" is saved as https://drive.google.com/abc', () => {

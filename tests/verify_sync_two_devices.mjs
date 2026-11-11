@@ -1,3 +1,4 @@
+import './_toast-dom-shim.mjs';
 // ==================================================================
 // Clarity Desk: TWO DEVICES, ONE CLOUD COPY (offline-first sync, step 4)
 // ==================================================================
@@ -19,7 +20,8 @@ globalThis.cancelAnimationFrame = () => {};
 globalThis.window = globalThis;
 globalThis.console.warn = () => {};
 const toasts = [];
-const domStub = (id) => ({ id, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild(c) { if (id === 'toast-container' && c) toasts.push(String((c.children || []).map(x => x.textContent).join(' ') || c.textContent || c.innerHTML || '')); }, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null, addEventListener() {} });
+const textOf = (n) => (n.textContent || (n.children || []).map(textOf).join(' ')).trim();
+const domStub = (id) => ({ id, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild(c) { if (id === 'toast-container' && c) toasts.push(String(textOf(c) || c.innerHTML || '')); }, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null, addEventListener() {} });
 const els = {};
 globalThis.document = {
   getElementById: (id) => els[id] || (els[id] = domStub(id)), querySelector: () => null, querySelectorAll: () => [],
@@ -258,11 +260,11 @@ await check('A ~950 KB payload skips set() and reports a full cloud copy; data s
   cloud = {};
   const D = makeDevice('D');
   D.store.cos_custom_links = JSON.stringify([section('PHY', [{ label: 'big', url: 'https://x.test/' + 'a'.repeat(950000) }])]);
-  toasts.length = 0;
+  toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
   D.app.pushLocalDataToCloud('u1');
   await tick();
   const msg = toasts.join(' | ');
-  return D.sets.length === 0 && D.app.pushFailed === 'cloud-full' && /full/i.test(msg) && /safe on this device/i.test(msg) && linksOf(D)[0].resources.length === 1
+  return D.sets.length === 0 && D.app.pushFailed === 'cloud-full' && /full/i.test(msg) && /safe on this phone/i.test(msg) && linksOf(D)[0].resources.length === 1
     ? true : JSON.stringify({ sets: D.sets.length, failed: D.app.pushFailed, msg });
 });
 
@@ -593,7 +595,7 @@ for (const key of ['cos_custom_tasks', 'cos_custom_links']) {
     await flushPush(A);
     const setsBefore = B.sets.length;
     B.failKeys.add(key);
-    toasts.length = 0;
+    toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
     deliver(B); await tick(); await flushPush(B);
     deliver(B); await tick(); await flushPush(B);
     const noPush = B.sets.length === setsBefore;
@@ -631,7 +633,7 @@ await check('U1: a merge that replaces or removes local tasks leaves an open und
   edit(A, 't1', { title: 'A edit' });
   remove(A, 't2');
   await flushPush(A);
-  toasts.length = 0;
+  toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
   deliver(B); await tick();
   const p = prevOf(B);
   const lost = p && p.lost ? p.lost.tasks.map(e => `${e.rec.id}:${e.gone ? 'gone' : 'changed'}`).sort().join() : '';
@@ -647,7 +649,9 @@ await check('U2: an open undo copy is never overwritten; a later merge only adds
   const first = prevOf(B);
   await sleep(2);
   edit(A, 't1', { title: 'A edit 2' }); edit(A, 't2', { title: 'A t2' }); await flushPush(A);
-  toasts.length = 0;
+  toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
+  // Fake timers never fire here: let the first Undo toast close, as it would on a phone.
+  { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
   deliver(B); await tick();
   const p = prevOf(B);
   const t1 = p.lost.tasks.filter(e => e.rec.id === 't1');
@@ -735,7 +739,7 @@ await check('U8: a merge that only folds duplicates keeps the copy but offers no
   cloud = { customLinks: [section('PHY', [{ label: 'A', url: 'https://x.test/a' }])] };
   const D = makeDevice('FOLD');
   D.store.cos_custom_links = JSON.stringify([section('PHY', [{ label: 'A', url: 'https://x.test/a' }, { label: 'A', url: 'https://x.test/a' }])]);
-  toasts.length = 0;
+  toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } }
   D.app.applyCloudDataToLocalState(clone(cloud));
   const p = prevOf(D);
   return p && p.open === false && D.app.loadSyncUndo() === null && !/Undo|replaced/.test(toasts.join(' | ')) ? true : JSON.stringify({ p, toasts });

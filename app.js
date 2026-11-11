@@ -37,6 +37,10 @@ const KEY_SIGNIN_BACKUP       = 'cos_signin_backup';
 // Local-only: true/false = signed in when this phone last checked. index.html
 // reads it to decide whether to load the Firebase SDK at startup.
 const KEY_CLOUD_SIGNED_IN     = 'cos_cloud_signed_in';
+// Local-only (never synced, not in backups): { uid } while a change made on
+// this phone is not yet confirmed by that account. Badge only; kept across a
+// reload so an offline restart still says "Waiting to sync".
+const KEY_SYNC_WAITING        = 'cos_sync_waiting';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
@@ -333,6 +337,7 @@ function initFirebase() {
 
       auth.onAuthStateChanged(user => {
         currentUser = user;
+        bumpToastAuthGen();
         safeSetStorage(KEY_CLOUD_SIGNED_IN, !!user);
         updateSyncUI();
         if (user) {
@@ -360,61 +365,591 @@ function initFirebase() {
 // triggerConfetti removed — calm confirmation used instead
 
 
+// ---- Feedback: toasts ("the thread") ----
+// One toast at a time. Line 1 says what happened (item name in bold),
+// line 2 where it is kept or what to do next. The thin line under the text
+// is the countdown. Screen readers hear each toast once, through two hidden
+// announcers beside the container (the container itself is not a live
+// region, so updating a visible toast is never read twice).
+// Spec: docs/superpowers/specs/2026-11-11-feedback-voice-design.md
+const TOAST_KINDS = { success: 'done', info: 'note', error: 'fail', warning: 'wait', done: 'done', note: 'note', wait: 'wait', fail: 'fail' };
+const toastState = { visible: null, ordinaryQueue: [], failQueue: [] };
+let toastSeq = 0;
+
+// Time on screen: 4 s plus 60 ms a character, 4-10 s; with an action 7-12 s.
+function toastDuration(text, hasAction) {
+  const ms = 4000 + 60 * String(text || '').length;
+  return hasAction ? Math.min(12000, Math.max(7000, ms)) : Math.min(10000, Math.max(4000, ms));
+}
+
+function toastKey(type, msg, opts) {
+  if (opts && opts.key) return String(opts.key).slice(0, 80);
+  let h = 0;
+  for (const ch of String(msg)) h = (h * 31 + ch.codePointAt(0)) | 0;
+  return `${type}:${(h >>> 0).toString(36)}`;
+}
+
 function getToastContainer() {
   let toastContainer = document.getElementById('toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
-    // Announce toast text to screen readers -- these messages (saved,
-    // error, etc.) previously had no non-visual equivalent.
-    toastContainer.setAttribute('role', 'status');
-    toastContainer.setAttribute('aria-live', 'polite');
-    toastContainer.setAttribute('aria-atomic', 'true');
     document.body.appendChild(toastContainer);
+  }
+  if (!document.getElementById('cd-announce')) {
+    const hidden = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0';
+    [['cd-announce', 'status'], ['cd-alert', 'alert']].forEach(([id, role]) => {
+      const r = document.createElement('div');
+      r.id = id;
+      r.setAttribute('role', role);
+      r.setAttribute('aria-live', role === 'alert' ? 'assertive' : 'polite');
+      r.setAttribute('aria-atomic', 'true');
+      r.style.cssText = hidden;
+      document.body.appendChild(r);
+    });
   }
   return toastContainer;
 }
 
-function showToast(msg, type = 'info') {
-  const toastContainer = getToastContainer();
-
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  
-  const iconSpan = document.createElement('span');
-  iconSpan.style.fontSize = '0.95rem';
-  iconSpan.textContent = type === 'success' ? '✓' : type === 'error' ? '⚠️' : 'ℹ️';
-  
-  const textSpan = document.createElement('span');
-  // Success toasts already get a ✓ icon; drop a trailing ✓ from the text so it isn't shown twice.
-  textSpan.textContent = type === 'success' ? String(msg).replace(/\s*✓\s*$/, '') : msg;
-
-  toast.appendChild(iconSpan);
-  toast.appendChild(textSpan);
-  toastContainer.appendChild(toast);
-
-  requestAnimationFrame(() => {
-    toast.classList.add('toast-show');
-  });
-
-  setTimeout(() => {
-    toast.classList.remove('toast-show');
-    setTimeout(() => toast.remove(), 250);
-  }, 3200);
+// Writes one message to the polite or the alert announcer.
+// A milestone card (card = true) and an ordinary message from the same moment
+// (a mark that puts attendance back on track) are read as one sentence, the
+// action first, so neither replaces the other. Failures use the alert
+// region, which a card never writes to.
+const ANNOUNCE_JOIN_MS = 1000;
+let lastPolite = { text: '', at: 0, card: false };
+function announceToast(text, urgent, card = false) {
+  getToastContainer();
+  const r = document.getElementById(urgent ? 'cd-alert' : 'cd-announce');
+  if (!r) return;
+  if (!urgent) {
+    const now = Date.now();
+    const join = lastPolite.text && lastPolite.card !== card && now - lastPolite.at < ANNOUNCE_JOIN_MS;
+    lastPolite = join ? { text: '', at: 0, card: false } : { text, at: now, card };
+    if (join) text = card ? `${r.textContent}. ${text}` : `${text}. ${r.textContent}`;
+  }
+  r.textContent = text;
 }
+
+function toastLineText(t) {
+  return (t.item ? `${t.item} ${t.msg}` : t.msg).trim();
+}
+// What a screen reader hears when a toast first shows: line 1, then line 2.
+function toastSpoken(t) {
+  const line2 = toastLine2Text(t);
+  return toastLineText(t) + (line2 ? `. ${line2}` : '');
+}
+
+function toastPause(t, why) {
+  if (!t.pauses.size && t.timer) {
+    clearTimeout(t.timer);
+    t.timer = null;
+    t.remaining = Math.max(0, t.remaining - (Date.now() - t.startedAt));
+  }
+  t.pauses.add(why);
+  if (t.el) t.el.style.setProperty('--toast-play', 'paused');
+}
+
+function toastResume(t, why) {
+  t.pauses.delete(why);
+  if (why === 'pointer') { clearTimeout(t.pointerSafety); t.pointerSafety = null; }
+  toastRun(t);
+}
+
+function toastRun(t) {
+  if (t.sticky || t.closed || t.pauses.size || t.timer) return;
+  t.startedAt = Date.now();
+  t.timer = setTimeout(() => { t.timer = null; closeToast(t); }, t.remaining);
+  if (t.el) t.el.style.setProperty('--toast-play', 'running');
+}
+
+// (Re)starts the countdown at its full length, e.g. after an update by key.
+function toastRestart(t) {
+  clearTimeout(t.timer);
+  clearTimeout(t.pointerSafety);
+  t.timer = null;
+  t.pointerSafety = null;
+  t.pauses = new Set(document.hidden ? ['hidden'] : []);
+  t.duration = t.remaining = toastDuration(toastLineText(t) + (t.detail || ''), !!t.action);
+  if (t.el) {
+    t.el.style.setProperty('--toast-ms', `${t.duration}ms`);
+    const thread = document.createElement('span');
+    thread.className = 'toast-thread';
+    thread.setAttribute('aria-hidden', 'true');
+    if (t.thread) t.thread.replaceWith(thread); else t.el.appendChild(thread);
+    t.thread = thread;
+  }
+  toastRun(t);
+}
+
+// Line 2: detail, where the change is kept, and (failures) how many more wait.
+function toastLine2Text(t) {
+  const more = t.kind === 'fail' && t.more ? `${t.more} more issue${t.more === 1 ? '' : 's'}` : '';
+  return [t.detail, t.where ? t.whereText : '', more].filter(Boolean).join(' · ');
+}
+
+function fillToastEl(t) {
+  const el = t.el;
+  const showing = /\btoast-show\b/.test(el.className || '');
+  el.className = `toast toast-${t.kind}${t.action ? ' toast-has-action' : ''}${showing ? ' toast-show' : ''}`;
+  el.dataset.key = t.key;
+  // Rebuilding removes the buttons: focus inside goes back to the new ones.
+  const hadFocus = typeof el.contains === 'function' && document.activeElement && el.contains(document.activeElement);
+  el.textContent = '';
+  const text = document.createElement('div');
+  text.className = 'toast-text';
+  const line1 = document.createElement('div');
+  line1.className = 'toast-line1';
+  line1.id = `toast-l1-${t.id}`;
+  const lead = t.kind === 'fail' && !t.item ? t.msg.match(/^(?:Couldn[’']t|Can[’']t) [^\s:.,]+/) : null;
+  if (t.item) {
+    const b = document.createElement('b');
+    b.textContent = t.item;
+    line1.append(b, ` ${t.msg}`);
+  } else if (lead) {
+    // A failure's opening words ("Couldn’t sync") take the error colour.
+    const em = document.createElement('em');
+    em.textContent = lead[0];
+    line1.append(em, t.msg.slice(lead[0].length));
+  } else {
+    line1.textContent = t.msg;
+  }
+  text.appendChild(line1);
+  t.line2El = null;
+  if (toastLine2Text(t)) {
+    const line2 = document.createElement('div');
+    line2.className = 'toast-line2';
+    line2.textContent = toastLine2Text(t);
+    text.appendChild(line2);
+    t.line2El = line2;
+  }
+  el.appendChild(text);
+  if (t.action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = t.action.label;
+    btn.setAttribute('aria-describedby', line1.id);
+    btn.addEventListener('click', () => {
+      // Undo closes its toast. A failure's action (Retry) leaves the
+      // failure up until it is resolved or dismissed.
+      if (t.kind !== 'fail') { btn.disabled = true; closeToast(t, true); }
+      t.action.fn();
+    }, { once: true });
+    el.appendChild(btn);
+  }
+  if (t.sticky) {
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'toast-dismiss';
+    x.setAttribute('aria-label', 'Dismiss notification');
+    x.textContent = '×';
+    x.addEventListener('click', () => closeToast(t, true));
+    el.appendChild(x);
+  }
+  if (hadFocus) focusToastButton(t);
+  const thread = document.createElement('span');
+  thread.className = 'toast-thread';
+  thread.setAttribute('aria-hidden', 'true');
+  // Picks up where the countdown was (a toast coming back after a failure).
+  if (t.duration && t.remaining != null && t.remaining < t.duration) thread.style.animationDelay = `${t.remaining - t.duration}ms`;
+  el.appendChild(thread);
+  t.thread = thread;
+}
+
+function focusToastButton(t) {
+  const b = t.el.querySelector('.toast-action') || t.el.querySelector('.toast-dismiss');
+  if (b) b.focus();
+}
+
+function buildToastEl(t) {
+  const el = document.createElement('div');
+  t.el = el;
+  fillToastEl(t);
+  const pointerOn = () => {
+    toastPause(t, 'pointer');
+    clearTimeout(t.pointerSafety);
+    // A lost pointerup must not keep the toast forever.
+    t.pointerSafety = setTimeout(() => toastResume(t, 'pointer'), 20000);
+  };
+  const pointerOff = () => toastResume(t, 'pointer');
+  el.addEventListener('pointerenter', pointerOn);
+  el.addEventListener('pointerdown', pointerOn);
+  el.addEventListener('pointerleave', pointerOff);
+  el.addEventListener('pointerup', pointerOff);
+  el.addEventListener('pointercancel', pointerOff);
+  el.addEventListener('focusin', (e) => {
+    if (!t.pauses.has('focus')) t.prevFocus = e.relatedTarget || null;
+    toastPause(t, 'focus');
+  });
+  el.addEventListener('focusout', (e) => {
+    if (!el.contains(e.relatedTarget)) toastResume(t, 'focus');
+  });
+  return el;
+}
+
+function closeToast(t, now = false) {
+  if (t.closed) return;
+  t.closed = true;
+  clearTimeout(t.timer);
+  clearTimeout(t.pointerSafety);
+  const el = t.el;
+  const hadFocus = el && el.contains(document.activeElement);
+  if (toastState.visible === t) toastState.visible = null;
+  if (el) {
+    el.classList.remove('toast-show');
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (now || reduce || !el.animate) el.remove();
+    else el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out' }).onfinish = () => el.remove();
+  }
+  if (hadFocus && t.prevFocus && document.contains(t.prevFocus)) t.prevFocus.focus();
+  showNextToast();
+}
+
+// A failure is up, waiting, or being retried.
+function failureShowing() {
+  const v = toastState.visible;
+  return !!((v && (v.kind === 'fail' || v.retrying)) || toastState.failQueue.length);
+}
+
+// Failures first (newest first), then ordinary toasts in arrival order.
+function showNextToast() {
+  if (!toastState.visible) {
+    const next = toastState.failQueue.shift() || toastState.ordinaryQueue.shift();
+    if (next) presentToast(next);
+  }
+  // A celebration that waited behind a failure shows once none is left.
+  if (celebrationWaiting && !failureShowing()) {
+    const run = celebrationWaiting;
+    celebrationWaiting = null;
+    run();
+  }
+}
+
+// Puts a toast on screen. A toast coming back after stepping aside keeps
+// its remaining time and is not announced a second time.
+// Where toasts sit: below the top bar while a sheet is open or the phone
+// keyboard is up (a text field focused on a touch screen, or the visible
+// area much shorter than the window); otherwise at the bottom. If the toast
+// would still cover the focused field or the sheet's main button, it
+// moves to the other edge when that edge is clear.
+function toastHits(a, el) {
+  if (!el) return false;
+  const b = el.getBoundingClientRect();
+  return b.width > 0 && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+function placeToasts() {
+  const c = document.getElementById('toast-container');
+  if (!c || !c.classList || typeof c.classList.toggle !== 'function') return;   // test pages without layout
+  const ae = document.activeElement;
+  const typing = !!(ae && ae.matches && ae.matches('input, textarea, [contenteditable]:not([contenteditable="false"])'));
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const vv = window.visualViewport;
+  const short = !!(vv && vv.height < window.innerHeight * 0.75);
+  const sheet = document.querySelector('.modal-backdrop');
+  const top = !!sheet || (coarse && (typing || short));
+  c.classList.toggle('toast-at-top', top);
+  const el = toastState.visible && toastState.visible.el;
+  if (!el || !el.getBoundingClientRect) return;
+  const avoid = [typing ? ae : null, ...(sheet ? sheet.querySelectorAll('.btn-primary, [type="submit"]') : [])];
+  const covers = () => { const r = el.getBoundingClientRect(); return avoid.some((x) => toastHits(r, x)); };
+  if (!covers()) return;
+  c.classList.toggle('toast-at-top', !top);
+  if (covers()) c.classList.toggle('toast-at-top', top);
+}
+
+function presentToast(t) {
+  const container = getToastContainer();
+  t.closed = false;
+  if (t.kind === 'fail') t.more = toastState.failQueue.length;
+  if (!t.el) buildToastEl(t); else fillToastEl(t);
+  container.appendChild(t.el);
+  toastState.visible = t;
+  void t.el.offsetWidth;   // start the enter transition from the hidden state
+  t.el.classList.add('toast-show');
+  placeToasts();
+  const lost = !document.activeElement || document.activeElement === document.body;
+  if (toastState.passFocus || (t.refocus && lost)) {
+    toastState.passFocus = false;
+    t.refocus = false;
+    focusToastButton(t);
+  }
+  if (t.steppedAside) {
+    t.steppedAside = false;
+    t.pauses = new Set(document.hidden ? ['hidden'] : []);
+    toastRun(t);
+    return;
+  }
+  announceToast(toastSpoken(t), t.kind === 'fail');
+  toastRestart(t);
+}
+
+// A failure takes the screen: an ordinary toast with an action (Undo) waits
+// at the front of the line with the time it had left; a plain one closes.
+function toastMakeRoomForFailure() {
+  const cur = toastState.visible;
+  if (!cur) return;
+  clearTimeout(cur.pointerSafety);
+  cur.pointerSafety = null;
+  if (cur.el && document.activeElement && cur.el.contains(document.activeElement)) {
+    toastState.passFocus = true;
+    cur.refocus = true;
+  }
+  if (cur.kind === 'fail' || cur.retrying) {
+    toastState.visible = null;
+    clearTimeout(cur.timer);
+    cur.timer = null;
+    cur.el.remove();
+    toastState.failQueue.unshift(cur);
+    return;
+  }
+  if (cur.action) {
+    toastPause(cur, 'aside');
+    cur.pauses.clear();
+    cur.steppedAside = true;
+    toastState.visible = null;
+    cur.el.remove();
+    toastState.ordinaryQueue.unshift(cur);
+    return;
+  }
+  toastState.visible = null;
+  closeToastQuietly(cur);
+}
+
+function closeToastQuietly(t) {
+  t.closed = true;
+  clearTimeout(t.timer);
+  clearTimeout(t.pointerSafety);
+  if (t.el) t.el.remove();
+}
+
+function dismissToast(key) {
+  const t = toastState.visible;
+  if (t && t.key === key) { closeToast(t); return; }
+  ['failQueue', 'ordinaryQueue'].forEach((q) => {
+    toastState[q] = toastState[q].filter((x) => x.key !== key);
+  });
+  if (toastState.visible && toastState.visible.kind === 'fail') {
+    toastState.visible.more = toastState.failQueue.length;
+    fillToastEl(toastState.visible);
+  }
+}
+
+// Retry on a failure toast: the same toast says "Trying again…", then
+// closes when run() resolves true, or turns back into the same failure.
+async function retryToast(key, run) {
+  const t = toastState.visible && toastState.visible.key === key ? toastState.visible : null;
+  const saved = t && { kind: t.kind, msg: t.msg, item: t.item, detail: t.detail, action: t.action };
+  if (t) {
+    // Still sticky, so it cannot time out while the retry runs.
+    Object.assign(t, { kind: 'wait', msg: 'Trying again…', item: '', detail: '', action: null, retrying: true });
+    fillToastEl(t);
+    t.el.classList.add('toast-show');
+    announceToast('Trying again…', false);
+  }
+  let ok = false;
+  try { ok = !!(await run()); } catch (_) { ok = false; }
+  if (!t) return;
+  t.retrying = false;
+  if (ok) {
+    if (toastState.visible === t) closeToast(t);
+    else dismissToast(key);
+    return;
+  }
+  Object.assign(t, saved);
+  t.sticky = true;
+  if (toastState.visible === t) {
+    t.more = toastState.failQueue.length;
+    fillToastEl(t);
+    t.el.classList.add('toast-show');
+    announceToast(toastSpoken(t), true);
+  }
+}
+
+// msg is line 1; opts: { detail, action: { label, fn }, sticky, key, item, where }.
+function showToast(msg, type = 'note', opts = {}) {
+  getToastContainer();
+  const kind = TOAST_KINDS[type] || 'note';
+  const key = toastKey(kind, `${opts.item || ''} ${msg}`, opts);
+  const fields = {
+    kind, key, msg: String(msg), item: opts.item ? String(opts.item) : '',
+    detail: opts.detail ? String(opts.detail) : '', action: opts.action || null,
+    sticky: opts.sticky != null ? !!opts.sticky : kind === 'fail', where: !!opts.where,
+    whereText: opts.where ? whereSavedLine() : '', gen: toastAuthGen,
+  };
+
+  const cur = toastState.visible;
+  if (cur && cur.key === key && !cur.closed) {
+    const line1Changed = toastLineText(cur) !== toastLineText(fields);
+    Object.assign(cur, fields);
+    fillToastEl(cur);
+    toastRestart(cur);
+    if (line1Changed) announceToast(toastSpoken(cur), cur.kind === 'fail');
+    return cur.el;
+  }
+
+  // Same key already waiting: replace it where it stands.
+  for (const q of ['failQueue', 'ordinaryQueue']) {
+    const waiting = toastState[q].find((x) => x.key === key);
+    if (waiting) {
+      Object.assign(waiting, fields);
+      waiting.steppedAside = false;
+      if (waiting.el) fillToastEl(waiting);
+      return waiting.el || null;
+    }
+  }
+
+  const t = { id: ++toastSeq, ...fields, pauses: new Set(), timer: null, pointerSafety: null, prevFocus: null, closed: false, el: null };
+  if (kind === 'fail') {
+    toastMakeRoomForFailure();
+    presentToast(t);
+    return t.el;
+  }
+  if (toastState.visible || toastState.failQueue.length) {
+    toastState.ordinaryQueue.push(t);
+    // At most two wait; the oldest waiting one without an Undo goes first.
+    while (toastState.ordinaryQueue.length > 2) {
+      const i = toastState.ordinaryQueue.findIndex((x) => !x.action);
+      toastState.ordinaryQueue.splice(i === -1 ? 0 : i, 1);
+    }
+    return null;
+  }
+  presentToast(t);
+  return t.el;
+}
+
+window.showToast = showToast;
+window.dismissToast = dismissToast;
+window.closeToast = closeToast;
+window.toastDuration = toastDuration;
+window.toastState = toastState;
+window.retryToast = retryToast;
+
+if (typeof document !== 'undefined' && document.addEventListener) {
+  // Live regions must already be in the page before text lands in them,
+  // or some screen readers skip the first message.
+  if (document.body) getToastContainer();
+  else document.addEventListener('DOMContentLoaded', getToastContainer);
+  document.addEventListener('visibilitychange', () => {
+    const t = toastState.visible;
+    if (!t) return;
+    if (document.hidden) toastPause(t, 'hidden'); else toastResume(t, 'hidden');
+  });
+  // Re-place when focus moves, the keyboard opens or closes, or a sheet
+  // (a .modal-backdrop added to <body>) opens or closes.
+  document.addEventListener('focusin', placeToasts);
+  document.addEventListener('focusout', () => setTimeout(placeToasts, 0));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', placeToasts);
+  const watchSheets = () => new MutationObserver(placeToasts).observe(document.body, { childList: true });
+  if (typeof MutationObserver !== 'undefined') {
+    if (document.body) watchSheets(); else document.addEventListener('DOMContentLoaded', watchSheets);
+  }
+}
+
+// ── Errors next to the field ─────────────────────────────────
+// A form mistake shows as a short note right under the field (plain text,
+// not a live region), the field gets aria-invalid and points at the note,
+// and the note goes away once the value is valid. Only a summary of
+// several mistakes is announced; there is no toast.
+let fieldNoteSeq = 0;
+function fieldNoteId(input) {
+  if (input.id) return `fe-${input.id}`;
+  if (!input._feId) input._feId = `fe-n${++fieldNoteSeq}`;
+  return input._feId;
+}
+// The field's accessible name: its label or aria-label, never the placeholder.
+function fieldName(input) {
+  let text = input.getAttribute('aria-label') || '';
+  if (!text && input.id) {
+    const lab = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+    if (lab) text = lab.textContent;
+  }
+  if (!text && input.closest) {
+    const wrap = input.closest('label') || input.closest('.form-group');
+    const lab = wrap && (wrap.tagName === 'LABEL' ? wrap : wrap.querySelector('label'));
+    if (lab) text = lab.textContent;
+  }
+  return text.replace(/[*✱]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() || 'one field';
+}
+function clearFieldError(input) {
+  if (!input) return;
+  const id = fieldNoteId(input);
+  const note = document.getElementById(id);
+  if (note) note.remove();
+  input.removeAttribute('aria-invalid');
+  const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter((x) => x && x !== id);
+  if (ids.length) input.setAttribute('aria-describedby', ids.join(' '));
+  else input.removeAttribute('aria-describedby');
+  input.classList.remove('error', 'shake');
+  if (input._feCheck) {
+    input.removeEventListener('input', input._feCheck);
+    input.removeEventListener('change', input._feCheck);
+    input._feCheck = null;
+  }
+}
+// anchor: the note goes right after this element (default: the field).
+function fieldError(input, msg, isValid, anchor) {
+  if (!input) return;
+  const id = fieldNoteId(input);
+  let note = document.getElementById(id);
+  if (!note) {
+    note = document.createElement('p');
+    note.className = 'field-note';
+    note.id = id;
+  }
+  note.textContent = msg;
+  (anchor || input).insertAdjacentElement('afterend', note);
+  input.setAttribute('aria-invalid', 'true');
+  const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (!ids.includes(id)) input.setAttribute('aria-describedby', [...ids, id].join(' '));
+  input.classList.add('error');
+  if (input._feCheck) {
+    input.removeEventListener('input', input._feCheck);
+    input.removeEventListener('change', input._feCheck);
+  }
+  const ok = isValid || ((v) => String(v || '').trim() !== '');
+  input._feCheck = () => { if (ok(input.value)) clearFieldError(input); };
+  input.addEventListener('input', input._feCheck);
+  input.addEventListener('change', input._feCheck);
+}
+// errors: [{ input, msg, isValid?, anchor? }]. True when there were any.
+function reportFormErrors(errors) {
+  const list = (errors || []).filter((e) => e && e.input);
+  if (!list.length) return false;
+  list.forEach((e) => fieldError(e.input, e.msg, e.isValid, e.anchor));
+  const ae = document.activeElement;
+  const inInvalid = !!ae && list.some((e) => e.input === ae);
+  if (!inInvalid && typeof list[0].input.focus === 'function') list[0].input.focus();
+  if (list.length > 1) {
+    const names = list.map((e) => fieldName(e.input));
+    const joined = `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    announceToast(`${list.length} fields need a look: ${joined}.`, false);
+  }
+  return true;
+}
+window.fieldError = fieldError;
+window.clearFieldError = clearFieldError;
+window.reportFormErrors = reportFormErrors;
 
 // A calm "well done" card for real milestones (all tasks done, attendance
 // back on target, countdown days). Shares the toast container so screen
 // readers announce it; tap to close, otherwise it fades after ~4.5s.
+// The card is drawn with a ring, never an emoji: `icon` is kept for the
+// callers but not shown. It sits outside the queue and never covers a
+// failure: while one is up, it waits.
+let celebrationWaiting = null;
 function showCelebration(icon, title, subtitle = '') {
+  if (failureShowing()) {
+    celebrationWaiting = () => showCelebration(icon, title, subtitle);
+    return;
+  }
   const container = getToastContainer();
 
   const card = document.createElement('div');
   card.className = 'toast celebrate-card';
   const iconEl = document.createElement('span');
-  iconEl.className = 'celebrate-icon';
+  iconEl.className = 'celebrate-ring';
   iconEl.setAttribute('aria-hidden', 'true');
-  iconEl.textContent = icon;
   const body = document.createElement('span');
   body.className = 'celebrate-body';
   const titleEl = document.createElement('strong');
@@ -436,6 +971,7 @@ function showCelebration(icon, title, subtitle = '') {
   card.addEventListener('click', close);
   container.appendChild(card);
   requestAnimationFrame(() => card.classList.add('toast-show'));
+  announceToast(subtitle ? `${title}. ${subtitle}` : title, false, true);
   setTimeout(close, 4500);
 }
 
@@ -497,6 +1033,61 @@ function resetPushBackoff() {
 // while offline, when Firestore holds the write until the network is back).
 function hasPendingSync() { return !!currentUser && !!localPushPendingAt; }
 
+// Badge and "where" line only: a change made after the last push was sent
+// still shows as syncing when that older push is confirmed.
+let unconfirmedChange = false;
+let ackedPush = null;   // the newest push the account has confirmed
+function syncLooksPending() { return hasPendingSync() || (!!currentUser && unconfirmedChange) || syncWaitingSaved(); }
+
+// The saved "not confirmed yet" mark (KEY_SYNC_WAITING) for this account.
+function syncWaitingSaved() {
+  if (!currentUser) return false;
+  const w = safeGetStorage(KEY_SYNC_WAITING, null);
+  return !!(w && w.uid === currentUser.uid);
+}
+// Not while the first sign-in question is open: nothing is headed to the account yet.
+function setSyncWaiting(on) {
+  if (on) { if (currentUser && !signinHeld(currentUser.uid) && !syncWaitingSaved()) safeSetStorage(KEY_SYNC_WAITING, { uid: currentUser.uid }); return; }
+  try { localStorage.removeItem(KEY_SYNC_WAITING); } catch (_) {}
+}
+
+// Phone storage was too full to keep the account's latest copy (badge only).
+let phoneStorageFull = false;
+
+// Line 2 of a toast made with { where: true }: where this change is kept now.
+function whereSavedLine(status = null) {
+  if (!currentUser) return 'On this phone only';
+  if (cloudPushFailed || status === 'denied') return 'Saved here · couldn’t sync';
+  if (syncLooksPending()) return navigator.onLine === false ? 'Saved here · waiting to sync' : 'Saved here · syncing to your account';
+  return 'Saved here · synced to your account';
+}
+
+// Each sign-in or sign-out starts a new generation; a "where" toast only
+// follows the sync state of the account it was made under, so a late
+// answer for the old account can't make it say "synced".
+let toastAuthGen = 0;
+function eachWhereToast(fn) {
+  [toastState.visible, ...toastState.failQueue, ...toastState.ordinaryQueue]
+    .forEach(t => { if (t && t.where && !t.closed) fn(t); });
+}
+function setToastWhere(t, text) {
+  t.whereText = text;
+  if (t.line2El) t.line2El.textContent = toastLine2Text(t);
+}
+// Updates the visible text only: no announcement (the badge carries it).
+function notifyToastSync(status = null) {
+  const line = whereSavedLine(status);
+  eachWhereToast(t => { if (t.gen === toastAuthGen) setToastWhere(t, line); });
+}
+function bumpToastAuthGen() {
+  toastAuthGen++;
+  eachWhereToast(t => {
+    if (t.gen === toastAuthGen) return;
+    if (!currentUser) setToastWhere(t, 'On this phone only');
+    t.where = false;
+  });
+}
+
 // Back online: send waiting changes now instead of at the next edit.
 function flushPendingSync() {
   if (!hasPendingSync() || !db) return;
@@ -523,8 +1114,38 @@ function syncSizeNote() {
 }
 let syncPushSeq = 0;   // counts pushes so a late delete failure only rolls back its own push
 
-function onCloudPushOk() {
+// Retry on the sync failure toast: push now; true once the account confirms
+// it (false on an error, or after 20 s without an answer).
+// A retry waits for a push that carries every change made before it; an
+// older push confirmed meanwhile does not count. An error settles all.
+let pushRetryWaiters = [];
+function settlePushRetry(ok, seq = Infinity) {
+  const settled = pushRetryWaiters.filter(w => !ok || seq >= w.seq);
+  pushRetryWaiters = pushRetryWaiters.filter(w => !settled.includes(w));
+  settled.forEach(w => w.fn(ok));
+}
+function retryCloudPush() {
+  if (!currentUser || !db) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const done = (ok) => { clearTimeout(timer); resolve(ok); };
+    const waiter = { fn: done, seq: localChangeSeq };
+    const timer = setTimeout(() => { pushRetryWaiters = pushRetryWaiters.filter(w => w !== waiter); resolve(false); }, 20000);
+    pushRetryWaiters.push(waiter);
+    lastPushed = null;   // send it even if it looks already sent
+    pushLocalDataToCloud(currentUser.uid);
+  });
+}
+
+// `sent` is the push this answer belongs to. With two pushes on their way,
+// the older one's answer must not make the newer change look synced.
+function onCloudPushOk(sent = lastPushed) {
   localPushPendingAt = 0;
+  if (sent && (!ackedPush || ackedPush.uid !== sent.uid || sent.seq >= ackedPush.seq)) ackedPush = sent;
+  unconfirmedChange = !!sent && localChangeSeq > ackedPush.seq;
+  if (sent && !unconfirmedChange && currentUser && sent.uid === currentUser.uid) setSyncWaiting(false);
+  settlePushRetry(true, sent ? ackedPush.seq : Infinity);
+  dismissToast('fail:sync:push');
+  dismissToast('fail:sync:full');
   resetPushBackoff();
   markSynced();
   vaultCloudSweep();
@@ -537,6 +1158,8 @@ function onCloudPushError(err) {
   const code = (err && err.code) || 'unknown';
   console.warn('Cloud push error:', err);
   lastPushed = null;   // the next push must not be skipped as "already sent"
+  if (currentUser) setSyncWaiting(true);   // not confirmed: keep the saved mark
+  settlePushRetry(false);
   if (code === 'permission-denied') { updateSyncUI('denied'); return; }
   cloudPushFailed = code;
   updateSyncUI('failed');
@@ -544,7 +1167,7 @@ function onCloudPushError(err) {
     // Size guard: nothing was sent. Retrying can't help until the desk shrinks.
     if (!cloudFullToastShown) {
       cloudFullToastShown = true;
-      showToast('Your cloud copy is full, so this change was not synced. Everything is safe on this device. Remove large vault links or old tasks to sync again.', 'error');
+      showToast('Couldn’t sync: your cloud copy is full', 'fail', { key: 'fail:sync:full', detail: 'Everything is safe on this phone. Remove large vault links or old tasks to sync again.' });
     }
     return;
   }
@@ -559,59 +1182,48 @@ function onCloudPushError(err) {
   }
   if (!cloudPushFailToastShown) {
     cloudPushFailToastShown = true;
-    showToast(code === 'invalid-argument'
-      ? 'Couldn’t sync: your desk is too big for one save. Everything is still on this phone. Remove large vault files to fix it.'
-      : 'Couldn’t sync to your account. Everything is still saved on this phone, and it will try again on your next change.', 'error');
+    if (code === 'invalid-argument') {
+      showToast('Couldn’t sync: your desk is too big for one save', 'fail', { key: 'fail:sync:push', detail: 'Everything is still saved on this phone. Remove large vault files to fix it.' });
+    } else {
+      showToast('Couldn’t sync to your account', 'fail', {
+        key: 'fail:sync:push',
+        detail: 'Everything is still saved on this phone. It tries again on your next change.',
+        action: { label: 'Retry', fn: () => retryToast('fail:sync:push', retryCloudPush) },
+      });
+    }
   }
 }
 
 function updateSyncUI(status = null) {
-  const icon = document.getElementById('sync-icon');
+  notifyToastSync(status);
   const text = document.getElementById('sync-text');
   const dot  = document.querySelector('.storage-status-dot');
   const btn  = document.getElementById('sync-status-btn');
-  if (!btn && !icon) return;
+  if (!btn && !text) return;
 
   const isOnline = typeof navigator !== 'undefined' && ('onLine' in navigator) ? navigator.onLine : true;
+  // The coloured dot and the words carry the state (no emoji).
+  const set = (label, colour, title, aria) => {
+    if (text) text.textContent = label;
+    if (dot) dot.style.background = colour;
+    if (btn) { btn.title = title; btn.setAttribute('aria-label', `${aria}. Opens Settings`); }
+  };
 
   if (status === 'denied') {
-    if (icon) icon.textContent = '🔒';
-    if (text) text.textContent = 'Sync denied';
-    if (dot) dot.style.background = 'var(--red)';
-    if (btn) btn.title = 'Access denied. Check the cloud Firestore permissions in Settings.';
-    if (btn) btn.setAttribute('aria-label', 'Cloud sync denied. Opens Settings');
+    set('Sync blocked · saved here', 'var(--red)', 'Your account turned this change away. Everything is saved on this phone. Check sign-in in Settings.', 'Sync blocked, saved on this phone');
   } else if (isOnline && currentUser && (status === 'failed' || (cloudPushFailed && !status))) {
-    if (icon) icon.textContent = '⚠️';
-    if (text) text.textContent = 'Sync failed · Saved here';
-    if (dot) dot.style.background = 'var(--yellow)';
-    if (btn) btn.title = 'Your last change could not reach your account. Everything is saved on this device; it tries again on your next change.';
-    if (btn) btn.setAttribute('aria-label', 'Sync failed, saved on this device. Opens Settings');
-  } else if (hasPendingSync()) {
-    if (icon) icon.textContent = '⏳';
-    if (text) text.textContent = 'Waiting to sync';
-    if (dot) dot.style.background = 'var(--yellow)';
-    if (btn) btn.title = isOnline
-      ? 'Sending your latest change to your account · Saved on this device'
-      : 'Offline · Your change is saved on this device and will sync when you are back online';
-    if (btn) btn.setAttribute('aria-label', 'Waiting to sync, saved on this device. Opens Settings');
+    set('Couldn’t sync · saved here', 'var(--yellow)', 'Your last change didn’t reach your account. Everything is saved on this phone; it tries again on your next change.', 'Couldn’t sync, saved on this phone');
+  } else if (phoneStorageFull) {
+    set('Phone storage full · saved here', 'var(--yellow)', 'This phone is too full to keep changes from your other devices. Everything on this phone is safe. Remove a big vault file to make room.', 'Phone storage full, saved on this phone');
+  } else if (syncLooksPending()) {
+    if (isOnline) set('Syncing…', 'var(--yellow)', 'Saved here · syncing to your account', 'Syncing to your account, saved on this phone');
+    else set('Waiting to sync', 'var(--yellow)', 'Offline · saved here, and it syncs when you are back online', 'Waiting to sync, saved on this phone');
   } else if (status === 'offline' || !isOnline) {
-    if (icon) icon.textContent = '💾';
-    if (text) text.textContent = 'Offline · Saved';
-    if (dot) dot.style.background = 'var(--yellow)';
-    if (btn) btn.title = 'Working offline · All changes are saved locally to this device';
-    if (btn) btn.setAttribute('aria-label', 'Offline, saved on this device. Opens Settings, where backup is');
+    set('Offline · saved here', 'var(--yellow)', 'Offline · every change is saved on this phone', 'Offline, saved on this phone. Backup is in Settings');
   } else if (currentUser) {
-    if (icon) icon.textContent = '⚡';
-    if (text) text.textContent = lastSyncedAt ? `Synced · ${syncTimeLabel(lastSyncedAt)}` : 'Synced';
-    if (dot) dot.style.background = 'var(--green)';
-    if (btn) btn.title = 'Cloud sync active · Saved locally & synced to your account';
-    if (btn) btn.setAttribute('aria-label', 'Saved and synced to your account. Opens Settings, where backup is');
+    set(lastSyncedAt ? `Synced · ${syncTimeLabel(lastSyncedAt)}` : 'Synced', 'var(--green)', 'Saved here · synced to your account', 'Saved and synced to your account. Backup is in Settings');
   } else {
-    if (icon) icon.textContent = '💾';
-    if (text) text.textContent = 'Saved locally';
-    if (dot) dot.style.background = 'var(--green)';
-    if (btn) btn.title = 'Local offline storage active · All data is saved automatically on this device';
-    if (btn) btn.setAttribute('aria-label', 'Saved on this device. Opens Settings, where backup is');
+    set('On this phone only', 'var(--green)', 'On this phone only · every change is saved here automatically', 'Saved on this phone only. Backup is in Settings');
   }
   // The save status shows in Settings (the topbar badge is hidden).
   const settingsText = document.getElementById('settings-sync-text');
@@ -1292,7 +1904,7 @@ function cancelTimetableScan() {
   _ttScanId++;
   _ttScanCanceled = true;
   document.getElementById('tt-loading-backdrop')?.remove();
-  showToast('Scan canceled', 'info');
+  showToast('Scan cancelled', 'note');
 }
 
 // ── Lazy-Loaded OCR Engine & Worker Cache ─────────────────────
@@ -2894,7 +3506,7 @@ function renderTimetablePreviewModalContent(backdrop) {
       </td>
       <td>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.time || '10:00')}" placeholder="10:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
+          <input type="text" class="form-input" id="preview-time-${originalIdx}" aria-label="Start time" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.time || '10:00')}" placeholder="10:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'time', this.value)">
           <span style="color:var(--text-muted)">-</span>
           <input type="text" class="form-input" style="padding:4px 4px;font-size:var(--text-sm);width:64px;font-family:var(--font-mono)" value="${formatDisplayTime(item.end || '11:00')}" placeholder="11:00 AM" onchange="updatePreviewEntry(${originalIdx}, 'end', this.value)">
         </div>
@@ -3100,23 +3712,36 @@ window.confirmSaveExtractedTimetable = function() {
   const toSave = pendingExtractedSchedule.filter(item => shouldKeepClassForUserBatch(item, selectedTimetablePreviewBatch));
 
   if (!toSave.length) {
-    showToast("No classes to save for the selected batch. Add at least one class row or select 'All Batches'.", "info");
+    const msg = 'Add at least one class, or pick "All batches".';
+    const batchEl = document.getElementById('tt-preview-batch-select');
+    const saveRow = document.querySelector('#tt-preview-backdrop .btn-primary[onclick^="confirmSaveExtractedTimetable"]')?.parentElement;
+    if (batchEl && saveRow) reportFormErrors([{ input: batchEl, msg, isValid: () => pendingExtractedSchedule.some(i => shouldKeepClassForUserBatch(i, selectedTimetablePreviewBatch)), anchor: saveRow.previousElementSibling || saveRow }]);
+    else showToast(msg, 'note');
     return;
   }
 
   // 1. Validate that all kept entries have valid subject names
+  const dayFull = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
   for (let i = 0; i < toSave.length; i++) {
     const item = toSave[i];
+    const idx = pendingExtractedSchedule.indexOf(item);
+    const day = dayFull[item.day] || item.day;
     const subj = (item.subject || '').trim();
+    const subjEl = document.getElementById(`preview-subject-${idx}`);
     if (!subj && item.type !== 'off') {
-      showToast(`A class on ${item.day} at ${formatDisplayTime(item.time)} is missing a Subject name. Please fill it in or delete the row.`, "error");
+      const msg = `${day}, ${formatDisplayTime(item.time)}: add the subject name.`;
+      if (subjEl) reportFormErrors([{ input: subjEl, msg }]); else showToast(msg, 'fail');
       return;
     }
 
     // Validate times
     const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
     if (!timeNorm.isValid) {
-      showToast(`Class "${subj || 'Class'}" on ${item.day} has an invalid time format. Use HH:MM.`, "error");
+      const msg = `${day} row, start time: write it like 9:30 AM.`;
+      const timeEl = document.getElementById(`preview-time-${idx}`);
+      // The note sits under the row's wide subject cell; the time cell is narrow.
+      if (timeEl) reportFormErrors([{ input: timeEl, msg, isValid: (v) => normalizeTimetableTime(`${v} - ${item.end || '11:00'}`).isValid, anchor: subjEl || timeEl }]);
+      else showToast(msg, 'fail');
       return;
     }
   }
@@ -3168,7 +3793,7 @@ window.confirmSaveExtractedTimetable = function() {
   const subjectSync = syncSubjectsAfterTimetableSave(newTT);
 
   document.getElementById('tt-preview-backdrop')?.remove();
-  showToast(`Timetable saved! ${toSave.length} classes loaded${selectedTimetablePreviewBatch !== 'all' ? ` for Batch ${selectedTimetablePreviewBatch}` : ''}.`, "success");
+  showToast(`${hadClasses ? 'Timetable saved' : 'Timetable added'} · ${toSave.length} classes${selectedTimetablePreviewBatch !== 'all' ? ` for batch ${selectedTimetablePreviewBatch}` : ''}`, 'done', { where: true, key: 'done:timetable' });
   renderPage(state.currentPage);
   if (subjectSync.stale.length) showStaleSubjectsModal(subjectSync.stale);
   if (!hadClasses && hasAnyTimetable()) maybeOfferClosedAppReminders();
@@ -3306,7 +3931,7 @@ window.applyStaleSubjectCleanup = function() {
   if (keptLinks.length !== links.length) safeSetStorage(KEY_CUSTOM_LINKS, keptLinks);
 
   syncToCloud();
-  showToast(`${chosen.length} old subject${chosen.length !== 1 ? 's' : ''} hidden`, 'info');
+  showToast(`${chosen.length} old subject${chosen.length !== 1 ? 's' : ''} hidden`, 'note', { where: true });
   renderPage(state.currentPage);
 };
 
@@ -3387,6 +4012,7 @@ function logoutUser() {
   if (auth) {
     auth.signOut().then(() => {
       currentUser = null;
+      bumpToastAuthGen();
       updateSyncUI();
       showToast('Signed out of Clarity Desk', 'info');
       renderPage(state.currentPage);
@@ -3456,8 +4082,9 @@ function handleEmailAuthError(err) {
   }
   const box = document.getElementById('email-signin-error');
   if (box) { box.textContent = msg; box.style.display = 'block'; }
-  showToast(msg, 'error');
+  showToast(msg, 'error', { key: 'fail:auth' });
 }
+window.handleEmailAuthError = handleEmailAuthError;   // test hook
 
 function showEmailSignInModal(step = 'email', sdkTried = false) {
   if (!auth && !sdkTried && typeof firebase === 'undefined') {
@@ -3594,7 +4221,8 @@ function completeEmailSignIn(email, link) {
       updateSyncUI();
       if (state.currentPage === 'settings') renderSettings();
     }
-    showToast('Signed in. Your desk will sync across your devices.', 'success');
+    dismissToast('fail:auth');
+  showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
     return result;
   }).catch(err => {
     handleEmailAuthError(err);
@@ -3610,8 +4238,10 @@ function finishPasswordSignIn(result) {
     updateSyncUI();
     if (state.currentPage === 'settings') renderSettings();
   }
-  showToast('Signed in. Your desk will sync across your devices.', 'success');
+  dismissToast('fail:auth');
+  showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
 }
+window.finishPasswordSignIn = finishPasswordSignIn;   // test hook
 
 function passwordSignIn(create) {
   const email = readEmailSignInInput();
@@ -4268,7 +4898,7 @@ function syncUndoWhen(at) {
 function showSyncUndoReview() {
   document.getElementById('sync-undo-backdrop')?.remove();
   const plan = syncUndoPlan();
-  if (!plan) { showToast('Nothing to undo.', 'info'); return; }
+  if (!plan) { showToast('Nothing to undo', 'note'); return; }
   const names = [...plan.tasks.map(t => t.title || 'Task'), ...plan.links.map(r => r.label || 'Vault item')];
   const shown = names.slice(0, 8).map(n => `<li>${escHtml_cd(n)}</li>`).join('') + (names.length > 8 ? `<li>and ${names.length - 8} more</li>` : '');
   const plural = (n) => `${n} item${n === 1 ? '' : 's'}`;
@@ -4645,18 +5275,9 @@ function undoSignin() {
   return ok;
 }
 
-function subscribeUserCloudData(uid) {
-  if (!db || !uid) return;
-  if (cloudUnsubscribe) cloudUnsubscribe();
-
-  // Seed the dedup hash with the CURRENT local state (already rendered by
-  // the synchronous boot render) instead of leaving it null. Previously,
-  // every page refresh reset this to null, so the first cloud response
-  // (cache read or server snapshot) always looked "different" and forced
-  // a redundant renderPage() even when local storage already matched the
-  // cloud exactly -- a second, needless rebuild right after the first
-  // paint, visible as the masthead/stat tiles flickering in and out.
-  lastCloudPayloadHash = calculatePayloadHash({
+// This phone's desk in the same shape calculatePayloadHash reads from a cloud copy.
+function localDeskHash() {
+  return calculatePayloadHash({
     profile: loadProfile(),
     customTasks: state.customTasks,
     customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
@@ -4674,6 +5295,31 @@ function subscribeUserCloudData(uid) {
     customLinks: linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS, null)),
     tombstones: pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
   });
+}
+
+// After a reload the in-memory sync flags start empty, so a saved "waiting"
+// mark (KEY_SYNC_WAITING) is settled by the account's own copy: the same as
+// this phone means synced; otherwise this phone sends its copy (after any
+// merge) and the mark clears when that push is confirmed.
+function settleSavedWaiting(uid, cloudHash) {
+  if (!syncWaitingSaved() || hasPendingSync() || unconfirmedChange) return;
+  if (cloudHash && cloudHash === localDeskHash()) { setSyncWaiting(false); updateSyncUI(); return; }
+  lastPushed = null;
+  pushLocalDataToCloud(uid);
+}
+
+function subscribeUserCloudData(uid) {
+  if (!db || !uid) return;
+  if (cloudUnsubscribe) cloudUnsubscribe();
+
+  // Seed the dedup hash with the CURRENT local state (already rendered by
+  // the synchronous boot render) instead of leaving it null. Previously,
+  // every page refresh reset this to null, so the first cloud response
+  // (cache read or server snapshot) always looked "different" and forced
+  // a redundant renderPage() even when local storage already matched the
+  // cloud exactly -- a second, needless rebuild right after the first
+  // paint, visible as the masthead/stat tiles flickering in and out.
+  lastCloudPayloadHash = localDeskHash();
 
   const userRef = db.collection('users').doc(uid);
 
@@ -4710,17 +5356,22 @@ function subscribeUserCloudData(uid) {
 
     // Skip parsing and UI re-renders on local pending write echo events
     if (doc.metadata && doc.metadata.hasPendingWrites) return;
-    if (!(doc.metadata && doc.metadata.fromCache) && !signinHeld(uid)) markSynced();
+    const fromServer = !(doc.metadata && doc.metadata.fromCache);
+    if (fromServer && !signinHeld(uid)) markSynced();
 
     const data = doc.data() || {};
     const currentHash = calculatePayloadHash(data);
     // Same as this phone already: nothing to mix, so no first sign-in question later.
-    if (currentHash && currentHash === lastCloudPayloadHash) { if (!signinHeld(uid)) markSigninSeen(uid); return; }
+    if (currentHash && currentHash === lastCloudPayloadHash) {
+      if (!signinHeld(uid)) { markSigninSeen(uid); if (fromServer) settleSavedWaiting(uid, currentHash); }
+      return;
+    }
     if (signinGate(uid, data)) return;   // first sign-in: ask before applying
     if (cloudApplyDeferred()) return;   // a newer local change is still on its way up
     lastCloudPayloadHash = currentHash;
 
     applyCloudDataToLocalState(data);
+    if (fromServer && !signinHeld(uid)) settleSavedWaiting(uid, currentHash);
   }, err => {
     if (err.code === 'permission-denied') {
       updateSyncUI('denied');
@@ -4737,12 +5388,13 @@ function applyCloudDataToLocalState(data) {
   syncUndoNew = 0;
   try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
   if (syncUndoNew) { const n = syncUndoNew; syncUndoNew = 0; showSyncUndoToast(n); }
+  if (phoneStorageFull !== mergeWriteFailed) { phoneStorageFull = mergeWriteFailed; updateSyncUI(); }
   if (mergeWriteFailed) {
     // Apply this same cloud copy again on the next read, once there is room.
     lastCloudPayloadHash = null;
     if (!mergeWriteFailedTold) {
       mergeWriteFailedTold = true;
-      showToast("This phone's storage is full, so updates from your other devices couldn't be saved here. Everything on this phone is safe. Remove a big vault file to make room.", 'error');
+      showToast('This phone’s storage is full', 'fail', { key: 'fail:storage:local', detail: 'Updates from your other devices couldn’t be saved here. Everything on this phone is safe. Remove a big vault file to make room.' });
     }
   }
 }
@@ -4910,11 +5562,18 @@ function pushLocalDataToCloud(uid) {
   if (!guard.ok) { onCloudPushError({ code: 'cloud-full' }); return; }
   if (guard.level === 'warn' && !cloudFullWarned) {
     cloudFullWarned = true;
-    showToast('Your cloud copy is getting full. Everything is still saved on this device.', 'info');
+    showToast('Your cloud copy is getting full', 'note', { detail: 'Everything is still saved on this phone.' });
   }
   const hash = calculatePayloadHash(payload);
-  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) { localPushPendingAt = 0; return; }
-  lastPushed = { uid, hash };
+  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) {
+    // Same content as the last push: it stands for this change too.
+    lastPushed.seq = localChangeSeq;
+    if (ackedPush === lastPushed) { unconfirmedChange = false; setSyncWaiting(false); }
+    localPushPendingAt = 0;
+    if (ackedPush === lastPushed) updateSyncUI();
+    return;
+  }
+  const sent = lastPushed = { uid, hash, seq: localChangeSeq };
   payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
   // Mark this write's hash as already-seen so its own ack echo (which
   // comes back through onSnapshot once the server confirms it) isn't
@@ -4926,7 +5585,9 @@ function pushLocalDataToCloud(uid) {
   const deletes = computeSyncDeletePaths(prevPushed, payload, attendanceEmptiedByUndo);
   const pushSeq = ++syncPushSeq;
   attendanceEmptiedByUndo = false;
-  ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);
+  // The push counts as confirmed only once every write in it has landed
+  // (the main write and any deletes); the first error reports it once.
+  const writes = [ref.set(payload, { merge: true })];
   // set(merge:true) never removes a map key, so a cleared mark used to come
   // back from the cloud on the next sync. Delete exactly the paths that were
   // in the last synced copy and are gone now (queued offline like any write).
@@ -4935,14 +5596,15 @@ function pushLocalDataToCloud(uid) {
     for (let i = 0; i < deletes.length; i += 400) {
       const args = [];
       deletes.slice(i, i + 400).forEach(p => args.push(new FP(...p), FV.delete()));
-      ref.update(...args).catch(err => {
+      writes.push(ref.update(...args).catch(err => {
         // Put the old "last synced" copy back so the next push works out the
         // same deletes again, then report it like any other failed push.
         if (pushSeq === syncPushSeq && prevPushed) safeSetStorage(KEY_SYNC_LAST_PUSHED, prevPushed);
-        onCloudPushError(err);
-      });
+        throw err;
+      }));
     }
   }
+  Promise.all(writes).then(() => onCloudPushOk(sent)).catch(onCloudPushError);
   rememberSyncedAttendance(payload);
 }
 
@@ -5114,7 +5776,7 @@ window.vaultGetCloudFile = async function(fileId) {
     if (isVaultPlaceholder(r) && r.fileId === fileId) label = r.label || label;
   }));
   const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;   // before any await
-  const fail = (msg) => { if (w) w.close(); showToast(msg, 'error'); };
+  const fail = (msg) => { if (w) w.close(); showToast(msg, 'fail'); };
   if (!vaultCloudReady()) { fail('Sign in to download files added on your other devices.'); return; }
   if (!navigator.onLine) { fail('You’re offline. Connect to the internet to download this file.'); return; }
   showToast('Downloading…', 'info');
@@ -5235,7 +5897,7 @@ function submitNoticeChannelModal(targetKey) {
 
   saveNoticeChannels(channels);
   document.getElementById('notice-channel-modal-backdrop')?.remove();
-  showToast('Notice source updated ✓', 'success');
+  showToast('Notice source updated', 'done', { where: true });
   if (state.currentPage === 'settings') renderSettings();
 }
 
@@ -5820,6 +6482,7 @@ let applyingCloudData = false;
 // overwrite it -- that is how a cleared timetable used to come back. Expires after 60 s
 // so a push that never lands cannot block cloud updates for good.
 let localPushPendingAt = 0;
+let localChangeSeq = 0;   // counts local changes, so a push knows which ones it carries
 const cloudApplyDeferred = () => localPushPendingAt && Date.now() - localPushPendingAt < 60000;
 let applyPushTimes = [];
 let applyPushWarned = false;   // tripped: no apply pushes until a local edit
@@ -5841,6 +6504,8 @@ function syncToCloud() {
   schedulePushSync();
   if (!currentUser) return;
   localPushPendingAt = Date.now();
+  localChangeSeq++;
+  setSyncWaiting(true);
   updateSyncUI();
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
@@ -5952,13 +6617,13 @@ function saveNotifPrefs(prefs) {
 
 async function requestNotificationPermission() {
   if (typeof Notification === 'undefined') {
-    showToast('Notifications not supported by your browser', 'error');
+    showToast('This browser can’t show reminders', 'note');
     return false;
   }
 
   const currentPermission = Notification.permission;
   if (currentPermission === 'denied') {
-    showToast('Notifications blocked in browser settings. Please allow in address bar site settings.', 'error');
+    showToast('Reminders are blocked in this browser', 'note', { detail: 'Allow notifications in the site settings next to the address bar.' });
     const prefs = loadNotifPrefs();
     prefs.enabled = false;
     saveNotifPrefs(prefs);
@@ -5972,13 +6637,13 @@ async function requestNotificationPermission() {
     prefs.enabled = (permission === 'granted');
     saveNotifPrefs(prefs);
     if (permission === 'granted') {
-      showToast('Notifications enabled!', 'success');
+      showToast('Reminders are on', 'done', { detail: 'You’ll get them on this device' });
       dispatchNotification('Clarity Desk Notifications', {
         body: 'You will now receive alerts for class reminders, task deadlines, attendance warnings, and notices.',
         tag: 'welcome-notif'
       });
     } else if (permission === 'denied') {
-      showToast('Notifications blocked. Please enable them in browser site settings.', 'error');
+      showToast('Reminders are blocked in this browser', 'note', { detail: 'Allow notifications in the site settings next to the address bar.' });
     }
     if (state.currentPage === 'settings') renderSettings();
     return permission === 'granted';
@@ -6109,7 +6774,7 @@ async function enableClosedAppPush({ quiet = false } = {}) {
     savePushDevice({ id: res.data.device, secret: res.data.secret, lastSyncOk: false });
     const synced = await syncPushReminders({ retried: true });
     if (!quiet) {
-      showToast(synced ? 'Reminders will arrive even when the app is closed ✓' : 'Reminders are on. They will sync when you are back online.', 'success');
+      showToast(synced ? 'Reminders are on, even when the app is closed' : 'Reminders are on', 'done', synced ? {} : { detail: 'They sync when you’re back online' });
       setTimeout(() => showReminderSheet('tips'), 600);
     }
     if (state.currentPage === 'settings') renderSettings();
@@ -6261,7 +6926,7 @@ const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', '
 // Preferences, and bookkeeping the app writes on its own during any visit,
 // that are no loss to leave behind. Any other cos_* key counts as desk data.
 const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,
-  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN];
+  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN, KEY_SYNC_WAITING];
 const MOVED_SNOOZE_MS = 3 * 86400000;
 
 function isOldAddress(hostname) {
@@ -6792,9 +7457,9 @@ function dispatchNotification(title, options = {}) {
   if (Notification.permission !== 'granted') {
     if (options.showInAppFallback !== false) {
       if (Notification.permission === 'denied') {
-        showToast('Notifications blocked in browser settings. Enable in site settings to receive alerts.', 'error');
+        showToast('Reminders are blocked in this browser', 'note', { detail: 'Allow notifications in the site settings next to the address bar.' });
       } else if (Notification.permission === 'default') {
-        showToast('Notification permission not requested yet. Click Enable Notifications in Settings.', 'info');
+        showToast('Reminders aren’t on yet', 'note', { detail: 'Turn them on in Settings' });
       }
     }
     return;
@@ -8802,7 +9467,7 @@ function doResetTimetable() {
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
   syncToCloud();
   renderPage(state.currentPage);
-  showToast("Timetable schedule cleared ✓", "info");
+  showToast('Timetable cleared', 'note', { where: true });
 }
 
 function todayClasses() {
@@ -9006,13 +9671,13 @@ function confirmHolidayModal() {
   const openEnded = !!document.getElementById('holiday-open')?.checked;
   const end = document.getElementById('holiday-end')?.value || '';
   if (!HOLIDAY_DATE_RE.test(start) || start < today) {
-    showToast('Pick a first day off from today on.', 'error');
+    reportFormErrors([{ input: document.getElementById('holiday-start'), msg: 'Pick a first day off from today on', isValid: (v) => HOLIDAY_DATE_RE.test(v) && v >= todayStr() }]);
     return;
   }
   let until = null;
   if (!openEnded) {
     if (!HOLIDAY_DATE_RE.test(end) || end < start) {
-      showToast('The last day off must be on or after the first.', 'error');
+      reportFormErrors([{ input: document.getElementById('holiday-end'), msg: 'The last day off has to be on or after the first', isValid: (v) => HOLIDAY_DATE_RE.test(v) && v >= start }]);
       return;
     }
     const d = new Date(end + 'T12:00:00');
@@ -9023,7 +9688,7 @@ function confirmHolidayModal() {
   document.getElementById('holiday-modal-backdrop')?.remove();
   showToast(start > today
     ? `Holiday planned. It starts on ${holidayDayLabel(start, true)}.`
-    : 'Holiday mode is on. Enjoy the break 🌴', 'success');
+    : 'Holiday mode is on. Enjoy the break.', 'done', { where: true });
   renderPage(state.currentPage);
 }
 window.confirmHolidayModal = confirmHolidayModal;
@@ -9031,7 +9696,7 @@ window.confirmHolidayModal = confirmHolidayModal;
 function resumeClasses() {
   setHoliday(false);
   // On Today the welcome-back card says it; elsewhere a toast does.
-  if (state.currentPage !== 'dashboard') showToast('Welcome back, classes are showing again', 'success');
+  if (state.currentPage !== 'dashboard') showToast('Welcome back. Classes are showing again', 'done', { where: true });
   renderPage(state.currentPage);
 }
 window.resumeClasses = resumeClasses;
@@ -9045,7 +9710,7 @@ window.endHolidayEarly = endHolidayEarly;
 
 function cancelPlannedHoliday() {
   setHoliday(false);
-  showToast('Planned holiday cancelled', 'success');
+  showToast('Planned holiday cancelled', 'note', { where: true });
   renderPage(state.currentPage);
 }
 window.cancelPlannedHoliday = cancelPlannedHoliday;
@@ -9225,7 +9890,7 @@ window.handleQuickAdd = function() {
     __renderDeferred = null;
     inputEl.value = '';
     const liveInput = document.getElementById('quick-add-input'); if (liveInput) liveInput.value = '';
-    showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success');
+    showToast(t.dueDate ? `added, due ${formatDate(t.dueDate)}` : 'added · no due date', 'done', { item: t.title, where: true, key: `done:task:${t.id}` });
     renderPage(state.currentPage);
     if (t.dueDate) maybeOfferClosedAppReminders();
   };
@@ -9277,15 +9942,15 @@ function resolveTask(taskId, change = {}) {
   renderPage(state.currentPage);
   updateNavBadges();
   const d = new Date(t.dueDate + 'T00:00:00'), tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
-  const label = change.done ? 'Done' : `Moved to ${localDateKey(d) === localDateKey(tmr) ? 'tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;
-  showUndoToast(`${label}: ${t.title}`, () => {
+  const label = change.done ? 'is done' : `moved to ${localDateKey(d) === localDateKey(tmr) ? 'tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;
+  showUndoToast(label, () => {
     const x = state.customTasks.find(y => y.id === taskId);
     if (!x) return;
     x.status = before.status; x.dueDate = before.dueDate;
     saveCustomTasks();
     renderPage(state.currentPage);
     updateNavBadges();
-  });
+  }, 'done', { item: t.title, where: true, key: `done:task:${t.id}` });
   return true;
 }
 window.resolveTask = resolveTask;
@@ -9355,7 +10020,7 @@ window.dismissWeeklyReview = function() {
 
 window.completeWeeklyReset = function() {
   dismissWeeklyReview();
-  showToast('Weekly reset complete! Ready for a clear, focused week. ✨', 'success');
+  showToast('Weekly review done', 'done', { detail: 'It comes back next week' });
   navigateTo('dashboard');
 };
 
@@ -9650,22 +10315,22 @@ window.setAttendance = function(dateStr, classKey, status) {
   let showToastAfterSave = null;
   if (data[dateStr][classKey] === status) {
     delete data[dateStr][classKey];
-    showToast('Attendance status cleared', 'info');
+    showToast('Attendance mark cleared', 'note', { where: true });
   } else {
     data[dateStr][classKey] = status;
     haptic();
-    const logged = status === 'attended' ? 'Attended ✓' : (ATT_STATUS_LABEL[status] || 'Skipped');
+    const logged = status === 'attended' ? 'Present' : (ATT_STATUS_LABEL[status] || 'Absent');
     const type = status === 'attended' ? 'success' : 'info';
     // Counted before this mark is saved, as before.
     const streak = status === 'attended' ? calculateAttendanceStreak() : 0;
     showToastAfterSave = () => {
-      let msg = `Attendance logged: ${logged}`;
-      if (streak >= 3) msg += ` (Streak: ${streak})`;
+      let msg = `Marked ${logged}`;
+      if (streak >= 3) msg += ` · ${streak} in a row`;
       const cls = (loadTimetable()[new Date(`${dateStr}T00:00:00`).getDay()] || []).find(c => attendanceKeyFor(c) === classKey);
       const standing = cls ? standingForClass(cls) : '';
       // With counts: "DS · 100% · on target" (short enough for a phone; the live row keeps the full line).
       const short = standing.replace(/ to reach \d+%$/, '');
-      showUndoToast(standing ? `${cls.code || cls.subject} · ${short}${streak >= 3 ? ` · ${streak} in a row` : ''}` : msg, undo, type);
+      showUndoToast(standing ? `${cls.code || cls.subject} · ${logged} · ${short}${streak >= 3 ? ` · ${streak} in a row` : ''}` : msg, undo, type, { where: true, key: `done:att:${dateStr}:${classKey}` });
     };
   }
   
@@ -9698,7 +10363,7 @@ function endedUnmarkedClassKeys(dateStr) {
 // Undo puts all of them back to unmarked.
 window.markEndedPresent = function(dateStr) {
   const keys = endedUnmarkedClassKeys(dateStr);
-  if (!keys.length) { showToast('Nothing left to mark.', 'info'); return; }
+  if (!keys.length) { showToast('Nothing left to mark', 'note'); return; }
   const wasOnTarget = isOverallAttendanceOnTarget();
   const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   if (!data[dateStr]) data[dateStr] = {};
@@ -9707,7 +10372,7 @@ window.markEndedPresent = function(dateStr) {
   haptic();
   maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
-  showUndoToast(`${keys.length} classes marked Present ✓`, () => {
+  showUndoToast(`${keys.length} classes marked Present`, () => {
     const d = safeGetStorage(KEY_ATTENDANCE, {}) || {};
     keys.forEach(k => { if (d[dateStr]) delete d[dateStr][k]; });
     if (d[dateStr] && !Object.keys(d[dateStr]).length) delete d[dateStr];
@@ -10134,7 +10799,7 @@ window.onboardingTakePhoto = function() {
   input.onchange = () => {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { showToast('That file is not a photo. Pick an image file.', 'error'); return; }
+    if (!file.type.startsWith('image/')) { showToast('That file isn’t a photo', 'fail', { detail: 'Pick an image file.' }); return; }
     trackUsage('welcome_choice', 'photo');
     onboardingShowPhoto(file, opener);
   };
@@ -10362,7 +11027,7 @@ window.replayTour = async function() {
     const T = await import('./welcome-tour.js');
     T.startTour({ name: (loadProfile().name || '').split(' ')[0] });
   } catch (err) {
-    showToast("The tour couldn't load. Try again when you're online.", 'error');
+    showToast('Couldn’t load the tour', 'fail', { detail: 'Try again when you’re online.' });
   }
 };
 
@@ -11734,7 +12399,7 @@ window.deleteSubjectCard = function(subjectName, event) {
   const doDelete = () => {
     permanentlyDeleteSubject(subjectName);
     renderPage(state.currentPage);
-    showToast(`"${subjectName}" deleted`, 'info');
+    showToast('removed', 'note', { item: subjectName, where: true });
   };
   if (skipWarning) { doDelete(); return; }
   // In-app dialogs (the native confirm() is auto-cancelled in installed apps).
@@ -11910,13 +12575,13 @@ function logSubjectAttendanceAction(subjectKey, action) {
   };
   if (action === 'present') {
     liveActions[storageKey].present = (liveActions[storageKey].present || 0) + 1;
-    showUndoToast(`Logged Present (+1) for ${subj.name} ✓`, undoOne, 'success');
+    showUndoToast('· Present +1', undoOne, 'done', { item: subj.name, where: true, key: `done:live:${storageKey}` });
   } else if (action === 'missed') {
     liveActions[storageKey].missed = (liveActions[storageKey].missed || 0) + 1;
-    showUndoToast(`Logged Missed (+1) for ${subj.name}`, undoOne, 'info');
+    showUndoToast('· Missed +1', undoOne, 'note', { item: subj.name, where: true, key: `done:live:${storageKey}` });
   } else if (action === 'leave') {
     liveActions[storageKey].leave = (liveActions[storageKey].leave || 0) + 1;
-    showUndoToast(`Logged Leave (+1) for ${subj.name}`, undoOne, 'info');
+    showUndoToast('· Leave +1', undoOne, 'note', { item: subj.name, where: true, key: `done:live:${storageKey}` });
   }
   haptic();
 
@@ -11935,7 +12600,7 @@ function undoSubjectAttendanceAction(subjectKey) {
 
   delete liveActions[storageKey];
   saveLiveAttendanceActions(liveActions);
-  showToast(`Reset live attendance adjustments for ${subj.name}`, 'info');
+  showToast('· today’s extra counts cleared', 'note', { item: subj.name, where: true });
   renderPage(state.currentPage);
 }
 
@@ -12947,9 +13612,10 @@ window.saveExtraClassFromModal = function(subjectName) {
     document.getElementById('xc-time')?.value,
     document.getElementById('xc-status')?.value || 'attended'
   );
-  if (!res.ok) { showToast(res.reason, 'error'); return; }
+  if (!res.ok) { showToast(res.reason, 'error', { key: 'fail:extra-class' }); return; }
+  dismissToast('fail:extra-class');
   document.getElementById('extra-class-backdrop')?.remove();
-  showToast('Extra class added ✓', 'success');
+  showToast('Extra class added', 'done', { where: true });
   renderPage(state.currentPage);
 };
 
@@ -12984,7 +13650,7 @@ window.assignUnmatchedMark = function(dateStr, key, selectId) {
   if (!subject) return;
   appConfirm(`Count the ${dateStr} mark "${key}" under ${subject.name}?`, 'Count it', () => {
     const res = reassignAttendanceMark(dateStr, key, subjectId);
-    showToast(res.ok ? `Now counted under ${subject.name} ✓` : res.reason, res.ok ? 'success' : 'error');
+    showToast(res.ok ? 'now counts this class' : res.reason, res.ok ? 'done' : 'fail', res.ok ? { item: subject.name, where: true } : {});
     if (res.ok) renderPage(state.currentPage);
   });
 };
@@ -13086,7 +13752,7 @@ window.showAttendanceV2Preview = function(data) {
 window.setAttendanceMathMode = function(useV2) {
   saveAttV2State(useV2 ? 'v2' : 'v1');
   document.getElementById('att-v2-preview-backdrop')?.remove();
-  showToast(useV2 ? 'Attendance now matches your ERP ✓' : 'Keeping the old attendance numbers', useV2 ? 'success' : 'info');
+  showToast(useV2 ? 'Attendance now matches your ERP' : 'Keeping the old attendance numbers', useV2 ? 'done' : 'note');
   renderPage(state.currentPage);
 };
 
@@ -13311,7 +13977,7 @@ function callScanner(name, args) {
   if (Scanners) return Scanners[name](...args);
   return loadScanners().then(
     m => m[name](...args),
-    () => showToast('The scanner could not load. Check your connection and try again.', 'error')
+    () => showToast('Couldn’t load the scanner', 'fail', { detail: 'Check your connection and try again.' })
   );
 }
 
@@ -13429,14 +14095,8 @@ function saveSubjectBaselineFromModal() {
   }
 
   if (!subjName) {
-    if (customNameEl) {
-      customNameEl.classList.add('error', 'shake');
-      customNameEl.focus();
-    } else if (selectEl) {
-      selectEl.classList.add('error', 'shake');
-      selectEl.focus();
-    }
-    showToast('Please specify a subject name for this baseline.', 'error');
+    const nameShown = customNameEl && customNameEl.offsetParent !== null;
+    reportFormErrors([{ input: nameShown ? customNameEl : (selectEl || customNameEl), msg: 'Pick the subject this baseline is for' }]);
     return;
   }
 
@@ -13466,7 +14126,7 @@ function saveSubjectBaselineFromModal() {
 
   saveAttendanceBaselines(baselines);
   document.getElementById('baseline-modal-backdrop')?.remove();
-  showToast(`Baseline saved for ${subjName} (${pct}%) ✓`, 'success');
+  showToast(`baseline saved · ${pct}%`, 'done', { item: subjName, where: true, key: `done:subject:${storageKey}` });
   renderPage(state.currentPage);
 }
 
@@ -13484,7 +14144,7 @@ function clearSubjectBaseline() {
 
   saveAttendanceBaselines(baselines);
   document.getElementById('baseline-modal-backdrop')?.remove();
-  showToast(`Attendance baseline cleared for ${subj.name}`, 'info');
+  showToast('baseline cleared', 'note', { item: subj.name, where: true });
   renderPage(state.currentPage);
 }
 
@@ -14164,14 +14824,14 @@ function executeDeclutterPlan(plan, userBatch) {
   syncToCloud();
 
   document.getElementById('declutter-modal-backdrop')?.remove();
-  showToast('Your desk is now decluttered and normalized! ✨', 'success');
+  showToast('Subjects tidied up', 'done', { detail: 'You can bring back the earlier setup from Settings', where: true });
   renderPage(state.currentPage);
 }
 
 function showRestoreDeskModal() {
   const backup = loadDeclutterBackup();
   if (!backup || !backup.timestamp) {
-    showToast('No previous desk cleanup backup found to restore.', 'info');
+    showToast('No earlier desk setup to bring back', 'note');
     return;
   }
 
@@ -14227,7 +14887,7 @@ function showRestoreDeskModal() {
 function confirmExecuteRestore() {
   const backup = loadDeclutterBackup();
   if (!backup) {
-    showToast('No backup found to restore.', 'error');
+    showToast('Couldn’t find the earlier desk setup', 'fail', { detail: 'Your current desk is unchanged.' });
     return;
   }
 
@@ -14250,11 +14910,11 @@ function confirmExecuteRestore() {
 
     syncToCloud();
     document.getElementById('restore-desk-backdrop')?.remove();
-    showToast('Previous desk setup restored successfully! ↩', 'success');
+    showToast('Your earlier desk setup is back', 'done', { where: true });
     renderPage(state.currentPage);
   } catch (err) {
     console.error('[RestoreBackup] Error restoring snapshot:', err);
-    showToast('Failed to restore backup. Your current data is preserved.', 'error');
+    showToast('Couldn’t bring back the earlier setup', 'fail', { detail: 'Your current desk is unchanged.' });
   }
 }
 
@@ -14310,7 +14970,7 @@ window.deleteSelectedSubjects = function() {
     subjectManageMode = false;
     subjectSelection.clear();
     renderPage(state.currentPage);
-    showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
+    showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} removed`, 'note', { where: true });
   });
 };
 
@@ -14567,7 +15227,7 @@ window.resetSyllabusProgress = function(subjectKey) {
     updateSyllabusEntry(subjectKey, (e) => {
       e.topics.forEach(t => { t.status = 'todo'; delete t.doneAt; delete t.revisedAt; });
     });
-    showToast(`${entry.subjectName} progress reset`, 'info');
+    showToast('progress reset', 'note', { item: entry.subjectName, where: true });
   });
 };
 
@@ -14588,7 +15248,7 @@ window.removeSyllabus = function(subjectKey) {
   if (!entry) return;
   appConfirm(`Remove the ${entry.subjectName} syllabus (${entry.topics.length} topics)?\n\nThis cannot be undone.`, 'Delete', () => {
     saveSyllabus(list.filter(e => e.subjectKey !== entry.subjectKey));
-    showToast(`${entry.subjectName} syllabus removed`, 'info');
+    showToast('syllabus removed', 'note', { item: entry.subjectName, where: true });
     renderPage(state.currentPage);
   });
 };
@@ -14638,13 +15298,17 @@ window.showEditSyllabusTopicModal = function(subjectKey, id) {
 
 window.saveSyllabusTopicEdit = function(subjectKey, id) {
   const title = String(document.getElementById('syl-edit-title')?.value || '').replace(/\s+/g, ' ').trim();
-  if (!title) { showToast('Give the topic a name', 'error'); return; }
+  const titleEl = document.getElementById('syl-edit-title');
+  if (!title) { reportFormErrors([{ input: titleEl, msg: 'Give the topic a name' }]); return; }
   const importance = Number(document.getElementById('syl-edit-imp')?.value) || 2;
   const marks = Number(document.getElementById('syl-edit-marks')?.value);
   const ok = updateSyllabusEntry(subjectKey, (e) => {
     const t = e.topics.find(x => x.id === id);
     if (!t) return false;
-    if (e.topics.some(x => x.id !== id && x.title.toLowerCase() === title.toLowerCase())) { showToast('That topic is already in the list', 'error'); return false; }
+    if (e.topics.some(x => x.id !== id && x.title.toLowerCase() === title.toLowerCase())) {
+      reportFormErrors([{ input: titleEl, msg: 'That topic is already in the list', isValid: (v) => { const n = v.replace(/\s+/g, ' ').trim().toLowerCase(); return !!n && !e.topics.some(x => x.id !== id && x.title.toLowerCase() === n); } }]);
+      return false;
+    }
     t.title = title.slice(0, SYL_MAX_TITLE);
     t.importance = importance;
     if (marks > 0) t.marks = marks; else delete t.marks;
@@ -14659,7 +15323,7 @@ window.deleteSyllabusTopic = function(subjectKey, id) {
   appConfirm(`Delete "${t.title}"?`, 'Delete', () => {
     updateSyllabusEntry(subjectKey, (e) => { e.topics = e.topics.filter(x => x.id !== id); });
     document.getElementById('syl-edit-backdrop')?.remove();
-    showToast('Topic deleted', 'info');
+    showToast('Topic removed', 'note', { where: true });
   });
 };
 
@@ -14801,7 +15465,7 @@ window.confirmSyllabusPaste = function() {
   entry.updatedAt = new Date().toISOString();
   saveSyllabus(list);
   closeSyllabusPasteModal();
-  showToast(`${added} topic${added !== 1 ? 's' : ''} added to ${subjectName} ✓`, 'success');
+  showToast(`· ${added} topic${added !== 1 ? 's' : ''} added`, 'done', { item: subjectName, where: true, key: `done:subject:${entry.subjectKey || getCanonicalSubjectKey(subjectName)}` });
   renderPage(state.currentPage);
 };
 
@@ -14848,7 +15512,10 @@ window.confirmAddSyllabusSubject = function() {
   const raw = String(document.getElementById('syl-subj-name')?.value || '').replace(/\s+/g, ' ').trim();
   const name = getCanonicalSubjectName(raw) || raw;
   const key = getCanonicalSubjectKey(raw);
-  if (!key || key === 'general' || isLikelyGarbledSubjectName(name)) { showToast('Type the subject name, e.g. Physics', 'error'); return; }
+  if (!key || key === 'general' || isLikelyGarbledSubjectName(name)) {
+    reportFormErrors([{ input: document.getElementById('syl-subj-name'), msg: 'Type the subject name, like Physics', isValid: (v) => { const k = getCanonicalSubjectKey(v.trim()); return !!k && k !== 'general'; } }]);
+    return;
+  }
   const existing = getSubjectList().find(s => getCanonicalSubjectKey(s.name) === key);
   const subjectName = existing ? existing.name : name;
   const list = loadSyllabus();
@@ -15418,11 +16085,7 @@ function saveTimetableEntry(oldDay, idx) {
     if (!subject) subject = 'Off';
   } else {
     if (!subject) {
-      if (subjectEl) {
-        subjectEl.classList.add('error', 'shake');
-        subjectEl.focus();
-      }
-      showToast('Please enter a subject name.', 'error');
+      reportFormErrors([{ input: subjectEl, msg: 'Type the subject name, like Physics' }]);
       return;
     }
     if (!code) code = 'SUB';
@@ -15454,7 +16117,7 @@ function saveTimetableEntry(oldDay, idx) {
   saveTimetable(tt);
   document.getElementById('tt-entry-modal-backdrop')?.remove();
   state.ttDay = newDay;
-  showToast('Class schedule saved ✓', 'success');
+  showToast('saved to your timetable', 'done', { item: subject, where: true, key: 'done:timetable' });
   renderTimetable();
   if (!hadClasses && hasAnyTimetable()) maybeOfferClosedAppReminders();
 }
@@ -15470,7 +16133,7 @@ function doDeleteTimetableEntry(day, idx) {
     saveTimetable(tt);
   }
   document.getElementById('tt-entry-modal-backdrop')?.remove();
-  showToast('Class entry removed', 'info');
+  showToast('Class removed from your timetable', 'note', { where: true });
   renderTimetable();
 }
 
@@ -15620,7 +16283,7 @@ window.deleteSelectedTasks = () => {
     taskSelection.clear();
     renderPage(state.currentPage);
     updateNavBadges();
-    showUndoToast(`${n} task${n !== 1 ? 's' : ''} deleted`, () => {
+    showUndoToast(`${n} task${n !== 1 ? 's' : ''} removed`, () => {
       // Put back exactly what was removed. Written directly (not through
       // saveCustomTasks) so its 14-day clean-up cannot delete them again.
       const have = new Set(state.customTasks.map(t => t.id));
@@ -15628,8 +16291,8 @@ window.deleteSelectedTasks = () => {
       syncToCloud();
       renderPage(state.currentPage);
       updateNavBadges();
-      showToast(`${n} task${n !== 1 ? 's' : ''} restored`, 'info');
-    });
+      showToast(`${n} task${n !== 1 ? 's' : ''} put back`, 'done', { where: true });
+    }, 'done', { where: true, key: 'done:task:bulk' });
   });
 };
 
@@ -15658,7 +16321,7 @@ window.taskCardClick = (e, id) => {
     timer = setTimeout(() => {
       timer = null;
       _taskLongPressFired = true;
-      if (!task || !task.isCustom) { showToast('Built-in tasks cannot be deleted', 'info'); return; }
+      if (!task || !task.isCustom) { showToast('Built-in tasks can’t be removed', 'note'); return; }
       haptic(15);
       enterTaskSelect(id);
     }, HOLD_MS);
@@ -16204,25 +16867,12 @@ function submitAddTask(editTaskId = null) {
     }
   });
 
-  let valid = true;
-  let firstInvalid = null;
-
-  if (!titleEl || !titleEl.value.trim()) {
-    if (titleEl) { titleEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = titleEl; }
-    valid = false;
-  }
-  if (!subjectEl || !subjectEl.value) {
-    if (subjectEl) { subjectEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = subjectEl; }
-    valid = false;
-  }
-  if (!isNoDeadline && (!dueEl || !dueEl.value)) {
-    if (dueEl) { dueEl.classList.add('error', 'shake'); if (!firstInvalid) firstInvalid = dueEl; }
-    valid = false;
-  }
-
-  if (!valid) {
-    if (firstInvalid) firstInvalid.focus();
-    showToast(isNoDeadline ? 'Please provide a subject and title.' : 'Please provide a subject, title, and due date.', 'error');
+  const errors = [];
+  if (!titleEl || !titleEl.value.trim()) errors.push({ input: titleEl, msg: 'Add a title, like "Lab record"' });
+  if (!subjectEl || !subjectEl.value) errors.push({ input: subjectEl, msg: 'Pick a subject or category' });
+  if (!isNoDeadline && (!dueEl || !dueEl.value)) errors.push({ input: dueEl, msg: 'Enter a date, like tomorrow or 12 Nov' });
+  if (errors.length) {
+    if (!reportFormErrors(errors)) showToast('Add a title, a subject and a date', 'fail');
     return;
   }
 
@@ -16286,7 +16936,9 @@ function submitAddTask(editTaskId = null) {
 
   saveCustomTasks();
   document.getElementById('add-task-backdrop')?.remove();
-  showToast(editTaskId ? 'Task updated ✓' : (taskType === 'mission' || isNoDeadline) ? 'Mission added to desk ✓' : 'Task added to desk ✓', 'success');
+  const savedTask = editTaskId ? state.customTasks.find(x => x.id === editTaskId) : state.customTasks[state.customTasks.length - 1];
+  const savedMsg = editTaskId ? 'saved' : (taskType === 'mission' || isNoDeadline) ? 'added · no deadline' : `added, due ${formatDate(savedTask?.dueDate)}`;
+  showToast(savedMsg, 'done', { item: savedTask?.title || 'Task', where: true, key: `done:task:${savedTask?.id || 'new'}` });
   renderPage(state.currentPage);
   updateNavBadges();
   if (!isNoDeadline && finalDueDate) maybeOfferClosedAppReminders();
@@ -16722,14 +17374,14 @@ function waImportSelected() {
   updateNavBadges();
   maybeOfferClosedAppReminders(chosen);
   const n = ids.length;
-  showUndoToast(`Imported ${n} task${n === 1 ? '' : 's'}`, () => {
+  showUndoToast(`${n} task${n === 1 ? '' : 's'} added from your message`, () => {
     const drop = new Set(ids);
     state.customTasks = state.customTasks.filter(t => !drop.has(t.id));
     saveCustomTasks();
     renderPage(state.currentPage);
     updateNavBadges();
-    showToast('Import undone', 'info');
-  });
+    showToast('Those tasks are removed again', 'note', { where: true });
+  }, 'done', { where: true, key: 'done:task:import' });
 }
 
 // ── Links tab: study links → Subject Hubs ─────────────────────
@@ -16868,7 +17520,7 @@ function waSaveLinks() {
   trackUsage('wa_links_saved', n <= 5 ? '1-5' : n <= 20 ? '6-20' : '21plus');
   waClose();
   navigate('links');
-  showUndoToast(`Added ${n} link${n === 1 ? '' : 's'} to Subject Hubs`, () => {
+  showUndoToast(`${n} link${n === 1 ? '' : 's'} added to Subject Hubs`, () => {
     const cur = loadCustomLinks();
     for (const a of added) {
       const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
@@ -16891,24 +17543,11 @@ function haptic(ms = 10) {
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
 }
 
-function showUndoToast(msg, onUndo, type = 'success') {
-  showToast(msg, type);
-  const container = document.getElementById('toast-container');
-  const toast = container && container.lastElementChild;
-  if (!toast) return;
-  toast.classList.add('toast-has-action');
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'toast-action';
-  btn.textContent = 'Undo';
-  btn.addEventListener('click', () => {
-    btn.disabled = true;
-    toast.remove();
-    onUndo();
-  }, { once: true });
-  toast.appendChild(btn);
-  setTimeout(() => { toast.classList.remove('toast-show'); setTimeout(() => toast.remove(), 250); }, 7000);
+function showUndoToast(msg, onUndo, type = 'done', opts = {}) {
+  return showToast(msg, type, { ...opts, action: { label: 'Undo', fn: onUndo } });
 }
+window.showUndoToast = showUndoToast;
+window.showCelebration = showCelebration;
 
 // Android share target: sw.js holds the shared chat in memory and hands it
 // over once. Anything missing or failing just opens the normal first step.
@@ -17641,7 +18280,7 @@ window.vbSave = function() {
   closeVaultBulk();
   const n = added.length;
   renderLinks();
-  showUndoToast(`Added ${n} item${n !== 1 ? 's' : ''} to Study Vault`, () => {
+  showUndoToast(`${n} item${n !== 1 ? 's' : ''} added to the vault`, () => {
     const cur = loadCustomLinks();
     for (const a of added) {
       const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
@@ -17711,7 +18350,7 @@ window.deleteLinkSubject = function(si) {
     const links = loadCustomLinks();
     links.splice(si, 1);
     saveCustomLinks(links);
-    showToast('Subject removed from vault', 'info');
+    showToast('Subject removed from the vault', 'note', { where: true });
     renderLinks();
   });
 };
@@ -17731,7 +18370,7 @@ window.deleteLinkResource = function(si, ri) {
     const [gone] = links[si].resources.splice(ri, 1);
     saveCustomLinks(links);
     if (isVaultIdbFile(gone)) vaultDeleteUnusedBlob(gone.fileId);
-    showToast('Material removed from vault', 'info');
+    showToast('Removed from the vault', 'note', { where: true });
     renderLinks();
   });
 };
@@ -17778,8 +18417,7 @@ window.saveLinkSubject = function(si) {
   const code  = document.getElementById('lsm-code')?.value?.trim();
   const color = document.getElementById('lsm-color')?.value || '#394B63';
   if (!name) {
-    if (nameEl) { nameEl.classList.add('error', 'shake'); nameEl.focus(); }
-    showToast('Subject name is required.', 'error');
+    reportFormErrors([{ input: nameEl, msg: 'Type the subject name, like Physics' }]);
     return;
   }
   const links = loadCustomLinks();
@@ -17790,7 +18428,7 @@ window.saveLinkSubject = function(si) {
   }
   if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
   document.getElementById('link-subject-modal-backdrop')?.remove();
-  showToast('Subject vault saved ✓', 'success');
+  showToast('saved to the vault', 'done', { item: name, where: true, key: `done:vault:${si === null ? links.length - 1 : si}` });
   renderLinks();
 };
 
@@ -17801,9 +18439,10 @@ window.handleVaultFileSelect = function(e) {
   // 1.37x their size), so only small ones fit. Bigger notes belong in
   // Drive as a link. Checked before the file is read at all.
   const tooBig = vaultFileTooBigMessage(file.size);
+  dismissToast('fail:vault-file');
   if (tooBig) {
     e.target.value = '';
-    showToast(tooBig, 'error');
+    showToast(tooBig, 'error', { key: 'fail:vault-file' });
     if (typeof setResourceInputMode === 'function') setResourceInputMode('url');
     return;
   }
@@ -17819,7 +18458,7 @@ window.handleVaultFileSelect = function(e) {
     if (fileLabel) fileLabel.innerHTML = `✓ <strong>${vaultEsc(file.name)}</strong> (${formatBytes(file.size)})`;
     if (iconEl) iconEl.value = vaultIconForFile(file.name);
     window._uploadedFileMeta = { isUpload: true, fileName: file.name, fileSize: formatBytes(file.size) };
-    showToast(`File attached: ${file.name} ✓`, 'success');
+    showToast('attached', 'done', { item: file.name, detail: 'Save to keep it in the vault' });
     return;
   }
   const reader = new FileReader();
@@ -17845,7 +18484,7 @@ window.handleVaultFileSelect = function(e) {
       fileName: file.name,
       fileSize: formatBytes(file.size)
     };
-    showToast(`File attached: ${file.name} ✓`, 'success');
+    showToast('attached', 'done', { item: file.name, detail: 'Save to keep it in the vault' });
   };
   reader.readAsDataURL(file);
 };
@@ -17876,7 +18515,7 @@ async function vaultSaveFileResource(si, ri, file, label, icon) {
     window._pendingVaultFile = null;
     vaultAskPersist();
     document.getElementById('link-resource-modal-backdrop')?.remove();
-    showToast('Study vault material saved ✓', 'success');
+    showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${si}:${ri === null ? links[si].resources.length - 1 : ri}` });
     renderLinks();
   } finally { vaultSaveFileResource.busy = false; }
 }
@@ -18020,14 +18659,12 @@ window.saveLinkResource = function(si, ri) {
   if (pending && label) { vaultSaveFileResource(si, ri, pending, label, icon); return; }
 
   if (!label || (!url && !keepPlaceholder)) {
-    if (!label && labelEl) { labelEl.classList.add('error', 'shake'); labelEl.focus(); }
-    else if (!url && urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
-    showToast('Resource name and file/link are required.', 'error');
+    const msg = 'Add a name and a file or link';
+    reportFormErrors([!label ? { input: labelEl, msg } : { input: urlEl, msg }]);
     return;
   }
   if (url && !vaultSafeUrl(url)) {
-    if (urlEl) { urlEl.classList.add('error', 'shake'); urlEl.focus(); }
-    showToast('Only web links starting with http:// or https:// can be saved.', 'error');
+    reportFormErrors([{ input: urlEl, msg: 'Links need to start with http:// or https://', isValid: (v) => !!vaultSafeUrl(vaultNormalizeUrl(v)) }]);
     return;
   }
   const item = keepPlaceholder ? { ...existing, label, icon } : {
@@ -18050,7 +18687,7 @@ window.saveLinkResource = function(si, ri) {
   }
   if (item.url && item.url.startsWith('data:')) vaultAskPersist();
   document.getElementById('link-resource-modal-backdrop')?.remove();
-  showToast('Study vault material saved ✓', 'success');
+  showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${si}:${ri === null ? links[si].resources.length - 1 : ri}` });
   renderLinks();
 };
 
@@ -18689,7 +19326,7 @@ function renderSettings() {
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
           </div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'On this phone only')}</span></div>
           <div id="settings-cloud-size" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px" ${syncSizeNote() ? '' : 'hidden'}>${escHtml_cd(syncSizeNote())}</div>
           ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
         </div>
@@ -18975,7 +19612,7 @@ window.submitFeedback = async function() {
   const errBox = document.getElementById('fb-error');
   const sendBtn = document.getElementById('fb-send');
   if (!FEEDBACK_TYPES[type] || !message) {
-    showToast('Write a message first.', 'error');
+    reportFormErrors([{ input: document.getElementById('fb-message'), msg: 'Write your message first' }]);
     return;
   }
   const file = document.getElementById('fb-shot')?.files?.[0];
@@ -18990,25 +19627,41 @@ window.submitFeedback = async function() {
     const saved = queueFeedback(entry);
     if (!saved) {
       setBusy(false);
-      showToast('Could not save your report on this device. Your message is still in the box; copy it and try again later.', 'error');
-      return;
+      showToast('Couldn’t save your report on this phone', 'fail', { key: 'fail:report', detail: 'Your message is still in the box. Copy it and send it later.' });
+      return false;
     }
     close();
-    showToast(`You’re offline. Your report is saved and will be sent when you’re back online${file && !entry.shot ? ' (without the screenshot)' : ''}.`, 'info');
+    showToast('You’re offline. Your report is saved', 'note', { detail: `It’s sent when you’re back online${file && !entry.shot ? ' (without the screenshot)' : ''}.` });
+    return true;
   };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return queueOffline();
 
   setBusy(true);
   if (errBox) errBox.style.display = 'none';
   const shot = await shrinkScreenshot(file);
+  const sent = (res) => {
+    close();
+    showToast(res.photo === false ? 'Report sent without the screenshot' : 'Report sent', 'done', { detail: 'Thank you' });
+  };
   const result = await postFeedback(entry, shot);
   if (result.ok) {
-    close();
-    showToast(result.photo === false ? 'Report sent, but the screenshot could not be attached. Thank you!' : 'Report sent. Thank you!', 'success');
+    dismissToast('fail:report');
+    sent(result);
     return;
   }
   if (result.network) return queueOffline();
-  showToast('Could not send your report.', 'error');
+  // Retry sends this same report again, so it still works after the form is closed.
+  const retry = async () => {
+    const again = await postFeedback(entry, shot);
+    if (again.ok) { sent(again); return true; }
+    if (again.network) return queueOffline();
+    return false;
+  };
+  showToast('Couldn’t send your report', 'fail', {
+    key: 'fail:report',
+    detail: 'Your message is still here.',
+    action: { label: 'Retry', fn: () => retryToast('fail:report', retry) },
+  });
   if (errBox) {
     errBox.innerHTML = `${escHtml_cd(result.error)} <a href="${bugReportUrl()}" target="_blank" rel="noopener">Report it on GitHub instead</a>`;
     errBox.style.display = 'block';
@@ -19068,7 +19721,7 @@ async function flushFeedbackQueue() {
   const added = (safeGetStorage(KEY_FEEDBACK_QUEUE, []) || []).filter(e => !handled.has(e.id));
   safeSetStorage(KEY_FEEDBACK_QUEUE, keep.concat(added));
   feedbackFlushing = false;
-  if (sent) showToast(`${sent} saved report${sent !== 1 ? 's' : ''} sent. Thank you!`, 'success');
+  if (sent) showToast(`${sent} saved report${sent !== 1 ? 's' : ''} sent`, 'done', { detail: 'Thank you' });
   if (dropped) showToast(`${dropped} saved report${dropped !== 1 ? 's' : ''} could not be sent and ${dropped !== 1 ? 'were' : 'was'} dropped.`, 'error');
 }
 
@@ -19157,7 +19810,7 @@ function saveSettings(opts = {}) {
   // It adds listeners each call, so not on every auto-save.
   if (!opts.quiet) setupFABDrag();
   syncToCloud();
-  if (!opts.quiet) showToast('Settings saved ✓', 'success');
+  if (!opts.quiet) showToast('Settings saved', 'done', { where: true });
 }
 
 function saveNoticeChannelsFromSettings() {
@@ -19194,7 +19847,11 @@ function exportData() {
     const go = () => vaultLinksForBackup(data.customLinks, plan).then(links => {
       data.customLinks = links;
       downloadBackupFile(data);
-    }).catch(() => showToast('Backup failed. Please try again.', 'error'));
+    }).catch(() => showToast('Couldn’t make the backup file', 'fail', {
+      key: 'fail:backup',
+      detail: 'Nothing changed on this phone.',
+      action: { label: 'Retry', fn: () => retryToast('fail:backup', () => { exportData(); return true; }) },
+    }));
     // In-app dialog: the native confirm() is auto-cancelled in installed apps,
     // which used to cancel the whole backup without a word.
     if (plan.left.length) appConfirm(`${plan.left.length} vault file${plan.left.length !== 1 ? 's' : ''} (${formatBytes(plan.leftBytes)}) won’t fit in the backup (it holds up to ${VAULT_BACKUP_FILE_CAP / 1048576} MB of files) and will be left out: ${plan.left.join(', ')}. They stay in the app. Download the backup anyway?`, 'Download anyway', go);
@@ -19211,7 +19868,7 @@ function downloadBackupFile(data) {
   a.href = url; a.download = `clarity-desk-backup-${todayStr()}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast('Backup downloaded ✓', 'success');
+  showToast('Backup file downloaded', 'done');
 }
 
 function importData(event) {
@@ -19291,11 +19948,11 @@ function importData(event) {
       if (vaultDropped.length) {
         showToast(`Restored. ${vaultDropped.length} vault file${vaultDropped.length !== 1 ? 's were' : ' was'} too big for this phone’s storage; ${vaultDropped.length !== 1 ? 'they’re' : 'it’s'} still in your backup file.`, 'info');
       } else {
-        showToast('Desk data restored ✓', 'success');
+        showToast('Your desk is restored from the backup', 'done', { where: true });
       }
       renderSettings();
     } catch (err) {
-      showToast('Could not read backup file. Please select a valid Clarity Desk JSON backup.', 'error');
+      showToast('Couldn’t read that backup file', 'fail', { detail: 'Pick a Clarity Desk backup file (.json).' });
     }
   };
   reader.readAsText(file);
@@ -19806,6 +20463,9 @@ window.copyIncomingEmailLink   = copyIncomingEmailLink;
 window.passwordSignIn          = passwordSignIn;
 window.sendPasswordReset       = sendPasswordReset;
 window.logoutUser       = logoutUser;
+window.whereSavedLine   = whereSavedLine;
+window.syncToCloud      = syncToCloud;
+window.onCloudPushError = onCloudPushError;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.cancelTimetableScan     = cancelTimetableScan;
 window.resetTimetableToDefault = resetTimetableToDefault;
@@ -19866,55 +20526,48 @@ window.sendAssistantMessage  = sendAssistantMessage;
 window.clearAssistantChat    = clearAssistantChat;
 
 // The last pending task gets the "all caught up" card; any other gets the usual toast.
-function celebrateTaskDone(undo) {
+function celebrateTaskDone(undo, task) {
   haptic();
+  dismissToast(`done:task:${task.id}`);
   if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
-  else if (undo) showUndoToast('Task marked completed ✓', undo, 'success');
-  else showToast('Task marked completed ✓', 'success');
+  else showUndoToast('is done', undo, 'done', { item: task.title, where: true, key: `done:task:${task.id}` });
 }
 
-// Undo for a tick: the task goes back to pending, quietly. Looked up by
-// id when Undo is tapped, since saving replaces the task objects.
-function taskTickUndo(id, custom) {
+// Undo for a tick or an untick: puts the task's status back to what it was.
+// Looked up by id when Undo is tapped (saving replaces the task objects),
+// and only the status changes, so an edit made meanwhile is kept.
+function taskStatusUndo(id, custom, to) {
   return () => {
     const task = (custom ? state.customTasks : state.assignments).find(x => x.id === id);
-    if (!task || task.status !== 'submitted') return;
-    task.status = 'pending';
+    if (!task) { showToast('Couldn’t undo: that task was removed', 'note'); return; }
+    if (task.status === to) return;
+    task.status = to;
     custom ? saveCustomTasks() : saveAssignments();
     renderPage(state.currentPage);
     updateNavBadges();
   };
 }
 
-window.toggleAssignment = (id) => {
-  // Custom task
-  const ct = state.customTasks.find(x => x.id === id);
-  if (ct) {
-    const isNowDone = ct.status !== 'submitted';
-    ct.status = isNowDone ? 'submitted' : 'pending';
-    saveCustomTasks();
-    if (isNowDone) {
-      celebrateTaskDone(taskTickUndo(id, true));
-    } else {
-      showToast('Task moved back to pending', 'info');
-    }
-    renderPage(state.currentPage);
-    updateNavBadges();
-    return;
-  }
-  // Data.js assignment
-  const a = state.assignments.find(x => x.id === id);
-  if (!a) return;
-  const isNowDone = a.status !== 'submitted';
-  a.status = isNowDone ? 'submitted' : 'pending';
-  saveAssignments();
+function toggleTaskStatus(task, custom) {
+  const isNowDone = task.status !== 'submitted';
+  task.status = isNowDone ? 'submitted' : 'pending';
+  custom ? saveCustomTasks() : saveAssignments();
   if (isNowDone) {
-    celebrateTaskDone(taskTickUndo(id, false));
+    celebrateTaskDone(taskStatusUndo(task.id, custom, 'pending'), task);
   } else {
-    showToast('Task moved back to pending', 'info');
+    showUndoToast('is back on your list', taskStatusUndo(task.id, custom, 'submitted'), 'note', { item: task.title, where: true, key: `done:task:${task.id}` });
   }
   renderPage(state.currentPage);
   updateNavBadges();
+}
+
+window.toggleAssignment = (id) => {
+  // Custom task first, then a data.js assignment
+  const ct = state.customTasks.find(x => x.id === id);
+  if (ct) { toggleTaskStatus(ct, true); return; }
+  const a = state.assignments.find(x => x.id === id);
+  if (!a) return;
+  toggleTaskStatus(a, false);
 };
 
 // "Did it today" on an ongoing goal: adds (or takes back) today's check-in.
@@ -19927,7 +20580,7 @@ window.goalCheckIn = (id) => {
   ct.checkins = adding ? [...days, today] : days;
   if (!ct.checkins.length) delete ct.checkins;
   saveCustomTasks();
-  showToast(adding ? `Logged for today: ${ct.title}` : 'Taken back for today', adding ? 'success' : 'info');
+  showToast(adding ? 'logged for today' : 'taken back for today', adding ? 'done' : 'note', { item: ct.title, where: true, key: `done:goal:${ct.id}` });
   renderPage(state.currentPage);
 };
 
@@ -19935,7 +20588,7 @@ window.deleteCustomTask = (id) => {
   appConfirm('Delete this task?', 'Delete', () => {
     state.customTasks = state.customTasks.filter(t => t.id !== id);
     saveCustomTasks();
-    showToast('Task removed from desk', 'info');
+    showToast('Task removed', 'note', { where: true });
     renderPage(state.currentPage);
     updateNavBadges();
   });
@@ -20121,14 +20774,14 @@ function init() {
   // Network connectivity status listeners
   window.addEventListener('online', () => {
     resetPushBackoff();
-    showToast(currentUser ? 'Back online. Cloud sync is on ✓' : 'Back online ✓', 'success');
+    showToast('Back online', 'note', { key: 'note:online', where: true });
     flushPendingSync();
     updateSyncUI();
     flushFeedbackQueue();
     flushUsageQueue();
   });
   window.addEventListener('offline', () => {
-    showToast('You’re offline. Changes are saved on this device.', 'info');
+    showToast('You’re offline', 'note', { key: 'note:online', detail: 'Changes stay on this phone until you’re back' });
     updateSyncUI('offline');
   });
 

@@ -15,7 +15,7 @@
     "test:photo-check": "node tests/verify_scan_photo_check.mjs",
     "test:pwa-smoke": "playwright test tests/pwa-smoke.spec.ts tests/notices-retired.spec.ts tests/paste-circular.spec.ts --project=chromium-desktop",
     "test:onboarding": "playwright test tests/onboarding-tour.spec.ts tests/today-example-day.spec.ts tests/welcome-example-row.spec.ts tests/first-visit.spec.ts --project=chromium-desktop",
-    "test:sync-flows": "playwright test tests/signin-review.spec.ts tests/offline-sync.spec.ts tests/core-flows.spec.ts tests/tasks-long-subjects.spec.ts tests/today-hub.spec.ts tests/last-gaps.spec.ts --project=chromium-desktop",
+    "test:sync-flows": "playwright test tests/signin-review.spec.ts tests/offline-sync.spec.ts tests/core-flows.spec.ts tests/tasks-long-subjects.spec.ts tests/today-hub.spec.ts tests/last-gaps.spec.ts tests/toasts.spec.ts --project=chromium-desktop",
     "test:mobile": "playwright test tests/mobile-layout.spec.ts --project=chromium-mobile",
     "test:smoke": "playwright test tests/post-deploy-smoke.spec.ts --project=chromium-desktop",
     "test:ocr-kit": "node tests/verify_ocr_test_kit.mjs",

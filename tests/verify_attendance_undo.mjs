@@ -38,7 +38,9 @@ globalThis.window = globalThis;
 let undoBtn = null;
 function el(tag) {
   const e = {
-    tagName: tag, id: '', style: {}, children: [], disabled: false, _click: null,
+    tagName: tag, id: '', style: { setProperty() {} }, dataset: {}, children: [], disabled: false, _click: null,
+    append(...cs) { cs.forEach((c) => this.children.push(typeof c === 'string' ? { textContent: c } : c)); },
+    replaceWith() {}, contains: () => false,
     classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     appendChild(c) { this.children.push(c); if (c.className === 'toast-action') undoBtn = c; return c; },
     get lastElementChild() { return this.children[this.children.length - 1] || null; },
@@ -111,6 +113,8 @@ function seed(att) {
   store.cos_custom_timetable = JSON.stringify(TT);
   store.cos_attendance = JSON.stringify(att);
   undoBtn = null; attWrites = 0;
+  // Fake timers never fire here, so close the last toast by hand before the next case.
+  const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; }
 }
 const att = () => JSON.parse(store.cos_attendance || '{}');
 const tapUndo = () => { if (!undoBtn || !undoBtn._click) throw new Error('no Undo button shown'); undoBtn._click(); };
