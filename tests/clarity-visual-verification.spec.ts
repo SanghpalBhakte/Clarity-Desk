@@ -540,6 +540,25 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     await expect(view).toHaveScreenshot('clarity-holiday-briefing-paper-slate-mobile.png', { animations: 'disabled' });
   });
 
+  // The thread: one Undo toast at 390 px. Its countdown line is drawn full
+  // and still (as at the first frame) so the picture does not depend on time.
+  for (const [theme, file] of [['paper-slate', 'toast-thread-paper.png'], ['midnight-ink', 'toast-thread-ink.png']] as const) {
+    test(`toast thread screenshot ${theme}`, async ({ page }) => {
+      await page.setViewportSize(MOBILE);
+      await ensureTheme(page, theme);
+      await page.evaluate(() => {
+        const w = window as any;
+        if (w.toastState && w.toastState.visible) w.closeToast(w.toastState.visible, true);
+        w.showToast('is done', 'done', { item: 'Lab record', detail: 'On this phone only', sticky: true, action: { label: 'Undo', fn: () => {} } });
+        const th = document.querySelector('#toast-container .toast-show .toast-thread') as HTMLElement;
+        if (th) { th.style.animation = 'none'; th.style.display = 'block'; }
+      });
+      const toast = page.locator('#toast-container .toast.toast-show');
+      await expect(toast).toHaveCount(1);
+      await expect(toast).toHaveScreenshot(file, { animations: 'disabled' });
+    });
+  }
+
   test('timetable still preserves full operational class labels where present', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await ensureTheme(page, 'paper-slate');

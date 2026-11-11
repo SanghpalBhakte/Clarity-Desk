@@ -289,6 +289,8 @@ test.describe('toast queue', () => {
     await page.clock.runFor(60000);
     expect(await visibleLine1(page)).toBe('Couldn’t sync');
     await dismiss(page);
+    // The returning toast appears under the resting mouse, which would pause it.
+    await page.mouse.move(1, 1);
     expect(await visibleLine1(page)).toBe('Lab record is done');
     await page.clock.runFor(4900);
     expect(await toastCount(page)).toBe(1);
@@ -612,4 +614,134 @@ test.describe('saved-location line', () => {
       expect(await badgeIcon(page)).toMatch(NO_EMOJI);
     }
   });
+});
+
+// ── The thread look and placement (Task 3) ───────────────────────
+type Box = { x: number; y: number; width: number; height: number };
+const overlaps = (a: Box | null, b: Box | null) => !!a && !!b &&
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+const LONG = 'Engineering Mathematics III tutorial sheet on Laplace transforms and the inverse transform, questions 1 to 14 with the extra problems from the reference book for the internal test';
+const showLong = (page: Page) => page.evaluate((item) => {
+  (window as any).showToast('is done', 'done', { item, sticky: true, action: { label: 'Undo', fn: () => {} } });
+}, LONG);
+const toastBox = (page: Page) => shown(page).boundingBox();
+const atTop = (page: Page) => page.evaluate(() => document.getElementById('toast-container')!.classList.contains('toast-at-top'));
+
+test.describe('toast placement', () => {
+  for (const vp of [{ width: 320, height: 640 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+    test(`does not cover bar or add button at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await openApp(page);
+      await showLong(page);
+      const t = await toastBox(page);
+      for (const sel of ['.bottom-nav', '.fab[data-testid="add-task-button"]']) {
+        const el = page.locator(sel);
+        if (await el.isVisible()) expect(overlaps(t, await el.boundingBox()), sel).toBe(false);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(await atTop(page)).toBe(false);
+    });
+  }
+
+  test('keyboard open moves it up', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'needs a coarse pointer');
+    await openApp(page);
+    const input = page.locator('#quick-add-input:visible').first();
+    await input.focus();
+    const vp = page.viewportSize()!;
+    await page.setViewportSize({ width: vp.width, height: Math.round(vp.height * 0.4) });
+    await page.evaluate(() => window.visualViewport?.dispatchEvent(new Event('resize')));
+    await showLong(page);
+    expect(await atTop(page)).toBe(true);
+    expect(overlaps(await toastBox(page), await input.boundingBox())).toBe(false);
+  });
+
+  test('sheet open moves it up', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openApp(page);
+    await page.evaluate(() => (window as any).fabAction());
+    await expect(page.locator('.modal-backdrop')).toHaveCount(1);
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await showLong(page);
+    expect(await atTop(page)).toBe(true);
+    const submit = page.locator('.modal-backdrop .btn-primary:visible').last();
+    expect(overlaps(await toastBox(page), await submit.boundingBox())).toBe(false);
+  });
+
+  test('closing the sheet puts it back at the bottom', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openApp(page);
+    await page.evaluate(() => (window as any).fabAction());
+    await expect(page.locator('.modal-backdrop')).toHaveCount(1);
+    await page.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove()));
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await showLong(page);
+    expect(await atTop(page)).toBe(false);
+  });
+
+  test('small desktop window with no focus stays at the bottom', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'desktop only');
+    await page.setViewportSize({ width: 900, height: 500 });
+    await openApp(page);
+    await showLong(page);
+    expect(await atTop(page)).toBe(false);
+  });
+
+  test('desktop with a focused input stays at the bottom and clear of it', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'fine pointer only');
+    await openApp(page);
+    const input = page.locator('#quick-add-input:visible').first();
+    await input.focus();
+    await showLong(page);
+    expect(await atTop(page)).toBe(false);
+    expect(overlaps(await toastBox(page), await input.boundingBox())).toBe(false);
+  });
+
+  test('landscape phone with no focus stays at the bottom', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'phone only');
+    await page.setViewportSize({ width: 844, height: 390 });
+    await openApp(page);
+    await showLong(page);
+    expect(await atTop(page)).toBe(false);
+  });
+});
+
+// WCAG relative-luminance contrast, colours read from the rendered toast.
+const CONTRAST_FN = `
+  window.__contrast = (fgEl, bgEl, prop) => {
+    const parse = (c) => { const m = c.match(/[\\d.]+/g).map(Number); return { r: m[0], g: m[1], b: m[2], a: m[3] == null ? 1 : m[3] }; };
+    const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const bg = parse(getComputedStyle(bgEl).backgroundColor);
+    const raw = parse(getComputedStyle(fgEl)[prop || 'color']);
+    const fg = { r: raw.r * raw.a + bg.r * (1 - raw.a), g: raw.g * raw.a + bg.g * (1 - raw.a), b: raw.b * raw.a + bg.b * (1 - raw.a) };
+    const [l1, l2] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+    return (l1 + 0.05) / (l2 + 0.05);
+  };
+`;
+
+test.describe('toast contrast', () => {
+  for (const theme of ['paper-slate', 'midnight-ink']) {
+    test(`contrast in ${theme}`, async ({ page }) => {
+      await openApp(page);
+      await page.evaluate(([th, fn]) => { document.documentElement.dataset.theme = th; eval(fn); }, [theme, CONTRAST_FN]);
+      await page.evaluate(() => (window as any).showToast('is done', 'done', { item: 'Lab record', detail: 'On this phone only', action: { label: 'Undo', fn: () => {} } }));
+      const done = await page.evaluate(() => {
+        const t = document.querySelector('#toast-container .toast.toast-show') as HTMLElement; const c = (window as any).__contrast;
+        return { l1: c(t.querySelector('.toast-line1'), t), l2: c(t.querySelector('.toast-line2'), t), act: c(t.querySelector('.toast-action'), t), thread: c(t.querySelector('.toast-thread'), t, 'backgroundColor') };
+      });
+      expect(done.l1).toBeGreaterThanOrEqual(4.5);
+      expect(done.l2).toBeGreaterThanOrEqual(4.5);
+      expect(done.act).toBeGreaterThanOrEqual(4.5);
+      expect(done.thread).toBeGreaterThanOrEqual(3);
+      await page.evaluate(() => (window as any).showToast('Couldn’t sync to your account', 'fail'));
+      const fail = await page.evaluate(() => {
+        const t = document.querySelector('#toast-container .toast.toast-fail') as HTMLElement; const c = (window as any).__contrast;
+        const em = t.querySelector('.toast-line1 em');
+        return { em: em ? c(em, t) : 0, thread: c(t.querySelector('.toast-thread'), t, 'backgroundColor'), bg: getComputedStyle(t).backgroundColor, l1: c(t.querySelector('.toast-line1'), t) };
+      });
+      expect(fail.em).toBeGreaterThanOrEqual(3);
+      expect(fail.thread).toBeGreaterThanOrEqual(3);
+      expect(fail.l1).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });

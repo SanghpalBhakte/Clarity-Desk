@@ -3899,65 +3899,69 @@ button:disabled {
   z-index: 99999;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 10px;
   pointer-events: none;
-  max-width: 90vw;
+  width: min(420px, calc(100vw - 32px));
+}
+/* A sheet is open, or the keyboard is up: sit below the top bar instead. */
+#toast-container.toast-at-top {
+  bottom: auto;
+  top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 8px);
 }
 
+/* The thread: a quiet slip on the sheet colour, a thin line under the text. */
 .toast {
-  display: inline-flex;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 18px;
-  border-radius: var(--radius-sm, 8px);
-  font-size: 0.85rem;
-  font-weight: 600;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  pointer-events: auto;
-  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  opacity: 0;
-  transform: translateY(12px) scale(0.96);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.toast.toast-show {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.toast.toast-success {
-  background: var(--green);
-  color: var(--text-on-fill);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.toast.toast-error {
-  background: var(--red);
-  color: var(--text-on-fill);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.toast.toast-info {
-  background: var(--surface-3, var(--surface-2));
+  gap: 4px 10px;
+  max-width: 100%;
+  padding: 12px 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--text-primary);
-  border-color: var(--border-btn, var(--border));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
-/* The thread: the countdown line under a toast's text. */
-.toast { position: relative; }
+.toast.toast-show { opacity: 1; transform: none; }
+.toast-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.toast-line1 b { font-weight: 700; }
+.toast-fail .toast-line1 em { font-style: normal; color: var(--color-error); }
+.toast-line2 {
+  margin-top: 2px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.toast-dismiss {
+  flex: none; display: grid; place-items: center;
+  width: 44px; height: 44px; margin: -10px -10px -10px 0;
+  border: 0; background: none; border-radius: var(--radius-xs);
+  color: var(--text-secondary); font: 400 1.25rem/1 var(--font-sans); cursor: pointer;
+}
+.toast-dismiss:hover { color: var(--text-primary); }
 .toast-thread {
-  position: absolute; left: 14px; right: 14px; bottom: 6px; height: 2px; border-radius: 2px;
+  position: absolute; left: 14px; right: 14px; bottom: 7px; height: 2px; border-radius: 2px;
   background: var(--color-action-primary);
   transform-origin: left;
   animation: toast-run var(--toast-ms, 5000ms) linear forwards;
   animation-play-state: var(--toast-play, running);
 }
 .toast-wait .toast-thread { background: var(--color-warning); }
-.toast-fail .toast-thread { background: var(--color-error); animation: none; opacity: 0.55; }
+.toast-fail .toast-thread { background: var(--color-error); animation: none; }
 @keyframes toast-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
+  .toast { transform: none; }
   .toast-thread { animation: none; }
   .toast:not(.toast-fail) .toast-thread { display: none; }
 }
@@ -6406,10 +6410,11 @@ html.more-sheet-open .more-sheet {
 .wa-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
 .toast.toast-has-action { padding-right: 8px; }
 .toast-action {
-  margin-left: 6px; padding: 6px 12px; min-height: 36px; border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.4);
-  color: inherit; font: inherit; font-weight: 700; cursor: pointer;
+  flex: none; min-height: 44px; padding: 0 10px; margin: -10px 0;
+  border: 0; background: none; border-radius: var(--radius-xs);
+  color: var(--color-action-primary); font: 700 0.875rem/1 var(--font-display); cursor: pointer;
 }
+.toast-action:hover { text-decoration: underline; }
 
 /* Celebration card: a calm, slightly larger toast for real milestones. */
 .toast.celebrate-card {
@@ -7967,12 +7972,12 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
   #page-dashboard .desk-greeting-sub { max-width: none; }
 }
 
-/* Phones: toasts sit above the bottom bar instead of over it. */
+/* Phones: toasts sit above the bottom bar and the add button, centred. */
 @media (max-width: 767px) {
   #toast-container {
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
-    left: 12px; right: 12px;
-    max-width: none;
+    bottom: calc(var(--nav-h) + var(--fab-safe) + env(safe-area-inset-bottom, 0px));
+    left: 0; right: 0; margin: 0 auto;
+    width: min(420px, calc(100vw - 24px));
     align-items: stretch;
   }
 }

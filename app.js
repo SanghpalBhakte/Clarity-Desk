@@ -477,10 +477,16 @@ function fillToastEl(t) {
   const line1 = document.createElement('div');
   line1.className = 'toast-line1';
   line1.id = `toast-l1-${t.id}`;
+  const lead = t.kind === 'fail' && !t.item ? t.msg.match(/^(?:Couldn[’']t|Can[’']t) [^\s:.,]+/) : null;
   if (t.item) {
     const b = document.createElement('b');
     b.textContent = t.item;
     line1.append(b, ` ${t.msg}`);
+  } else if (lead) {
+    // A failure's opening words ("Couldn’t sync") take the error colour.
+    const em = document.createElement('em');
+    em.textContent = lead[0];
+    line1.append(em, t.msg.slice(lead[0].length));
   } else {
     line1.textContent = t.msg;
   }
@@ -579,6 +585,36 @@ function showNextToast() {
 
 // Puts a toast on screen. A toast coming back after stepping aside keeps
 // its remaining time and is not announced a second time.
+// Where toasts sit: below the top bar while a sheet is open or the phone
+// keyboard is up (a text field focused on a touch screen, or the visible
+// area much shorter than the window); otherwise at the bottom. If the toast
+// would still cover the focused field or the sheet's main button, it
+// moves to the other edge when that edge is clear.
+function toastHits(a, el) {
+  if (!el) return false;
+  const b = el.getBoundingClientRect();
+  return b.width > 0 && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+function placeToasts() {
+  const c = document.getElementById('toast-container');
+  if (!c || !c.classList || typeof c.classList.toggle !== 'function') return;   // test pages without layout
+  const ae = document.activeElement;
+  const typing = !!(ae && ae.matches && ae.matches('input, textarea, [contenteditable]:not([contenteditable="false"])'));
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const vv = window.visualViewport;
+  const short = !!(vv && vv.height < window.innerHeight * 0.75);
+  const sheet = document.querySelector('.modal-backdrop');
+  const top = !!sheet || (coarse && (typing || short));
+  c.classList.toggle('toast-at-top', top);
+  const el = toastState.visible && toastState.visible.el;
+  if (!el || !el.getBoundingClientRect) return;
+  const avoid = [typing ? ae : null, ...(sheet ? sheet.querySelectorAll('.btn-primary, [type="submit"]') : [])];
+  const covers = () => { const r = el.getBoundingClientRect(); return avoid.some((x) => toastHits(r, x)); };
+  if (!covers()) return;
+  c.classList.toggle('toast-at-top', !top);
+  if (covers()) c.classList.toggle('toast-at-top', top);
+}
+
 function presentToast(t) {
   const container = getToastContainer();
   t.closed = false;
@@ -588,6 +624,7 @@ function presentToast(t) {
   toastState.visible = t;
   void t.el.offsetWidth;   // start the enter transition from the hidden state
   t.el.classList.add('toast-show');
+  placeToasts();
   if (t.steppedAside) {
     t.steppedAside = false;
     t.pauses = new Set(document.hidden ? ['hidden'] : []);
@@ -743,6 +780,15 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (!t) return;
     if (document.hidden) toastPause(t, 'hidden'); else toastResume(t, 'hidden');
   });
+  // Re-place when focus moves, the keyboard opens or closes, or a sheet
+  // (a .modal-backdrop added to <body>) opens or closes.
+  document.addEventListener('focusin', placeToasts);
+  document.addEventListener('focusout', () => setTimeout(placeToasts, 0));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', placeToasts);
+  const watchSheets = () => new MutationObserver(placeToasts).observe(document.body, { childList: true });
+  if (typeof MutationObserver !== 'undefined') {
+    if (document.body) watchSheets(); else document.addEventListener('DOMContentLoaded', watchSheets);
+  }
 }
 
 // A calm "well done" card for real milestones (all tasks done, attendance
