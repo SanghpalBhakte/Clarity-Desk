@@ -1,9 +1,11 @@
 // ==================================================================
-// Clarity Desk: CLASS COUNTDOWN (Today's Next Up / In Session card)
+// Clarity Desk: CLASS COUNTDOWN (Today's day rail: Next / In class rows)
 // ==================================================================
 // v169: the card only knew the time range. It now shows "1h 20m until it
 // starts" / "35 min left in class" (+ a progress line and a "Then ..." line),
-// updated once a minute by tickBeacon().
+// updated once a minute by tickBeacon(). Since the Register day rail, the
+// countdown lives on the rail's Next row ("until it starts") or in the In
+// class row's line ("24 min left"); the rail root carries data-beacon.
 // Locked down here:
 //  - the numbers: whole minutes, never "0 min", 60+ reads "1h 05m";
 //  - the card's state and countdown agree at every boundary minute;
@@ -42,7 +44,7 @@ const domStub = (id) => (domCache[id] ||= { id, style: {}, classList: { add() {}
 let cardStub = null;
 globalThis.document = {
   getElementById: domStub,
-  querySelector: (sel) => (cardStub && sel.includes('.chrono-beacon[data-beacon]') ? cardStub : null),
+  querySelector: (sel) => (cardStub && sel.includes('[data-beacon]') ? cardStub : null),
   querySelectorAll: () => [],
   activeElement: null, hidden: false,
   addEventListener() {}, removeEventListener() {},
@@ -73,7 +75,7 @@ function today(iso) {                       // render Today at a moment, return 
   app.renderDashboard();
   return { app, html: domCache['page-dashboard'].innerHTML };
 }
-const attr = (html, name) => (html.match(new RegExp(`class="chrono-beacon[^>]*\\b${name}="([^"]*)"`)) || [])[1];
+const attr = (html, name) => (html.match(new RegExp(`class="day-rail"[^>]*\\b${name}="([^"]*)"`)) || [])[1];
 const countText = (html) => (html.match(/data-beacon-count>([^<]*)</) || [])[1];
 
 let total = 0, passed = 0; const errors = [];
@@ -103,21 +105,20 @@ check('beaconProgressPct: 0 at start, 50 halfway, 100 at end, clamped, safe on e
   return got === '0,50,100,0,100,0' ? true : got;
 });
 
-check('Before class: Next Up card counts down to the start ("1h 20m until it starts")', () => {
+check('Before class: the Next row counts down to the start ("1h 20m until it starts")', () => {
   const { html } = today('2026-09-29T08:40:00');
   if (attr(html, 'data-beacon') !== 'next') return `state ${attr(html, 'data-beacon')}`;
   if (attr(html, 'data-start') !== '600' || attr(html, 'data-end') !== '720') return `data ${attr(html, 'data-start')}-${attr(html, 'data-end')}`;
   if (countText(html) !== '1h 20m') return `count ${countText(html)}`;
-  return html.includes('until it starts') && !html.includes('chrono-beacon-progress') ? true : 'label/progress wrong';
+  return html.includes('until it starts') && html.includes('rail-row is-next') ? true : 'label/row wrong';
 });
 
-check('In class: counts down to the end, progress line, "Then <next class> at 12:45 PM"', () => {
+check('In class: the row says "In class" and counts down to the end; the next class follows as its own row', () => {
   const { html } = today('2026-09-29T10:25:00');
   if (attr(html, 'data-beacon') !== 'live') return `state ${attr(html, 'data-beacon')}`;
   if (countText(html) !== '1h 35m') return `count ${countText(html)}`;
-  if (!html.includes('left in class')) return 'label';
-  if (!/aria-valuenow="21"[^>]*><span style="width:21%"/.test(html)) return 'progress not 21%';
-  return /Then <strong>Open Elective 2<\/strong> at 12:45 PM · SF-31/.test(html) ? true : '"Then" line missing/wrong';
+  if (!/rail-row is-live[\s\S]*In class · <span data-beacon-count>1h 35m<\/span> left/.test(html)) return 'In class line';
+  return /rail-row is-later[\s\S]*Open Elective 2/.test(html) ? true : 'next class row missing';
 });
 
 check('Boundary minutes: 09:59 = "1 min" until start, 10:00 = in class, 11:59 = "1 min" left, 12:00 = between classes', () => {
@@ -129,9 +130,9 @@ check('Boundary minutes: 09:59 = "1 min" until start, 10:00 = in class, 11:59 = 
   return attr(d, 'data-beacon') === 'next' && countText(d) === '45 min' ? true : `12:00 → ${attr(d, 'data-beacon')} ${countText(d)}`;
 });
 
-check('Last class has no "Then" line; finished day and rest day carry no countdown', () => {
+check('Last class has no Next row; finished day and rest day carry no countdown', () => {
   const last = today('2026-09-29T13:00:00').html;
-  if (attr(last, 'data-beacon') !== 'live' || last.includes('chrono-beacon-then')) return 'last class shows a Then line';
+  if (attr(last, 'data-beacon') !== 'live' || last.includes('rail-row is-next')) return 'last class shows a Next row';
   const done = today('2026-09-29T15:30:00').html, free = today('2026-09-27T11:00:00').html;   // Sunday
   return !done.includes('data-beacon') && !free.includes('data-beacon') && !done.includes('data-beacon-count') ? true : 'countdown on a finished/free card';
 });
@@ -141,7 +142,7 @@ check('A class with no end time gets no countdown or progress (nothing to count 
   store.cos_custom_timetable = JSON.stringify({ 0: [], 1: [], 2: [{ subject: 'Seminar', code: 'SEM', time: '10:00', type: 'lecture' }], 3: [], 4: [], 5: [], 6: [] });
   const app = makeApp(); app.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  return html.includes('In Session') && !html.includes('data-beacon') && !html.includes('chrono-beacon-progress') ? true : 'countdown/progress shown without an end time';
+  return html.includes('>In class<') && !html.includes('data-beacon') ? true : 'countdown shown without an end time';
 });
 
 // ── Look-ahead: what the card says when today has nothing left ─────────
@@ -205,10 +206,10 @@ function tickAt(iso, kind, start, end, opts = {}) {
   return { num, bar, rebuilt: domCache['page-dashboard'].innerHTML !== 'UNTOUCHED', html: domCache['page-dashboard'].innerHTML };
 }
 
-check('tick mid-class: only the number and the bar change, Today is NOT rebuilt', () => {
+check('tick mid-class: only the number changes, Today is NOT rebuilt', () => {
   const t = tickAt('2026-09-29T10:30:00', 'live', 600, 720);
-  return !t.rebuilt && t.num.textContent === '1h 30m' && t.bar.firstElementChild.style.width === '25%' && t.bar.attrs['aria-valuenow'] === '25'
-    ? true : `rebuilt=${t.rebuilt} num=${t.num.textContent} width=${t.bar.firstElementChild.style.width}`;
+  return !t.rebuilt && t.num.textContent === '1h 30m'
+    ? true : `rebuilt=${t.rebuilt} num=${t.num.textContent}`;
 });
 
 check('tick before class: countdown text updates, Today is NOT rebuilt', () => {
@@ -216,12 +217,12 @@ check('tick before class: countdown text updates, Today is NOT rebuilt', () => {
   return !t.rebuilt && t.num.textContent === '45 min' ? true : `rebuilt=${t.rebuilt} num=${t.num.textContent}`;
 });
 
-check('tick at the start minute: Next Up card is rebuilt into In Session (once)', () => {
+check('tick at the start minute: the Next row is rebuilt into In class (once)', () => {
   const t = tickAt('2026-09-29T10:00:00', 'next', 600, 720);
   return t.rebuilt && attr(t.html, 'data-beacon') === 'live' ? true : `rebuilt=${t.rebuilt} state=${attr(t.html, 'data-beacon')}`;
 });
 
-check('tick at the end minute: In Session card is rebuilt into the next state', () => {
+check('tick at the end minute: the In class row is rebuilt into the next state', () => {
   const t = tickAt('2026-09-29T12:00:00', 'live', 600, 720);
   return t.rebuilt && attr(t.html, 'data-beacon') === 'next' && attr(t.html, 'data-start') === '765' ? true : `rebuilt=${t.rebuilt} state=${attr(t.html, 'data-beacon')}`;
 });

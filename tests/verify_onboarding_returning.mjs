@@ -144,7 +144,7 @@ check('With a timetable: no repeated stat tiles, the schedule shows, and the nam
   seed(RETURNING['a saved timetable']); const app = makeApp(); app.state.currentPage = 'dashboard'; app.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
   if (html.includes('vitals-strip')) return 'stat tiles are back (they only repeated the sections below)';
-  if (!html.includes("Today's Schedule") || !html.includes('Attendance') || !html.includes('Tasks &amp; Deadlines')) return 'a Today section is missing';
+  if (!html.includes('>Your day<') || !html.includes('Attendance') || !html.includes('>Due<')) return 'a Today section is missing';
   if (html.includes("Have a timetable?")) return 'still asking to scan';
   return html.includes('What should we call you?') ? true : 'name ask missing after timetable';
 });

@@ -207,7 +207,7 @@ check('Today: holiday banner with End early, quiet empty state, no class names o
   const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
   const ok = html.includes('holiday-banner') && html.includes('Holiday mode') && html.includes('Back on 3 Nov') && html.includes('15 days to go') && html.includes('endHolidayEarly()') && html.includes('End early')
-    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title"[^>]*>Today's Schedule/.test(html)
+    && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title[^"]*"[^>]*>Your day/.test(html)
     && !html.includes('Data Structures') && !html.includes('data-beacon=') && !html.includes('classes remaining')
     && !html.includes('today-focus is-unmarked') && !html.includes('today-focus is-risk');
   return ok ? true : 'holiday Today markup wrong';

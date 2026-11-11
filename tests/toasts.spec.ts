@@ -919,7 +919,7 @@ test.describe('voice', () => {
     // Mark a class Present when one is on Today.
     await run(page, `navigateTo('dashboard')`);
     await page.evaluate(() => {
-      const b = [...document.querySelectorAll('.beacon-att')].find((x) => /Present/.test(x.textContent || '') && (x as HTMLElement).offsetParent) as HTMLElement | undefined;
+      const b = [...document.querySelectorAll('.rail-att')].find((x) => /Present/.test(x.textContent || '') && (x as HTMLElement).offsetParent) as HTMLElement | undefined;
       if (b) b.click();
     });
     await page.clock.runFor(13000);

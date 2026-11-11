@@ -8564,7 +8564,7 @@ function findNextClassDay(tt, fromDayIdx) {
 function tickBeacon() {
   if (typeof state === 'undefined' || state.currentPage !== 'dashboard') return;
   if (refreshIfDayChanged()) return;
-  const card = document.querySelector('#page-dashboard .chrono-beacon[data-beacon]');
+  const card = document.querySelector('#page-dashboard [data-beacon]');
   if (!card) return;
   const kind = card.dataset.beacon;
   const startMin = Number(card.dataset.start);
@@ -9278,6 +9278,85 @@ function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead
           : `<div class="day-bar-done">${icons.check()} Day marked. Books down, feet up.</div>`}
         ${lookAhead ? `<div class="chrono-beacon-then day-bar-next">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>` : ''}
       </div>`;
+  } catch (e) {
+    return '';
+  }
+}
+
+// ── Day rail (Today) ────────────────────────────────────────────────────
+// The day's classes on one time column. Each row says its state in words
+// (Next, In class, Ended, Marked present); marigold only repeats it. Ended
+// and current classes mark in place through setAttendance. Display only
+// otherwise. The rail root carries data-beacon so tickBeacon updates the
+// countdown each minute and rebuilds Today at a class boundary.
+const RAIL_MAX_ROWS = 6;
+function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx }) {
+  try {
+    const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const marks = attendanceData[dateStr] || {};
+    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const all = dayClasses.map((c, i) => {
+      const from = timeToMinutes(c.time || '00:00');
+      const to = c.end ? timeToMinutes(c.end) : null;
+      const key = attendanceKeyFor(c);
+      const status = marks[key] || 'unset';
+      const ended = to !== null && currentMin >= to;
+      const state = c === activeClass ? 'live' : c === nextClass ? 'next' : ended ? 'ended' : 'later';
+      return { c, i, from, to, key, status, state };
+    });
+    if (!all.length) return '';
+    // Up to six rows, most urgent first (ended but unmarked, now, next,
+    // later, then ended and marked), shown in time order.
+    const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
+    const shown = all.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, RAIL_MAX_ROWS)
+      .sort((a, b) => a.from - b.from || a.i - b.i);
+    const more = all.length - shown.length;
+    const sameTime = (x) => shown.some(y => y !== x && y.from === x.from);
+
+    const markButtons = (x) => {
+      const name = attrSafe(x.c.subject);
+      const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${val === 'attended' ? 'attended' : 'skipped'}" data-key="${attrSafe(x.key)}" onclick="setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
+      return `<div class="rail-marks" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}${attStatusChipHTML(x.status)}</div>`;
+    };
+    const metaOf = (x) => {
+      const bits = [];
+      if (x.state === 'live') bits.push(x.to !== null ? `In class · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : 'In class');
+      else if (x.state === 'next') bits.push('Next');
+      else if (x.state === 'ended') bits.push(x.status === 'attended' ? 'Marked present' : x.status === 'skipped' ? 'Marked absent' : ATT_STATUS_LABEL[x.status] ? 'Marked' : 'Ended · not marked');
+      if (x.c.room) bits.push(escHtml_cd(x.c.room));
+      else if (x.c.type && x.state !== 'live') bits.push(escHtml_cd(String(x.c.type).charAt(0).toUpperCase() + String(x.c.type).slice(1)));
+      if (sameTime(x)) bits.push('same time');
+      return bits.join(' · ');
+    };
+    const rowHTML = (x) => `
+      <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}">
+        <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
+        <span class="rail-body">
+          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="Open Subject Hub">${escHtml_cd(x.c.subject)}</button>
+          <span class="rail-meta">${metaOf(x)}</span>
+        </span>
+        ${x.state === 'next' ? `<span class="rail-count"><b data-beacon-count>${formatCountdown(x.from - currentMin)}</b><span>until it starts</span></span>` : ''}
+        ${x.state === 'ended' || x.state === 'live' ? markButtons(x) : ''}
+      </li>`;
+    // The "now" line sits before the first class still to start. During a
+    // class the row itself says "In class", so no line is drawn.
+    const live = shown.find(x => x.state === 'live');
+    const nowAt = live ? -1 : shown.findIndex(x => x.from > currentMin);
+    const nowLine = `<li class="rail-now" aria-hidden="true"><span>${formatDisplayTime(hhmm(Math.min(currentMin, 1439)))}</span><i></i></li>`;
+    const rows = shown.map((x, k) => (k === nowAt ? nowLine : '') + rowHTML(x)).join('') + (!live && nowAt === -1 ? nowLine : '');
+
+    const beaconAttrs = activeClass && activeClass.end
+      ? ` data-beacon="live" data-start="${timeToMinutes(activeClass.time || '00:00')}" data-end="${timeToMinutes(activeClass.end)}"`
+      : nextClass ? ` data-beacon="next" data-start="${timeToMinutes(nextClass.time || '00:00')}" data-end="${timeToMinutes(nextClass.end || '23:59')}"` : '';
+    const unmarked = [...new Set(all.filter(x => x.state === 'ended' && x.status === 'unset').map(x => x.key))].length;
+    const over = !activeClass && !nextClass;
+    const allMarked = over && all.every(x => x.state !== 'ended' || x.status !== 'unset');
+    return `
+      <ol class="day-rail" aria-label="Your classes today"${beaconAttrs}>${rows}</ol>
+      ${unmarked >= 2 ? `<button type="button" class="rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
+      ${more > 0 ? `<button type="button" class="dash-more-link" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${more} more class${more !== 1 ? 'es' : ''} →</button>` : ''}
+      ${over && allMarked ? `<p class="rail-then">${icons.check()} Day marked. Books down, feet up.</p>` : ''}
+      ${over && lookAhead ? `<p class="rail-then">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</p>` : ''}`;
   } catch (e) {
     return '';
   }
@@ -11465,21 +11544,7 @@ function renderDashboard() {
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
   const iconText = (svgIcon, text) => `<span style="display:inline-flex;align-items:center;gap:5px">${svgIcon}${text}</span>`;
 
-  // Signature Chrono Beacon (Active lecture, next slot, day complete, or free day)
-  // Countdown numbers (whole minutes, same clock as the state test above).
-  const liveStartMin = activeClass ? timeToMinutes(activeClass.time || '00:00') : 0;
-  const liveEndMin   = activeClass ? timeToMinutes(activeClass.end || '23:59') : 0;
-  const liveHasEnd   = !!(activeClass && activeClass.end);
-  const livePct      = liveHasEnd ? beaconProgressPct(liveStartMin, liveEndMin, currentMin) : 0;
-  const nextStartMin = nextClass ? timeToMinutes(nextClass.time || '00:00') : 0;
-  const upNextClass  = activeClass
-    ? dayClasses.find(c => c !== activeClass && timeToMinutes(c.time || '00:00') >= liveEndMin)
-    : null;
-
   const lookAhead = (!activeClass && !nextClass) ? findNextClassDay(liveTT, dayIdx) : null;
-  const lookAheadHTML = lookAhead
-    ? `<div class="chrono-beacon-then">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>`
-    : '';
 
   // First day after a break: one calm card until "Got it".
   let welcomeBackHTML = '';
@@ -11500,7 +11565,6 @@ function renderDashboard() {
   }
 
   let beaconHTML = '';
-  let dayBarOn = false;
   if (onHoliday) {
     const daysLeft = holidayDaysLeft();
     beaconHTML = `
@@ -11513,69 +11577,10 @@ function renderDashboard() {
         </div>
         <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="endHolidayEarly()">End early</button>
       </div>`;
-  } else if (activeClass) {
-    const classKey = attendanceKeyFor(activeClass);
-    const status = attendanceData[dateStr]?.[classKey] || 'unset';
-    const liveStanding = standingForClass(activeClass);
-    beaconHTML = `
-      <div class="chrono-beacon is-live" role="region" aria-label="Current class in session"${liveHasEnd ? ` data-beacon="live" data-start="${liveStartMin}" data-end="${liveEndMin}"` : ''}>
-        <div class="chrono-beacon-main">
-          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">In Session</span></div>
-          <div class="chrono-beacon-title" role="button" tabindex="0" onclick="openSubjectHub(${jsArg_cd(activeClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
-            ${escHtml_cd(activeClass.subject)}
-          </div>
-          <div class="chrono-beacon-meta">
-            ${activeClass.room ? `<span>${escHtml_cd(activeClass.room)}</span>` : ''}
-            ${activeClass.teacher ? `<span>${escHtml_cd(formatTeacherName(activeClass.teacher))}</span>` : ''}
-            ${liveStanding ? `<span class="chrono-beacon-standing">${escHtml_cd(liveStanding)}</span>` : ''}
-          </div>
-          ${upNextClass ? `<div class="chrono-beacon-then">Then <strong>${escHtml_cd(upNextClass.subject)}</strong> at ${formatDisplayTime(upNextClass.time)}${upNextClass.room ? ` · ${escHtml_cd(upNextClass.room)}` : ''}</div>` : ''}
-        </div>
-        ${liveHasEnd ? `<div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(liveEndMin - currentMin)}</span><span class="chrono-beacon-count-label">left in class</span></div>` : ''}
-        <div class="chrono-beacon-actions">
-          <button class="btn beacon-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Present, mark ${escHtml_cd(activeClass.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">
-            ${icons.check()}<span>Present</span>
-          </button>
-          <button class="btn beacon-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Absent, mark ${escHtml_cd(activeClass.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">
-            ${icons.x()}<span>Absent</span>
-          </button>
-          ${attStatusChipHTML(status)}
-        </div>
-        ${liveHasEnd ? `<div class="chrono-beacon-progress" data-beacon-bar role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${livePct}"><span style="width:${livePct}%"></span></div>` : ''}
-      </div>`;
-  } else if (nextClass) {
-    beaconHTML = `
-      <div class="chrono-beacon" role="region" aria-label="Next upcoming class" data-beacon="next" data-start="${nextStartMin}" data-end="${timeToMinutes(nextClass.end || '23:59')}">
-        <div class="chrono-beacon-main">
-          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Next class</span><span class="chrono-beacon-time">${formatDisplayTime(nextClass.time)}</span></div>
-          <div class="chrono-beacon-title" role="button" tabindex="0" onclick="openSubjectHub(${jsArg_cd(nextClass.subject)})" style="cursor:pointer" title="Open Subject Hub">
-            ${escHtml_cd(nextClass.subject)}
-          </div>
-          <div class="chrono-beacon-meta">
-            ${nextClass.room ? `<span>${escHtml_cd(nextClass.room)}</span>` : ''}
-            ${nextClass.teacher ? `<span>${escHtml_cd(formatTeacherName(nextClass.teacher))}</span>` : ''}
-          </div>
-        </div>
-        <div class="chrono-beacon-count"><span class="chrono-beacon-count-num" data-beacon-count>${formatCountdown(nextStartMin - currentMin)}</span><span class="chrono-beacon-count-label">until it starts</span></div>
-      </div>`;
-  } else if (dayClasses.length > 0 && classesLeftCount === 0) {
-    // Classes are over: the day bar (mark by tapping a class) plus the look-ahead.
-    beaconHTML = dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead });
-    dayBarOn = !!beaconHTML;
-    if (!beaconHTML && lookAheadHTML) {
-      beaconHTML = `
-      <div class="chrono-beacon is-finished" role="region" aria-label="Classes completed for today">
-        <div class="chrono-beacon-main">
-          <div class="chrono-beacon-head"><span class="chrono-beacon-badge">Classes are over</span></div>
-          ${lookAheadHTML}
-        </div>
-      </div>`;
-    }
-  } else {
-    // No timetable: the setup card is the one prompt. No classes today: the
-    // Schedule panel says so and carries the look-ahead, so no card here.
-    beaconHTML = '';
   }
+  // Classes live on the day rail (Your day); the card above is only for a holiday.
+  const railHTML = onHoliday ? '' : dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx });
+  const classesOver = !onHoliday && dayClasses.length > 0 && !activeClass && !nextClass;
 
   // Setup card: one ask at a time. No timetable yet = one big button (photo
   // or typing is picked in the next dialog) and a quiet self-study link.
@@ -11647,7 +11652,7 @@ function renderDashboard() {
       <li class="stale-row">
         <button type="button" class="stale-open" data-task="${escAttr_cd(t.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
           <span class="stale-title">${escHtml_cd(t.title)}</span>
-          <span class="stale-meta">${escHtml_cd(t.subject || 'General')} · was due ${formatDate(t.dueDate)}</span>
+          <span class="stale-meta">${t.subject && t.subject !== 'General' ? `${escHtml_cd(t.subject)} · ` : ''}was due ${formatDate(t.dueDate)}</span>
         </button>
         <span class="stale-row-acts" role="group" aria-label="Sort out ${escAttr_cd(t.title)}">
           <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(t.id)}" onclick="${own ? 'resolveTask(this.dataset.id, { done: true })' : 'toggleAssignment(this.dataset.id)'}">Done</button>
@@ -11662,10 +11667,10 @@ function renderDashboard() {
         <span class="stale-what"><strong>${staleTasks.length} older task${staleTasks.length !== 1 ? 's' : ''}</strong> ${staleTasksSpan(staleTasks)}</span>
         <span class="stale-acts">
           <button type="button" class="stale-toggle" aria-expanded="${staleTasksOpen}" aria-controls="stale-list" onclick="toggleStaleTasks()">${staleTasksOpen ? 'Hide' : 'Look through'}</button>
-          ${staleOwn.length ? `<button type="button" class="stale-all" onclick="resolveStaleTasks()">Mark all done</button>` : ''}
         </span>
       </div>
       <ul id="stale-list" class="stale-list"${staleTasksOpen ? '' : ' hidden'}>${staleTasksOpen ? staleTasks.map(staleRowHTML).join('') : ''}</ul>
+      ${staleTasksOpen && staleOwn.length > 1 ? `<p class="stale-bulk">Finished these already? <button type="button" class="stale-all" onclick="resolveStaleTasks()">Mark these ${staleOwn.length} done</button></p>` : ''}
     </div>` : '';
 
   // Attendance panel: the big number plus ONE sentence (it replaces the
@@ -11692,26 +11697,21 @@ function renderDashboard() {
     }
   }
 
-  const focusOut = {};
-  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks, out: focusOut, skipUnmarked: dayBarOn });
-  // The class card already shows this class; phones leave it out of the list below.
+  // Counts that haven't moved in three weeks say so, so the sentence above
+  // never sounds surer than the data behind it. Display only.
+  let attStaleNote = '';
+  if (hasAttendanceData && !onHoliday && attendancePct !== null) {
+    const markedDays = Object.keys(attendanceData).filter(d => attendanceData[d] && Object.keys(attendanceData[d]).length).sort();
+    const lastMarked = markedDays[markedDays.length - 1];
+    const ago = lastMarked ? dueDaysLeft(lastMarked) : null;
+    if (!lastMarked && hasBaselinesConfigured) attStaleNote = 'From your portal counts. Mark classes from today to keep it current.';
+    else if (ago !== null && ago < -21) attStaleNote = `Last marked on ${formatDate(lastMarked)}. Mark your classes to keep this current.`;
+  }
+
+  // The next-step line now only carries the attendance warning for one
+  // subject: classes mark on the rail and late tasks sort out in their row.
+  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks: [], skipUnmarked: true });
   const heroClass = activeClass || nextClass;
-  // Up to 4 classes, picked most urgent first (ended but unmarked, now,
-  // coming up, then ended and marked) and listed in time order. The rest
-  // are one tap away in the Timetable. Display only: nothing is saved.
-  const slotRank = (c) => {
-    if (currentMin >= timeToMinutes(c.end || '23:59')) {
-      return (attendanceData[dateStr]?.[attendanceKeyFor(c)] || 'unset') === 'unset' ? 0 : 3;
-    }
-    return currentMin >= timeToMinutes(c.time || '00:00') ? 1 : 2;
-  };
-  const shownClasses = dayClasses
-    .map((c, i) => ({ c, i, r: slotRank(c) }))
-    .sort((a, b) => a.r - b.r || a.i - b.i)
-    .slice(0, 4)
-    .sort((a, b) => a.i - b.i)
-    .map(x => x.c);
-  const moreClasses = dayClasses.length - shownClasses.length;
 
   // Shortcuts follow the day: the subject of the class now or next comes
   // first, then the subject of the top task, then the rest in saved order.
@@ -11731,9 +11731,9 @@ function renderDashboard() {
     .map(x => x.s);
   const moreLinks = allQuickLinks.length - quickLinksPreview.length;
 
-  // With the day bar up, the line under the greeting points at it instead of
-  // saying "no tasks pending" while classes still wait to be marked.
-  const greetingSub = dayBarOn && endedUnmarkedClassKeys(dateStr).length
+  // Once classes are over, the line under the greeting points at the
+  // unmarked ones instead of saying "no tasks pending".
+  const greetingSub = classesOver && endedUnmarkedClassKeys(dateStr).length
     ? `Mark today, then the evening's yours.${pending > 0 ? ` ${pending} task${pending !== 1 ? 's' : ''} pending.` : ''}`
     : contextLine;
 
@@ -11742,7 +11742,7 @@ function renderDashboard() {
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
-          <div class="desk-date">${onboardingDateLine(now, '')}</div>
+          <div class="desk-date"><span class="desk-dnum" aria-hidden="true">${now.getDate()}</span><span class="desk-dday"><span class="sr-only">${now.getDate()} </span>${now.toLocaleDateString('en-GB', { weekday: 'long' })} · ${now.toLocaleDateString('en-GB', { month: 'long' })}</span></div>
           <div class="desk-greeting">${askName ? `Hey there.` : greeting}</div>
           ${askName ? `
           <div class="greet-ask">
@@ -11779,50 +11779,22 @@ function renderDashboard() {
       <!-- LEFT COLUMN: WORKBENCH -->
       <div class="dashboard-left">
         <!-- SCHEDULE LEDGER -->
-        <div class="dashboard-panel"${hideSchedulePanel || dayBarOn ? ' style="display:none"' : ''}>
+        <div class="dashboard-panel"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
-            <div class="panel-title" role="heading" aria-level="2">Today's Schedule ${dayClasses.length > 0 ? `<span style="font-size:var(--text-2xs);font-weight:500;color:var(--text-muted);margin-left:4px;letter-spacing:0;text-transform:none">${classesLeftCount}/${dayClasses.length} left</span>` : ''}</div>
-            <button class="panel-action" onclick="navigateTo('timetable')">Full timetable →</button>
+            <div class="panel-title is-label" role="heading" aria-level="2">Your day</div>
+            <button class="panel-action" onclick="navigateTo('timetable')">Timetable →</button>
           </div>
-          <!-- Open ledger: no card box -->
-          ${dayClasses.length > 0 ? `
-            <div class="schedule-ledger">
-              ${shownClasses.map(c => {
-                const classKey = attendanceKeyFor(c);
-                const status = attendanceData[dateStr]?.[classKey] || 'unset';
-                const isNow = (currentMin >= timeToMinutes(c.time || '00:00') && currentMin < timeToMinutes(c.end || '23:59'));
-                const isPast = (currentMin >= timeToMinutes(c.end || '23:59'));
-                // The next-step row above marks this class, so no second set of buttons here.
-                const markedAbove = isPast && status === 'unset' && classKey === focusOut.markKey;
-                return `
-                  <div class="schedule-slot ${isNow ? 'is-now' : ''} ${isPast ? 'is-past' : ''}${isPast && status === 'unset' && !markedAbove ? ' needs-mark' : ''}${c === heroClass ? ' is-in-hero' : ''}">
-                    <div class="schedule-slot-time">${formatDisplayTimeRange(c.time, c.end)}</div>
-                    <div class="schedule-slot-info" role="button" tabindex="0" style="flex:1;min-width:100px;cursor:pointer" onclick="openSubjectHub(${jsArg_cd(c.subject)})">
-                      <div class="schedule-slot-title">${escHtml_cd(c.subject)}</div>
-                      <div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:1px">${c.room ? escHtml_cd(c.room) + ' · ' : ''}${c.teacher ? escHtml_cd(formatTeacherName(c.teacher)) + ' · ' : ''}${c.type || 'lecture'}</div>
-                    </div>
-                    ${isPast && !markedAbove ? `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                      <button class="btn btn-xs slot-att is-present ${status==='attended'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='attended'}" aria-label="Present, mark ${escHtml_cd(c.subject)} as attended" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')">Present</button>
-                      <button class="btn btn-xs slot-att ${status==='skipped'?'btn-primary':'btn-secondary'}" aria-pressed="${status==='skipped'}" aria-label="Absent, mark ${escHtml_cd(c.subject)} as skipped" onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')">Absent</button>
-                      ${attStatusChipHTML(status)}
-                    </div>` : isNow ? `<span class="schedule-slot-now">Now</span>` : ''}
-                  </div>`;
-              }).join('')}
-              ${dayClasses.length === 1 && heroClass ? `<div class="schedule-hero-note">Your only class today is shown above.</div>` : ''}
-              ${moreClasses > 0 ? `<button type="button" class="dash-more-link" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${moreClasses} more class${moreClasses !== 1 ? 'es' : ''} →</button>` : ''}
-            </div>
-          ` : `
-            <div class="empty-state-card">
-              <span class="empty-state-icon">${icons.sun()}</span>
+          ${railHTML || `
+            <div class="rail-empty">
               ${onHoliday ? `
-                <div class="empty-state-title">No classes during your break</div>
-                <div class="empty-state-desc">Your timetable is saved and comes back when you resume classes.</div>
+                <strong>No classes during your break.</strong>
+                <span>Your timetable is saved and comes back when you resume classes.</span>
               ` : !isCustomTimetableActive() ? `
-                <div class="empty-state-title">No timetable set up yet</div>
-                <div class="empty-state-desc">Your classes for today will show here once your timetable is added.</div>
+                <strong>Your classes will line up here.</strong>
+                <span>They show once your timetable is added.</span>
               ` : `
-                <div class="empty-state-title">No classes today</div>
-                ${lookAhead ? `<div class="empty-state-desc">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>` : ''}
+                <strong>No classes today.</strong>
+                ${lookAhead ? `<span>Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</span>` : ''}
               `}
             </div>
           `}
@@ -11831,7 +11803,7 @@ function renderDashboard() {
         <!-- TASKS & DEADLINES -->
         <div class="dashboard-panel">
           <div class="panel-header">
-            <div class="panel-title" role="heading" aria-level="2">Tasks &amp; Deadlines</div>
+            <div class="panel-title is-label" role="heading" aria-level="2">Due</div>
             <div style="display:flex;align-items:center;gap:10px">
               ${urgentTasks.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
               <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
@@ -11846,20 +11818,38 @@ function renderDashboard() {
               const rel = isOngoing ? { label: 'Ongoing', cls: 'ongoing' } : formatRelativeDueDate(a.dueDate);
               const done = a.status === 'submitted';
               const pCls = a.priority === 'high' ? 'priority-high' : a.priority === 'medium' ? 'priority-medium' : 'priority-low';
+              // No filler subject: "General" (or none) is left out of the line.
+              const realSubject = a.subject && a.subject !== 'General' ? a.subject : '';
+              const step = typeof a.firstStep === 'string' ? a.firstStep.trim() : '';
+              const daysLeft = isOngoing ? null : dueDaysLeft(a.dueDate);
+              const metaBits = [
+                realSubject ? `<span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(realSubject)}</span>` : '',
+                step && daysLeft !== null && daysLeft <= 2 && daysLeft >= 0 ? `<span>Start: ${escHtml_cd(step)}</span>` : '',
+                isOngoing ? '' : `<span>${formatDate(a.dueDate)}</span>`
+              ].filter(Boolean);
+              // A recently slipped task of the student's own sorts out in its row:
+              // Done / Tomorrow / Pick a day, each with Undo (resolveTask).
+              const canFix = !done && daysLeft !== null && daysLeft < 0 && state.customTasks.some(x => x.id === a.id);
+              const fixHTML = canFix ? `
+                <div class="due-fix" role="group" aria-label="Sort out ${escAttr_cd(a.title)}">
+                  <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="resolveTask(this.dataset.id, { done: true })">Done</button>
+                  <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
+                  <button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Pick a day</button>
+                  <input type="date" class="today-focus-date" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
+                </div>` : '';
               return `
-                <div class="task-ledger-item ${pCls}">
+                <div class="task-ledger-item ${pCls}${canFix ? ' has-fix' : ''}">
                   <div class="task-checkbox ${done ? 'checked' : ''}" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}" title="Mark completed">
                     ${done ? icons.check() : ''}
                   </div>
                   <div style="flex:1;min-width:0;cursor:pointer" data-task="${escAttr_cd(a.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
                     <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${escHtml_cd(a.title)}</div>
                     <div class="task-ledger-meta" style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
-                      <span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(a.subject || 'General')}</span>
-                      ${isOngoing ? '' : `<span>·</span>
-                      <span>${formatDate(a.dueDate)}</span>`}
+                      ${metaBits.join('<span aria-hidden="true">·</span>')}
                     </div>
                   </div>
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
+                  ${fixHTML}
                 </div>`;
             }).join('') : staleTasks.length ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
@@ -11901,7 +11891,7 @@ function renderDashboard() {
               return attendancePct !== null ? (dashGuidance.isSafe ? `Aim ${attTarget}% · on track` : `Aim ${attTarget}% · below it`) : 'is your line';
             })()}</div>
             <!-- The bar with a notch at the target: the line to stay above. -->
-            <div class="att-gauge" style="margin-top:10px">
+            <div class="att-gauge" style="margin-top:10px" aria-hidden="true">
               <div class="att-bar-wrap">
                 <div class="att-bar-seg att-seg-present" style="width:${totalMarked > 0 ? Math.round((totalAttended/totalMarked)*100) : 0}%"></div>
                 <div class="att-bar-seg att-seg-absent" style="width:${totalMarked > 0 ? Math.round((totalSkipped/totalMarked)*100) : 0}%"></div>
@@ -11911,6 +11901,7 @@ function renderDashboard() {
             </div>
             ${attendancePct !== null ? `
               <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
+              ${attStaleNote ? `<div class="att-stale-note">${attStaleNote}</div>` : ''}
             ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
           </div>`}
         </div>

@@ -49,17 +49,20 @@ test('with only older tasks late, the headline talks about the day', async ({ pa
   await expect(page.locator('#page-dashboard .desk-greeting-sub')).toHaveText('2 classes today, first at 9:00 AM.');
 });
 
-test('"Look through" lists older tasks; Done closes one with Undo, Mark all done closes the rest', async ({ page }) => {
+test('"Look through" lists older tasks; Done closes one, and "Mark these N done" only appears inside the open list, with Undo', async ({ page }) => {
   const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  await seed(page, { cos_custom_tasks: [task('old-1', 'DBMS assignment', inDays(-40)), task('old-2', 'Revise trees', inDays(-39)), task('soon-1', 'CN worksheet', inDays(2))] }, true);
+  await seed(page, { cos_custom_tasks: [task('old-1', 'DBMS assignment', inDays(-40)), task('old-2', 'Revise trees', inDays(-39)), task('old-3', 'Read chapter 4', inDays(-38)), task('soon-1', 'CN worksheet', inDays(2))] }, true);
   const today = page.locator('#page-dashboard');
-  const toggle = today.getByRole('button', { name: 'Look through' });
-  await toggle.click();
+  // Collapsed: no bulk action next to the summary.
+  await expect(today.getByRole('button', { name: /^Mark (all|these)/ })).toHaveCount(0);
+  await today.getByRole('button', { name: 'Look through' }).click();
   const list = today.locator('#stale-list');
   await expect(list).toBeVisible();
   await expect(today.locator('.stale-toggle')).toHaveAttribute('aria-expanded', 'true');
-  await expect(list.locator('.stale-row')).toHaveCount(2);
+  await expect(list.locator('.stale-row')).toHaveCount(3);
   await expect(list.locator('.stale-row').first()).toContainText('was due');
+  // "General" is a filler subject, so the row leaves it out.
+  await expect(list.locator('.stale-row').first()).not.toContainText('General');
 
   // A person's pace: renderPage skips a second render inside 50 ms (double-tap guard).
   const pause = () => page.waitForTimeout(120);
@@ -67,16 +70,18 @@ test('"Look through" lists older tasks; Done closes one with Undo, Mark all done
   await list.locator('.stale-row', { hasText: 'DBMS assignment' }).getByRole('button', { name: 'Done' }).click();
   // Closed; past 14 days, the existing rule also clears it from the list.
   expect(await statusOf(page, 'old-1')).not.toBe('pending');
-  await expect(today.locator('.stale-line')).toContainText('1 older task from');
+  await expect(today.locator('.stale-line')).toContainText('2 older tasks from');
 
   await pause();
-  await today.getByRole('button', { name: 'Mark all done' }).click();
+  await today.getByRole('button', { name: 'Mark these 2 done' }).click();
   expect(await statusOf(page, 'old-2')).not.toBe('pending');
+  expect(await statusOf(page, 'old-3')).not.toBe('pending');
   await expect(today.locator('.stale-tasks')).toHaveCount(0);
   await pause();
-  await page.locator('.toast', { hasText: '1 older task marked done' }).getByRole('button', { name: 'Undo' }).click();
+  await page.locator('.toast', { hasText: '2 older tasks marked done' }).getByRole('button', { name: 'Undo' }).click();
   expect(await statusOf(page, 'old-2')).toBe('pending');
-  await expect(today.locator('.stale-line')).toContainText('1 older task');
+  expect(await statusOf(page, 'old-3')).toBe('pending');
+  await expect(today.locator('.stale-line')).toContainText('2 older tasks');
   // Undo brings a cleared task back whole.
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]').find((t: any) => t.id === 'old-2')?.title)).toBe('Revise trees');
 });
@@ -90,11 +95,11 @@ test('attendance shows once, in its own section, with no empty bar', async ({ pa
   await expect(today.locator('.dashboard-right-panel > .dashboard-panel:first-child').getByRole('button', { name: 'Add counts' })).toBeVisible();
 });
 
-test('phone: the schedule starts on the first screen', async ({ page }) => {
+test('phone: the first class and its time are on the first screen', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await seed(page, { cos_custom_tasks: TASKS });
-  const sched = page.locator('#page-dashboard .schedule-ledger');
-  await expect(sched).toBeVisible();
-  const box = (await sched.boundingBox())!;
-  expect(box.y).toBeLessThan(812 - 80);
+  const first = page.locator('#page-dashboard .rail-row').first();
+  await expect(first).toBeVisible();
+  const box = (await first.boundingBox())!;
+  expect(box.y + box.height).toBeLessThan(812 - 64);   // above the tab bar
 });
