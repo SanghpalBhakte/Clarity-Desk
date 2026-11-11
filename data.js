@@ -170,6 +170,225 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u287",
+    date: "2026-11-11",
+    title: "Sync now counts as done only when every part of a change has reached your account, and a failed sync keeps showing that a change is waiting",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Sync now counts as done only when every part of a change has reached your account, and a failed sync keeps showing that a change is waiting",
+    points: [
+
+    ]
+  },
+  {
+    id: "u286",
+    date: "2026-11-11",
+    title: "Synced only shows once your latest change is confirmed, Waiting to sync stays after an offline restart, and a mark and its Back on track card are read out together",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Synced only shows once your latest change is confirmed, Waiting to sync stays after an offline restart, and a mark and its Back on track card are read out together",
+    points: [
+
+    ]
+  },
+  {
+    id: "u285",
+    date: "2026-11-11",
+    title: "Error messages now clear once you fix the problem, and a report you retry is sent even after closing the form",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Error messages now clear once you fix the problem, and a report you retry is sent even after closing the form",
+    points: [
+
+    ]
+  },
+  {
+    id: "u284",
+    date: "2026-11-11",
+    title: "Ticking a task now also says where it is saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Ticking a task now also says where it is saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u283",
+    date: "2026-11-11",
+    title: "Milestone cards now show a calm ring instead of an emoji and never cover a problem message",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Milestone cards now show a calm ring instead of an emoji and never cover a problem message",
+    points: [
+
+    ]
+  },
+  {
+    id: "u282",
+    date: "2026-11-11",
+    title: "Sync, backup and report problems now say what happened, that your data is safe, and offer Retry",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Sync, backup and report problems now say what happened, that your data is safe, and offer Retry",
+    points: [
+
+    ]
+  },
+  {
+    id: "u281",
+    date: "2026-11-11",
+    title: "Vault messages now name the file or subject and say where it is saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Vault messages now name the file or subject and say where it is saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u280",
+    date: "2026-11-11",
+    title: "Timetable and holiday messages are shorter and say where the change is saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Timetable and holiday messages are shorter and say where the change is saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u279",
+    date: "2026-11-11",
+    title: "Attendance and subject messages now name the subject and say where it is saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Attendance and subject messages now name the subject and say where it is saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u278",
+    date: "2026-11-11",
+    title: "Task messages now name the task and say where it is saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Task messages now name the task and say where it is saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u277",
+    date: "2026-11-11",
+    title: "Form mistakes now show right under the field, with a hint on how to fix them",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Form mistakes now show right under the field, with a hint on how to fix them",
+    points: [
+
+    ]
+  },
+  {
+    id: "u276",
+    date: "2026-11-11",
+    title: "Messages now appear as a quiet note with a thin line that shows how long they stay",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Messages now appear as a quiet note with a thin line that shows how long they stay",
+    points: [
+
+    ]
+  },
+  {
+    id: "u275",
+    date: "2026-11-11",
+    title: "Every save now says where it is kept: on this phone, waiting to sync, or synced",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Every save now says where it is kept: on this phone, waiting to sync, or synced",
+    points: [
+
+    ]
+  },
+  {
+    id: "u274",
+    date: "2026-11-11",
+    title: "Weekly Review now lists only the classes left to mark, and Study Vault keeps Delete behind a menu",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Weekly Review now lists only the classes left to mark, and Study Vault keeps Delete behind a menu",
+    points: [
+      "Weekly Review: one name, a short \"To mark\" list with Present / Absent, the full week one tap away.",
+      "Today: the exam countdown and syllabus share one line of links.",
+      "Study Vault: ruled rows, Edit and Delete behind the dots.",
+      "Subject Hubs, empty: three plain ways to start."
+    ]
+  },
+  {
+    id: "u273",
+    date: "2026-11-10",
+    title: "Subject Hubs: \"Duplicate subject cards found\" no longer shows for a lab that is saved only once",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject Hubs: \"Duplicate subject cards found\" no longer shows for a lab that is saved only once",
+    points: [
+
+    ]
+  },
+  {
+    id: "u272",
+    date: "2026-11-10",
+    title: "First visit: the welcome can be closed, an empty add stays put, a guessed due date says so, Add Task asks for the title first, sign-in problems are explained in plain words, and Settings can replay the tour",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "First visit: the welcome can be closed, an empty add stays put, a guessed due date says so, Add Task asks for the title first, sign-in problems are explained in plain words, and Settings can replay the tour",
+    points: [
+
+    ]
+  },
+  {
+    id: "u271",
+    date: "2026-11-10",
+    title: "Welcome: choosing \"study without one\" now changes Today straight away",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Welcome: choosing \"study without one\" now changes Today straight away",
+    points: [
+
+    ]
+  },
+  {
+    id: "u270",
+    date: "2026-11-10",
+    title: "Keyboard and screen readers: class rows, subject cards and the Today checkbox now work without a mouse, fields and close buttons have names, and there is a Skip to content link",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Keyboard and screen readers: class rows, subject cards and the Today checkbox now work without a mouse, fields and close buttons have names, and there is a Skip to content link",
+    points: [
+
+    ]
+  },
+  {
     id: "u269",
     date: "2026-11-10",
     title: "Today: the unmarked-class note now reads \"Attendance uses marked classes only.\"",
