@@ -431,3 +431,185 @@ test.describe('toast queue', () => {
     expect(await taskStatus(page, 't1')).toBeUndefined();
   });
 });
+
+// ── Saved-location line and sync badge (Task 4) ──────────────────
+// Fake Firebase: signed in as u-sync, the account copy was already seen,
+// and every push waits until the test resolves or rejects it by hand.
+const SYNC_FIREBASE = `
+(() => {
+  const noop = () => {};
+  window.__pushes = [];
+  const ref = {
+    get: () => Promise.resolve({ exists: false }),
+    set: () => new Promise((res, rej) => window.__pushes.push({ res, rej })),
+    update: () => Promise.resolve(),
+    onSnapshot: () => noop,
+    collection: () => ({ doc: () => ref })
+  };
+  const firestore = () => ({ settings: noop, collection: () => ({ doc: () => ref }), enablePersistence: () => Promise.resolve() });
+  firestore.FieldValue = { delete: () => ({}), serverTimestamp: () => 'ts' };
+  firestore.FieldPath = function () {};
+  const user = { uid: 'u-sync', email: 'student@example.test', displayName: 'Student', providerData: [] };
+  window.__user = user;
+  const authObj = new Proxy({
+    currentUser: user,
+    getRedirectResult: () => Promise.resolve(null),
+    onAuthStateChanged: (cb) => { window.__authCb = cb; setTimeout(() => cb(user), 30); return noop; },
+    isSignInWithEmailLink: () => false
+  }, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
+  const auth = () => authObj;
+  auth.GoogleAuthProvider = function () {};
+  window.firebase = { apps: [], initializeApp: function () { this.apps.push({}); }, auth, firestore };
+})();
+`;
+
+async function openSignedIn(page: Page) {
+  await page.route(/gstatic\.com\/firebasejs\/.*\.js/, (r) => r.fulfill({ contentType: 'text/javascript', body: '' }));
+  await page.route(/gstatic\.com\/firebasejs\/.*firebase-app-compat\.js/, (r) => r.fulfill({ contentType: 'text/javascript', body: SYNC_FIREBASE }));
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('__seeded_sync')) return;
+    sessionStorage.setItem('__seeded_sync', '1');
+    localStorage.setItem('cos_cloud_signed_in', 'true');
+    localStorage.setItem('cos_signin_seen', JSON.stringify(['u-sync']));
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem('cos_onboarding_dismissed', 'true');
+    localStorage.setItem('cos_onboarding_done', '1');
+    localStorage.setItem('cos_timetable_choice', 'aids');
+  });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof (window as any).whereSavedLine === 'function' && (window as any).whereSavedLine() !== 'On this phone only');
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 2000));
+  await page.evaluate(() => {
+    const w = window as any;
+    if (w.toastState && w.toastState.visible && w.closeToast) w.closeToast(w.toastState.visible, true);
+    document.querySelectorAll('#toast-container .toast').forEach((t) => t.remove());
+  });
+}
+
+const announcers = (page: Page) => page.evaluate(() => [document.getElementById('cd-announce')!.textContent, document.getElementById('cd-alert')!.textContent]);
+const badge = (page: Page) => page.locator('#sync-text').textContent();
+const badgeIcon = (page: Page) => page.evaluate(() => document.getElementById('sync-icon')?.textContent || '');
+const NO_EMOJI = /^[^\p{Extended_Pictographic}]*$/u;
+
+async function quickAdd(page: Page, text: string) {
+  const input = page.locator('#quick-add-input:visible').first();
+  await input.fill(text);
+  await input.press('Enter');
+}
+// Let the 2.5 s push debounce run so the fake push is waiting.
+const pushWaiting = async (page: Page) => {
+  await page.clock.runFor(2600);
+  await page.waitForFunction(() => (window as any).__pushes.length > 0);
+};
+const settlePush = (page: Page, ok: boolean) =>
+  page.evaluate((good) => {
+    const p = (window as any).__pushes.shift();
+    good ? p.res() : p.rej({ code: 'unavailable' });
+  }, ok);
+
+test.describe('saved-location line', () => {
+  test('signed out says On this phone only', async ({ page }) => {
+    await openApp(page);
+    await show(page, 'is done', 'done', { item: 'Lab record', where: true });
+    expect(await visibleLine2(page)).toBe('On this phone only');
+    expect(await badge(page)).toBe('On this phone only');
+    expect(await badgeIcon(page)).toMatch(NO_EMOJI);
+  });
+
+  test('syncing then synced updates line 2 without a new announcement', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    expect(await visibleLine2(page)).toBe('Saved here · syncing to your account');
+    expect(await badge(page)).toBe('Syncing…');
+    expect(await badgeIcon(page)).toMatch(NO_EMOJI);
+    const before = await announcers(page);
+    await pushWaiting(page);
+    await settlePush(page, true);
+    await expect(shown(page).locator('.toast-line2')).toHaveText('Saved here · synced to your account');
+    expect(await announcers(page)).toEqual(before);
+    expect(await badge(page)).toMatch(/^Synced · \d{1,2}:\d{2} [AP]M$/);
+    expect(await badgeIcon(page)).toMatch(NO_EMOJI);
+  });
+
+  test('syncing then failed', async ({ page }) => {
+    await openSignedIn(page);
+    // With Undo, so it steps aside (not dropped) when the failure arrives.
+    await page.evaluate(() => (window as any).showUndoToast('is done', () => {}, 'done', { item: 'Lab record', where: true, key: 'done:task:x' }));
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await settlePush(page, false);
+    // The failure toast takes the front; the saved-location toast waits with the new line.
+    const t = await page.evaluate(() => {
+      const s = (window as any).toastState;
+      const all = [s.visible, ...s.failQueue, ...s.ordinaryQueue].filter(Boolean);
+      const w = all.find((x: any) => x.key === 'done:task:x');
+      return w && w.el ? w.el.querySelector('.toast-line2').textContent : null;
+    });
+    expect(t).toBe('Saved here · couldn’t sync');
+    expect(await badge(page)).toBe('Couldn’t sync · saved here');
+    expect(await badgeIcon(page)).toMatch(NO_EMOJI);
+  });
+
+  test('offline after saving says waiting to sync', async ({ page, context }) => {
+    await openSignedIn(page);
+    await show(page, 'is done', 'done', { item: 'Lab record', where: true });
+    await page.evaluate(() => (window as any).syncToCloud());
+    await context.setOffline(true);
+    await expect(page.locator('#toast-container .toast-line2', { hasText: 'Saved here · waiting to sync' })).toHaveCount(1);
+    expect(await badge(page)).toBe('Waiting to sync');
+    expect(await badgeIcon(page)).toMatch(NO_EMOJI);
+    await context.setOffline(false);
+  });
+
+  test('sign out mid-push says On this phone only and a late push does not change it', async ({ page }) => {
+    await openSignedIn(page);
+    await show(page, 'is done', 'done', { item: 'Lab record', where: true, sticky: true });
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await page.evaluate(() => (window as any).logoutUser());
+    await expect(page.locator('.toast .toast-line2', { hasText: 'On this phone only' })).toHaveCount(1);
+    await settlePush(page, true);
+    await page.clock.runFor(50);
+    expect(await page.locator('.toast .toast-line2').first().textContent()).toBe('On this phone only');
+  });
+
+  test('sign out then in again before the old push lands keeps On this phone only', async ({ page }) => {
+    await openSignedIn(page);
+    await show(page, 'is done', 'done', { item: 'Lab record', where: true, sticky: true });
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await page.evaluate(() => (window as any).logoutUser());
+    await expect(page.locator('.toast .toast-line2', { hasText: 'On this phone only' })).toHaveCount(1);
+    await page.evaluate(() => (window as any).__authCb((window as any).__user));
+    await settlePush(page, true);
+    await page.clock.runFor(50);
+    expect(await page.locator('.toast .toast-line2').first().textContent()).toBe('On this phone only');
+  });
+
+  test('reload with a pending change while offline says Waiting to sync', async ({ page, context }) => {
+    await openSignedIn(page);
+    await page.evaluate(() => (window as any).syncToCloud());
+    await context.setOffline(true);
+    await page.clock.runFor(2600);
+    expect(await badge(page)).toBe('Waiting to sync');
+    await context.setOffline(false);
+  });
+
+  test('critical failures stay in the badge after the toast is dismissed', async ({ page }) => {
+    await openSignedIn(page);
+    const cases: [any, string][] = [
+      [{ code: 'cloud-full' }, 'Couldn’t sync · saved here'],
+      [{ code: 'permission-denied' }, 'Sync blocked · saved here'],
+      [{ code: 'unavailable' }, 'Couldn’t sync · saved here'],
+    ];
+    for (const [err, label] of cases) {
+      await page.evaluate((e) => (window as any).onCloudPushError(e), err);
+      if (await page.getByRole('button', { name: 'Dismiss notification' }).count()) await dismiss(page);
+      await page.clock.runFor(400);
+      expect(await badge(page)).toBe(label);
+      expect(await badgeIcon(page)).toMatch(NO_EMOJI);
+    }
+  });
+});

@@ -333,6 +333,7 @@ function initFirebase() {
 
       auth.onAuthStateChanged(user => {
         currentUser = user;
+        bumpToastAuthGen();
         safeSetStorage(KEY_CLOUD_SIGNED_IN, !!user);
         updateSyncUI();
         if (user) {
@@ -459,6 +460,12 @@ function toastRestart(t) {
   toastRun(t);
 }
 
+// Line 2: detail, where the change is kept, and (failures) how many more wait.
+function toastLine2Text(t) {
+  const more = t.kind === 'fail' && t.more ? `${t.more} more issue${t.more === 1 ? '' : 's'}` : '';
+  return [t.detail, t.where ? t.whereText : '', more].filter(Boolean).join(' · ');
+}
+
 function fillToastEl(t) {
   const el = t.el;
   const showing = /\btoast-show\b/.test(el.className || '');
@@ -478,12 +485,13 @@ function fillToastEl(t) {
     line1.textContent = t.msg;
   }
   text.appendChild(line1);
-  const more = t.kind === 'fail' && t.more ? `${t.more} more issue${t.more === 1 ? '' : 's'}` : '';
-  if (t.detail || more) {
+  t.line2El = null;
+  if (toastLine2Text(t)) {
     const line2 = document.createElement('div');
     line2.className = 'toast-line2';
-    line2.textContent = [t.detail, more].filter(Boolean).join(' · ');
+    line2.textContent = toastLine2Text(t);
     text.appendChild(line2);
+    t.line2El = line2;
   }
   el.appendChild(text);
   if (t.action) {
@@ -675,6 +683,7 @@ function showToast(msg, type = 'note', opts = {}) {
     kind, key, msg: String(msg), item: opts.item ? String(opts.item) : '',
     detail: opts.detail ? String(opts.detail) : '', action: opts.action || null,
     sticky: opts.sticky != null ? !!opts.sticky : kind === 'fail', where: !!opts.where,
+    whereText: opts.where ? whereSavedLine() : '', gen: toastAuthGen,
   };
 
   const cur = toastState.visible;
@@ -831,6 +840,43 @@ function resetPushBackoff() {
 // while offline, when Firestore holds the write until the network is back).
 function hasPendingSync() { return !!currentUser && !!localPushPendingAt; }
 
+// Phone storage was too full to keep the account's latest copy (badge only).
+let phoneStorageFull = false;
+
+// Line 2 of a toast made with { where: true }: where this change is kept now.
+function whereSavedLine(status = null) {
+  if (!currentUser) return 'On this phone only';
+  if (cloudPushFailed || status === 'denied') return 'Saved here · couldn’t sync';
+  if (hasPendingSync()) return navigator.onLine === false ? 'Saved here · waiting to sync' : 'Saved here · syncing to your account';
+  return 'Saved here · synced to your account';
+}
+
+// Each sign-in or sign-out starts a new generation; a "where" toast only
+// follows the sync state of the account it was made under, so a late
+// answer for the old account can't make it say "synced".
+let toastAuthGen = 0;
+function eachWhereToast(fn) {
+  [toastState.visible, ...toastState.failQueue, ...toastState.ordinaryQueue]
+    .forEach(t => { if (t && t.where && !t.closed) fn(t); });
+}
+function setToastWhere(t, text) {
+  t.whereText = text;
+  if (t.line2El) t.line2El.textContent = toastLine2Text(t);
+}
+// Updates the visible text only: no announcement (the badge carries it).
+function notifyToastSync(status = null) {
+  const line = whereSavedLine(status);
+  eachWhereToast(t => { if (t.gen === toastAuthGen) setToastWhere(t, line); });
+}
+function bumpToastAuthGen() {
+  toastAuthGen++;
+  eachWhereToast(t => {
+    if (t.gen === toastAuthGen) return;
+    if (!currentUser) setToastWhere(t, 'On this phone only');
+    t.where = false;
+  });
+}
+
 // Back online: send waiting changes now instead of at the next edit.
 function flushPendingSync() {
   if (!hasPendingSync() || !db) return;
@@ -900,52 +946,35 @@ function onCloudPushError(err) {
 }
 
 function updateSyncUI(status = null) {
-  const icon = document.getElementById('sync-icon');
+  notifyToastSync(status);
   const text = document.getElementById('sync-text');
   const dot  = document.querySelector('.storage-status-dot');
   const btn  = document.getElementById('sync-status-btn');
-  if (!btn && !icon) return;
+  if (!btn && !text) return;
 
   const isOnline = typeof navigator !== 'undefined' && ('onLine' in navigator) ? navigator.onLine : true;
+  // The coloured dot and the words carry the state (no emoji).
+  const set = (label, colour, title, aria) => {
+    if (text) text.textContent = label;
+    if (dot) dot.style.background = colour;
+    if (btn) { btn.title = title; btn.setAttribute('aria-label', `${aria}. Opens Settings`); }
+  };
 
   if (status === 'denied') {
-    if (icon) icon.textContent = '🔒';
-    if (text) text.textContent = 'Sync denied';
-    if (dot) dot.style.background = 'var(--red)';
-    if (btn) btn.title = 'Access denied. Check the cloud Firestore permissions in Settings.';
-    if (btn) btn.setAttribute('aria-label', 'Cloud sync denied. Opens Settings');
+    set('Sync blocked · saved here', 'var(--red)', 'Your account turned this change away. Everything is saved on this phone. Check sign-in in Settings.', 'Sync blocked, saved on this phone');
   } else if (isOnline && currentUser && (status === 'failed' || (cloudPushFailed && !status))) {
-    if (icon) icon.textContent = '⚠️';
-    if (text) text.textContent = 'Sync failed · Saved here';
-    if (dot) dot.style.background = 'var(--yellow)';
-    if (btn) btn.title = 'Your last change could not reach your account. Everything is saved on this device; it tries again on your next change.';
-    if (btn) btn.setAttribute('aria-label', 'Sync failed, saved on this device. Opens Settings');
+    set('Couldn’t sync · saved here', 'var(--yellow)', 'Your last change didn’t reach your account. Everything is saved on this phone; it tries again on your next change.', 'Couldn’t sync, saved on this phone');
+  } else if (phoneStorageFull) {
+    set('Phone storage full · saved here', 'var(--yellow)', 'This phone is too full to keep changes from your other devices. Everything on this phone is safe. Remove a big vault file to make room.', 'Phone storage full, saved on this phone');
   } else if (hasPendingSync()) {
-    if (icon) icon.textContent = '⏳';
-    if (text) text.textContent = 'Waiting to sync';
-    if (dot) dot.style.background = 'var(--yellow)';
-    if (btn) btn.title = isOnline
-      ? 'Sending your latest change to your account · Saved on this device'
-      : 'Offline · Your change is saved on this device and will sync when you are back online';
-    if (btn) btn.setAttribute('aria-label', 'Waiting to sync, saved on this device. Opens Settings');
+    if (isOnline) set('Syncing…', 'var(--yellow)', 'Saved here · syncing to your account', 'Syncing to your account, saved on this phone');
+    else set('Waiting to sync', 'var(--yellow)', 'Offline · saved here, and it syncs when you are back online', 'Waiting to sync, saved on this phone');
   } else if (status === 'offline' || !isOnline) {
-    if (icon) icon.textContent = '💾';
-    if (text) text.textContent = 'Offline · Saved';
-    if (dot) dot.style.background = 'var(--yellow)';
-    if (btn) btn.title = 'Working offline · All changes are saved locally to this device';
-    if (btn) btn.setAttribute('aria-label', 'Offline, saved on this device. Opens Settings, where backup is');
+    set('Offline · saved here', 'var(--yellow)', 'Offline · every change is saved on this phone', 'Offline, saved on this phone. Backup is in Settings');
   } else if (currentUser) {
-    if (icon) icon.textContent = '⚡';
-    if (text) text.textContent = lastSyncedAt ? `Synced · ${syncTimeLabel(lastSyncedAt)}` : 'Synced';
-    if (dot) dot.style.background = 'var(--green)';
-    if (btn) btn.title = 'Cloud sync active · Saved locally & synced to your account';
-    if (btn) btn.setAttribute('aria-label', 'Saved and synced to your account. Opens Settings, where backup is');
+    set(lastSyncedAt ? `Synced · ${syncTimeLabel(lastSyncedAt)}` : 'Synced', 'var(--green)', 'Saved here · synced to your account', 'Saved and synced to your account. Backup is in Settings');
   } else {
-    if (icon) icon.textContent = '💾';
-    if (text) text.textContent = 'Saved locally';
-    if (dot) dot.style.background = 'var(--green)';
-    if (btn) btn.title = 'Local offline storage active · All data is saved automatically on this device';
-    if (btn) btn.setAttribute('aria-label', 'Saved on this device. Opens Settings, where backup is');
+    set('On this phone only', 'var(--green)', 'On this phone only · every change is saved here automatically', 'Saved on this phone only. Backup is in Settings');
   }
   // The save status shows in Settings (the topbar badge is hidden).
   const settingsText = document.getElementById('settings-sync-text');
@@ -3721,6 +3750,7 @@ function logoutUser() {
   if (auth) {
     auth.signOut().then(() => {
       currentUser = null;
+      bumpToastAuthGen();
       updateSyncUI();
       showToast('Signed out of Clarity Desk', 'info');
       renderPage(state.currentPage);
@@ -5071,6 +5101,7 @@ function applyCloudDataToLocalState(data) {
   syncUndoNew = 0;
   try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
   if (syncUndoNew) { const n = syncUndoNew; syncUndoNew = 0; showSyncUndoToast(n); }
+  if (phoneStorageFull !== mergeWriteFailed) { phoneStorageFull = mergeWriteFailed; updateSyncUI(); }
   if (mergeWriteFailed) {
     // Apply this same cloud copy again on the next read, once there is room.
     lastCloudPayloadHash = null;
@@ -9559,7 +9590,7 @@ window.handleQuickAdd = function() {
     __renderDeferred = null;
     inputEl.value = '';
     const liveInput = document.getElementById('quick-add-input'); if (liveInput) liveInput.value = '';
-    showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success');
+    showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success', { where: true });
     renderPage(state.currentPage);
     if (t.dueDate) maybeOfferClosedAppReminders();
   };
@@ -19009,7 +19040,7 @@ function renderSettings() {
           <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px">
             ${currentUser ? `Cross-device sync active · Signed in via ${signInMethodLabel(currentUser)}` : 'Your data stays in this browser. Sign in to sync it across your devices.'}
           </div>
-          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'Saved locally')}</span></div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">Status: <span id="settings-sync-text">${escHtml_cd(document.getElementById('sync-text')?.textContent || 'On this phone only')}</span></div>
           <div id="settings-cloud-size" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px" ${syncSizeNote() ? '' : 'hidden'}>${escHtml_cd(syncSizeNote())}</div>
           ${(() => { const u = !signinHold && loadSyncUndo(); return u ? `<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:8px">The sync on ${escHtml_cd(syncUndoWhen(u.at))} replaced or removed items here. <button type="button" class="btn btn-sm btn-secondary" onclick="showSyncUndoReview()" style="margin-left:4px">Review &amp; undo</button></div>` : ''; })()}
         </div>
@@ -20126,6 +20157,9 @@ window.copyIncomingEmailLink   = copyIncomingEmailLink;
 window.passwordSignIn          = passwordSignIn;
 window.sendPasswordReset       = sendPasswordReset;
 window.logoutUser       = logoutUser;
+window.whereSavedLine   = whereSavedLine;
+window.syncToCloud      = syncToCloud;
+window.onCloudPushError = onCloudPushError;
 window.triggerTimetableImport  = triggerTimetableImport;
 window.cancelTimetableScan     = cancelTimetableScan;
 window.resetTimetableToDefault = resetTimetableToDefault;

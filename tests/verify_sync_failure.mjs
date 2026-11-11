@@ -3,7 +3,7 @@
 // ==================================================================
 // Locked down here:
 //  - a failed push (not offline, not denied) turns the badge into
-//    "Sync failed · Saved here" and shows one toast per visit;
+//    "Couldn’t sync · saved here" and shows one toast per visit;
 //  - "your desk is too big" is named when Firestore rejects the size;
 //  - the next successful push puts "Cloud synced" back;
 //  - permission-denied and offline keep their own states;
@@ -56,14 +56,14 @@ console.log('=================================================================='
 console.log('☁️  TELLING STUDENTS WHEN SYNC FAILS');
 console.log('==================================================================');
 
-check('A failed push shows "Sync failed · Saved here" and one toast', () => {
+check('A failed push shows "Couldn’t sync · saved here" and one toast', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' });
-  return badge() === 'Sync failed · Saved here' && toasts.length === 1 && /still saved on this phone/.test(toasts[0]) ? true : `${badge()} ${toasts}`;
+  return badge() === 'Couldn’t sync · saved here' && toasts.length === 1 && /still saved on this phone/.test(toasts[0]) ? true : `${badge()} ${toasts}`;
 });
 
 check('A second failure in the same visit adds no second toast; a plain redraw keeps the warning', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' }); a.onCloudPushError({ code: 'unavailable' }); a.updateSyncUI();
-  return toasts.length === 1 && badge() === 'Sync failed · Saved here' ? true : `${toasts.length} ${badge()}`;
+  return toasts.length === 1 && badge() === 'Couldn’t sync · saved here' ? true : `${toasts.length} ${badge()}`;
 });
 
 check('Too big for Firestore: the toast says so and points at large vault files', () => {
@@ -76,20 +76,20 @@ check('The next successful push brings back "Synced · time"', () => {
   return /^Synced · \d{1,2}:\d{2} [AP]M$/.test(badge()) ? true : badge();
 });
 
-check('Permission denied keeps its own "Sync denied" state', () => {
+check('Permission denied keeps its own "Sync blocked · saved here" state', () => {
   const a = fresh(); a.onCloudPushError({ code: 'permission-denied' });
-  return badge() === 'Sync denied' && toasts.length === 0 ? true : `${badge()} ${toasts}`;
+  return badge() === 'Sync blocked · saved here' && toasts.length === 0 ? true : `${badge()} ${toasts}`;
 });
 
-check('Offline still shows "Offline · Saved" even after a failure', () => {
+check('Offline still shows "Offline · saved here" even after a failure', () => {
   const a = fresh(); a.onCloudPushError({ code: 'unavailable' }); nav.onLine = false; a.updateSyncUI();
-  return badge() === 'Offline · Saved' ? true : badge();
+  return badge() === 'Offline · saved here' ? true : badge();
 });
 
-check('A change waiting for the cloud shows "Waiting to sync", online or offline', () => {
+check('A change waiting for the cloud shows "Syncing…" online and "Waiting to sync" offline', () => {
   const a = fresh(); a.syncToCloud();
   const online = badge(); nav.onLine = false; a.updateSyncUI();
-  return online === 'Waiting to sync' && badge() === 'Waiting to sync' ? true : `${online} / ${badge()}`;
+  return online === 'Syncing…' && badge() === 'Waiting to sync' ? true : `${online} / ${badge()}`;
 });
 
 check('Back online with a change waiting: one push; with nothing waiting: none', () => {
