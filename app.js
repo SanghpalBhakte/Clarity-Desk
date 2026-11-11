@@ -16605,6 +16605,11 @@ function renderAssignments() {
     // "2 exams, 1 assignment · next PBST 20 Nov": many look-alike titles
     // ("End sem, End sem…") read as one word repeated.
     const laterSummary = (list) => {
+      // One item: just say it ("PBST End sem · 20 Nov").
+      if (list.length === 1) {
+        const a = list[0], c = tickLabel(a);
+        return escHtml_cd(`${c === a.title ? '' : c + ' '}${a.title}${a.dueDate ? ' · ' + shortDate(a.dueDate) : ''}`);
+      }
       const counts = {};
       list.forEach(a => { const t = typeLabel(a.taskType || 'assignment').toLowerCase(); counts[t] = (counts[t] || 0) + 1; });
       const kinds = Object.entries(counts).sort((x, y) => y[1] - x[1]);
