@@ -104,3 +104,16 @@ test('a finished exam on the strip drops its filled block', async ({ page }) => 
   await expect(done).toHaveCount(1);
   expect(await done.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
 });
+
+test('a single Later item reads as its title and date', async ({ page }) => {
+  await open(page, [
+    task({ code: 'GEN', subject: 'General', title: 'Mini project synopsis', taskType: 'project', dueDate: dayKey(30) }),
+    task({ code: 'PBST', subject: 'PBST', title: 'End sem', taskType: 'exam', dueDate: dayKey(2) }),
+  ]);
+  await expect(page.locator('.tk-group-later .tk-fold-sum')).toHaveText(`Mini project synopsis · ${shortDate(30)}`);
+});
+
+test('a single Later exam names its subject', async ({ page }) => {
+  await open(page, [task({ code: 'PBST', subject: 'PBST', title: 'End sem', taskType: 'exam', dueDate: dayKey(12) })]);
+  await expect(page.locator('.tk-group-later .tk-fold-sum')).toHaveText(`PBST End sem · ${shortDate(12)}`);
+});

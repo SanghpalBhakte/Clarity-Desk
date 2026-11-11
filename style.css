@@ -7680,7 +7680,7 @@ body.holiday-mode .holiday-banner {
 .tk-none { padding: 18px 0; }
 
 /* Subjects: one sideways row of names that filters the list. */
-.tk-subjects { display: flex; gap: 18px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--color-rule); white-space: nowrap; }
+.tk-subjects { display: flex; gap: 18px; margin: 0 -16px 14px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--color-rule); white-space: nowrap; }
 .tk-subjects::-webkit-scrollbar { display: none; }
 .tk-subj-pick { flex: none; min-height: 44px; margin-bottom: -1px; padding: 0; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: left; }
 .tk-subj-pick[aria-pressed="true"] { font-weight: 700; color: var(--text-primary); border-bottom-color: var(--color-thread, var(--accent)); }
@@ -7801,7 +7801,7 @@ body.holiday-mode .holiday-banner {
   /* Capped so the tick box stays beside its task, not 1000px away. */
   #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; max-width: 760px; }
   #page-assignments .tk-kicker { justify-content: flex-start; gap: 16px; }
-  .tk-subjects { margin: 0; padding: 0; }
+  .tk-subjects { margin: 0 0 14px; padding: 0; }
 }
 
 /* Laptop sidebar: small quiet group labels and space instead of rules; the
