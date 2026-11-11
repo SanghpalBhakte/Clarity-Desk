@@ -9050,8 +9050,13 @@ function buildDashboardContextLine(opts = {}) {
   }
 
   // Normal day with classes remaining
+  // The day ahead first; the Tasks section below already counts the tasks.
+  if (classesLeft > 0 && classesLeft === totalClasses && dayClasses && dayClasses.length) {
+    const first = dayClasses.reduce((a, c) => (timeToMinutes(c.time || '00:00') < timeToMinutes(a.time || '00:00') ? c : a));
+    return `${totalClasses} class${totalClasses !== 1 ? 'es' : ''} today, first at ${formatDisplayTime(first.time)}.`;
+  }
   if (classesLeft > 0) {
-    return `${classesLeft} class${classesLeft !== 1 ? 'es' : ''} remaining today.${pending > 0 ? ` ${pending} task${pending !== 1 ? 's' : ''} pending.` : ''}`;
+    return `${classesLeft} class${classesLeft !== 1 ? 'es' : ''} left today.`;
   }
 
   // All classes done, tasks pending
@@ -9955,6 +9960,9 @@ function resolveTask(taskId, change = {}) {
   const t = state.customTasks.find(x => x.id === taskId);
   if (!t) return false;
   const before = { status: t.status, dueDate: t.dueDate };
+  // A copy, because closing a task more than 14 days past its date also
+  // clears it (pruneDoneTasks), and Undo must still bring it back.
+  const copy = { ...t };
   if (change.done) t.status = 'submitted';
   else if (/^\d{4}-\d{2}-\d{2}$/.test(change.dueDate || '')) t.dueDate = change.dueDate;
   else return false;
@@ -9966,8 +9974,8 @@ function resolveTask(taskId, change = {}) {
   const label = change.done ? 'is done' : `moved to ${localDateKey(d) === localDateKey(tmr) ? 'tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;
   showUndoToast(label, () => {
     const x = state.customTasks.find(y => y.id === taskId);
-    if (!x) return;
-    x.status = before.status; x.dueDate = before.dueDate;
+    if (x) { x.status = before.status; x.dueDate = before.dueDate; }
+    else state.customTasks.push({ ...copy, ...before });
     saveCustomTasks();
     renderPage(state.currentPage);
     updateNavBadges();
@@ -9975,6 +9983,51 @@ function resolveTask(taskId, change = {}) {
   return true;
 }
 window.resolveTask = resolveTask;
+
+// Tasks more than STALE_TASK_DAYS late leave Today's main list and wait in
+// one "older tasks" line, so a student coming back sees today first.
+// Display only: nothing is moved, closed or deleted until the student picks.
+const STALE_TASK_DAYS = 14;
+function isTaskStale(t) {
+  if (!isTaskOverdue(t)) return false;
+  const d = dueDaysLeft(t.dueDate);
+  return d !== null && d < -STALE_TASK_DAYS;
+}
+// "from February", "from January to March", "from Dec 2025 to Feb 2026".
+function staleTasksSpan(list) {
+  const ds = list.map(t => new Date(t.dueDate + 'T00:00:00')).sort((a, b) => a - b);
+  const yr = new Date().getFullYear();
+  const withYear = ds.some(d => d.getFullYear() !== yr);
+  const m = (d) => d.toLocaleDateString(undefined, withYear ? { month: 'short', year: 'numeric' } : { month: 'long' });
+  const a = m(ds[0]), b = m(ds[ds.length - 1]);
+  return a === b ? `from ${a}` : `from ${a} to ${b}`;
+}
+let staleTasksOpen = false;
+window.toggleStaleTasks = function() {
+  staleTasksOpen = !staleTasksOpen;
+  renderPage(state.currentPage);
+  setTimeout(() => document.querySelector('.stale-toggle')?.focus(), 0);
+};
+// "Mark all done": closes every older task of the student's own, one Undo for all.
+window.resolveStaleTasks = function() {
+  const list = state.customTasks.filter(isTaskStale);
+  if (!list.length) return;
+  const before = list.map(t => ({ ...t }));
+  list.forEach(t => { t.status = 'submitted'; });
+  staleTasksOpen = false;
+  saveCustomTasks();
+  haptic();
+  renderPage(state.currentPage);
+  updateNavBadges();
+  showUndoToast(`${list.length} older task${list.length !== 1 ? 's' : ''} marked done`, () => {
+    // These are past 14 days, so closing them cleared them: put the copies back.
+    before.forEach(c => { const x = state.customTasks.find(y => y.id === c.id); if (x) x.status = c.status; else state.customTasks.push(c); });
+    saveCustomTasks();
+    renderPage(state.currentPage);
+    updateNavBadges();
+  }, 'done', { where: true, key: 'done:stale' });
+};
+
 window.moveTaskTomorrow = function(taskId) {
   const d = new Date(); d.setDate(d.getDate() + 1);
   resolveTask(taskId, { dueDate: localDateKey(d) });
@@ -11231,6 +11284,9 @@ function renderDashboard() {
   const restingCount = onHoliday ? allTasks().filter(a => a.status === 'pending' && isTaskPausedForHoliday(a)).length : 0;
   const pending  = pendingCount() - restingCount;
   const overdue  = overdueCount();
+  // Older tasks get their own line in Tasks, so only recent slips speak in the greeting.
+  const staleTasks = allTasks().filter(isTaskStale);
+  const recentOverdue = overdue - staleTasks.length;
   const classesLeftCount = onHoliday ? 0 : todayClasses();
 
 
@@ -11285,7 +11341,7 @@ function renderDashboard() {
 
   const displayName = getDisplayName();
   const firstName = displayName ? displayName.split(' ')[0] : '';
-  const greeting = getDynamicGreeting(firstName, { overdue, holiday: onHoliday });
+  const greeting = getDynamicGreeting(firstName, { overdue: recentOverdue, holiday: onHoliday });
   const needsSetup = !displayName;
   const hasAttendanceData = totalMarked > 0;
 
@@ -11302,7 +11358,7 @@ function renderDashboard() {
     attTarget,
     rhythm: rhythmAimStatus(),
     finish: finishAimStatus(),
-    overdue,
+    overdue: recentOverdue,
     pending,
     classesLeft: classesLeftCount,
     totalClasses: dayClasses.length,
@@ -11533,6 +11589,8 @@ function renderDashboard() {
   // No timetable yet: the task line leads and the timetable is one quiet line
   // under the work, not a card above it.
   const setupLast = !!firstStep && firstStep.id === 'tt';
+  // The attendance ask lives in the Attendance section, so Today shows attendance once.
+  const attAsk = !!firstStep && firstStep.id === 'att';
   const setupBanner = !firstStep ? '' : firstStep.id === 'group' ? setupAsk(firstStep, `
       <div class="setup-ask-actions">
         ${groupChoices.map(b => `<button class="btn btn-sm btn-secondary" data-batch="${escHtml_cd(b).replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="onbPickGroup(this.dataset.batch)">${escHtml_cd(b)}</button>`).join('')}
@@ -11562,7 +11620,7 @@ function renderDashboard() {
 
   // Urgent & Active tasks
   const urgentTasks = allTasks()
-    .filter(a => a.status === 'pending' && !(onHoliday && isTaskPausedForHoliday(a)))
+    .filter(a => a.status === 'pending' && !(onHoliday && isTaskPausedForHoliday(a)) && !isTaskStale(a))
     .sort((a,b) => {
       const isOngoingA = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
       const isOngoingB = !!b.noDeadline || (b.taskType === 'mission' && !b.dueDate);
@@ -11578,7 +11636,37 @@ function renderDashboard() {
       return (a.dueDate || '').localeCompare(b.dueDate || '');
     })
     .slice(0, 4);
-  const moreTasks = Math.max(0, pending - urgentTasks.length);
+  const moreTasks = Math.max(0, pending - urgentTasks.length - staleTasks.length);
+
+  // One calm line for tasks long past their date. "Look through" opens them
+  // here, each with Done or Move (the same resolveTask as the next-step row).
+  const staleOwn = staleTasks.filter(t => state.customTasks.some(x => x.id === t.id));
+  const staleRowHTML = (t) => {
+    const own = staleOwn.includes(t);
+    return `
+      <li class="stale-row">
+        <button type="button" class="stale-open" data-task="${escAttr_cd(t.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
+          <span class="stale-title">${escHtml_cd(t.title)}</span>
+          <span class="stale-meta">${escHtml_cd(t.subject || 'General')} · was due ${formatDate(t.dueDate)}</span>
+        </button>
+        <span class="stale-row-acts" role="group" aria-label="Sort out ${escAttr_cd(t.title)}">
+          <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(t.id)}" onclick="${own ? 'resolveTask(this.dataset.id, { done: true })' : 'toggleAssignment(this.dataset.id)'}">Done</button>
+          ${own ? `<button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Move</button>
+          <input type="date" class="today-focus-date" data-id="${escAttr_cd(t.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(t.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">` : ''}
+        </span>
+      </li>`;
+  };
+  const staleHTML = staleTasks.length ? `
+    <div class="stale-tasks${staleTasksOpen ? ' is-open' : ''}${urgentTasks.length ? '' : ' is-alone'}">
+      <div class="stale-line">
+        <span class="stale-what"><strong>${staleTasks.length} older task${staleTasks.length !== 1 ? 's' : ''}</strong> ${staleTasksSpan(staleTasks)}</span>
+        <span class="stale-acts">
+          <button type="button" class="stale-toggle" aria-expanded="${staleTasksOpen}" aria-controls="stale-list" onclick="toggleStaleTasks()">${staleTasksOpen ? 'Hide' : 'Look through'}</button>
+          ${staleOwn.length ? `<button type="button" class="stale-all" onclick="resolveStaleTasks()">Mark all done</button>` : ''}
+        </span>
+      </div>
+      <ul id="stale-list" class="stale-list"${staleTasksOpen ? '' : ' hidden'}>${staleTasksOpen ? staleTasks.map(staleRowHTML).join('') : ''}</ul>
+    </div>` : '';
 
   // Attendance panel: the big number plus ONE sentence (it replaces the
   // month-check line and the Risk/Safe Zone box, which both repeated the %).
@@ -11683,7 +11771,7 @@ function renderDashboard() {
     ${welcomeBackHTML}
     ${beaconHTML}
     ${focusHTML}
-    ${setupLast ? '' : setupBanner}
+    ${setupLast || attAsk ? '' : setupBanner}
 
     <!-- 3. WORKBENCH & AMBIENT PANEL -->
     <div class="dashboard-layout">
@@ -11773,10 +11861,11 @@ function renderDashboard() {
                   </div>
                   <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
                 </div>`;
-            }).join('') : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
+            }).join('') : staleTasks.length ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
             ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
+            ${staleHTML}
           </div>
 
           <!-- Inline Task Quick Add -->
@@ -11793,6 +11882,11 @@ function renderDashboard() {
 
         <!-- ATTENDANCE: Redesigned ambient right panel -->
         <div class="dashboard-panel"${hideAttendancePanel ? ' style="display:none"' : ''}>
+          ${attAsk ? setupBanner : !hasAttendanceData ? `
+          <div class="panel-header">
+            <div class="panel-title" role="heading" aria-level="2">Attendance</div>
+          </div>
+          <div class="att-stat-message">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>` : `
           <div class="panel-header">
             <div class="panel-title" role="heading" aria-level="2">Attendance</div>
             <button class="panel-action" onclick="navigateTo('review')">Guidance →</button>
@@ -11818,7 +11912,7 @@ function renderDashboard() {
             ${attendancePct !== null ? `
               <div class="att-stat-message" style="margin-top:8px">${attSentence}</div>
             ` : `<div class="att-stat-message" style="margin-top:8px">${onHoliday ? 'Paused during holiday mode. Start marking when classes are back.' : dashGuidance.message}</div>`}
-          </div>
+          </div>`}
         </div>
 
         <!-- STUDY SHORTCUTS -->
