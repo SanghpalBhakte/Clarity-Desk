@@ -184,7 +184,8 @@ console.log('\n2c. Turning on: no silent hang, key fetched once, quick-add offer
   const [k1, k2] = await Promise.all([app.fetchVapidKey(), app.fetchVapidKey()]);
   await app.fetchVapidKey();
   check('Server push key is fetched once and reused (no network wait after "Allow")', k1 === 'BKEY' && k2 === 'BKEY' && calls === 1, `calls=${calls}`);
-  const qa = appSrc.slice(appSrc.indexOf('showToast(`Added "${t.title}"'), appSrc.indexOf('showToast(`Added "${t.title}"') + 400);
+  const qaAt = appSrc.indexOf("showToast(t.dueDate ? `added, due ${formatDate(t.dueDate)}` : 'added · no due date'");
+  const qa = appSrc.slice(qaAt, qaAt + 400);
   check('Today quick-add offers closed-app reminders for a dated task', /if \(t\.dueDate\) maybeOfferClosedAppReminders\(\);/.test(qa));
   globalThis.Date = FakeDate;
 }

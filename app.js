@@ -9734,7 +9734,7 @@ window.handleQuickAdd = function() {
     __renderDeferred = null;
     inputEl.value = '';
     const liveInput = document.getElementById('quick-add-input'); if (liveInput) liveInput.value = '';
-    showToast(`Added "${t.title}"${t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ' · no due date'}`, 'success', { where: true });
+    showToast(t.dueDate ? `added, due ${formatDate(t.dueDate)}` : 'added · no due date', 'done', { item: t.title, where: true, key: `done:task:${t.id}` });
     renderPage(state.currentPage);
     if (t.dueDate) maybeOfferClosedAppReminders();
   };
@@ -9786,15 +9786,15 @@ function resolveTask(taskId, change = {}) {
   renderPage(state.currentPage);
   updateNavBadges();
   const d = new Date(t.dueDate + 'T00:00:00'), tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
-  const label = change.done ? 'Done' : `Moved to ${localDateKey(d) === localDateKey(tmr) ? 'tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;
-  showUndoToast(`${label}: ${t.title}`, () => {
+  const label = change.done ? 'is done' : `moved to ${localDateKey(d) === localDateKey(tmr) ? 'tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;
+  showUndoToast(label, () => {
     const x = state.customTasks.find(y => y.id === taskId);
     if (!x) return;
     x.status = before.status; x.dueDate = before.dueDate;
     saveCustomTasks();
     renderPage(state.currentPage);
     updateNavBadges();
-  });
+  }, 'done', { item: t.title, where: true, key: `done:task:${t.id}` });
   return true;
 }
 window.resolveTask = resolveTask;
@@ -9864,7 +9864,7 @@ window.dismissWeeklyReview = function() {
 
 window.completeWeeklyReset = function() {
   dismissWeeklyReview();
-  showToast('Weekly reset complete! Ready for a clear, focused week. ✨', 'success');
+  showToast('Weekly review done', 'done', { detail: 'It comes back next week' });
   navigateTo('dashboard');
 };
 
@@ -16126,7 +16126,7 @@ window.deleteSelectedTasks = () => {
     taskSelection.clear();
     renderPage(state.currentPage);
     updateNavBadges();
-    showUndoToast(`${n} task${n !== 1 ? 's' : ''} deleted`, () => {
+    showUndoToast(`${n} task${n !== 1 ? 's' : ''} removed`, () => {
       // Put back exactly what was removed. Written directly (not through
       // saveCustomTasks) so its 14-day clean-up cannot delete them again.
       const have = new Set(state.customTasks.map(t => t.id));
@@ -16134,8 +16134,8 @@ window.deleteSelectedTasks = () => {
       syncToCloud();
       renderPage(state.currentPage);
       updateNavBadges();
-      showToast(`${n} task${n !== 1 ? 's' : ''} restored`, 'info');
-    });
+      showToast(`${n} task${n !== 1 ? 's' : ''} put back`, 'done', { where: true });
+    }, 'done', { where: true, key: 'done:task:bulk' });
   });
 };
 
@@ -16164,7 +16164,7 @@ window.taskCardClick = (e, id) => {
     timer = setTimeout(() => {
       timer = null;
       _taskLongPressFired = true;
-      if (!task || !task.isCustom) { showToast('Built-in tasks cannot be deleted', 'info'); return; }
+      if (!task || !task.isCustom) { showToast('Built-in tasks can’t be removed', 'note'); return; }
       haptic(15);
       enterTaskSelect(id);
     }, HOLD_MS);
@@ -16779,7 +16779,9 @@ function submitAddTask(editTaskId = null) {
 
   saveCustomTasks();
   document.getElementById('add-task-backdrop')?.remove();
-  showToast(editTaskId ? 'Task updated ✓' : (taskType === 'mission' || isNoDeadline) ? 'Mission added to desk ✓' : 'Task added to desk ✓', 'success');
+  const savedTask = editTaskId ? state.customTasks.find(x => x.id === editTaskId) : state.customTasks[state.customTasks.length - 1];
+  const savedMsg = editTaskId ? 'saved' : (taskType === 'mission' || isNoDeadline) ? 'added · no deadline' : `added, due ${formatDate(savedTask?.dueDate)}`;
+  showToast(savedMsg, 'done', { item: savedTask?.title || 'Task', where: true, key: `done:task:${savedTask?.id || 'new'}` });
   renderPage(state.currentPage);
   updateNavBadges();
   if (!isNoDeadline && finalDueDate) maybeOfferClosedAppReminders();
@@ -17215,14 +17217,14 @@ function waImportSelected() {
   updateNavBadges();
   maybeOfferClosedAppReminders(chosen);
   const n = ids.length;
-  showUndoToast(`Imported ${n} task${n === 1 ? '' : 's'}`, () => {
+  showUndoToast(`${n} task${n === 1 ? '' : 's'} added from your message`, () => {
     const drop = new Set(ids);
     state.customTasks = state.customTasks.filter(t => !drop.has(t.id));
     saveCustomTasks();
     renderPage(state.currentPage);
     updateNavBadges();
-    showToast('Import undone', 'info');
-  });
+    showToast('Those tasks are removed again', 'note', { where: true });
+  }, 'done', { where: true, key: 'done:task:import' });
 }
 
 // ── Links tab: study links → Subject Hubs ─────────────────────
@@ -17388,6 +17390,7 @@ function showUndoToast(msg, onUndo, type = 'done', opts = {}) {
   return showToast(msg, type, { ...opts, action: { label: 'Undo', fn: onUndo } });
 }
 window.showUndoToast = showUndoToast;
+window.showCelebration = showCelebration;
 
 // Android share target: sw.js holds the shared chat in memory and hands it
 // over once. Anything missing or failing just opens the normal first step.
@@ -20398,7 +20401,7 @@ window.goalCheckIn = (id) => {
   ct.checkins = adding ? [...days, today] : days;
   if (!ct.checkins.length) delete ct.checkins;
   saveCustomTasks();
-  showToast(adding ? `Logged for today: ${ct.title}` : 'Taken back for today', adding ? 'success' : 'info');
+  showToast(adding ? 'logged for today' : 'taken back for today', adding ? 'done' : 'note', { item: ct.title, where: true, key: `done:goal:${ct.id}` });
   renderPage(state.currentPage);
 };
 
@@ -20406,7 +20409,7 @@ window.deleteCustomTask = (id) => {
   appConfirm('Delete this task?', 'Delete', () => {
     state.customTasks = state.customTasks.filter(t => t.id !== id);
     saveCustomTasks();
-    showToast('Task removed from desk', 'info');
+    showToast('Task removed', 'note', { where: true });
     renderPage(state.currentPage);
     updateNavBadges();
   });

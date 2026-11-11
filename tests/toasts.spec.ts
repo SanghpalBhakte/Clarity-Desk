@@ -857,3 +857,110 @@ test.describe('field errors', () => {
     expect(await page.evaluate(() => (window as any).__fx)).toBeUndefined();
   });
 });
+
+// ── Voice review guard (Task 6) ──────────────────────────────────
+// A walk through the everyday actions collects every message. Emoji, ✓, ✨
+// and ↩ fail the test; everything else goes into the attached voice report
+// for a person to read.
+const BANNED = /\p{Extended_Pictographic}|✓|✨|↩/u;
+const AVOID = [/!/, /successfully/i, /\bplease\b/i, /something went wrong/i, /try again later/i, /\boperation\b/i, /\bsuccess\b/i];
+const TECH = /\b[a-z]+-[a-z]+\b|Firebase|Firestore|permission/i;
+
+test.describe('voice', () => {
+  test('voice review guard', async ({ page, context }, testInfo) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.__seen = [];
+      const grab = (el: Element) => {
+        if (!(el instanceof HTMLElement) || !(el.classList.contains('toast'))) return;
+        w.__seen.push({
+          text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
+          line1: el.querySelector('.toast-line1')?.textContent || el.textContent || '',
+          line2: el.querySelector('.toast-line2')?.textContent || '',
+          item: !!el.querySelector('.toast-line1 b'),
+          action: el.querySelector('.toast-action')?.textContent || '',
+          kind: (el.className.match(/toast-(done|note|wait|fail)/) || [])[1] || (el.classList.contains('celebrate-card') ? 'celebrate' : ''),
+        });
+      };
+      new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => grab(n as Element))))
+        .observe(document.getElementById('toast-container')!, { childList: true });
+    });
+    test.setTimeout(120000);
+    // Each step closes any sheet it opened, so the next one starts clean.
+    const step = async (js: string) => {
+      await run(page, js);
+      await page.clock.runFor(13000);
+      await page.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove()));
+    };
+
+    // Quick add, tick, Undo.
+    await quickAdd(page, 'Lab report due tomorrow');
+    await page.clock.runFor(13000);
+    const id = await page.evaluate(() => (window as any).state.customTasks.slice(-1)[0].id);
+    await run(page, `toggleAssignment('${id}')`);
+    const undo = page.getByRole('button', { name: 'Undo' });
+    if (await undo.count()) await undo.first().click();
+    await page.clock.runFor(13000);
+    // Add a subject in the hub, a vault subject and a link.
+    await step(`showAddSyllabusSubjectModal(); document.getElementById('syl-subj-name').value = 'Physics'; confirmAddSyllabusSubject()`);
+    await step(`addLinkSubject(); document.getElementById('lsm-name').value = 'Physics'; saveLinkSubject(null)`);
+    await step(`addLinkResource(0); document.getElementById('lrm-label').value = 'Notes'; document.getElementById('lrm-url').value = 'https://example.com/notes'; saveLinkResource(0, null)`);
+    // Settings, backup.
+    await step(`saveSettings()`);
+    await step(`exportData()`);
+    // Offline and back.
+    await context.setOffline(true);
+    await page.clock.runFor(13000);
+    await context.setOffline(false);
+    await page.clock.runFor(13000);
+    // Mark a class Present when one is on Today.
+    await run(page, `navigateTo('dashboard')`);
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('.beacon-att')].find((x) => /Present/.test(x.textContent || '') && (x as HTMLElement).offsetParent) as HTMLElement | undefined;
+      if (b) b.click();
+    });
+    await page.clock.runFor(13000);
+    // Holiday, weekly reset, a celebration.
+    await step(`showCelebration('🎉', 'All caught up', 'Every task is done.')`);
+
+    const seen: any[] = await page.evaluate(() => (window as any).__seen);
+    const rows = seen.map((t) => {
+      const flags = [
+        BANNED.test(t.text) ? 'EMOJI' : '',
+        ...AVOID.filter((r) => r.test(t.line1 + ' ' + t.line2)).map((r) => `avoid ${r}`),
+        TECH.test(t.text) ? 'technical' : '',
+        t.line1.length > 60 ? `long (${t.line1.length})` : '',
+        t.kind === 'fail' && !t.action ? 'fail without action' : '',
+      ].filter(Boolean);
+      return `${t.kind.padEnd(9)} | ${t.item ? 'item' : '    '} | ${t.line1} | ${t.line2} | ${t.action} | ${flags.join(', ')}`;
+    });
+    await testInfo.attach('voice-report', { body: rows.join('\n') || '(no messages)', contentType: 'text/plain' });
+    expect(seen.length).toBeGreaterThan(5);
+    expect(seen.filter((t) => BANNED.test(t.text)).map((t) => t.text)).toEqual([]);
+  });
+
+  test('celebration has no emoji, a hidden ring, one polite announcement', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => { document.getElementById('cd-alert')!.textContent = ''; });
+    await run(page, `showCelebration('🎉', 'All caught up', 'Every task is done.')`);
+    const card = page.locator('#toast-container .celebrate-card');
+    await expect(card).toHaveCount(1);
+    const text = await card.textContent();
+    expect(text).not.toMatch(BANNED);
+    await expect(card.locator('.celebrate-ring')).toHaveAttribute('aria-hidden', 'true');
+    expect(await page.evaluate(() => document.getElementById('cd-announce')!.textContent)).toBe('All caught up. Every task is done.');
+    expect(await page.evaluate(() => document.getElementById('cd-alert')!.textContent)).toBe('');
+    expect(await page.evaluate(() => { const s = (window as any).toastState; return [s.visible, ...s.ordinaryQueue].filter(Boolean).length; })).toBe(0);
+  });
+
+  test('a celebration waits while a failure is up', async ({ page }) => {
+    await openApp(page);
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    await run(page, `showCelebration('🎉', 'All caught up', 'Every task is done.')`);
+    await expect(page.locator('#toast-container .celebrate-card')).toHaveCount(0);
+    await dismiss(page);
+    await page.clock.runFor(400);
+    await expect(page.locator('#toast-container .celebrate-card')).toHaveCount(1);
+  });
+});
