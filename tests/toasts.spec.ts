@@ -444,7 +444,9 @@ const SYNC_FIREBASE = `
   const ref = {
     get: () => Promise.resolve({ exists: false }),
     set: (d) => new Promise((res, rej) => window.__pushes.push({ res, rej, d })),
-    update: () => (window.__updFail ? Promise.reject({ code: 'unavailable' }) : Promise.resolve()),
+    update: () => (window.__updFail ? Promise.reject({ code: 'unavailable' })
+      : window.__updFailAfter ? new Promise((res, rej) => setTimeout(() => rej({ code: 'unavailable' }), window.__updFailAfter))
+      : Promise.resolve()),
     onSnapshot: (o, cb) => { window.__snap = cb; return noop; },
     collection: () => ({ doc: () => ref })
   };
@@ -1373,6 +1375,27 @@ test.describe('review round 3: confirmations and the waiting mark', () => {
     await settlePush(page, true);   // the main write lands, the delete does not
     await page.clock.runFor(50);
     expect(await badge(page)).toBe('Couldn’t sync · saved here');
+    expect(await mark(page)).not.toBeNull();
+  });
+
+  test('a delete that fails slowly: never Synced in between, the mark stays', async ({ page }) => {
+    await openSignedIn(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      localStorage.setItem('cos_attendance', JSON.stringify({ '2026-11-10': { a: 'attended' } }));
+      localStorage.setItem('cos_sync_last_pushed', JSON.stringify({ attendance: { '2026-11-10': { a: 'attended', b: 'attended' } }, attendanceBaseline: {}, attendanceLive: {} }));
+      w.__updFailAfter = 3000;   // the delete answers late, with a failure
+      w.syncToCloud();
+    });
+    await pushWaiting(page);
+    await settlePush(page, true);   // the main write lands first
+    for (let i = 0; i < 5; i++) {   // 1.5 s of waiting for the delete
+      await page.clock.runFor(300);
+      expect(await badge(page)).not.toMatch(/^Synced/);
+      expect(await mark(page)).not.toBeNull();
+    }
+    await page.clock.runFor(2000);  // the delete fails
+    await page.waitForFunction(() => document.getElementById('sync-text')!.textContent === 'Couldn’t sync · saved here');
     expect(await mark(page)).not.toBeNull();
   });
 
