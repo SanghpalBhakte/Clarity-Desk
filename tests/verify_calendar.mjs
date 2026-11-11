@@ -166,8 +166,8 @@ check('Page: month grid with dots, today highlighted, and the selected day\'s li
   const app = makeApp(); app.renderCalendar();
   const h = domCache['page-calendar'].innerHTML;
   const ok = h.includes('October 2026') && h.includes('cal-cell today selected')
-    && h.includes('aria-label="19 October, 2 classes"') && h.includes('aria-label="14 October, 1 deadline, 1 task"')
-    && h.includes('aria-label="20 October, today, nothing scheduled"')
+    && h.includes('<span class="cal-num">19</span><span class="sr-only"> October, 2 classes</span>') && h.includes('<span class="cal-num">14</span><span class="sr-only"> October, 1 deadline, 1 task</span>')
+    && h.includes('<span class="cal-num">20</span><span class="sr-only"> October, today, nothing scheduled</span>')
     && h.includes('Tuesday, 20 Oct') && h.includes('Nothing on this day.');
   return ok ? true : 'calendar markup missing pieces';
 });
@@ -197,7 +197,7 @@ check('B1: a tab left open past midnight comes back on the current month with to
   setNow('2026-10-20T10:00:00+05:30');
   const ok = before === '2026-11/2026-11-01' && changed === true
     && app.state.calMonth === '2026-10' && app.state.calSelected === '2026-10-21'
-    && h.includes('October 2026') && h.includes('aria-label="21 October, today, nothing scheduled"')
+    && h.includes('October 2026') && h.includes('<span class="cal-num">21</span><span class="sr-only"> October, today, nothing scheduled</span>')
     && cellFor(h, '2026-10-21').includes('today selected') && cellFor(h, '2026-10-20').includes('past');
   return ok ? true : `${before} -> ${app.state.calMonth}/${app.state.calSelected}, changed=${changed}`;
 });
@@ -305,7 +305,7 @@ check('F3: one dot per item up to 3, then "+N"; past days marked; labels list co
   const h = domCache['page-calendar'].innerHTML;
   const c28 = cellFor(h, '2026-10-28');
   const dots = (c28.match(/class="cal-dot /g) || []).length;
-  const ok = dots === 3 && c28.includes('+2</span>') && c28.includes('aria-label="28 October, 2 deadlines, 3 tasks"')
+  const ok = dots === 3 && c28.includes('+2</span>') && c28.includes('<span class="cal-num">28</span><span class="sr-only"> October, 2 deadlines, 3 tasks</span>')
     && cellFor(h, '2026-10-14').includes('past') && !cellFor(h, '2026-10-22').includes('past');
   return ok ? true : `dots=${dots} cell=${c28.slice(0, 200)}`;
 });
@@ -319,7 +319,7 @@ check('Marks: classes are ticks (labs dark), break days hatched, the exam day ri
   const c19 = cellFor(h, '2026-10-19');
   const ticks = (c19.match(/class="cal-tick/g) || []).length;
   const ok = ticks === 2 && c19.includes('cal-tick is-lab')
-    && cellFor(h, '2026-10-21').includes('is-break') && cellFor(h, '2026-10-21').includes(', break"')
+    && cellFor(h, '2026-10-21').includes('is-break') && cellFor(h, '2026-10-21').includes(', break</span>')
     && !cellFor(h, '2026-10-23').includes('is-break')
     && cellFor(h, '2026-10-28').includes('is-exam') && h.includes('exams on the 28th.')
     && h.includes('class="cal-summary"');

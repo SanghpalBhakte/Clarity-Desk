@@ -11912,7 +11912,7 @@ function renderCalendar() {
     const chips = chipItems.slice(0, 2).map(it => `<span class="cal-chip cal-chip-${it.type}${it.lab ? ' is-lab' : ''}">${it.type === 'class' ? escAttr_cd(it.short || it.title) + (it.lab && it.short !== 'Lab' ? ' lab' : '') : 'Due · ' + escAttr_cd(it.title)}</span>`).join('')
       + (chipItems.length > 2 ? `<span class="cal-chip">+${chipItems.length - 2} more</span>` : '');
     const cls = [key === todayKey ? 'today' : '', key < todayKey ? 'past' : '', key === state.calSelected ? 'selected' : '', isBreak(key) ? 'is-break' : '', key === examKey ? 'is-exam' : ''].filter(Boolean).join(' ');
-    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} aria-label="${label}"><span class="cal-num">${d}</span><span class="cal-dots" aria-hidden="true">${ticks}${dots}</span><span class="cal-chips" aria-hidden="true">${chips}</span></button>`;
+    cells += `<button type="button" class="cal-cell ${cls}" onclick="calSelectDate('${key}')" aria-pressed="${key === state.calSelected}" ${key === todayKey ? 'aria-current="date"' : ''} ><span class="cal-num">${d}</span><span class="sr-only">${label.slice(String(d).length)}</span><span class="cal-dots" aria-hidden="true">${ticks}${dots}</span><span class="cal-chips" aria-hidden="true">${chips}</span></button>`;
   }
 
   const hasData = hasAnyTimetable() || allTasks().some(t => t && t.dueDate && !t.noDeadline);
@@ -12130,7 +12130,7 @@ function renderTimetable() {
     const dt = weekDays.find(w => w.getDay() === d);
     const dn = dt ? dt.getDate() : '';
     return `
-    <button class="tt-tab ${d===day?'active':''} ${d===today?'today':''}" onclick="setTTDay(${d})" aria-pressed="${d===day}" aria-label="${DAY_NAMES[d]} ${dn}${d===today?', today':''}"><span class="tt-tab-d">${DAY_SHORT[d]}</span><span class="tt-tab-n">${dn}</span></button>
+    <button class="tt-tab ${d===day?'active':''} ${d===today?'today':''}" onclick="setTTDay(${d})" aria-pressed="${d===day}" ><span class="tt-tab-d">${DAY_SHORT[d]}</span> <span class="tt-tab-n">${dn}</span><span class="sr-only">, ${DAY_NAMES[d]}${d===today?', today':''}</span></button>
   `;
   }).join('');
 
@@ -12175,14 +12175,14 @@ function renderTimetable() {
         <div class="tt-att" style="display:flex;align-items:center;gap:4px;margin-right:2px">
           <button class="btn btn-sm ${isAttended ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'attended')"
-                  title="Mark ${escAttr_cd(c.subject)} Attended" aria-label="Mark ${escAttr_cd(c.subject)} as attended" aria-pressed="${isAttended}"
+                  title="Mark ${escAttr_cd(c.subject)} Attended" aria-label="Present, mark ${escAttr_cd(c.subject)} as attended" aria-pressed="${isAttended}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:44px;height:40px;
                          ${isAttended ? 'background:color-mix(in srgb, var(--status-success) 12%, transparent);border-color:var(--status-success);color:var(--status-success);' : ''}">
             ${icons.check()}<span class="tt-att-label">Present</span>
           </button>
           <button class="btn btn-sm ${isSkipped ? 'btn-primary' : 'btn-secondary'}"
                   onclick="event.stopPropagation(); setAttendance('${dateStr}', '${classKey}', 'skipped')"
-                  title="Mark ${escAttr_cd(c.subject)} as skipped" aria-label="Mark ${escAttr_cd(c.subject)} as skipped" aria-pressed="${isSkipped}"
+                  title="Mark ${escAttr_cd(c.subject)} as skipped" aria-label="Absent, mark ${escAttr_cd(c.subject)} as skipped" aria-pressed="${isSkipped}"
                   style="padding:4px 10px;font-size:var(--text-sm);font-weight:700;border-radius:6px;min-width:44px;height:40px;
                          ${isSkipped ? 'background:color-mix(in srgb, var(--status-error) 10%, transparent);border-color:var(--status-error);color:var(--status-error);' : ''}">
             ${icons.x()}<span class="tt-att-label">Absent</span>
@@ -19177,7 +19177,7 @@ function renderSettings() {
       ${!isGranted && !isDenied ? `<div id="st-notif-hint" style="margin:-4px 0 16px;font-size:var(--text-sm);color:var(--text-muted)">Choose when you want reminders below. They start arriving once notifications are on.</div>` : ''}
 
       ${isDenied ? `
-      <div style="margin-bottom:16px;font-size:var(--text-sm);color:var(--status-error);background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid color-mix(in srgb, var(--status-error) 25%, transparent);line-height:1.5;display:flex;align-items:flex-start;gap:8px">
+      <div style="margin-bottom:16px;font-size:var(--text-sm);color:var(--text-primary);background:color-mix(in srgb, var(--status-error) 8%, var(--bg-surface));padding:10px 12px;border-radius:var(--radius-xs,6px);border:1px solid color-mix(in srgb, var(--status-error) 25%, transparent);line-height:1.5;display:flex;align-items:flex-start;gap:8px">
         <span style="font-size:var(--text-md)">🔒</span>
         <div>
           <strong>Notifications are blocked by your browser.</strong> To receive alerts, click the lock or tune icon (🔒) near your browser address bar, set <strong>Notifications</strong> to <strong>Allow</strong>, and click <strong>Re-check Permission</strong>.
