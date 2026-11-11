@@ -10159,22 +10159,22 @@ window.setAttendance = function(dateStr, classKey, status) {
   let showToastAfterSave = null;
   if (data[dateStr][classKey] === status) {
     delete data[dateStr][classKey];
-    showToast('Attendance status cleared', 'info');
+    showToast('Attendance mark cleared', 'note', { where: true });
   } else {
     data[dateStr][classKey] = status;
     haptic();
-    const logged = status === 'attended' ? 'Attended ✓' : (ATT_STATUS_LABEL[status] || 'Skipped');
+    const logged = status === 'attended' ? 'Present' : (ATT_STATUS_LABEL[status] || 'Absent');
     const type = status === 'attended' ? 'success' : 'info';
     // Counted before this mark is saved, as before.
     const streak = status === 'attended' ? calculateAttendanceStreak() : 0;
     showToastAfterSave = () => {
-      let msg = `Attendance logged: ${logged}`;
-      if (streak >= 3) msg += ` (Streak: ${streak})`;
+      let msg = `Marked ${logged}`;
+      if (streak >= 3) msg += ` · ${streak} in a row`;
       const cls = (loadTimetable()[new Date(`${dateStr}T00:00:00`).getDay()] || []).find(c => attendanceKeyFor(c) === classKey);
       const standing = cls ? standingForClass(cls) : '';
       // With counts: "DS · 100% · on target" (short enough for a phone; the live row keeps the full line).
       const short = standing.replace(/ to reach \d+%$/, '');
-      showUndoToast(standing ? `${cls.code || cls.subject} · ${short}${streak >= 3 ? ` · ${streak} in a row` : ''}` : msg, undo, type);
+      showUndoToast(standing ? `${cls.code || cls.subject} · ${logged} · ${short}${streak >= 3 ? ` · ${streak} in a row` : ''}` : msg, undo, type, { where: true, key: `done:att:${dateStr}:${classKey}` });
     };
   }
   
@@ -10207,7 +10207,7 @@ function endedUnmarkedClassKeys(dateStr) {
 // Undo puts all of them back to unmarked.
 window.markEndedPresent = function(dateStr) {
   const keys = endedUnmarkedClassKeys(dateStr);
-  if (!keys.length) { showToast('Nothing left to mark.', 'info'); return; }
+  if (!keys.length) { showToast('Nothing left to mark', 'note'); return; }
   const wasOnTarget = isOverallAttendanceOnTarget();
   const data = safeGetStorage(KEY_ATTENDANCE, {}) || {};
   if (!data[dateStr]) data[dateStr] = {};
@@ -10216,7 +10216,7 @@ window.markEndedPresent = function(dateStr) {
   haptic();
   maybeCelebrateAttendanceTarget(wasOnTarget);
   syncToCloud();
-  showUndoToast(`${keys.length} classes marked Present ✓`, () => {
+  showUndoToast(`${keys.length} classes marked Present`, () => {
     const d = safeGetStorage(KEY_ATTENDANCE, {}) || {};
     keys.forEach(k => { if (d[dateStr]) delete d[dateStr][k]; });
     if (d[dateStr] && !Object.keys(d[dateStr]).length) delete d[dateStr];
@@ -12243,7 +12243,7 @@ window.deleteSubjectCard = function(subjectName, event) {
   const doDelete = () => {
     permanentlyDeleteSubject(subjectName);
     renderPage(state.currentPage);
-    showToast(`"${subjectName}" deleted`, 'info');
+    showToast('removed', 'note', { item: subjectName, where: true });
   };
   if (skipWarning) { doDelete(); return; }
   // In-app dialogs (the native confirm() is auto-cancelled in installed apps).
@@ -12419,13 +12419,13 @@ function logSubjectAttendanceAction(subjectKey, action) {
   };
   if (action === 'present') {
     liveActions[storageKey].present = (liveActions[storageKey].present || 0) + 1;
-    showUndoToast(`Logged Present (+1) for ${subj.name} ✓`, undoOne, 'success');
+    showUndoToast('· Present +1', undoOne, 'done', { item: subj.name, where: true, key: `done:live:${storageKey}` });
   } else if (action === 'missed') {
     liveActions[storageKey].missed = (liveActions[storageKey].missed || 0) + 1;
-    showUndoToast(`Logged Missed (+1) for ${subj.name}`, undoOne, 'info');
+    showUndoToast('· Missed +1', undoOne, 'note', { item: subj.name, where: true, key: `done:live:${storageKey}` });
   } else if (action === 'leave') {
     liveActions[storageKey].leave = (liveActions[storageKey].leave || 0) + 1;
-    showUndoToast(`Logged Leave (+1) for ${subj.name}`, undoOne, 'info');
+    showUndoToast('· Leave +1', undoOne, 'note', { item: subj.name, where: true, key: `done:live:${storageKey}` });
   }
   haptic();
 
@@ -12444,7 +12444,7 @@ function undoSubjectAttendanceAction(subjectKey) {
 
   delete liveActions[storageKey];
   saveLiveAttendanceActions(liveActions);
-  showToast(`Reset live attendance adjustments for ${subj.name}`, 'info');
+  showToast('· today’s extra counts cleared', 'note', { item: subj.name, where: true });
   renderPage(state.currentPage);
 }
 
@@ -13458,7 +13458,7 @@ window.saveExtraClassFromModal = function(subjectName) {
   );
   if (!res.ok) { showToast(res.reason, 'error'); return; }
   document.getElementById('extra-class-backdrop')?.remove();
-  showToast('Extra class added ✓', 'success');
+  showToast('Extra class added', 'done', { where: true });
   renderPage(state.currentPage);
 };
 
@@ -13493,7 +13493,7 @@ window.assignUnmatchedMark = function(dateStr, key, selectId) {
   if (!subject) return;
   appConfirm(`Count the ${dateStr} mark "${key}" under ${subject.name}?`, 'Count it', () => {
     const res = reassignAttendanceMark(dateStr, key, subjectId);
-    showToast(res.ok ? `Now counted under ${subject.name} ✓` : res.reason, res.ok ? 'success' : 'error');
+    showToast(res.ok ? 'now counts this class' : res.reason, res.ok ? 'done' : 'fail', res.ok ? { item: subject.name, where: true } : {});
     if (res.ok) renderPage(state.currentPage);
   });
 };
@@ -13595,7 +13595,7 @@ window.showAttendanceV2Preview = function(data) {
 window.setAttendanceMathMode = function(useV2) {
   saveAttV2State(useV2 ? 'v2' : 'v1');
   document.getElementById('att-v2-preview-backdrop')?.remove();
-  showToast(useV2 ? 'Attendance now matches your ERP ✓' : 'Keeping the old attendance numbers', useV2 ? 'success' : 'info');
+  showToast(useV2 ? 'Attendance now matches your ERP' : 'Keeping the old attendance numbers', useV2 ? 'done' : 'note', { where: true });
   renderPage(state.currentPage);
 };
 
@@ -13820,7 +13820,7 @@ function callScanner(name, args) {
   if (Scanners) return Scanners[name](...args);
   return loadScanners().then(
     m => m[name](...args),
-    () => showToast('The scanner could not load. Check your connection and try again.', 'error')
+    () => showToast('Couldn’t load the scanner', 'fail', { detail: 'Check your connection and try again.' })
   );
 }
 
@@ -13969,7 +13969,7 @@ function saveSubjectBaselineFromModal() {
 
   saveAttendanceBaselines(baselines);
   document.getElementById('baseline-modal-backdrop')?.remove();
-  showToast(`Baseline saved for ${subjName} (${pct}%) ✓`, 'success');
+  showToast(`baseline saved · ${pct}%`, 'done', { item: subjName, where: true, key: `done:subject:${subjName}` });
   renderPage(state.currentPage);
 }
 
@@ -13987,7 +13987,7 @@ function clearSubjectBaseline() {
 
   saveAttendanceBaselines(baselines);
   document.getElementById('baseline-modal-backdrop')?.remove();
-  showToast(`Attendance baseline cleared for ${subj.name}`, 'info');
+  showToast('baseline cleared', 'note', { item: subj.name, where: true });
   renderPage(state.currentPage);
 }
 
@@ -14667,14 +14667,14 @@ function executeDeclutterPlan(plan, userBatch) {
   syncToCloud();
 
   document.getElementById('declutter-modal-backdrop')?.remove();
-  showToast('Your desk is now decluttered and normalized! ✨', 'success');
+  showToast('Subjects tidied up', 'done', { detail: 'You can bring back the earlier setup from Settings', where: true });
   renderPage(state.currentPage);
 }
 
 function showRestoreDeskModal() {
   const backup = loadDeclutterBackup();
   if (!backup || !backup.timestamp) {
-    showToast('No previous desk cleanup backup found to restore.', 'info');
+    showToast('No earlier desk setup to bring back', 'note');
     return;
   }
 
@@ -14730,7 +14730,7 @@ function showRestoreDeskModal() {
 function confirmExecuteRestore() {
   const backup = loadDeclutterBackup();
   if (!backup) {
-    showToast('No backup found to restore.', 'error');
+    showToast('Couldn’t find the earlier desk setup', 'fail', { detail: 'Your current desk is unchanged.' });
     return;
   }
 
@@ -14753,11 +14753,11 @@ function confirmExecuteRestore() {
 
     syncToCloud();
     document.getElementById('restore-desk-backdrop')?.remove();
-    showToast('Previous desk setup restored successfully! ↩', 'success');
+    showToast('Your earlier desk setup is back', 'done', { where: true });
     renderPage(state.currentPage);
   } catch (err) {
     console.error('[RestoreBackup] Error restoring snapshot:', err);
-    showToast('Failed to restore backup. Your current data is preserved.', 'error');
+    showToast('Couldn’t bring back the earlier setup', 'fail', { detail: 'Your current desk is unchanged.' });
   }
 }
 
@@ -14813,7 +14813,7 @@ window.deleteSelectedSubjects = function() {
     subjectManageMode = false;
     subjectSelection.clear();
     renderPage(state.currentPage);
-    showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} deleted`, 'info');
+    showToast(`${names.length} subject${names.length !== 1 ? 's' : ''} removed`, 'note', { where: true });
   });
 };
 
@@ -15070,7 +15070,7 @@ window.resetSyllabusProgress = function(subjectKey) {
     updateSyllabusEntry(subjectKey, (e) => {
       e.topics.forEach(t => { t.status = 'todo'; delete t.doneAt; delete t.revisedAt; });
     });
-    showToast(`${entry.subjectName} progress reset`, 'info');
+    showToast('progress reset', 'note', { item: entry.subjectName, where: true });
   });
 };
 
@@ -15091,7 +15091,7 @@ window.removeSyllabus = function(subjectKey) {
   if (!entry) return;
   appConfirm(`Remove the ${entry.subjectName} syllabus (${entry.topics.length} topics)?\n\nThis cannot be undone.`, 'Delete', () => {
     saveSyllabus(list.filter(e => e.subjectKey !== entry.subjectKey));
-    showToast(`${entry.subjectName} syllabus removed`, 'info');
+    showToast('syllabus removed', 'note', { item: entry.subjectName, where: true });
     renderPage(state.currentPage);
   });
 };
@@ -15166,7 +15166,7 @@ window.deleteSyllabusTopic = function(subjectKey, id) {
   appConfirm(`Delete "${t.title}"?`, 'Delete', () => {
     updateSyllabusEntry(subjectKey, (e) => { e.topics = e.topics.filter(x => x.id !== id); });
     document.getElementById('syl-edit-backdrop')?.remove();
-    showToast('Topic deleted', 'info');
+    showToast('Topic removed', 'note', { where: true });
   });
 };
 
@@ -15308,7 +15308,7 @@ window.confirmSyllabusPaste = function() {
   entry.updatedAt = new Date().toISOString();
   saveSyllabus(list);
   closeSyllabusPasteModal();
-  showToast(`${added} topic${added !== 1 ? 's' : ''} added to ${subjectName} ✓`, 'success');
+  showToast(`· ${added} topic${added !== 1 ? 's' : ''} added`, 'done', { item: subjectName, where: true, key: `done:subject:${subjectName}` });
   renderPage(state.currentPage);
 };
 
