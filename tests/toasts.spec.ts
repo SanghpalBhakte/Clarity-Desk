@@ -445,7 +445,7 @@ const SYNC_FIREBASE = `
     get: () => Promise.resolve({ exists: false }),
     set: () => new Promise((res, rej) => window.__pushes.push({ res, rej })),
     update: () => Promise.resolve(),
-    onSnapshot: () => noop,
+    onSnapshot: (o, cb) => { window.__snap = cb; return noop; },
     collection: () => ({ doc: () => ref })
   };
   const firestore = () => ({ settings: noop, collection: () => ({ doc: () => ref }), enablePersistence: () => Promise.resolve() });
@@ -769,7 +769,7 @@ const SYL = JSON.stringify([{ subjectKey: 'physics', subjectName: 'Physics', exa
 const LINKS = JSON.stringify([{ name: 'Physics', code: 'PHY', color: '#394B63', resources: [] }]);
 const ROWS: Row[] = [
   { name: 'timetable row subject', open: `showTimetablePreviewModal([{ day: 'Mon', time: '09:00', end: '10:00', subject: '', type: 'lecture' }])`, trigger: `confirmSaveExtractedTimetable()`, field: '#preview-subject-0', note: 'Monday, 9:00 AM: add the subject name.', valid: 'Physics' },
-  { name: 'timetable row time', open: `showTimetablePreviewModal([{ day: 'Tue', time: '25:99', end: '26:99', subject: 'Physics', type: 'lecture' }])`, trigger: `confirmSaveExtractedTimetable()`, field: '#preview-time-0', note: 'Tuesday row: write the time like 9:30 AM.', valid: '9:30 AM' },
+  { name: 'timetable row time', open: `showTimetablePreviewModal([{ day: 'Tue', time: '25:99', end: '26:99', subject: 'Physics', type: 'lecture' }])`, trigger: `confirmSaveExtractedTimetable()`, field: '#preview-time-0', note: 'Tuesday row, start time: write it like 9:30 AM.', valid: '9:30 AM' },
   { name: 'timetable no classes', open: `showTimetablePreviewModal([])`, trigger: `confirmSaveExtractedTimetable()`, field: '#tt-preview-batch-select', note: 'Add at least one class, or pick "All batches".', valid: null },
   { name: 'holiday start', open: `showHolidayModal(); document.getElementById('holiday-start').value = '2020-01-01'`, trigger: `confirmHolidayModal()`, field: '#holiday-start', note: 'Pick a first day off from today on', valid: '__today__' },
   { name: 'holiday end', open: `showHolidayModal(); document.getElementById('holiday-start').value = '__today__'; const o = document.getElementById('holiday-open'); if (o && o.checked) o.click(); document.getElementById('holiday-end').value = '2020-01-01'`, trigger: `confirmHolidayModal()`, field: '#holiday-end', note: 'The last day off has to be on or after the first', valid: '2099-01-01' },
@@ -1190,5 +1190,133 @@ test.describe('review fixes: focus when a failure takes the place', () => {
     expect(await page.evaluate(() => document.activeElement?.className)).toBe('toast-dismiss');
     await page.keyboard.press('Enter');
     expect(await page.evaluate(() => document.activeElement?.className)).toBe('toast-action');
+  });
+});
+
+// ── PR #308 review, round 2 ──────────────────────────────────────
+test.describe('review round 2: sync truth', () => {
+  // The fake Firebase is routed per page; a service worker would serve the real SDK after a reload.
+  test.use({ serviceWorkers: 'block' });
+  test('two pushes on their way: the first confirmation does not say Synced', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    await pushWaiting(page);
+    await quickAdd(page, 'Viva on Friday');
+    await page.clock.runFor(2600);
+    expect(await page.evaluate(() => (window as any).__pushes.length)).toBe(2);
+    await settlePush(page, true);   // the older push
+    await page.clock.runFor(50);
+    expect(await badge(page)).toBe('Syncing…');
+    expect(await page.evaluate(() => (window as any).whereSavedLine())).toBe('Saved here · syncing to your account');
+    await settlePush(page, true);   // the newest push
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+  });
+
+  test('a change saved offline still says Waiting to sync after a reload, until it is sent', async ({ page }) => {
+    // navigator.onLine follows a flag that survives the reload.
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => sessionStorage.getItem('__off') !== '1' });
+    });
+    await openSignedIn(page);
+    await page.evaluate(() => { sessionStorage.setItem('__off', '1'); window.dispatchEvent(new Event('offline')); });
+    await quickAdd(page, 'Lab report due tomorrow');
+    expect(await badge(page)).toBe('Waiting to sync');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    // The fake clock stays paused across the reload: move it until sign-in has run.
+    for (let i = 0; i < 50 && !(await page.evaluate(() => !!(window as any).__snap)); i++) await page.clock.runFor(200);
+    expect(await badge(page)).toBe('Waiting to sync');
+    expect(await page.evaluate(() => (window as any).whereSavedLine())).toBe('Saved here · waiting to sync');
+    // Back online: still not synced until the account confirms the change.
+    await page.evaluate(() => { sessionStorage.setItem('__off', '0'); window.dispatchEvent(new Event('online')); });
+    expect(await badge(page)).toBe('Syncing…');
+    // Firestore's own echo of the held write: not a confirmation.
+    await page.evaluate(() => (window as any).__snap({ exists: true, metadata: { hasPendingWrites: true, fromCache: false }, data: () => ({}) }));
+    expect(await badge(page)).toBe('Syncing…');
+    // The account's copy arrives: the phone sends its own copy again and waits for that.
+    await page.evaluate(() => (window as any).__snap({ exists: true, metadata: { hasPendingWrites: false, fromCache: false }, data: () => ({ theme: 'paper-slate' }) }));
+    expect(await badge(page)).toBe('Syncing…');
+    await page.waitForFunction(() => (window as any).__pushes.length > 0);
+    await settlePush(page, true);
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+    expect(await page.evaluate(() => localStorage.getItem('cos_sync_waiting'))).toBeNull();
+  });
+
+  test('signed out, Back online says where the data is', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    expect(await visibleLine1(page)).toBe('Back online');
+    expect(await visibleLine2(page)).toBe('On this phone only');
+  });
+});
+
+test.describe('review round 2: one announcement per moment', () => {
+  const BACK = 'Back on track. You’re at 80%, at or above your 75% target.';
+  test('a mark and the back-on-target card are read together, the mark first', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.showUndoToast('DS · Present · 80% · on target', () => {}, 'done', { key: 'done:att:x' });
+      w.showCelebration('', 'Back on track', 'You’re at 80%, at or above your 75% target.');
+    });
+    expect((await announcers(page))[0]).toBe(`DS · Present · 80% · on target. ${BACK}`);
+  });
+
+  test('the same when the card comes first (Mark the day)', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.showCelebration('', 'Back on track', 'You’re at 80%, at or above your 75% target.');
+      w.showUndoToast('3 classes marked Present', () => {}, 'done', { key: 'done:att:day' });
+    });
+    expect((await announcers(page))[0]).toBe(`3 classes marked Present. ${BACK}`);
+  });
+
+  test('a later message is read on its own, and a failure keeps its own region', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).showCelebration('', 'Back on track', 'You’re at 80%, at or above your 75% target.'));
+    await page.clock.runFor(3000);
+    await show(page, 'Lab record saved', 'done', { key: 'k-later' });
+    expect((await announcers(page))[0]).toBe('Lab record saved');
+    await show(page, 'Couldn’t save that', 'fail');
+    await page.evaluate(() => (window as any).showCelebration('', 'All caught up', 'Every task is done.'));
+    expect((await announcers(page))[1]).toBe('Couldn’t save that');
+  });
+});
+
+test.describe('review round 2: names', () => {
+  const PREFIX = 'Engineering Mathematics III and Numerical Methods for Computer Science Students, Unit ';
+  test('two vault subjects with the same long start get two messages', async ({ page }) => {
+    await openApp(page);
+    const keys = await page.evaluate((prefix) => {
+      const w = window as any;
+      for (const end of ['One', 'Two']) {
+        document.getElementById('lsm-name')?.remove();
+        const input = document.createElement('input');
+        input.id = 'lsm-name';
+        input.value = prefix + end;
+        document.body.appendChild(input);
+        w.saveLinkSubject(null);
+      }
+      const s = w.toastState;
+      return [s.visible, ...s.ordinaryQueue].filter(Boolean).map((t: any) => t.key);
+    }, PREFIX);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  test('long task, subject and vault names wrap on a small phone', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await openApp(page);
+    const names = [LONG, PREFIX + 'Four, with the tutorial sheets', 'Laplace_transforms_and_inverse_transforms_question_bank_with_solutions_final_v3.pdf'];
+    for (const item of names) {
+      await page.evaluate((it) => (window as any).showUndoToast('saved to the vault', () => {}, 'done', { item: it, key: 'long', where: true }), item);
+      const t = await toastBox(page);
+      const undo = await page.getByRole('button', { name: 'Undo' }).boundingBox();
+      expect(t!.x).toBeGreaterThanOrEqual(0);
+      expect(t!.x + t!.width).toBeLessThanOrEqual(320);
+      expect(undo!.x + undo!.width).toBeLessThanOrEqual(320);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+      expect(await page.evaluate(() => (window as any).toastState.visible.item)).toBe(item);
+      expect((await announcers(page))[0]).toContain(item);
+    }
   });
 });

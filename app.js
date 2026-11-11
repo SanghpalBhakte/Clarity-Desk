@@ -37,6 +37,10 @@ const KEY_SIGNIN_BACKUP       = 'cos_signin_backup';
 // Local-only: true/false = signed in when this phone last checked. index.html
 // reads it to decide whether to load the Firebase SDK at startup.
 const KEY_CLOUD_SIGNED_IN     = 'cos_cloud_signed_in';
+// Local-only (never synced, not in backups): { uid } while a change made on
+// this phone is not yet confirmed by that account. Badge only; kept across a
+// reload so an offline restart still says "Waiting to sync".
+const KEY_SYNC_WAITING        = 'cos_sync_waiting';
 const KEY_THEME               = 'cos_theme';
 const KEY_NOTIF_PREFS         = 'cos_notif_prefs';
 const KEY_NOTICE_CHANNELS     = 'cos_notice_channels';
@@ -408,10 +412,23 @@ function getToastContainer() {
 }
 
 // Writes one message to the polite or the alert announcer.
-function announceToast(text, urgent) {
+// A milestone card (card = true) and an ordinary message from the same moment
+// (a mark that puts attendance back on track) are read as one sentence, the
+// action first, so neither replaces the other. Failures use the alert
+// region, which a card never writes to.
+const ANNOUNCE_JOIN_MS = 1000;
+let lastPolite = { text: '', at: 0, card: false };
+function announceToast(text, urgent, card = false) {
   getToastContainer();
   const r = document.getElementById(urgent ? 'cd-alert' : 'cd-announce');
-  if (r) r.textContent = text;
+  if (!r) return;
+  if (!urgent) {
+    const now = Date.now();
+    const join = lastPolite.text && lastPolite.card !== card && now - lastPolite.at < ANNOUNCE_JOIN_MS;
+    lastPolite = join ? { text: '', at: 0, card: false } : { text, at: now, card };
+    if (join) text = card ? `${r.textContent}. ${text}` : `${text}. ${r.textContent}`;
+  }
+  r.textContent = text;
 }
 
 function toastLineText(t) {
@@ -954,7 +971,7 @@ function showCelebration(icon, title, subtitle = '') {
   card.addEventListener('click', close);
   container.appendChild(card);
   requestAnimationFrame(() => card.classList.add('toast-show'));
-  announceToast(subtitle ? `${title}. ${subtitle}` : title, false);
+  announceToast(subtitle ? `${title}. ${subtitle}` : title, false, true);
   setTimeout(close, 4500);
 }
 
@@ -1020,7 +1037,19 @@ function hasPendingSync() { return !!currentUser && !!localPushPendingAt; }
 // still shows as syncing when that older push is confirmed.
 let unconfirmedChange = false;
 let ackedPush = null;   // the newest push the account has confirmed
-function syncLooksPending() { return hasPendingSync() || (!!currentUser && unconfirmedChange); }
+function syncLooksPending() { return hasPendingSync() || (!!currentUser && unconfirmedChange) || syncWaitingSaved(); }
+
+// The saved "not confirmed yet" mark (KEY_SYNC_WAITING) for this account.
+function syncWaitingSaved() {
+  if (!currentUser) return false;
+  const w = safeGetStorage(KEY_SYNC_WAITING, null);
+  return !!(w && w.uid === currentUser.uid);
+}
+// Not while the first sign-in question is open: nothing is headed to the account yet.
+function setSyncWaiting(on) {
+  if (on) { if (currentUser && !signinHeld(currentUser.uid) && !syncWaitingSaved()) safeSetStorage(KEY_SYNC_WAITING, { uid: currentUser.uid }); return; }
+  try { localStorage.removeItem(KEY_SYNC_WAITING); } catch (_) {}
+}
 
 // Phone storage was too full to keep the account's latest copy (badge only).
 let phoneStorageFull = false;
@@ -1087,28 +1116,34 @@ let syncPushSeq = 0;   // counts pushes so a late delete failure only rolls back
 
 // Retry on the sync failure toast: push now; true once the account confirms
 // it (false on an error, or after 20 s without an answer).
+// A retry waits for a push that carries every change made before it; an
+// older push confirmed meanwhile does not count. An error settles all.
 let pushRetryWaiters = [];
-function settlePushRetry(ok) {
-  const waiting = pushRetryWaiters;
-  pushRetryWaiters = [];
-  waiting.forEach(fn => fn(ok));
+function settlePushRetry(ok, seq = Infinity) {
+  const settled = pushRetryWaiters.filter(w => !ok || seq >= w.seq);
+  pushRetryWaiters = pushRetryWaiters.filter(w => !settled.includes(w));
+  settled.forEach(w => w.fn(ok));
 }
 function retryCloudPush() {
   if (!currentUser || !db) return Promise.resolve(false);
   return new Promise((resolve) => {
     const done = (ok) => { clearTimeout(timer); resolve(ok); };
-    const timer = setTimeout(() => { pushRetryWaiters = pushRetryWaiters.filter(f => f !== done); resolve(false); }, 20000);
-    pushRetryWaiters.push(done);
+    const waiter = { fn: done, seq: localChangeSeq };
+    const timer = setTimeout(() => { pushRetryWaiters = pushRetryWaiters.filter(w => w !== waiter); resolve(false); }, 20000);
+    pushRetryWaiters.push(waiter);
     lastPushed = null;   // send it even if it looks already sent
     pushLocalDataToCloud(currentUser.uid);
   });
 }
 
-function onCloudPushOk() {
+// `sent` is the push this answer belongs to. With two pushes on their way,
+// the older one's answer must not make the newer change look synced.
+function onCloudPushOk(sent = lastPushed) {
   localPushPendingAt = 0;
-  ackedPush = lastPushed;
-  unconfirmedChange = !!lastPushed && localChangeSeq > lastPushed.seq;
-  settlePushRetry(true);
+  if (sent && (!ackedPush || ackedPush.uid !== sent.uid || sent.seq >= ackedPush.seq)) ackedPush = sent;
+  unconfirmedChange = !!sent && localChangeSeq > ackedPush.seq;
+  if (sent && !unconfirmedChange && currentUser && sent.uid === currentUser.uid) setSyncWaiting(false);
+  settlePushRetry(true, sent ? ackedPush.seq : Infinity);
   dismissToast('fail:sync:push');
   dismissToast('fail:sync:full');
   resetPushBackoff();
@@ -3701,7 +3736,7 @@ window.confirmSaveExtractedTimetable = function() {
     // Validate times
     const timeNorm = normalizeTimetableTime(`${item.time || '10:00'} - ${item.end || '11:00'}`);
     if (!timeNorm.isValid) {
-      const msg = `${day} row: write the time like 9:30 AM.`;
+      const msg = `${day} row, start time: write it like 9:30 AM.`;
       const timeEl = document.getElementById(`preview-time-${idx}`);
       // The note sits under the row's wide subject cell; the time cell is narrow.
       if (timeEl) reportFormErrors([{ input: timeEl, msg, isValid: (v) => normalizeTimetableTime(`${v} - ${item.end || '11:00'}`).isValid, anchor: subjEl || timeEl }]);
@@ -5239,18 +5274,9 @@ function undoSignin() {
   return ok;
 }
 
-function subscribeUserCloudData(uid) {
-  if (!db || !uid) return;
-  if (cloudUnsubscribe) cloudUnsubscribe();
-
-  // Seed the dedup hash with the CURRENT local state (already rendered by
-  // the synchronous boot render) instead of leaving it null. Previously,
-  // every page refresh reset this to null, so the first cloud response
-  // (cache read or server snapshot) always looked "different" and forced
-  // a redundant renderPage() even when local storage already matched the
-  // cloud exactly -- a second, needless rebuild right after the first
-  // paint, visible as the masthead/stat tiles flickering in and out.
-  lastCloudPayloadHash = calculatePayloadHash({
+// This phone's desk in the same shape calculatePayloadHash reads from a cloud copy.
+function localDeskHash() {
+  return calculatePayloadHash({
     profile: loadProfile(),
     customTasks: state.customTasks,
     customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
@@ -5268,6 +5294,31 @@ function subscribeUserCloudData(uid) {
     customLinks: linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS, null)),
     tombstones: pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
   });
+}
+
+// After a reload the in-memory sync flags start empty, so a saved "waiting"
+// mark (KEY_SYNC_WAITING) is settled by the account's own copy: the same as
+// this phone means synced; otherwise this phone sends its copy (after any
+// merge) and the mark clears when that push is confirmed.
+function settleSavedWaiting(uid, cloudHash) {
+  if (!syncWaitingSaved() || hasPendingSync() || unconfirmedChange) return;
+  if (cloudHash && cloudHash === localDeskHash()) { setSyncWaiting(false); updateSyncUI(); return; }
+  lastPushed = null;
+  pushLocalDataToCloud(uid);
+}
+
+function subscribeUserCloudData(uid) {
+  if (!db || !uid) return;
+  if (cloudUnsubscribe) cloudUnsubscribe();
+
+  // Seed the dedup hash with the CURRENT local state (already rendered by
+  // the synchronous boot render) instead of leaving it null. Previously,
+  // every page refresh reset this to null, so the first cloud response
+  // (cache read or server snapshot) always looked "different" and forced
+  // a redundant renderPage() even when local storage already matched the
+  // cloud exactly -- a second, needless rebuild right after the first
+  // paint, visible as the masthead/stat tiles flickering in and out.
+  lastCloudPayloadHash = localDeskHash();
 
   const userRef = db.collection('users').doc(uid);
 
@@ -5304,17 +5355,22 @@ function subscribeUserCloudData(uid) {
 
     // Skip parsing and UI re-renders on local pending write echo events
     if (doc.metadata && doc.metadata.hasPendingWrites) return;
-    if (!(doc.metadata && doc.metadata.fromCache) && !signinHeld(uid)) markSynced();
+    const fromServer = !(doc.metadata && doc.metadata.fromCache);
+    if (fromServer && !signinHeld(uid)) markSynced();
 
     const data = doc.data() || {};
     const currentHash = calculatePayloadHash(data);
     // Same as this phone already: nothing to mix, so no first sign-in question later.
-    if (currentHash && currentHash === lastCloudPayloadHash) { if (!signinHeld(uid)) markSigninSeen(uid); return; }
+    if (currentHash && currentHash === lastCloudPayloadHash) {
+      if (!signinHeld(uid)) { markSigninSeen(uid); if (fromServer) settleSavedWaiting(uid, currentHash); }
+      return;
+    }
     if (signinGate(uid, data)) return;   // first sign-in: ask before applying
     if (cloudApplyDeferred()) return;   // a newer local change is still on its way up
     lastCloudPayloadHash = currentHash;
 
     applyCloudDataToLocalState(data);
+    if (fromServer && !signinHeld(uid)) settleSavedWaiting(uid, currentHash);
   }, err => {
     if (err.code === 'permission-denied') {
       updateSyncUI('denied');
@@ -5511,12 +5567,12 @@ function pushLocalDataToCloud(uid) {
   if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) {
     // Same content as the last push: it stands for this change too.
     lastPushed.seq = localChangeSeq;
-    if (ackedPush === lastPushed) unconfirmedChange = false;
+    if (ackedPush === lastPushed) { unconfirmedChange = false; setSyncWaiting(false); }
     localPushPendingAt = 0;
     if (ackedPush === lastPushed) updateSyncUI();
     return;
   }
-  lastPushed = { uid, hash, seq: localChangeSeq };
+  const sent = lastPushed = { uid, hash, seq: localChangeSeq };
   payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
   // Mark this write's hash as already-seen so its own ack echo (which
   // comes back through onSnapshot once the server confirms it) isn't
@@ -5528,7 +5584,7 @@ function pushLocalDataToCloud(uid) {
   const deletes = computeSyncDeletePaths(prevPushed, payload, attendanceEmptiedByUndo);
   const pushSeq = ++syncPushSeq;
   attendanceEmptiedByUndo = false;
-  ref.set(payload, { merge: true }).then(onCloudPushOk).catch(onCloudPushError);
+  ref.set(payload, { merge: true }).then(() => onCloudPushOk(sent)).catch(onCloudPushError);
   // set(merge:true) never removes a map key, so a cleared mark used to come
   // back from the cloud on the next sync. Delete exactly the paths that were
   // in the last synced copy and are gone now (queued offline like any write).
@@ -6445,6 +6501,7 @@ function syncToCloud() {
   if (!currentUser) return;
   localPushPendingAt = Date.now();
   localChangeSeq++;
+  setSyncWaiting(true);
   updateSyncUI();
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
@@ -6865,7 +6922,7 @@ const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', '
 // Preferences, and bookkeeping the app writes on its own during any visit,
 // that are no loss to leave behind. Any other cos_* key counts as desk data.
 const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,
-  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN];
+  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN, KEY_SYNC_WAITING];
 const MOVED_SNOOZE_MS = 3 * 86400000;
 
 function isOldAddress(hostname) {
@@ -14065,7 +14122,7 @@ function saveSubjectBaselineFromModal() {
 
   saveAttendanceBaselines(baselines);
   document.getElementById('baseline-modal-backdrop')?.remove();
-  showToast(`baseline saved · ${pct}%`, 'done', { item: subjName, where: true, key: `done:subject:${subjName}` });
+  showToast(`baseline saved · ${pct}%`, 'done', { item: subjName, where: true, key: `done:subject:${storageKey}` });
   renderPage(state.currentPage);
 }
 
@@ -15404,7 +15461,7 @@ window.confirmSyllabusPaste = function() {
   entry.updatedAt = new Date().toISOString();
   saveSyllabus(list);
   closeSyllabusPasteModal();
-  showToast(`· ${added} topic${added !== 1 ? 's' : ''} added`, 'done', { item: subjectName, where: true, key: `done:subject:${subjectName}` });
+  showToast(`· ${added} topic${added !== 1 ? 's' : ''} added`, 'done', { item: subjectName, where: true, key: `done:subject:${entry.subjectKey || getCanonicalSubjectKey(subjectName)}` });
   renderPage(state.currentPage);
 };
 
@@ -18367,7 +18424,7 @@ window.saveLinkSubject = function(si) {
   }
   if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
   document.getElementById('link-subject-modal-backdrop')?.remove();
-  showToast('saved to the vault', 'done', { item: name, where: true, key: `done:vault:${name}` });
+  showToast('saved to the vault', 'done', { item: name, where: true, key: `done:vault:${si === null ? links.length - 1 : si}` });
   renderLinks();
 };
 
@@ -18454,7 +18511,7 @@ async function vaultSaveFileResource(si, ri, file, label, icon) {
     window._pendingVaultFile = null;
     vaultAskPersist();
     document.getElementById('link-resource-modal-backdrop')?.remove();
-    showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${label}` });
+    showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${si}:${ri === null ? links[si].resources.length - 1 : ri}` });
     renderLinks();
   } finally { vaultSaveFileResource.busy = false; }
 }
@@ -18626,7 +18683,7 @@ window.saveLinkResource = function(si, ri) {
   }
   if (item.url && item.url.startsWith('data:')) vaultAskPersist();
   document.getElementById('link-resource-modal-backdrop')?.remove();
-  showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${label}` });
+  showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${si}:${ri === null ? links[si].resources.length - 1 : ri}` });
   renderLinks();
 };
 
@@ -20713,7 +20770,7 @@ function init() {
   // Network connectivity status listeners
   window.addEventListener('online', () => {
     resetPushBackoff();
-    showToast('Back online', 'note', { key: 'note:online', where: !!currentUser });
+    showToast('Back online', 'note', { key: 'note:online', where: true });
     flushPendingSync();
     updateSyncUI();
     flushFeedbackQueue();

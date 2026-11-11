@@ -12,7 +12,7 @@ check('guard sits before the payload hash is remembered',
   [...src.matchAll(/if \(cloudApplyDeferred\(\)\) return;[^\n]*\n\s*lastCloudPayloadHash = currentHash;/g)].length === 2);
 check('syncToCloud marks the pending change', /if \(!currentUser\) return;\n  localPushPendingAt = Date\.now\(\);/.test(src));
 check('a landed push (or nothing to push) clears the flag',
-  /function onCloudPushOk\(\) \{\n  localPushPendingAt = 0;/.test(src) && /lastPushed\.hash === hash\) \{\n(?:[^\n]*\n)*?    localPushPendingAt = 0;\n(?:[^\n]*\n)*?    return;\n  \}/.test(src));
+  /function onCloudPushOk\([^)]*\) \{\n  localPushPendingAt = 0;/.test(src) && /lastPushed\.hash === hash\) \{\n(?:[^\n]*\n)*?    localPushPendingAt = 0;\n(?:[^\n]*\n)*?    return;\n  \}/.test(src));
 check('backgrounding the app flushes the push immediately', /document\.hidden\) \{[^]*?pushLocalDataToCloud\(currentUser\.uid\)/.test(src));
 check('the flag expires so a stuck push cannot block the cloud for good', src.includes('< 60000'));
 console.log(`FAILED: ${failed}`);
