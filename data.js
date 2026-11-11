@@ -170,6 +170,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u291",
+    date: "2026-11-11",
+    title: "Tasks: one item in Later reads as its title and date, and the subject line has room to breathe",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks: one item in Later reads as its title and date, and the subject line has room to breathe",
+    points: [
+
+    ]
+  },
+  {
+    id: "u290",
+    date: "2026-11-11",
+    title: "Tasks page is calmer: one list, clearer sections, subject names on the two-week strip",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks page is calmer: one list, clearer sections, subject names on the two-week strip",
+    points: [
+
+    ]
+  },
+  {
     id: "u289",
     date: "2026-11-11",
     title: "Screen readers now read \"Trying again…\" and the form-errors summary on their own, not stuck onto a celebration",
