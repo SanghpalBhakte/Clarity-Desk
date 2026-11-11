@@ -450,18 +450,19 @@ function toastRestart(t) {
   t.duration = t.remaining = toastDuration(toastLineText(t) + (t.detail || ''), !!t.action);
   if (t.el) {
     t.el.style.setProperty('--toast-ms', `${t.duration}ms`);
-    const old = t.el.querySelector('.toast-thread');
     const thread = document.createElement('span');
     thread.className = 'toast-thread';
     thread.setAttribute('aria-hidden', 'true');
-    if (old) old.replaceWith(thread); else t.el.appendChild(thread);
+    if (t.thread) t.thread.replaceWith(thread); else t.el.appendChild(thread);
+    t.thread = thread;
   }
   toastRun(t);
 }
 
 function fillToastEl(t) {
   const el = t.el;
-  el.className = `toast toast-${t.kind}${t.action ? ' toast-has-action' : ''}`;
+  const showing = /\btoast-show\b/.test(el.className || '');
+  el.className = `toast toast-${t.kind}${t.action ? ' toast-has-action' : ''}${showing ? ' toast-show' : ''}`;
   el.dataset.key = t.key;
   el.textContent = '';
   const text = document.createElement('div');
@@ -477,10 +478,11 @@ function fillToastEl(t) {
     line1.textContent = t.msg;
   }
   text.appendChild(line1);
-  if (t.detail) {
+  const more = t.kind === 'fail' && t.more ? `${t.more} more issue${t.more === 1 ? '' : 's'}` : '';
+  if (t.detail || more) {
     const line2 = document.createElement('div');
     line2.className = 'toast-line2';
-    line2.textContent = t.detail;
+    line2.textContent = [t.detail, more].filter(Boolean).join(' · ');
     text.appendChild(line2);
   }
   el.appendChild(text);
@@ -491,8 +493,9 @@ function fillToastEl(t) {
     btn.textContent = t.action.label;
     btn.setAttribute('aria-describedby', line1.id);
     btn.addEventListener('click', () => {
-      btn.disabled = true;
-      closeToast(t, true);
+      // Undo closes its toast. A failure's action (Retry) leaves the
+      // failure up until it is resolved or dismissed.
+      if (t.kind !== 'fail') { btn.disabled = true; closeToast(t, true); }
       t.action.fn();
     }, { once: true });
     el.appendChild(btn);
@@ -506,6 +509,13 @@ function fillToastEl(t) {
     x.addEventListener('click', () => closeToast(t, true));
     el.appendChild(x);
   }
+  const thread = document.createElement('span');
+  thread.className = 'toast-thread';
+  thread.setAttribute('aria-hidden', 'true');
+  // Picks up where the countdown was (a toast coming back after a failure).
+  if (t.duration && t.remaining != null && t.remaining < t.duration) thread.style.animationDelay = `${t.remaining - t.duration}ms`;
+  el.appendChild(thread);
+  t.thread = thread;
 }
 
 function buildToastEl(t) {
@@ -549,16 +559,116 @@ function closeToast(t, now = false) {
     else el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out' }).onfinish = () => el.remove();
   }
   if (hadFocus && t.prevFocus && document.contains(t.prevFocus)) t.prevFocus.focus();
+  showNextToast();
+}
+
+// Failures first (newest first), then ordinary toasts in arrival order.
+function showNextToast() {
+  if (toastState.visible) return;
+  const next = toastState.failQueue.shift() || toastState.ordinaryQueue.shift();
+  if (next) presentToast(next);
+}
+
+// Puts a toast on screen. A toast coming back after stepping aside keeps
+// its remaining time and is not announced a second time.
+function presentToast(t) {
+  const container = getToastContainer();
+  t.closed = false;
+  if (t.kind === 'fail') t.more = toastState.failQueue.length;
+  if (!t.el) buildToastEl(t); else fillToastEl(t);
+  container.appendChild(t.el);
+  toastState.visible = t;
+  void t.el.offsetWidth;   // start the enter transition from the hidden state
+  t.el.classList.add('toast-show');
+  if (t.steppedAside) {
+    t.steppedAside = false;
+    t.pauses = new Set(document.hidden ? ['hidden'] : []);
+    toastRun(t);
+    return;
+  }
+  announceToast(toastLineText(t) + (t.detail ? `. ${t.detail}` : ''), t.kind === 'fail');
+  toastRestart(t);
+}
+
+// A failure takes the screen: an ordinary toast with an action (Undo) waits
+// at the front of the line with the time it had left; a plain one closes.
+function toastMakeRoomForFailure() {
+  const cur = toastState.visible;
+  if (!cur) return;
+  if (cur.kind === 'fail' || cur.retrying) {
+    toastState.visible = null;
+    clearTimeout(cur.timer);
+    cur.timer = null;
+    cur.el.remove();
+    toastState.failQueue.unshift(cur);
+    return;
+  }
+  if (cur.action) {
+    toastPause(cur, 'aside');
+    cur.pauses.clear();
+    cur.steppedAside = true;
+    toastState.visible = null;
+    cur.el.remove();
+    toastState.ordinaryQueue.unshift(cur);
+    return;
+  }
+  toastState.visible = null;
+  closeToastQuietly(cur);
+}
+
+function closeToastQuietly(t) {
+  t.closed = true;
+  clearTimeout(t.timer);
+  clearTimeout(t.pointerSafety);
+  if (t.el) t.el.remove();
 }
 
 function dismissToast(key) {
   const t = toastState.visible;
-  if (t && t.key === key) closeToast(t);
+  if (t && t.key === key) { closeToast(t); return; }
+  ['failQueue', 'ordinaryQueue'].forEach((q) => {
+    toastState[q] = toastState[q].filter((x) => x.key !== key);
+  });
+  if (toastState.visible && toastState.visible.kind === 'fail') {
+    toastState.visible.more = toastState.failQueue.length;
+    fillToastEl(toastState.visible);
+  }
+}
+
+// Retry on a failure toast: the same toast says "Trying again…", then
+// closes when run() resolves true, or turns back into the same failure.
+async function retryToast(key, run) {
+  const t = toastState.visible && toastState.visible.key === key ? toastState.visible : null;
+  const saved = t && { kind: t.kind, msg: t.msg, item: t.item, detail: t.detail, action: t.action };
+  if (t) {
+    // Still sticky, so it cannot time out while the retry runs.
+    Object.assign(t, { kind: 'wait', msg: 'Trying again…', item: '', detail: '', action: null, retrying: true });
+    fillToastEl(t);
+    t.el.classList.add('toast-show');
+    announceToast('Trying again…', false);
+  }
+  let ok = false;
+  try { ok = !!(await run()); } catch (_) { ok = false; }
+  if (!t) return;
+  t.retrying = false;
+  if (ok) {
+    if (toastState.visible === t) closeToast(t);
+    else dismissToast(key);
+    return;
+  }
+  Object.assign(t, saved);
+  t.sticky = true;
+  if (toastState.visible === t) {
+    t.more = toastState.failQueue.length;
+    fillToastEl(t);
+    t.el.classList.add('toast-show');
+    announceToast(toastLineText(t) + (t.detail ? `. ${t.detail}` : ''), true);
+  }
 }
 
 // msg is line 1; opts: { detail, action: { label, fn }, sticky, key, item, where }.
 function showToast(msg, type = 'note', opts = {}) {
-  const container = getToastContainer();
+  getToastContainer();
   const kind = TOAST_KINDS[type] || 'note';
   const key = toastKey(kind, `${opts.item || ''} ${msg}`, opts);
   const fields = {
@@ -576,15 +686,34 @@ function showToast(msg, type = 'note', opts = {}) {
     if (line1Changed) announceToast(toastLineText(cur) + (cur.detail ? `. ${cur.detail}` : ''), cur.kind === 'fail');
     return cur.el;
   }
-  if (cur) closeToast(cur);
 
-  const t = { id: ++toastSeq, ...fields, pauses: new Set(), timer: null, pointerSafety: null, prevFocus: null, closed: false };
-  container.appendChild(buildToastEl(t));
-  toastState.visible = t;
-  void t.el.offsetWidth;   // start the enter transition from the hidden state
-  t.el.classList.add('toast-show');
-  announceToast(toastLineText(t) + (t.detail ? `. ${t.detail}` : ''), kind === 'fail');
-  toastRestart(t);
+  // Same key already waiting: replace it where it stands.
+  for (const q of ['failQueue', 'ordinaryQueue']) {
+    const waiting = toastState[q].find((x) => x.key === key);
+    if (waiting) {
+      Object.assign(waiting, fields);
+      waiting.steppedAside = false;
+      if (waiting.el) fillToastEl(waiting);
+      return waiting.el || null;
+    }
+  }
+
+  const t = { id: ++toastSeq, ...fields, pauses: new Set(), timer: null, pointerSafety: null, prevFocus: null, closed: false, el: null };
+  if (kind === 'fail') {
+    toastMakeRoomForFailure();
+    presentToast(t);
+    return t.el;
+  }
+  if (toastState.visible || toastState.failQueue.length) {
+    toastState.ordinaryQueue.push(t);
+    // At most two wait; the oldest waiting one without an Undo goes first.
+    while (toastState.ordinaryQueue.length > 2) {
+      const i = toastState.ordinaryQueue.findIndex((x) => !x.action);
+      toastState.ordinaryQueue.splice(i === -1 ? 0 : i, 1);
+    }
+    return null;
+  }
+  presentToast(t);
   return t.el;
 }
 
@@ -593,6 +722,7 @@ window.dismissToast = dismissToast;
 window.closeToast = closeToast;
 window.toastDuration = toastDuration;
 window.toastState = toastState;
+window.retryToast = retryToast;
 
 if (typeof document !== 'undefined' && document.addEventListener) {
   // Live regions must already be in the page before text lands in them,
@@ -20056,55 +20186,47 @@ window.sendAssistantMessage  = sendAssistantMessage;
 window.clearAssistantChat    = clearAssistantChat;
 
 // The last pending task gets the "all caught up" card; any other gets the usual toast.
-function celebrateTaskDone(undo) {
+function celebrateTaskDone(undo, task) {
   haptic();
   if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
-  else if (undo) showUndoToast('Task marked completed ✓', undo, 'success');
-  else showToast('Task marked completed ✓', 'success');
+  else showUndoToast('is done', undo, 'done', { item: task.title, key: `done:task:${task.id}` });
 }
 
-// Undo for a tick: the task goes back to pending, quietly. Looked up by
-// id when Undo is tapped, since saving replaces the task objects.
-function taskTickUndo(id, custom) {
+// Undo for a tick or an untick: puts the task's status back to what it was.
+// Looked up by id when Undo is tapped (saving replaces the task objects),
+// and only the status changes, so an edit made meanwhile is kept.
+function taskStatusUndo(id, custom, to) {
   return () => {
     const task = (custom ? state.customTasks : state.assignments).find(x => x.id === id);
-    if (!task || task.status !== 'submitted') return;
-    task.status = 'pending';
+    if (!task) { showToast('Couldn’t undo: that task was removed', 'note'); return; }
+    if (task.status === to) return;
+    task.status = to;
     custom ? saveCustomTasks() : saveAssignments();
     renderPage(state.currentPage);
     updateNavBadges();
   };
 }
 
-window.toggleAssignment = (id) => {
-  // Custom task
-  const ct = state.customTasks.find(x => x.id === id);
-  if (ct) {
-    const isNowDone = ct.status !== 'submitted';
-    ct.status = isNowDone ? 'submitted' : 'pending';
-    saveCustomTasks();
-    if (isNowDone) {
-      celebrateTaskDone(taskTickUndo(id, true));
-    } else {
-      showToast('Task moved back to pending', 'info');
-    }
-    renderPage(state.currentPage);
-    updateNavBadges();
-    return;
-  }
-  // Data.js assignment
-  const a = state.assignments.find(x => x.id === id);
-  if (!a) return;
-  const isNowDone = a.status !== 'submitted';
-  a.status = isNowDone ? 'submitted' : 'pending';
-  saveAssignments();
+function toggleTaskStatus(task, custom) {
+  const isNowDone = task.status !== 'submitted';
+  task.status = isNowDone ? 'submitted' : 'pending';
+  custom ? saveCustomTasks() : saveAssignments();
   if (isNowDone) {
-    celebrateTaskDone(taskTickUndo(id, false));
+    celebrateTaskDone(taskStatusUndo(task.id, custom, 'pending'), task);
   } else {
-    showToast('Task moved back to pending', 'info');
+    showUndoToast('is back on your list', taskStatusUndo(task.id, custom, 'submitted'), 'note', { item: task.title, key: `done:task:${task.id}` });
   }
   renderPage(state.currentPage);
   updateNavBadges();
+}
+
+window.toggleAssignment = (id) => {
+  // Custom task first, then a data.js assignment
+  const ct = state.customTasks.find(x => x.id === id);
+  if (ct) { toggleTaskStatus(ct, true); return; }
+  const a = state.assignments.find(x => x.id === id);
+  if (!a) return;
+  toggleTaskStatus(a, false);
 };
 
 // "Did it today" on an ongoing goal: adds (or takes back) today's check-in.

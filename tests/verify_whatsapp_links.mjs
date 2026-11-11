@@ -1,3 +1,4 @@
+import './_toast-dom-shim.mjs';
 // ==================================================================
 // Clarity Desk: WHATSAPP LINKS → SUBJECT HUBS
 // ==================================================================
@@ -41,7 +42,7 @@ let dom = {};
 const el = (tag) => {
   const o = { tagName: tag, style: {}, children: [], textContent: '', innerHTML: '', classList: { add() {}, remove() {} },
     get lastElementChild() { return o.children[o.children.length - 1] || null; },
-    appendChild(c) { o.children.push(c); if (o.id === 'toast-container' && c.children) toasts.push(c.children.map(x => x.textContent).join(' ')); },
+    appendChild(c) { o.children.push(c); if (o.id === 'toast-container' && c.children) toasts.push(toastText(c)); },
     addEventListener(type, fn) { if (type === 'click' && o.tagName === 'button') undo = fn; },
     removeEventListener() {}, remove() {}, setAttribute() {}, focus() {}, querySelector: () => null, querySelectorAll: () => [] };
   return o;
@@ -66,7 +67,7 @@ const getLinks = () => JSON.parse(store.cos_custom_links || '[]');
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];
   Object.assign(store, extra);
-  QUOTA = Infinity; toasts.length = 0; undo = null; dom = {};
+  QUOTA = Infinity; toasts.length = 0; { const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; } } undo = null; dom = {};
 }
 
 let total = 0, passed = 0; const errors = [];

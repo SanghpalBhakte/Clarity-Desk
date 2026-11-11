@@ -30,7 +30,7 @@ async function openApp(page: Page) {
   });
 }
 
-const toastCount = (page: Page) => page.locator('#toast-container .toast').count();
+const toastCount = (page: Page) => page.locator('#toast-container .toast.toast-show').count();
 const show = (page: Page, msg: string, type?: string, opts?: any) =>
   page.evaluate(([m, t, o]) => { (window as any).showToast(m, t, o); }, [msg, type, opts] as any);
 const setHidden = (page: Page, hidden: boolean) =>
@@ -74,7 +74,10 @@ test.describe('toast core', () => {
     await show(page, 'A', 'success');
     await expect(page.locator('.toast.toast-done')).toHaveCount(1);
     await show(page, 'B', 'info', { key: 'k2' });
+    await page.clock.runFor(4300);   // A (4060 ms) closes, B shows
     await expect(page.locator('.toast.toast-note')).toHaveCount(1);
+    await show(page, 'C', 'error', { key: 'k3' });
+    await expect(page.locator('.toast.toast-fail')).toHaveCount(1);
   });
 
   test('same key updates in place', async ({ page }) => {
@@ -234,5 +237,197 @@ test.describe('toast core', () => {
     await expect(page.locator('#toast-container .toast')).toHaveCount(0);
     await show(page, 'Couldn’t sync', 'fail');
     await expect(page.locator('.toast-fail .toast-thread')).toBeVisible();
+  });
+});
+
+// ---------------- Task 2: queue and failure priority ----------------
+const shown = (page: Page) => page.locator('#toast-container .toast.toast-show');
+const visibleLine1 = (page: Page) => shown(page).locator('.toast-line1').textContent();
+const visibleLine2 = (page: Page) => shown(page).locator('.toast-line2').textContent();
+const dismiss = async (page: Page) => { await page.getByRole('button', { name: 'Dismiss notification' }).click(); };
+
+async function seedTasks(page: Page) {
+  await page.evaluate(() => {
+    const w = window as any;
+    const mk = (id: string, title: string) => ({ id, subject: 'DBMS', code: '', title, description: '', taskType: 'assignment', noDeadline: false, dueDate: '2026-11-20', priority: 'medium', status: 'pending', marks: 0, isCustom: true });
+    w.state.customTasks = [mk('t1', 'Lab record'), mk('t2', 'Tutorial 4')];
+    localStorage.setItem('cos_custom_tasks', JSON.stringify(w.state.customTasks));
+    w.navigate('dashboard');
+  });
+}
+const taskStatus = (page: Page, id: string) => page.evaluate((i) =>
+  (JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]') as any[]).find((t) => t.id === i)?.status, id);
+
+test.describe('toast queue', () => {
+  test.beforeEach(async ({ page }) => { await openApp(page); });
+
+  test('one visible, two waiting, oldest waiting dropped', async ({ page }) => {
+    const seen: string[] = [];
+    for (const m of ['A', 'B', 'C', 'D']) await show(page, m, 'note', { key: m });
+    for (let i = 0; i < 4; i++) {
+      const n = await toastCount(page);
+      if (!n) break;
+      seen.push((await visibleLine1(page)) || '');
+      await shown(page).evaluate((el) => (window as any).dismissToast(el.getAttribute('data-key')));
+    }
+    expect(seen).toEqual(['A', 'C', 'D']);
+  });
+
+  test('a failure shows at once over a plain toast, which is closed', async ({ page }) => {
+    await show(page, 'Plain', 'note', { key: 'A' });
+    await show(page, 'Waiting one', 'note', { key: 'B' });
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    expect(await visibleLine1(page)).toBe('Couldn’t sync');
+    await dismiss(page);
+    expect(await visibleLine1(page)).toBe('Waiting one');
+  });
+
+  test('an Undo toast steps aside and returns with its remaining time', async ({ page }) => {
+    await page.evaluate(() => (window as any).showUndoToast('is done', () => {}, 'done', { item: 'Lab record', key: 'done:task:t1' }));
+    await page.clock.runFor(2000);                     // 7000 ms toast, 5000 left
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    await page.clock.runFor(60000);
+    expect(await visibleLine1(page)).toBe('Couldn’t sync');
+    await dismiss(page);
+    expect(await visibleLine1(page)).toBe('Lab record is done');
+    await page.clock.runFor(4900);
+    expect(await toastCount(page)).toBe(1);
+    await page.clock.runFor(300);
+    await expect(page.locator('#toast-container .toast')).toHaveCount(0);
+  });
+
+  test('ordinary toasts wait while a failure is open', async ({ page }) => {
+    await show(page, 'Couldn’t sync', 'fail', { key: 'f1' });
+    await show(page, 'Saved', 'note', { key: 'n1' });
+    expect(await visibleLine1(page)).toBe('Couldn’t sync');
+    await dismiss(page);
+    expect(await visibleLine1(page)).toBe('Saved');
+  });
+
+  test('three failures: newest first, count always shown, every one reachable', async ({ page }) => {
+    await show(page, 'F1', 'fail', { key: 'f1' });
+    await show(page, 'F2', 'fail', { key: 'f2' });
+    await show(page, 'F3', 'fail', { key: 'f3', detail: 'Saved here' });
+    expect(await visibleLine1(page)).toBe('F3');
+    expect(await visibleLine2(page)).toBe('Saved here · 2 more issues');
+    await dismiss(page);
+    expect(await visibleLine1(page)).toBe('F2');
+    expect(await visibleLine2(page)).toBe('1 more issue');
+    await dismiss(page);
+    expect(await visibleLine1(page)).toBe('F1');
+    expect(await shown(page).locator('.toast-line2').count()).toBe(0);
+    await dismiss(page);
+    await expect(page.locator('#toast-container .toast')).toHaveCount(0);
+  });
+
+  test('the same failure twice is one toast and one announcement', async ({ page }) => {
+    await page.evaluate(() => {
+      (window as any).__alerts = 0;
+      new MutationObserver(() => { (window as any).__alerts++; }).observe(document.getElementById('cd-alert')!, { childList: true, characterData: true, subtree: true });
+    });
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    await expect(page.locator('#cd-alert')).toContainText('Couldn’t sync');
+    const a = await page.evaluate(() => (window as any).__alerts);
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    await expect(page.locator('#toast-container .toast')).toHaveCount(1);
+    expect(await page.evaluate(() => (window as any).__alerts)).toBe(a);
+  });
+
+  test('a duplicate after the original was dismissed shows again', async ({ page }) => {
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    await dismiss(page);
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    expect(await visibleLine1(page)).toBe('Couldn’t sync');
+  });
+
+  test('retry resolves in place, never a second failure toast', async ({ page }) => {
+    for (const ok of [true, false]) {
+      await page.evaluate((good) => {
+        const w = window as any;
+        w.__resolve = null;
+        w.showToast('Couldn’t make the backup file', 'fail', { key: 'fail:backup', action: { label: 'Retry', fn: () => w.retryToast('fail:backup', () => new Promise((r) => { w.__resolve = () => r(good); })) } });
+      }, ok);
+      await page.getByRole('button', { name: 'Retry' }).click();
+      await expect(page.locator('#toast-container .toast.toast-wait .toast-line1')).toHaveText('Trying again…');
+      expect(await page.locator('#toast-container .toast-fail').count()).toBe(0);
+      await page.evaluate(() => (window as any).__resolve());
+      if (ok) await expect(page.locator('#toast-container .toast')).toHaveCount(0);
+      else {
+        await expect(page.locator('#toast-container .toast-fail')).toHaveCount(1);
+        expect(await visibleLine1(page)).toBe('Couldn’t make the backup file');
+      }
+    }
+  });
+
+  test('a retry that fails, then a new different failure: both kept', async ({ page }) => {
+    await page.evaluate(() => {
+      const w = window as any;
+      w.showToast('Couldn’t make the backup file', 'fail', { key: 'fail:backup', action: { label: 'Retry', fn: () => w.retryToast('fail:backup', async () => false) } });
+    });
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await expect(page.locator('#toast-container .toast-fail')).toHaveCount(1);
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    expect(await visibleLine1(page)).toBe('Couldn’t sync');
+    expect(await visibleLine2(page)).toBe('1 more issue');
+    await dismiss(page);
+    expect(await shown(page).getAttribute('data-key')).toBe('fail:backup');
+  });
+
+  test('tick then untick: one toast, Undo reverses the last action, storage follows', async ({ page }) => {
+    await seedTasks(page);
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    expect(await taskStatus(page, 't1')).toBe('submitted');
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    expect(await taskStatus(page, 't1')).toBe('pending');
+    await expect(page.locator('#toast-container .toast')).toHaveCount(1);
+    expect(await visibleLine1(page)).toBe('Lab record is back on your list');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    expect(await taskStatus(page, 't1')).toBe('submitted');
+    await page.evaluate(() => { (window as any).navigate('assignments'); (window as any).navigate('dashboard'); });
+    expect(await taskStatus(page, 't1')).toBe('submitted');
+  });
+
+  test('Undo after navigating away and back, and after a re-render', async ({ page }) => {
+    await seedTasks(page);
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    await page.evaluate(() => { const w = window as any; w.navigate('assignments'); w.navigate('dashboard'); w.navigate('dashboard'); });
+    await page.getByRole('button', { name: 'Undo' }).click();
+    expect(await taskStatus(page, 't1')).toBe('pending');
+  });
+
+  test('Undo after a failure was shown and dismissed', async ({ page }) => {
+    await seedTasks(page);
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    await show(page, 'Couldn’t sync', 'fail', { key: 'fail:sync:push' });
+    await dismiss(page);
+    await page.getByRole('button', { name: 'Undo' }).click();
+    expect(await taskStatus(page, 't1')).toBe('pending');
+  });
+
+  test('Undo after the task date changed reverts only the tick', async ({ page }) => {
+    await seedTasks(page);
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    await page.evaluate(() => {
+      const w = window as any;
+      const t = w.state.customTasks.find((x: any) => x.id === 't1');
+      t.dueDate = '2026-12-01';
+      localStorage.setItem('cos_custom_tasks', JSON.stringify(w.state.customTasks));
+    });
+    await page.getByRole('button', { name: 'Undo' }).click();
+    const t = await page.evaluate(() => (JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]') as any[]).find((x) => x.id === 't1'));
+    expect([t.status, t.dueDate]).toEqual(['pending', '2026-12-01']);
+  });
+
+  test('Undo when the task was deleted elsewhere says so', async ({ page }) => {
+    await seedTasks(page);
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    await page.evaluate(() => {
+      const w = window as any;
+      w.state.customTasks = w.state.customTasks.filter((x: any) => x.id !== 't1');
+      localStorage.setItem('cos_custom_tasks', JSON.stringify(w.state.customTasks));
+    });
+    await page.getByRole('button', { name: 'Undo' }).click();
+    expect(await visibleLine1(page)).toBe('Couldn’t undo: that task was removed');
+    expect(await taskStatus(page, 't1')).toBeUndefined();
   });
 });

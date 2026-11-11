@@ -1,3 +1,4 @@
+import './_toast-dom-shim.mjs';
 // ==================================================================
 // Clarity Desk: STAMPS AND TOMBSTONES AT THE SAVE POINTS (offline-first sync, step 3)
 // ==================================================================

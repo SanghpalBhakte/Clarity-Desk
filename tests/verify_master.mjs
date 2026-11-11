@@ -23,7 +23,7 @@ globalThis.document = {
   getElementById: (id) => ({
     id,
     style: {},
-    classList: { add: () => {}, remove: () => {} },
+    classList: { add: () => {}, remove: () => {}, contains: () => false },
     appendChild: () => {},
     remove: () => {},
     focus: () => {}
@@ -34,8 +34,11 @@ globalThis.document = {
   removeEventListener: () => {},
   createElement: (tag) => ({
     tagName: tag,
-    style: {},
-    classList: { add: () => {}, remove: () => {} },
+    style: { setProperty: () => {} },
+    dataset: {},
+    append: () => {}, setAttribute: () => {}, replaceWith: () => {},
+    contains: () => false, querySelector: () => null,
+    classList: { add: () => {}, remove: () => {}, contains: () => false },
     appendChild: () => {},
     remove: () => {},
     addEventListener: () => {},

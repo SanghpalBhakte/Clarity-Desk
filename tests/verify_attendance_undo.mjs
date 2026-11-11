@@ -113,6 +113,8 @@ function seed(att) {
   store.cos_custom_timetable = JSON.stringify(TT);
   store.cos_attendance = JSON.stringify(att);
   undoBtn = null; attWrites = 0;
+  // Fake timers never fire here, so close the last toast by hand before the next case.
+  const ts = globalThis.toastState; if (ts) { ts.visible = null; ts.ordinaryQueue.length = 0; ts.failQueue.length = 0; }
 }
 const att = () => JSON.parse(store.cos_attendance || '{}');
 const tapUndo = () => { if (!undoBtn || !undoBtn._click) throw new Error('no Undo button shown'); undoBtn._click(); };

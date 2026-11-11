@@ -36,7 +36,10 @@ globalThis.document = {
   removeEventListener: () => {},
   createElement: (tag) => ({
     tagName: tag,
-    style: {},
+    style: { setProperty: () => {} },
+    dataset: {},
+    append: () => {}, setAttribute: () => {}, replaceWith: () => {},
+    contains: () => false, querySelector: () => null,
     classList: { add: () => {}, remove: () => {} },
     appendChild: () => {},
     remove: () => {},

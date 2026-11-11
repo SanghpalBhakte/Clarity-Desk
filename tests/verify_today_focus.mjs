@@ -1,3 +1,4 @@
+import './_toast-dom-shim.mjs';
 // ==================================================================
 // Clarity Desk: TODAY'S NEXT STEP (nudge row under the class card)
 // ==================================================================
