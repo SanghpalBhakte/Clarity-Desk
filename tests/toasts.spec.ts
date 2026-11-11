@@ -443,7 +443,7 @@ const SYNC_FIREBASE = `
   window.__pushes = [];
   const ref = {
     get: () => Promise.resolve({ exists: false }),
-    set: () => new Promise((res, rej) => window.__pushes.push({ res, rej })),
+    set: (d) => new Promise((res, rej) => window.__pushes.push({ res, rej, d })),
     update: () => (window.__updFail ? Promise.reject({ code: 'unavailable' }) : Promise.resolve()),
     onSnapshot: (o, cb) => { window.__snap = cb; return noop; },
     collection: () => ({ doc: () => ref })
@@ -1405,5 +1405,55 @@ test.describe('review round 3: confirmations and the waiting mark', () => {
     expect(await page.evaluate(() => (window as any).whereSavedLine())).toBe('Saved here · synced to your account');
     await page.evaluate(() => localStorage.setItem('cos_sync_waiting', JSON.stringify({ uid: 'u-sync' })));
     expect(await page.evaluate(() => (window as any).whereSavedLine())).toBe('Saved here · syncing to your account');
+  });
+});
+
+test.describe('offline edits survive a reload', () => {
+  test.use({ serviceWorkers: 'block' });
+  const LOCAL_TT = { marker: 'local' };
+  const LOCAL_ATT = { '2026-11-10': { a: 'attended' } };
+  const run = async (page: Page, ms: number) => { for (let i = 0; i < ms / 100; i++) await page.clock.runFor(100); };
+
+  // The student edits offline, the app closes before the 2.5 s push, then reopens online:
+  // the account's older copy must not replace the edit.
+  async function editThenReload(page: Page) {
+    await openSignedIn(page);
+    await page.evaluate(([tt, att]) => {
+      localStorage.setItem('cos_custom_timetable', JSON.stringify(tt));
+      localStorage.setItem('cos_attendance', JSON.stringify(att));
+      (window as any).syncToCloud();   // sets the waiting mark; the push never runs
+    }, [LOCAL_TT, LOCAL_ATT] as const);
+    expect(await page.evaluate(() => localStorage.getItem('cos_sync_waiting'))).not.toBeNull();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof (window as any).whereSavedLine === 'function');
+    await run(page, 500);
+    await page.waitForFunction(() => typeof (window as any).__snap === 'function');
+  }
+  const cloudSnap = (page: Page, data: any) => page.evaluate((d) => {
+    (window as any).__snap({ exists: true, metadata: { fromCache: false, hasPendingWrites: false }, data: () => d });
+  }, data);
+
+  test('the account’s older copy does not replace a timetable and attendance edit made offline', async ({ page }) => {
+    await editThenReload(page);
+    await cloudSnap(page, { customTimetable: { marker: 'cloud' }, attendance: { '2026-11-01': { a: 'missed' } }, theme: 'paper-slate' });
+    await run(page, 500);
+    const got = await page.evaluate(() => ({
+      tt: JSON.parse(localStorage.getItem('cos_custom_timetable') || 'null'),
+      att: JSON.parse(localStorage.getItem('cos_attendance') || 'null'),
+    }));
+    expect(got.tt).toEqual(LOCAL_TT);
+    expect(got.att).toEqual(LOCAL_ATT);
+    const sent = await page.evaluate(() => (window as any).__pushes.map((p: any) => p.d));
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent[0].customTimetable).toEqual(LOCAL_TT);
+    expect(sent[0].attendance).toEqual(LOCAL_ATT);
+  });
+
+  test('without a waiting mark the account’s copy still wins', async ({ page }) => {
+    await editThenReload(page);
+    await page.evaluate(() => localStorage.removeItem('cos_sync_waiting'));
+    await cloudSnap(page, { customTimetable: { marker: 'cloud' }, attendance: {}, theme: 'paper-slate' });
+    await run(page, 500);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_timetable') || 'null'))).toEqual({ marker: 'cloud' });
   });
 });
