@@ -20404,7 +20404,7 @@ window.clearAssistantChat    = clearAssistantChat;
 function celebrateTaskDone(undo, task) {
   haptic();
   if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
-  else showUndoToast('is done', undo, 'done', { item: task.title, key: `done:task:${task.id}` });
+  else showUndoToast('is done', undo, 'done', { item: task.title, where: true, key: `done:task:${task.id}` });
 }
 
 // Undo for a tick or an untick: puts the task's status back to what it was.
@@ -20429,7 +20429,7 @@ function toggleTaskStatus(task, custom) {
   if (isNowDone) {
     celebrateTaskDone(taskStatusUndo(task.id, custom, 'pending'), task);
   } else {
-    showUndoToast('is back on your list', taskStatusUndo(task.id, custom, 'submitted'), 'note', { item: task.title, key: `done:task:${task.id}` });
+    showUndoToast('is back on your list', taskStatusUndo(task.id, custom, 'submitted'), 'note', { item: task.title, where: true, key: `done:task:${task.id}` });
   }
   renderPage(state.currentPage);
   updateNavBadges();

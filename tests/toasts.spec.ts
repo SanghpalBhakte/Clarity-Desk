@@ -996,3 +996,20 @@ test.describe('sync failure retry', () => {
     await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(1);
   });
 });
+
+test.describe('task tick says where', () => {
+  test('ticking and unticking a task show the saved-location line', async ({ page }) => {
+    await openApp(page);
+    await seedTasks(page);
+    await run(page, `showToast('x', 'note')`);   // keeps the celebration away: a task is still pending anyway
+    await page.evaluate(() => { const w = window as any; if (w.toastState.visible) w.closeToast(w.toastState.visible, true); });
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    expect(await visibleLine1(page)).toBe('Lab record is done');
+    expect(await visibleLine2(page)).toBe('On this phone only');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    await page.evaluate(() => (window as any).toggleAssignment('t1'));
+    expect(await visibleLine1(page)).toBe('Lab record is back on your list');
+    expect(await visibleLine2(page)).toBe('On this phone only');
+  });
+});
