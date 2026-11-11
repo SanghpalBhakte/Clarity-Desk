@@ -5338,7 +5338,7 @@ function subscribeUserCloudData(uid) {
       if (signinGate(uid, data)) return;   // first sign-in: ask before applying
       if (cloudApplyDeferred()) return;   // a newer local change is still on its way up
       lastCloudPayloadHash = currentHash;
-      applyCloudDataToLocalState(data);
+      applyCloudDataToLocalState(data, 'cache');
     }
   }).catch(() => {});
 
@@ -5370,7 +5370,7 @@ function subscribeUserCloudData(uid) {
     if (cloudApplyDeferred()) return;   // a newer local change is still on its way up
     lastCloudPayloadHash = currentHash;
 
-    applyCloudDataToLocalState(data);
+    applyCloudDataToLocalState(data, fromServer ? 'server' : 'cache');
     if (fromServer && !signinHeld(uid)) settleSavedWaiting(uid, currentHash);
   }, err => {
     if (err.code === 'permission-denied') {
@@ -5382,11 +5382,20 @@ function subscribeUserCloudData(uid) {
   });
 }
 
-function applyCloudDataToLocalState(data) {
+// After a reload, a saved "waiting" mark means this phone holds a change the
+// account never got (the app closed before the push). Until the first server
+// snapshot has been applied, whole fields keep this phone's copy; the push that
+// follows (settleSavedWaiting) sends it. Only the live listener asks for this
+// (`source`); sign-in choices and restores still apply the account's copy.
+let bootCloudSettled = false;
+let keepLocalWhole = false;
+function applyCloudDataToLocalState(data, source) {
   if (!data || typeof data !== 'object') return;
   applyingCloudData = true;
   syncUndoNew = 0;
-  try { applyCloudDataInner(data); } finally { applyingCloudData = false; }
+  keepLocalWhole = !!source && !bootCloudSettled && syncWaitingSaved();
+  try { applyCloudDataInner(data); } finally { applyingCloudData = false; keepLocalWhole = false; }
+  if (source === 'server') bootCloudSettled = true;
   if (syncUndoNew) { const n = syncUndoNew; syncUndoNew = 0; showSyncUndoToast(n); }
   if (phoneStorageFull !== mergeWriteFailed) { phoneStorageFull = mergeWriteFailed; updateSyncUI(); }
   if (mergeWriteFailed) {
@@ -5402,7 +5411,7 @@ function applyCloudDataToLocalState(data) {
 function applyCloudDataInner(data) {
   // The cloud copy may now differ from what this device last wrote.
   lastPushed = null;
-  if (data.profile && typeof data.profile === 'object') {
+  if (!keepLocalWhole && data.profile && typeof data.profile === 'object') {
     // Merge onto the current local profile instead of replacing it whole.
     // Two real bugs lived here: `batch` was never in this list at all, so
     // every cloud sync (including the one that fires right after this
@@ -5432,32 +5441,32 @@ function applyCloudDataInner(data) {
   }
   // Tasks, vault and tombstones merge per record, never a whole-list replace.
   const mergeNeedsPush = mergeCloudIntoLocal(data);
-  if (data.customTimetable && typeof data.customTimetable === 'object') {
+  if (!keepLocalWhole && data.customTimetable && typeof data.customTimetable === 'object') {
     safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
   }
-  if (data.timetableChoice && typeof data.timetableChoice === 'string') {
+  if (!keepLocalWhole && data.timetableChoice && typeof data.timetableChoice === 'string') {
     safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
   }
-  if (Array.isArray(data.syllabus)) {
+  if (!keepLocalWhole && Array.isArray(data.syllabus)) {
     safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
   }
-  if (data.assignmentStatuses && typeof data.assignmentStatuses === 'object') {
+  if (!keepLocalWhole && data.assignmentStatuses && typeof data.assignmentStatuses === 'object') {
     safeSetStorage(KEY_ASSIGNMENTS, data.assignmentStatuses);
     state.assignments = loadAssignments();
   }
-  if (data.attendance && typeof data.attendance === 'object') {
+  if (!keepLocalWhole && data.attendance && typeof data.attendance === 'object') {
     safeSetStorage(KEY_ATTENDANCE, data.attendance);
     if (fixShiftedAttendanceDates() > 0) syncToCloud();
   }
-  if (data.attendanceBaseline && typeof data.attendanceBaseline === 'object') {
+  if (!keepLocalWhole && data.attendanceBaseline && typeof data.attendanceBaseline === 'object') {
     safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
   }
-  if (data.attendanceLive && typeof data.attendanceLive === 'object') {
+  if (!keepLocalWhole && data.attendanceLive && typeof data.attendanceLive === 'object') {
     safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
   }
   // What the cloud has now: the base the next push diffs against, so a mark
   // another device added is never mistaken for one deleted here.
-  rememberSyncedAttendance();
+  if (!keepLocalWhole) rememberSyncedAttendance();
   if (data.theme && typeof data.theme === 'string') {
     let cloudTheme = data.theme;
     if (LEGACY_THEME_MAP[cloudTheme]) cloudTheme = LEGACY_THEME_MAP[cloudTheme];
@@ -5491,16 +5500,16 @@ function applyCloudDataInner(data) {
       initAccent();
     }
   }
-  if (data.notificationPrefs && typeof data.notificationPrefs === 'object') {
+  if (!keepLocalWhole && data.notificationPrefs && typeof data.notificationPrefs === 'object') {
     safeSetStorage(KEY_NOTIF_PREFS, data.notificationPrefs);
   }
-  if (data.noticeChannels && typeof data.noticeChannels === 'object') {
+  if (!keepLocalWhole && data.noticeChannels && typeof data.noticeChannels === 'object') {
     safeSetStorage(KEY_NOTICE_CHANNELS, data.noticeChannels);
   }
-  if (typeof data.attTarget === 'number' && data.attTarget >= 50 && data.attTarget <= 100) {
+  if (!keepLocalWhole && typeof data.attTarget === 'number' && data.attTarget >= 50 && data.attTarget <= 100) {
     safeSetStorage(KEY_ATT_TARGET, data.attTarget);
   }
-  applyAimsFromData(data.aims);
+  if (!keepLocalWhole) applyAimsFromData(data.aims);
   // Holiday on/off carries `changedAt` (ms, written by setHoliday). A cloud copy
   // older than this phone's own change no longer overwrites it; a missing stamp
   // on either side counts as 0, so old data and old backups apply as before.
