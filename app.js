@@ -3313,7 +3313,7 @@ function handleTimetableImageUpload(event) {
       if (schedule.length === 0) {
         // Extraction found no valid classes
         showTimetableUploadErrorModal(
-          'No timetable entries could be extracted from this photo. The image may be blurry, low-contrast, or not a timetable.',
+          'No classes showed up in this photo. A straight-on shot in good light, with the whole grid in frame, usually reads well.',
           base64Data, mimeType
         );
         return;
@@ -3352,12 +3352,12 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
   backdrop.innerHTML = `
     <div class="modal" style="max-width:400px;text-align:center;padding:28px 24px">
       <div style="font-size:var(--text-hero);margin-bottom:12px">${icons.alert()}</div>
-      <div style="font-weight:700;font-size:var(--text-md);margin-bottom:8px">Timetable Extraction Failed</div>
+      <div style="font-weight:700;font-size:var(--text-md);margin-bottom:8px">Couldn’t read this timetable</div>
       <div style="font-size:var(--text-base);color:var(--text-muted);margin-bottom:20px;line-height:1.5">${reason}</div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        ${canRetry ? `<button class="btn-primary" id="tt-error-retry-btn">🔄 Retry with Same Image</button>` : ''}
-        <button class="btn-secondary" id="tt-error-upload-btn">${icons.camera()} Upload a Different Image</button>
-        <button class="btn-secondary" id="tt-error-manual-btn">${icons.edit()} Enter Timetable Manually</button>
+        ${canRetry ? `<button class="btn-primary" id="tt-error-retry-btn">Try this photo again</button>` : ''}
+        <button class="btn-secondary" id="tt-error-upload-btn">${icons.camera()} Use a different photo</button>
+        <button class="btn-secondary" id="tt-error-manual-btn">${icons.edit()} Type it in instead</button>
         <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--text-sm);margin-top:4px"
                 onclick="document.getElementById('tt-upload-error-backdrop')?.remove()">Dismiss</button>
       </div>
@@ -3376,7 +3376,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
         document.getElementById('tt-loading-backdrop')?.remove();
         const schedule = result?.schedule;
         if (!Array.isArray(schedule) || schedule.length === 0) {
-          showTimetableUploadErrorModal('Still no entries found. Try a clearer photo or enter manually.', base64Data, mimeType);
+          showTimetableUploadErrorModal('Still no classes found. A sharper photo may work, or you can type it in.', base64Data, mimeType);
         } else {
           pendingExtractionNeedsReview = result?.needsReview || false;
           showTimetablePreviewModal(schedule);
@@ -3384,7 +3384,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
       } catch (err2) {
         if (scanId !== _ttScanId) return;
         document.getElementById('tt-loading-backdrop')?.remove();
-        showTimetableUploadErrorModal(err2?.message || 'Retry also failed.', base64Data, mimeType);
+        showTimetableUploadErrorModal(err2?.message || 'That didn’t work either. Try another photo, or type it in.', base64Data, mimeType);
       }
     };
   }
