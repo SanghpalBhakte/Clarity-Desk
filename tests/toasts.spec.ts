@@ -1013,3 +1013,182 @@ test.describe('task tick says where', () => {
     expect(await visibleLine2(page)).toBe('On this phone only');
   });
 });
+
+test.describe('review fixes', () => {
+  const failKeys = (page: Page) => page.evaluate(() => {
+    const ts = (window as any).toastState;
+    return [ts.visible, ...ts.failQueue, ...ts.ordinaryQueue].filter((t: any) => t && !t.closed && t.kind === 'fail').map((t: any) => t.msg);
+  });
+
+  test('a sign-in error goes away once sign-in works', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).handleEmailAuthError({ code: 'auth/wrong-password' }));
+    expect(await failKeys(page)).toHaveLength(1);
+    await page.evaluate(() => (window as any).finishPasswordSignIn({}));
+    expect(await failKeys(page)).toHaveLength(0);
+  });
+
+  test('an extra-class error goes away once the class is added', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).saveExtraClassFromModal('DBMS'));
+    expect(await failKeys(page)).toHaveLength(1);
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML('beforeend', '<div id="xc-test"><input id="xc-date" value="2026-11-10"><input id="xc-time" value="10:00"><input id="xc-kind" value="lecture"><input id="xc-status" value="attended"></div>');
+      (window as any).saveExtraClassFromModal('DBMS');
+    });
+    expect(await failKeys(page)).toHaveLength(0);
+  });
+
+  test('a file-too-big error goes away when a smaller file is picked', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.handleVaultFileSelect({ target: { files: [{ size: 50 * 1024 * 1024, name: 'big.pdf', type: 'application/pdf' }], value: 'x' } });
+    });
+    expect(await failKeys(page)).toHaveLength(1);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.handleVaultFileSelect({ target: { files: [new File(['hi'], 'small.txt', { type: 'text/plain' })], value: 'x' } });
+    });
+    expect(await failKeys(page)).toHaveLength(0);
+  });
+
+  test('Retry on a failed report sends the same report even after the form is closed', async ({ page }) => {
+    const bodies: string[] = [];
+    await page.route(/clarity-desk-feedback/, (r) => {
+      bodies.push(r.request().postData() || '');
+      const ok = bodies.length > 1;
+      r.fulfill({ status: ok ? 200 : 500, contentType: 'application/json', body: ok ? '{"ok":true}' : '{"ok":false,"error":"Server busy"}' });
+    });
+    await openApp(page);
+    await page.evaluate(() => (window as any).openFeedbackForm());
+    await page.locator('#fb-message').fill('Timetable shows the wrong room');
+    await page.evaluate(() => (window as any).submitFeedback());
+    await expect(shown(page).locator('.toast-line1')).toHaveText(/send your report/);
+    await page.evaluate(() => document.getElementById('feedback-backdrop')?.remove());
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await expect.poll(() => bodies.length).toBe(2);
+    expect(bodies[1]).toContain('Timetable shows the wrong room');
+    await expect(shown(page).locator('.toast-line1')).toHaveText('Report sent');
+  });
+
+  test('switching attendance to the ERP way does not claim it synced', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).setAttendanceMathMode(true));
+    expect(await visibleLine1(page)).toBe('Attendance now matches your ERP');
+    expect(await shown(page).locator('.toast-line2').count()).toBe(0);
+  });
+
+  test('a change made while an older push is on its way is not shown as synced', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    await pushWaiting(page);
+    await quickAdd(page, 'Viva on Friday');
+    await settlePush(page, true);
+    expect(await badge(page)).toBe('Syncing…');
+    expect(await visibleLine2(page)).toBe('Saved here · syncing to your account');
+    await pushWaiting(page);
+    await settlePush(page, true);
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+  });
+
+  test('a change undone before it is sent does not leave Syncing stuck', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    await pushWaiting(page);
+    await settlePush(page, true);
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+    await page.evaluate(() => (window as any).syncToCloud());   // nothing changed since the last push
+    expect(await badge(page)).toBe('Syncing…');
+    await page.clock.runFor(2600);
+    expect(await page.evaluate(() => (window as any).__pushes.length)).toBe(0);
+    expect(await badge(page)).toMatch(/^Synced/);
+  });
+
+  test('finishing the last task clears its own back-on-your-list message', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      const mk = (id: string, title: string) => ({ id, subject: 'DBMS', code: '', title, description: '', taskType: 'assignment', noDeadline: false, dueDate: '2026-11-20', priority: 'medium', status: 'submitted', marks: 0, isCustom: true });
+      w.state.customTasks = [mk('t1', 'Lab record')];
+      localStorage.setItem('cos_custom_tasks', JSON.stringify(w.state.customTasks));
+      w.navigate('dashboard');
+      w.toggleAssignment('t1');   // back on the list
+      w.toggleAssignment('t1');   // done again: nothing pending, so the celebration shows
+    });
+    const left = await page.evaluate(() => {
+      const ts = (window as any).toastState;
+      return [ts.visible, ...ts.failQueue, ...ts.ordinaryQueue].filter((t: any) => t && !t.closed && t.key === 'done:task:t1').length;
+    });
+    expect(left).toBe(0);
+  });
+});
+
+test.describe('review fixes: focus, timers, reading, celebration', () => {
+  const syncFail = async (page: Page) => {
+    await openSignedIn(page);
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await settlePush(page, false);
+    await expect(shown(page).locator('.toast-line1')).toHaveText('Couldn’t sync to your account');
+  };
+  const focusInToast = (page: Page) => page.evaluate(() => {
+    const a = document.activeElement;
+    return a && a.closest('#toast-container') ? (a.className || a.tagName) : (a ? a.tagName : 'none');
+  });
+
+  test('pressing Retry from the keyboard keeps focus in the message', async ({ page }) => {
+    await syncFail(page);
+    await page.getByRole('button', { name: 'Retry' }).focus();
+    await page.keyboard.press('Enter');
+    expect(await focusInToast(page)).toBe('toast-dismiss');
+    await page.waitForFunction(() => (window as any).__pushes.length > 0);
+    await settlePush(page, false);
+    await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(1);
+    expect(await focusInToast(page)).toBe('toast-action');
+  });
+
+  test('a resting mouse does not use up an Undo that stepped aside', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).showUndoToast('is done', () => {}, 'done', { item: 'Lab record' }));
+    await shown(page).hover();
+    await show(page, 'Couldn’t save that', 'fail');
+    await page.mouse.move(5, 5);
+    await page.clock.runFor(30000);
+    // Still waiting its turn, with no countdown running off screen.
+    expect(await page.evaluate(() => { const t = (window as any).toastState.ordinaryQueue[0]; return [t.closed, !!t.timer]; })).toEqual([false, false]);
+    await dismiss(page);
+    expect(await visibleLine1(page)).toBe('Lab record is done');
+    expect(await page.evaluate(() => (window as any).toastState.visible?.closed)).toBe(false);
+    await page.clock.runFor(1000);
+    await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(1);
+  });
+
+  test('line 2 is read out with line 1', async ({ page }) => {
+    await openApp(page);
+    await show(page, 'is done', 'done', { item: 'Lab record', where: true });
+    expect((await announcers(page))[0]).toBe('Lab record is done. On this phone only');
+  });
+
+  test('a celebration waits while a retry is still running', async ({ page }) => {
+    await syncFail(page);
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await page.evaluate(() => (window as any).showCelebration('', 'All caught up', 'Every task is done.'));
+    await expect(page.locator('.celebrate-card')).toHaveCount(0);
+    await page.waitForFunction(() => (window as any).__pushes.length > 0);
+    await settlePush(page, true);
+    await expect(page.locator('.celebrate-card')).toHaveCount(1);
+  });
+});
+
+test.describe('review fixes: focus when a failure takes the place', () => {
+  test('focus on Undo moves to the failure that pushed it aside, then back', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => (window as any).showUndoToast('is done', () => {}, 'done', { item: 'Lab record' }));
+    await page.getByRole('button', { name: 'Undo' }).focus();
+    await show(page, 'Couldn’t save that', 'fail');
+    expect(await page.evaluate(() => document.activeElement?.className)).toBe('toast-dismiss');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement?.className)).toBe('toast-action');
+  });
+});

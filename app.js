@@ -417,6 +417,11 @@ function announceToast(text, urgent) {
 function toastLineText(t) {
   return (t.item ? `${t.item} ${t.msg}` : t.msg).trim();
 }
+// What a screen reader hears when a toast first shows: line 1, then line 2.
+function toastSpoken(t) {
+  const line2 = toastLine2Text(t);
+  return toastLineText(t) + (line2 ? `. ${line2}` : '');
+}
 
 function toastPause(t, why) {
   if (!t.pauses.size && t.timer) {
@@ -471,6 +476,8 @@ function fillToastEl(t) {
   const showing = /\btoast-show\b/.test(el.className || '');
   el.className = `toast toast-${t.kind}${t.action ? ' toast-has-action' : ''}${showing ? ' toast-show' : ''}`;
   el.dataset.key = t.key;
+  // Rebuilding removes the buttons: focus inside goes back to the new ones.
+  const hadFocus = typeof el.contains === 'function' && document.activeElement && el.contains(document.activeElement);
   el.textContent = '';
   const text = document.createElement('div');
   text.className = 'toast-text';
@@ -523,6 +530,7 @@ function fillToastEl(t) {
     x.addEventListener('click', () => closeToast(t, true));
     el.appendChild(x);
   }
+  if (hadFocus) focusToastButton(t);
   const thread = document.createElement('span');
   thread.className = 'toast-thread';
   thread.setAttribute('aria-hidden', 'true');
@@ -530,6 +538,11 @@ function fillToastEl(t) {
   if (t.duration && t.remaining != null && t.remaining < t.duration) thread.style.animationDelay = `${t.remaining - t.duration}ms`;
   el.appendChild(thread);
   t.thread = thread;
+}
+
+function focusToastButton(t) {
+  const b = t.el.querySelector('.toast-action') || t.el.querySelector('.toast-dismiss');
+  if (b) b.focus();
 }
 
 function buildToastEl(t) {
@@ -576,6 +589,12 @@ function closeToast(t, now = false) {
   showNextToast();
 }
 
+// A failure is up, waiting, or being retried.
+function failureShowing() {
+  const v = toastState.visible;
+  return !!((v && (v.kind === 'fail' || v.retrying)) || toastState.failQueue.length);
+}
+
 // Failures first (newest first), then ordinary toasts in arrival order.
 function showNextToast() {
   if (!toastState.visible) {
@@ -583,8 +602,7 @@ function showNextToast() {
     if (next) presentToast(next);
   }
   // A celebration that waited behind a failure shows once none is left.
-  const failUp = (toastState.visible && toastState.visible.kind === 'fail') || toastState.failQueue.length;
-  if (celebrationWaiting && !failUp) {
+  if (celebrationWaiting && !failureShowing()) {
     const run = celebrationWaiting;
     celebrationWaiting = null;
     run();
@@ -633,13 +651,19 @@ function presentToast(t) {
   void t.el.offsetWidth;   // start the enter transition from the hidden state
   t.el.classList.add('toast-show');
   placeToasts();
+  const lost = !document.activeElement || document.activeElement === document.body;
+  if (toastState.passFocus || (t.refocus && lost)) {
+    toastState.passFocus = false;
+    t.refocus = false;
+    focusToastButton(t);
+  }
   if (t.steppedAside) {
     t.steppedAside = false;
     t.pauses = new Set(document.hidden ? ['hidden'] : []);
     toastRun(t);
     return;
   }
-  announceToast(toastLineText(t) + (t.detail ? `. ${t.detail}` : ''), t.kind === 'fail');
+  announceToast(toastSpoken(t), t.kind === 'fail');
   toastRestart(t);
 }
 
@@ -648,6 +672,12 @@ function presentToast(t) {
 function toastMakeRoomForFailure() {
   const cur = toastState.visible;
   if (!cur) return;
+  clearTimeout(cur.pointerSafety);
+  cur.pointerSafety = null;
+  if (cur.el && document.activeElement && cur.el.contains(document.activeElement)) {
+    toastState.passFocus = true;
+    cur.refocus = true;
+  }
   if (cur.kind === 'fail' || cur.retrying) {
     toastState.visible = null;
     clearTimeout(cur.timer);
@@ -715,7 +745,7 @@ async function retryToast(key, run) {
     t.more = toastState.failQueue.length;
     fillToastEl(t);
     t.el.classList.add('toast-show');
-    announceToast(toastLineText(t) + (t.detail ? `. ${t.detail}` : ''), true);
+    announceToast(toastSpoken(t), true);
   }
 }
 
@@ -737,7 +767,7 @@ function showToast(msg, type = 'note', opts = {}) {
     Object.assign(cur, fields);
     fillToastEl(cur);
     toastRestart(cur);
-    if (line1Changed) announceToast(toastLineText(cur) + (cur.detail ? `. ${cur.detail}` : ''), cur.kind === 'fail');
+    if (line1Changed) announceToast(toastSpoken(cur), cur.kind === 'fail');
     return cur.el;
   }
 
@@ -892,7 +922,7 @@ window.reportFormErrors = reportFormErrors;
 // failure: while one is up, it waits.
 let celebrationWaiting = null;
 function showCelebration(icon, title, subtitle = '') {
-  if ((toastState.visible && toastState.visible.kind === 'fail') || toastState.failQueue.length) {
+  if (failureShowing()) {
     celebrationWaiting = () => showCelebration(icon, title, subtitle);
     return;
   }
@@ -986,6 +1016,12 @@ function resetPushBackoff() {
 // while offline, when Firestore holds the write until the network is back).
 function hasPendingSync() { return !!currentUser && !!localPushPendingAt; }
 
+// Badge and "where" line only: a change made after the last push was sent
+// still shows as syncing when that older push is confirmed.
+let unconfirmedChange = false;
+let ackedPush = null;   // the newest push the account has confirmed
+function syncLooksPending() { return hasPendingSync() || (!!currentUser && unconfirmedChange); }
+
 // Phone storage was too full to keep the account's latest copy (badge only).
 let phoneStorageFull = false;
 
@@ -993,7 +1029,7 @@ let phoneStorageFull = false;
 function whereSavedLine(status = null) {
   if (!currentUser) return 'On this phone only';
   if (cloudPushFailed || status === 'denied') return 'Saved here · couldn’t sync';
-  if (hasPendingSync()) return navigator.onLine === false ? 'Saved here · waiting to sync' : 'Saved here · syncing to your account';
+  if (syncLooksPending()) return navigator.onLine === false ? 'Saved here · waiting to sync' : 'Saved here · syncing to your account';
   return 'Saved here · synced to your account';
 }
 
@@ -1070,6 +1106,8 @@ function retryCloudPush() {
 
 function onCloudPushOk() {
   localPushPendingAt = 0;
+  ackedPush = lastPushed;
+  unconfirmedChange = !!lastPushed && localChangeSeq > lastPushed.seq;
   settlePushRetry(true);
   dismissToast('fail:sync:push');
   dismissToast('fail:sync:full');
@@ -1141,7 +1179,7 @@ function updateSyncUI(status = null) {
     set('Couldn’t sync · saved here', 'var(--yellow)', 'Your last change didn’t reach your account. Everything is saved on this phone; it tries again on your next change.', 'Couldn’t sync, saved on this phone');
   } else if (phoneStorageFull) {
     set('Phone storage full · saved here', 'var(--yellow)', 'This phone is too full to keep changes from your other devices. Everything on this phone is safe. Remove a big vault file to make room.', 'Phone storage full, saved on this phone');
-  } else if (hasPendingSync()) {
+  } else if (syncLooksPending()) {
     if (isOnline) set('Syncing…', 'var(--yellow)', 'Saved here · syncing to your account', 'Syncing to your account, saved on this phone');
     else set('Waiting to sync', 'var(--yellow)', 'Offline · saved here, and it syncs when you are back online', 'Waiting to sync, saved on this phone');
   } else if (status === 'offline' || !isOnline) {
@@ -4008,8 +4046,9 @@ function handleEmailAuthError(err) {
   }
   const box = document.getElementById('email-signin-error');
   if (box) { box.textContent = msg; box.style.display = 'block'; }
-  showToast(msg, 'error');
+  showToast(msg, 'error', { key: 'fail:auth' });
 }
+window.handleEmailAuthError = handleEmailAuthError;   // test hook
 
 function showEmailSignInModal(step = 'email', sdkTried = false) {
   if (!auth && !sdkTried && typeof firebase === 'undefined') {
@@ -4146,7 +4185,8 @@ function completeEmailSignIn(email, link) {
       updateSyncUI();
       if (state.currentPage === 'settings') renderSettings();
     }
-    showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
+    dismissToast('fail:auth');
+  showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
     return result;
   }).catch(err => {
     handleEmailAuthError(err);
@@ -4162,8 +4202,10 @@ function finishPasswordSignIn(result) {
     updateSyncUI();
     if (state.currentPage === 'settings') renderSettings();
   }
+  dismissToast('fail:auth');
   showToast('Signed in', 'done', { detail: 'Your desk syncs across your devices' });
 }
+window.finishPasswordSignIn = finishPasswordSignIn;   // test hook
 
 function passwordSignIn(create) {
   const email = readEmailSignInInput();
@@ -5466,8 +5508,15 @@ function pushLocalDataToCloud(uid) {
     showToast('Your cloud copy is getting full', 'note', { detail: 'Everything is still saved on this phone.' });
   }
   const hash = calculatePayloadHash(payload);
-  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) { localPushPendingAt = 0; return; }
-  lastPushed = { uid, hash };
+  if (hash && lastPushed && lastPushed.uid === uid && lastPushed.hash === hash) {
+    // Same content as the last push: it stands for this change too.
+    lastPushed.seq = localChangeSeq;
+    if (ackedPush === lastPushed) unconfirmedChange = false;
+    localPushPendingAt = 0;
+    if (ackedPush === lastPushed) updateSyncUI();
+    return;
+  }
+  lastPushed = { uid, hash, seq: localChangeSeq };
   payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
   // Mark this write's hash as already-seen so its own ack echo (which
   // comes back through onSnapshot once the server confirms it) isn't
@@ -6373,6 +6422,7 @@ let applyingCloudData = false;
 // overwrite it -- that is how a cleared timetable used to come back. Expires after 60 s
 // so a push that never lands cannot block cloud updates for good.
 let localPushPendingAt = 0;
+let localChangeSeq = 0;   // counts local changes, so a push knows which ones it carries
 const cloudApplyDeferred = () => localPushPendingAt && Date.now() - localPushPendingAt < 60000;
 let applyPushTimes = [];
 let applyPushWarned = false;   // tripped: no apply pushes until a local edit
@@ -6394,6 +6444,7 @@ function syncToCloud() {
   schedulePushSync();
   if (!currentUser) return;
   localPushPendingAt = Date.now();
+  localChangeSeq++;
   updateSyncUI();
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
@@ -13500,7 +13551,8 @@ window.saveExtraClassFromModal = function(subjectName) {
     document.getElementById('xc-time')?.value,
     document.getElementById('xc-status')?.value || 'attended'
   );
-  if (!res.ok) { showToast(res.reason, 'error'); return; }
+  if (!res.ok) { showToast(res.reason, 'error', { key: 'fail:extra-class' }); return; }
+  dismissToast('fail:extra-class');
   document.getElementById('extra-class-backdrop')?.remove();
   showToast('Extra class added', 'done', { where: true });
   renderPage(state.currentPage);
@@ -13639,7 +13691,7 @@ window.showAttendanceV2Preview = function(data) {
 window.setAttendanceMathMode = function(useV2) {
   saveAttV2State(useV2 ? 'v2' : 'v1');
   document.getElementById('att-v2-preview-backdrop')?.remove();
-  showToast(useV2 ? 'Attendance now matches your ERP' : 'Keeping the old attendance numbers', useV2 ? 'done' : 'note', { where: true });
+  showToast(useV2 ? 'Attendance now matches your ERP' : 'Keeping the old attendance numbers', useV2 ? 'done' : 'note');
   renderPage(state.currentPage);
 };
 
@@ -18326,9 +18378,10 @@ window.handleVaultFileSelect = function(e) {
   // 1.37x their size), so only small ones fit. Bigger notes belong in
   // Drive as a link. Checked before the file is read at all.
   const tooBig = vaultFileTooBigMessage(file.size);
+  dismissToast('fail:vault-file');
   if (tooBig) {
     e.target.value = '';
-    showToast(tooBig, 'error');
+    showToast(tooBig, 'error', { key: 'fail:vault-file' });
     if (typeof setResourceInputMode === 'function') setResourceInputMode('url');
     return;
   }
@@ -19514,28 +19567,39 @@ window.submitFeedback = async function() {
     if (!saved) {
       setBusy(false);
       showToast('Couldn’t save your report on this phone', 'fail', { key: 'fail:report', detail: 'Your message is still in the box. Copy it and send it later.' });
-      return;
+      return false;
     }
     close();
     showToast('You’re offline. Your report is saved', 'note', { detail: `It’s sent when you’re back online${file && !entry.shot ? ' (without the screenshot)' : ''}.` });
+    return true;
   };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return queueOffline();
 
   setBusy(true);
   if (errBox) errBox.style.display = 'none';
   const shot = await shrinkScreenshot(file);
+  const sent = (res) => {
+    close();
+    showToast(res.photo === false ? 'Report sent without the screenshot' : 'Report sent', 'done', { detail: 'Thank you' });
+  };
   const result = await postFeedback(entry, shot);
   if (result.ok) {
-    close();
     dismissToast('fail:report');
-    showToast(result.photo === false ? 'Report sent without the screenshot' : 'Report sent', 'done', { detail: 'Thank you' });
+    sent(result);
     return;
   }
   if (result.network) return queueOffline();
+  // Retry sends this same report again, so it still works after the form is closed.
+  const retry = async () => {
+    const again = await postFeedback(entry, shot);
+    if (again.ok) { sent(again); return true; }
+    if (again.network) return queueOffline();
+    return false;
+  };
   showToast('Couldn’t send your report', 'fail', {
     key: 'fail:report',
     detail: 'Your message is still here.',
-    action: { label: 'Retry', fn: () => retryToast('fail:report', async () => { await window.submitFeedback(); return !document.getElementById('feedback-backdrop'); }) },
+    action: { label: 'Retry', fn: () => retryToast('fail:report', retry) },
   });
   if (errBox) {
     errBox.innerHTML = `${escHtml_cd(result.error)} <a href="${bugReportUrl()}" target="_blank" rel="noopener">Report it on GitHub instead</a>`;
@@ -20403,6 +20467,7 @@ window.clearAssistantChat    = clearAssistantChat;
 // The last pending task gets the "all caught up" card; any other gets the usual toast.
 function celebrateTaskDone(undo, task) {
   haptic();
+  dismissToast(`done:task:${task.id}`);
   if (pendingCount() === 0) showCelebration('🎉', 'All caught up', 'Every task is done. Nice work.');
   else showUndoToast('is done', undo, 'done', { item: task.title, where: true, key: `done:task:${task.id}` });
 }
