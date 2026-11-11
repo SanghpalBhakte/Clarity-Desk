@@ -1271,6 +1271,33 @@ test.describe('review round 2: one announcement per moment', () => {
     expect((await announcers(page))[0]).toBe(`3 classes marked Present. ${BACK}`);
   });
 
+  test('"Trying again…" next to a card is read on its own', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.showCelebration('', 'Back on track', 'You’re at 80%, at or above your 75% target.');
+      w.showToast('Couldn’t make the backup file', 'fail', { key: 'fail:backup', action: { label: 'Retry', fn: () => w.retryToast('fail:backup', () => new Promise(() => {})) } });
+    });
+    await page.getByRole('button', { name: 'Retry' }).click();
+    expect((await announcers(page))[0]).toBe('Trying again…');
+  });
+
+  test('the fields summary next to a card is read on its own', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.showCelebration('', 'All caught up', 'Every task is done.');
+      const mk = (id: string, label: string) => {
+        const l = document.createElement('label'); l.htmlFor = id; l.textContent = label;
+        const i = document.createElement('input'); i.id = id;
+        document.body.append(l, i);
+        return i;
+      };
+      w.reportFormErrors([{ input: mk('e1', 'Title'), msg: 'Add a title' }, { input: mk('e2', 'Due date'), msg: 'Pick a date' }]);
+    });
+    expect((await announcers(page))[0]).toBe('2 fields need a look: title and due date.');
+  });
+
   test('a later message is read on its own, and a failure keeps its own region', async ({ page }) => {
     await openApp(page);
     await page.evaluate(() => (window as any).showCelebration('', 'Back on track', 'You’re at 80%, at or above your 75% target.'));

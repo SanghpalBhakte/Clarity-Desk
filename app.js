@@ -415,17 +415,20 @@ function getToastContainer() {
 // A milestone card (card = true) and an ordinary message from the same moment
 // (a mark that puts attendance back on track) are read as one sentence, the
 // action first, so neither replaces the other. Failures use the alert
-// region, which a card never writes to.
+// region, which a card never writes to. Only a finished action (a toast of
+// kind done or note, `joinable`) joins a card; "Trying again…" and the
+// "N fields need a look" summary are always read on their own.
 const ANNOUNCE_JOIN_MS = 1000;
-let lastPolite = { text: '', at: 0, card: false };
-function announceToast(text, urgent, card = false) {
+let lastPolite = { text: '', at: 0, card: false, joinable: false };
+function announceToast(text, urgent, card = false, joinable = false) {
   getToastContainer();
   const r = document.getElementById(urgent ? 'cd-alert' : 'cd-announce');
   if (!r) return;
   if (!urgent) {
     const now = Date.now();
-    const join = lastPolite.text && lastPolite.card !== card && now - lastPolite.at < ANNOUNCE_JOIN_MS;
-    lastPolite = join ? { text: '', at: 0, card: false } : { text, at: now, card };
+    const canJoin = card || joinable;
+    const join = lastPolite.text && lastPolite.joinable && canJoin && lastPolite.card !== card && now - lastPolite.at < ANNOUNCE_JOIN_MS;
+    lastPolite = join ? { text: '', at: 0, card: false, joinable: false } : { text, at: now, card, joinable: canJoin };
     if (join) text = card ? `${r.textContent}. ${text}` : `${text}. ${r.textContent}`;
   }
   r.textContent = text;
@@ -680,7 +683,7 @@ function presentToast(t) {
     toastRun(t);
     return;
   }
-  announceToast(toastSpoken(t), t.kind === 'fail');
+  announceToast(toastSpoken(t), t.kind === 'fail', false, t.kind === 'done' || t.kind === 'note');
   toastRestart(t);
 }
 
@@ -784,7 +787,7 @@ function showToast(msg, type = 'note', opts = {}) {
     Object.assign(cur, fields);
     fillToastEl(cur);
     toastRestart(cur);
-    if (line1Changed) announceToast(toastSpoken(cur), cur.kind === 'fail');
+    if (line1Changed) announceToast(toastSpoken(cur), cur.kind === 'fail', false, cur.kind === 'done' || cur.kind === 'note');
     return cur.el;
   }
 
