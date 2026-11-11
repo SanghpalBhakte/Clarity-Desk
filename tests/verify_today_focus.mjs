@@ -3,7 +3,10 @@ import './_toast-dom-shim.mjs';
 // Clarity Desk: TODAY'S NEXT STEP (nudge row under the class card)
 // ==================================================================
 // v171: one line under the class card with the single most useful thing to
-// do now. Locked down here:
+// do now. Since the Register day rail, Today renders only the attendance
+// warning from it: ended classes mark on the rail and a slipped task sorts
+// out in its own Due row. buildTodayFocus keeps its full order (the checks
+// below still lock it down). Locked down here:
 //  - the order: an ended-but-unmarked class > a task due today/overdue >
 //    the subject furthest below the attendance target;
 //  - it never shows more than one, skips dismissed ones, and "Not now"
@@ -149,7 +152,8 @@ check('First step: Today picks the due-today task first, else the soonest task w
   ];
   const { html } = today(DAY + 'T09:00:00', { cos_custom_tasks: JSON.stringify(tasks) });
   const h = html();
-  return focusOf(h) === 'task' && h.includes('Lab report') && h.includes('Start: Read the aim') ? true : 'focus=' + focusOf(h);
+  // The first step now shows in the task's Due row, not in a card above.
+  return focusOf(h) === undefined && /task-ledger-item[\s\S]*Lab report[\s\S]*Start: Read the aim/.test(h) ? true : 'focus=' + focusOf(h);
 });
 
 check('First step: sanitizeTask keeps it trimmed and capped, drops blanks, and leaves old tasks unchanged', () => {
@@ -169,7 +173,8 @@ check('Slipped task: Today offers Done / Tomorrow / Pick a day for your own over
   const h = html();
   const ok = h.includes('resolveTask(this.dataset.id, { done: true })') && h.includes('moveTaskTomorrow(') && h.includes('Pick a day') && h.includes('type="date"');
   if (/need[s]? attention/.test(h)) return 'old overdue wording still shown';
-  return focusOf(h) === 'task' && ok && h.includes('1 task slipped. Pick a new day or mark it done.') ? true : 'buttons or kinder line missing';
+  // The buttons sit in the task's own Due row.
+  return focusOf(h) === undefined && ok && h.includes('class="due-fix"') && h.includes('1 task slipped. Pick a new day or mark it done.') ? true : 'buttons or kinder line missing';
 });
 
 check('Slipped task: Done, Tomorrow and a picked day change only that task, and Undo puts it back', () => {
@@ -213,11 +218,11 @@ check('Dismissed ones are skipped and the next one takes over', () => {
   return first.kind === 'unmarked' && second.kind === 'task' && third === null ? true : [first.kind, second && second.kind, third].join(',');
 });
 
-check('Today shows the row for an ended, unmarked class and it carries the Mark action', () => {
+check('An ended, unmarked class is marked on the rail (Present / Absent), with no second prompt above', () => {
   const { html } = today(DAY + 'T13:00:00');
   const h = html();
-  if (focusOf(h) !== 'unmarked') return 'kind ' + focusOf(h);
-  return h.includes('Data Structures Lab still needs attendance') && h.includes("setTTDay(2); navigateTo('timetable')") && h.includes('dismissTodayFocus(this.dataset.id)') ? true : 'markup missing';
+  if (focusOf(h) !== undefined) return 'kind ' + focusOf(h);
+  return /rail-row is-ended needs-mark[\s\S]*Data Structures Lab[\s\S]*Ended · not marked[\s\S]*setAttendance\('2026-09-29', this.dataset.key, 'attended'\)/.test(h) ? true : 'rail row missing';
 });
 
 check('Marking the class clears the row; nothing shows when there is nothing to do', () => {
@@ -227,15 +232,15 @@ check('Marking the class clears the row; nothing shows when there is nothing to 
   return focusOf(domCache['page-dashboard'].innerHTML) === undefined ? true : 'still showing';
 });
 
-check('"Not now" hides it for the day, survives a reload, and returns tomorrow', () => {
-  const { app } = today(DAY + 'T13:00:00');
-  globalThis.dismissTodayFocus(`unmarked:${app.attendanceKeyFor(DSL)}`);
-  if (focusOf(domCache['page-dashboard'].innerHTML) !== undefined) return 'row still there after Not now';
-  at(DAY + 'T13:30:00'); const again = makeApp(); again.state.currentPage = 'dashboard'; again.renderDashboard();
-  if (focusOf(domCache['page-dashboard'].innerHTML) !== undefined) return 'came back after reload the same day';
-  // next Tuesday, same unmarked situation: a fresh day, so the dismissal no longer applies
-  at('2026-10-06T13:00:00'); const nextDay = makeApp(); nextDay.state.currentPage = 'dashboard'; nextDay.renderDashboard();
-  return focusOf(domCache['page-dashboard'].innerHTML) === 'unmarked' ? true : 'did not return the next day';
+check('"Not now" is saved for today only (local, never synced) and is gone the next day', () => {
+  today(DAY + 'T13:00:00');
+  globalThis.dismissTodayFocus('risk:DS');
+  const saved = JSON.parse(store.cd_focus_dismissed || 'null');
+  if (!saved || saved.day !== DAY || !saved.ids.includes('risk:DS')) return 'not saved for today';
+  // A fresh day ignores yesterday's list (readDismissedFocus checks the day).
+  at('2026-10-06T13:00:00');
+  const later = makeApp().buildTodayFocus({ dayClasses: [], dateStr: '2026-10-06', riskSubject: { name: 'DS', pct: 52, targetPct: 75, classesToAttend: 3 }, dismissed: [] });
+  return later && later.kind === 'risk' ? true : 'did not return the next day';
 });
 
 check('Showing the row writes nothing: attendance and tasks are untouched', () => {
@@ -250,7 +255,7 @@ check('Bad data cannot blank Today: a broken task and a corrupt dismissal list s
   seed({ cos_custom_tasks: JSON.stringify([{ id: 'z', title: 'Odd', dueDate: 'not-a-date', status: 'pending', taskType: 'assignment', isCustom: true }]), cd_focus_dismissed: '{not json' });
   at(DAY + 'T13:00:00'); const app = makeApp(); app.state.currentPage = 'dashboard'; app.renderDashboard();
   const h = domCache['page-dashboard'].innerHTML;
-  return h.includes('chrono-beacon') && h.includes('Today') ? true : 'Today did not render';
+  return h.includes('day-rail') && h.includes('Your day') ? true : 'Today did not render';
 });
 
 console.log('\n========================================');

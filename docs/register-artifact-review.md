@@ -48,3 +48,15 @@ No timetable, self-study, holiday, no classes today, one class, eight classes, a
 - **Change:** new `--raw-*` values for `paper-slate` and `midnight-ink` (Register paper/ink/board green/marigold/red), `--color-now*` tokens, self-hosted Bricolage Grotesque + Instrument Sans (variable woff2, Latin, about 100 KB together) replacing Quicksand, Nunito and Comfortaa, which were removed. Fallback is the system sans stack with `font-display: swap`; no `size-adjust`, because the files are preloaded and precached, so the swap only happens on a first visit. Late and absent markers use the error red; the now markers use `--color-now`. No layout changes.
 - **Who sees it:** everyone on the two base themes, including students who never chose a theme. The accent palettes (lavender, apricot, rose) keep working on top.
 - **Acceptance:** `npm test`, `test:a11y` (light + dark, axe contrast), `test:pwa-smoke` (fonts precached, offline reload), `test:visual` with refreshed Mac and Linux snapshots reviewed at phone size, a manual check of Today, Tasks, Welcome, Timetable, Settings at 375 and 1280 in both themes, no console errors.
+
+## Slice 2 (Today): kept, adapted, rejected after testing
+Checked against the board at 320×812, 375×812, 188px wide (200% zoom) and a laptop, with real data states (`tests/today-rail.spec.ts`).
+- **Kept:** the day rail on Today only; marigold for now, red only for late; the smaller date masthead; the real attendance bar and sentence (no invented history); "Mark these N done" only inside the opened older-task list, with one Undo; no subject filler ("General" is dropped).
+- **Adapted:**
+  - Present / Absent are 44px tall pills with `aria-pressed` and the mark in words on the row ("Marked present"), not a 32px chip with a tick.
+  - The now line is hidden during a class, so it never competes with the "In class" row.
+  - The rail shows at most 6 rows chosen by need, with "+N more classes".
+  - The late-task fixes moved from a top card into the task's own Due row (option A).
+  - The attendance sentence says when it rests on portal counts only or on marks over 3 weeks old.
+- **Rejected:** a per-class attendance tick strip (no such history exists); a countdown shown only in colour; a separate "Now" card above the rail.
+- **Still open (later):** the Tasks headline content rule (slice 3), the sidebar destinations, one shared definition across the four colour sets, and the app icon (needs a safe PWA icon change).
