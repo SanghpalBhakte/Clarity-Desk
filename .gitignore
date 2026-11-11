@@ -35,3 +35,6 @@ test-results/
 
 # UI Council: free outside-reviewer keys (scripts/ui-council/outside-review.mjs)
 .env.council
+
+# Brainstorm mockups (local only)
+.superpowers/
