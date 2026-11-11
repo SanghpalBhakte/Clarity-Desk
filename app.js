@@ -1158,6 +1158,7 @@ function onCloudPushError(err) {
   const code = (err && err.code) || 'unknown';
   console.warn('Cloud push error:', err);
   lastPushed = null;   // the next push must not be skipped as "already sent"
+  if (currentUser) setSyncWaiting(true);   // not confirmed: keep the saved mark
   settlePushRetry(false);
   if (code === 'permission-denied') { updateSyncUI('denied'); return; }
   cloudPushFailed = code;
@@ -5584,7 +5585,9 @@ function pushLocalDataToCloud(uid) {
   const deletes = computeSyncDeletePaths(prevPushed, payload, attendanceEmptiedByUndo);
   const pushSeq = ++syncPushSeq;
   attendanceEmptiedByUndo = false;
-  ref.set(payload, { merge: true }).then(() => onCloudPushOk(sent)).catch(onCloudPushError);
+  // The push counts as confirmed only once every write in it has landed
+  // (the main write and any deletes); the first error reports it once.
+  const writes = [ref.set(payload, { merge: true })];
   // set(merge:true) never removes a map key, so a cleared mark used to come
   // back from the cloud on the next sync. Delete exactly the paths that were
   // in the last synced copy and are gone now (queued offline like any write).
@@ -5593,14 +5596,15 @@ function pushLocalDataToCloud(uid) {
     for (let i = 0; i < deletes.length; i += 400) {
       const args = [];
       deletes.slice(i, i + 400).forEach(p => args.push(new FP(...p), FV.delete()));
-      ref.update(...args).catch(err => {
+      writes.push(ref.update(...args).catch(err => {
         // Put the old "last synced" copy back so the next push works out the
         // same deletes again, then report it like any other failed push.
         if (pushSeq === syncPushSeq && prevPushed) safeSetStorage(KEY_SYNC_LAST_PUSHED, prevPushed);
-        onCloudPushError(err);
-      });
+        throw err;
+      }));
     }
   }
+  Promise.all(writes).then(() => onCloudPushOk(sent)).catch(onCloudPushError);
   rememberSyncedAttendance(payload);
 }
 

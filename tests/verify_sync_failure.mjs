@@ -102,7 +102,7 @@ check('The online event flushes waiting changes', () =>
   /addEventListener\('online', \(\) => \{\n(?:[^\n]*\n){0,4}?\s*flushPendingSync\(\);/.test(appSrc) ? true : 'online not wired');
 
 check('The cloud push is wired to these handlers', () =>
-  appSrc.includes('ref.set(payload, { merge: true }).then(() => onCloudPushOk(sent)).catch(onCloudPushError);') ? true : 'push not wired');
+  appSrc.includes('const writes = [ref.set(payload, { merge: true })];') && appSrc.includes('Promise.all(writes).then(() => onCloudPushOk(sent)).catch(onCloudPushError);') ? true : 'push not wired');
 
 console.log('\n========================================');
 console.log(`SYNC FAILURE NOTICE: ${passed}/${total} passed`);

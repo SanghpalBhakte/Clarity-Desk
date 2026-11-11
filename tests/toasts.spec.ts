@@ -444,7 +444,7 @@ const SYNC_FIREBASE = `
   const ref = {
     get: () => Promise.resolve({ exists: false }),
     set: () => new Promise((res, rej) => window.__pushes.push({ res, rej })),
-    update: () => Promise.resolve(),
+    update: () => (window.__updFail ? Promise.reject({ code: 'unavailable' }) : Promise.resolve()),
     onSnapshot: (o, cb) => { window.__snap = cb; return noop; },
     collection: () => ({ doc: () => ref })
   };
@@ -1306,7 +1306,8 @@ test.describe('review round 2: names', () => {
   test('long task, subject and vault names wrap on a small phone', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await openApp(page);
-    const names = [LONG, PREFIX + 'Four, with the tutorial sheets', 'Laplace_transforms_and_inverse_transforms_question_bank_with_solutions_final_v3.pdf'];
+    const names = [LONG, PREFIX + 'Four, with the tutorial sheets', 'Laplace_transforms_and_inverse_transforms_question_bank_with_solutions_final_v3.pdf',
+      'Notes "final" & <b>bold</b> <img src=x onerror="window.__x=1"> for  Unit  2', 'गणित 📚 数学 Ωmega lab record with a very long name that keeps going on and on'];
     for (const item of names) {
       await page.evaluate((it) => (window as any).showUndoToast('saved to the vault', () => {}, 'done', { item: it, key: 'long', where: true }), item);
       const t = await toastBox(page);
@@ -1316,7 +1317,93 @@ test.describe('review round 2: names', () => {
       expect(undo!.x + undo!.width).toBeLessThanOrEqual(320);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
       expect(await page.evaluate(() => (window as any).toastState.visible.item)).toBe(item);
+      expect(await shown(page).locator('.toast-line1 b').evaluate((b) => [b.textContent, b.children.length])).toEqual([item, 0]);
+      expect(await page.evaluate(() => (window as any).__x)).toBeUndefined();
       expect((await announcers(page))[0]).toContain(item);
     }
+  });
+});
+
+// ── PR #308 review, round 3: the waiting mark and confirmations ──
+test.describe('review round 3: confirmations and the waiting mark', () => {
+  test.use({ serviceWorkers: 'block' });
+  const mark = (page: Page) => page.evaluate(() => localStorage.getItem('cos_sync_waiting'));
+  const settleAt = (page: Page, i: number, ok: boolean) =>
+    page.evaluate(([idx, good]) => { const p = (window as any).__pushes.splice(idx as number, 1)[0]; good ? p.res() : p.rej({ code: 'unavailable' }); }, [i, ok] as const);
+
+  test('answers out of order: the older one cannot undo Synced or bring the mark back', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    await pushWaiting(page);
+    await quickAdd(page, 'Viva on Friday');
+    await page.clock.runFor(2600);
+    await settleAt(page, 1, true);   // the newest push first
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+    expect(await mark(page)).toBeNull();
+    await settleAt(page, 0, true);   // then the older one
+    await page.clock.runFor(50);
+    expect(await badge(page)).toMatch(/^Synced/);
+    expect(await mark(page)).toBeNull();
+  });
+
+  test('a failed push keeps the mark until a later push is confirmed', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    expect(JSON.parse((await mark(page))!)).toEqual({ uid: 'u-sync' });   // only the account id
+    await pushWaiting(page);
+    await settlePush(page, false);
+    expect(await mark(page)).not.toBeNull();
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await page.waitForFunction(() => (window as any).__pushes.length > 0);
+    await settlePush(page, true);
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+    expect(await mark(page)).toBeNull();
+  });
+
+  test('a push whose delete fails is not confirmed: the mark stays', async ({ page }) => {
+    await openSignedIn(page);
+    await page.evaluate(() => {
+      const w = window as any;
+      localStorage.setItem('cos_attendance', JSON.stringify({ '2026-11-10': { a: 'attended' } }));
+      localStorage.setItem('cos_sync_last_pushed', JSON.stringify({ attendance: { '2026-11-10': { a: 'attended', b: 'attended' } }, attendanceBaseline: {}, attendanceLive: {} }));
+      w.__updFail = true;
+      w.syncToCloud();
+    });
+    await pushWaiting(page);
+    await settlePush(page, true);   // the main write lands, the delete does not
+    await page.clock.runFor(50);
+    expect(await badge(page)).toBe('Couldn’t sync · saved here');
+    expect(await mark(page)).not.toBeNull();
+  });
+
+  test('Retry waits for the push that carries every change, not an older one', async ({ page }) => {
+    await openSignedIn(page);
+    await quickAdd(page, 'Lab report due tomorrow');
+    await pushWaiting(page);
+    await settlePush(page, false);                    // failure toast with Retry
+    await quickAdd(page, 'Viva on Friday');
+    await pushWaiting(page);                          // an older push on its way
+    await quickAdd(page, 'Seminar slides due Monday'); // a newer change, not sent yet
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await page.waitForFunction(() => (window as any).__pushes.length === 2);
+    await settleAt(page, 0, true);                    // the older push is confirmed
+    await page.clock.runFor(50);
+    await expect(page.locator('#toast-container .toast-line1', { hasText: 'Trying again…' })).toHaveCount(1);
+    expect(await badge(page)).toBe('Syncing…');
+    await settleAt(page, 0, true);                    // the Retry push
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+    await expect(page.locator('#toast-container .toast-line1', { hasText: 'Trying again…' })).toHaveCount(0);
+  });
+
+  test('another account’s mark is ignored', async ({ page }) => {
+    await openSignedIn(page);
+    await page.evaluate(() => (window as any).syncToCloud());
+    await pushWaiting(page);
+    await settlePush(page, true);
+    await page.waitForFunction(() => /^Synced/.test(document.getElementById('sync-text')!.textContent || ''));
+    await page.evaluate(() => localStorage.setItem('cos_sync_waiting', JSON.stringify({ uid: 'someone-else' })));
+    expect(await page.evaluate(() => (window as any).whereSavedLine())).toBe('Saved here · synced to your account');
+    await page.evaluate(() => localStorage.setItem('cos_sync_waiting', JSON.stringify({ uid: 'u-sync' })));
+    expect(await page.evaluate(() => (window as any).whereSavedLine())).toBe('Saved here · syncing to your account');
   });
 });
