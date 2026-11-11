@@ -137,7 +137,7 @@ check('Saving a file into full storage shows "Not saved" and keeps the modal ope
   globalThis._uploadedFileMeta = { isUpload: true, fileSize: '300 B' };
   globalThis.saveLinkResource(0, null);
   const modal = domCache['link-resource-modal-backdrop'];
-  return toasts.some(t => /Not saved/.test(t)) && !toasts.some(t => /saved ✓/.test(t)) && !(modal && modal.removed) && getLinks()[0].resources.length === 1
+  return toasts.some(t => /Not saved/.test(t)) && !toasts.some(t => /saved to the vault/.test(t)) && !(modal && modal.removed) && getLinks()[0].resources.length === 1
     ? true : `toasts=${toasts} modalRemoved=${modal && modal.removed}`;
 });
 

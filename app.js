@@ -5623,7 +5623,7 @@ window.vaultGetCloudFile = async function(fileId) {
     if (isVaultPlaceholder(r) && r.fileId === fileId) label = r.label || label;
   }));
   const w = vaultViewKind(label) === 'pdf' ? window.open('', '_blank') : null;   // before any await
-  const fail = (msg) => { if (w) w.close(); showToast(msg, 'error'); };
+  const fail = (msg) => { if (w) w.close(); showToast(msg, 'fail'); };
   if (!vaultCloudReady()) { fail('Sign in to download files added on your other devices.'); return; }
   if (!navigator.onLine) { fail('You’re offline. Connect to the internet to download this file.'); return; }
   showToast('Downloading…', 'info');
@@ -5744,7 +5744,7 @@ function submitNoticeChannelModal(targetKey) {
 
   saveNoticeChannels(channels);
   document.getElementById('notice-channel-modal-backdrop')?.remove();
-  showToast('Notice source updated ✓', 'success');
+  showToast('Notice source updated', 'done', { where: true });
   if (state.currentPage === 'settings') renderSettings();
 }
 
@@ -17363,7 +17363,7 @@ function waSaveLinks() {
   trackUsage('wa_links_saved', n <= 5 ? '1-5' : n <= 20 ? '6-20' : '21plus');
   waClose();
   navigate('links');
-  showUndoToast(`Added ${n} link${n === 1 ? '' : 's'} to Subject Hubs`, () => {
+  showUndoToast(`${n} link${n === 1 ? '' : 's'} added to Subject Hubs`, () => {
     const cur = loadCustomLinks();
     for (const a of added) {
       const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
@@ -18123,7 +18123,7 @@ window.vbSave = function() {
   closeVaultBulk();
   const n = added.length;
   renderLinks();
-  showUndoToast(`Added ${n} item${n !== 1 ? 's' : ''} to Study Vault`, () => {
+  showUndoToast(`${n} item${n !== 1 ? 's' : ''} added to the vault`, () => {
     const cur = loadCustomLinks();
     for (const a of added) {
       const entry = cur.find(s => s && getCanonicalSubjectKey(s.subject || '') === a.key);
@@ -18193,7 +18193,7 @@ window.deleteLinkSubject = function(si) {
     const links = loadCustomLinks();
     links.splice(si, 1);
     saveCustomLinks(links);
-    showToast('Subject removed from vault', 'info');
+    showToast('Subject removed from the vault', 'note', { where: true });
     renderLinks();
   });
 };
@@ -18213,7 +18213,7 @@ window.deleteLinkResource = function(si, ri) {
     const [gone] = links[si].resources.splice(ri, 1);
     saveCustomLinks(links);
     if (isVaultIdbFile(gone)) vaultDeleteUnusedBlob(gone.fileId);
-    showToast('Material removed from vault', 'info');
+    showToast('Removed from the vault', 'note', { where: true });
     renderLinks();
   });
 };
@@ -18271,7 +18271,7 @@ window.saveLinkSubject = function(si) {
   }
   if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
   document.getElementById('link-subject-modal-backdrop')?.remove();
-  showToast('Subject vault saved ✓', 'success');
+  showToast('saved to the vault', 'done', { item: name, where: true, key: `done:vault:${name}` });
   renderLinks();
 };
 
@@ -18300,7 +18300,7 @@ window.handleVaultFileSelect = function(e) {
     if (fileLabel) fileLabel.innerHTML = `✓ <strong>${vaultEsc(file.name)}</strong> (${formatBytes(file.size)})`;
     if (iconEl) iconEl.value = vaultIconForFile(file.name);
     window._uploadedFileMeta = { isUpload: true, fileName: file.name, fileSize: formatBytes(file.size) };
-    showToast(`File attached: ${file.name} ✓`, 'success');
+    showToast('attached', 'done', { item: file.name, detail: 'Save to keep it in the vault' });
     return;
   }
   const reader = new FileReader();
@@ -18326,7 +18326,7 @@ window.handleVaultFileSelect = function(e) {
       fileName: file.name,
       fileSize: formatBytes(file.size)
     };
-    showToast(`File attached: ${file.name} ✓`, 'success');
+    showToast('attached', 'done', { item: file.name, detail: 'Save to keep it in the vault' });
   };
   reader.readAsDataURL(file);
 };
@@ -18357,7 +18357,7 @@ async function vaultSaveFileResource(si, ri, file, label, icon) {
     window._pendingVaultFile = null;
     vaultAskPersist();
     document.getElementById('link-resource-modal-backdrop')?.remove();
-    showToast('Study vault material saved ✓', 'success');
+    showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${label}` });
     renderLinks();
   } finally { vaultSaveFileResource.busy = false; }
 }
@@ -18529,7 +18529,7 @@ window.saveLinkResource = function(si, ri) {
   }
   if (item.url && item.url.startsWith('data:')) vaultAskPersist();
   document.getElementById('link-resource-modal-backdrop')?.remove();
-  showToast('Study vault material saved ✓', 'success');
+  showToast('saved to the vault', 'done', { item: label, where: true, key: `done:vault:${label}` });
   renderLinks();
 };
 
