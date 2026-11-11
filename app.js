@@ -1786,7 +1786,7 @@ function cancelTimetableScan() {
   _ttScanId++;
   _ttScanCanceled = true;
   document.getElementById('tt-loading-backdrop')?.remove();
-  showToast('Scan canceled', 'info');
+  showToast('Scan cancelled', 'note');
 }
 
 // ── Lazy-Loaded OCR Engine & Worker Cache ─────────────────────
@@ -3675,7 +3675,7 @@ window.confirmSaveExtractedTimetable = function() {
   const subjectSync = syncSubjectsAfterTimetableSave(newTT);
 
   document.getElementById('tt-preview-backdrop')?.remove();
-  showToast(`Timetable saved! ${toSave.length} classes loaded${selectedTimetablePreviewBatch !== 'all' ? ` for Batch ${selectedTimetablePreviewBatch}` : ''}.`, "success");
+  showToast(`${hadClasses ? 'Timetable saved' : 'Timetable added'} · ${toSave.length} classes${selectedTimetablePreviewBatch !== 'all' ? ` for batch ${selectedTimetablePreviewBatch}` : ''}`, 'done', { where: true, key: 'done:timetable' });
   renderPage(state.currentPage);
   if (subjectSync.stale.length) showStaleSubjectsModal(subjectSync.stale);
   if (!hadClasses && hasAnyTimetable()) maybeOfferClosedAppReminders();
@@ -3813,7 +3813,7 @@ window.applyStaleSubjectCleanup = function() {
   if (keptLinks.length !== links.length) safeSetStorage(KEY_CUSTOM_LINKS, keptLinks);
 
   syncToCloud();
-  showToast(`${chosen.length} old subject${chosen.length !== 1 ? 's' : ''} hidden`, 'info');
+  showToast(`${chosen.length} old subject${chosen.length !== 1 ? 's' : ''} hidden`, 'note', { where: true });
   renderPage(state.currentPage);
 };
 
@@ -9311,7 +9311,7 @@ function doResetTimetable() {
   safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
   syncToCloud();
   renderPage(state.currentPage);
-  showToast("Timetable schedule cleared ✓", "info");
+  showToast('Timetable cleared', 'note', { where: true });
 }
 
 function todayClasses() {
@@ -9532,7 +9532,7 @@ function confirmHolidayModal() {
   document.getElementById('holiday-modal-backdrop')?.remove();
   showToast(start > today
     ? `Holiday planned. It starts on ${holidayDayLabel(start, true)}.`
-    : 'Holiday mode is on. Enjoy the break 🌴', 'success');
+    : 'Holiday mode is on. Enjoy the break.', 'done', { where: true });
   renderPage(state.currentPage);
 }
 window.confirmHolidayModal = confirmHolidayModal;
@@ -9540,7 +9540,7 @@ window.confirmHolidayModal = confirmHolidayModal;
 function resumeClasses() {
   setHoliday(false);
   // On Today the welcome-back card says it; elsewhere a toast does.
-  if (state.currentPage !== 'dashboard') showToast('Welcome back, classes are showing again', 'success');
+  if (state.currentPage !== 'dashboard') showToast('Welcome back. Classes are showing again', 'done', { where: true });
   renderPage(state.currentPage);
 }
 window.resumeClasses = resumeClasses;
@@ -9554,7 +9554,7 @@ window.endHolidayEarly = endHolidayEarly;
 
 function cancelPlannedHoliday() {
   setHoliday(false);
-  showToast('Planned holiday cancelled', 'success');
+  showToast('Planned holiday cancelled', 'note', { where: true });
   renderPage(state.currentPage);
 }
 window.cancelPlannedHoliday = cancelPlannedHoliday;
@@ -15960,7 +15960,7 @@ function saveTimetableEntry(oldDay, idx) {
   saveTimetable(tt);
   document.getElementById('tt-entry-modal-backdrop')?.remove();
   state.ttDay = newDay;
-  showToast('Class schedule saved ✓', 'success');
+  showToast('saved to your timetable', 'done', { item: subject, where: true, key: 'done:timetable' });
   renderTimetable();
   if (!hadClasses && hasAnyTimetable()) maybeOfferClosedAppReminders();
 }
@@ -15976,7 +15976,7 @@ function doDeleteTimetableEntry(day, idx) {
     saveTimetable(tt);
   }
   document.getElementById('tt-entry-modal-backdrop')?.remove();
-  showToast('Class entry removed', 'info');
+  showToast('Class removed from your timetable', 'note', { where: true });
   renderTimetable();
 }
 
