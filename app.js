@@ -16452,18 +16452,21 @@ function renderAssignments() {
     state.assignTypeFilter !== 'all' ? typeLabel(state.assignTypeFilter).toLowerCase() : '',
   ].filter(Boolean);
 
-  // "By subject": each subject with its next deadline. Picking one shows only
-  // its tasks; it replaces the old Filter panel.
-  const nextDueFor = (s) => {
-    const n = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a) && a.dueDate && (a.code === s || a.subject === s))
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
-    return n ? `${n.title} · ${shortDate(n.dueDate)}` : 'nothing due';
-  };
+  // Subjects: one line of names that filters the list (the list itself is
+  // the only place a task is written out). Codes carry the full name.
+  const subjectFullName = (s) => (all.find(a => a.code === s && a.subject) || {}).subject || s;
+  if (state.assignSubjectFilter !== 'all') narrowing.push(subjectFullName(state.assignSubjectFilter));
   const subjIndex = subjects.length > 1 ? `
     <nav class="tk-subjects" aria-label="Show one subject">
-      <h2 class="tk-side-head">By subject</h2>
-      ${subjects.map(s => `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name"${s === 'all' ? '' : ` title="${escAttr_cd(s)}"`}>${s === 'all' ? 'All' : escHtml_cd(s)}</span>${s === 'all' ? '' : `<span class="tk-subj-next">${escHtml_cd(nextDueFor(s))}</span>`}</button>`).join('')}
+      ${subjects.map(s => { const full = s === 'all' ? 'Show all subjects' : subjectFullName(s); return `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" title="${escAttr_cd(full)}" aria-label="${escAttr_cd(full)}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name">${s === 'all' ? 'All' : escHtml_cd(s)}</span></button>`; }).join('')}
     </nav>` : '';
+
+  // Strip and Later name a task by its subject code; General/Other tasks
+  // (or ones with no code) by their title.
+  const tickLabel = (a) => {
+    const c = String(a.code || '').trim();
+    return c && !['GEN', 'MIS', 'OTH'].includes(c.toUpperCase()) ? c : (a.title || 'Task');
+  };
 
   // Laptops: two weeks from this Monday as a strip, one tick per deadline
   // (thicker for exams and quizzes), with a needle on today. CSS hides it
@@ -16486,7 +16489,7 @@ function renderAssignments() {
           (a.taskType === 'exam' || a.taskType === 'quiz') ? 'is-exam' : '',
           isDone ? 'is-done' : isTaskOverdue(a) ? 'is-late' : '',
           subjF !== 'all' && a.code !== subjF && a.subject !== subjF ? 'is-dim' : ''].filter(Boolean).join(' ');
-        return `<span class="${cls}" title="${escAttr_cd(a.title + (a.subject ? ' · ' + a.subject : ''))}">${escHtml_cd(a.title || 'Task')}</span>`;
+        return `<span class="${cls}" title="${escAttr_cd(a.title + (a.subject ? ' · ' + a.subject : ''))}">${escHtml_cd(tickLabel(a))}</span>`;
       }).join('') + (due.length > 3 ? `<span class="tk-tick-more">+${due.length - 3}</span>` : '');
       const wkend = d.getDay() === 0 || d.getDay() === 6;
       cells.push(`<div class="tk-strip-day${k === todayK ? ' is-today' : ''}${wkend ? ' is-weekend' : ''}${i === 7 ? ' is-week2' : ''}"><span class="tk-strip-date">${DAY_SHORT[d.getDay()]} ${d.getDate()}</span><div class="tk-strip-ticks">${ticks}</div></div>`);
@@ -16494,7 +16497,7 @@ function renderAssignments() {
     if (!any) return '';
     return `
     <section class="tk-strip" aria-label="Deadlines in the next two weeks">
-      <div class="tk-strip-head"><h2>Two weeks</h2><span class="tk-strip-key" aria-hidden="true"><i class="k-due"></i>due <i class="k-exam"></i>exam or quiz <b>late</b></span></div>
+      <div class="tk-strip-head"><h2>Two weeks</h2></div>
       <div class="tk-strip-grid" aria-hidden="true">${cells.join('')}</div>
     </section>`;
   })();
@@ -16586,8 +16589,10 @@ function renderAssignments() {
     const openList = (key, label) => {
       const list = buckets[key];
       if (!list) return '';
-      const late = key === 'now' && list.some(a => isTaskOverdue(a));
-      return `<section class="tk-group tk-group-${key}${late ? ' has-late' : ''}" aria-label="${label}"><div class="tk-group-head"><h2>${label}</h2><span>${list.length} left</span></div>${list.map(renderTaskCard).join('')}</section>`;
+      const lateN = key === 'now' ? list.filter(a => isTaskOverdue(a)).length : 0;
+      // The headline already counts; the section name says which kind.
+      if (key === 'now') label = lateN === list.length ? 'Late' : lateN ? 'Late and today' : 'Today';
+      return `<section class="tk-group tk-group-${key}${lateN ? ' has-late' : ''}" aria-label="${label}"><div class="tk-group-head"><h2>${label}</h2></div>${list.map(renderTaskCard).join('')}</section>`;
     };
     // With nothing due soon, the folds open so the page is never blank.
     const nothingSoon = !buckets.now && !buckets.week;
@@ -16597,11 +16602,23 @@ function renderAssignments() {
       return `<details class="tk-group tk-group-${key} tk-fold" ${open ? 'open' : ''} ontoggle="${ontoggle}"><summary class="tk-fold-head"><span class="tk-fold-name">${label}</span><span class="tk-fold-sum">${summary}</span><span class="tk-fold-sign" aria-hidden="true"></span></summary>${list.map(renderTaskCard).join('')}</details>`;
     };
     const titles = (list) => `${list.map(a => escHtml_cd(a.title)).join(', ')}`;
+    // "2 exams, 1 assignment · next PBST 20 Nov": many look-alike titles
+    // ("End sem, End sem…") read as one word repeated.
+    const laterSummary = (list) => {
+      const counts = {};
+      list.forEach(a => { const t = typeLabel(a.taskType || 'assignment').toLowerCase(); counts[t] = (counts[t] || 0) + 1; });
+      const kinds = Object.entries(counts).sort((x, y) => y[1] - x[1]);
+      let s = kinds.slice(0, 2).map(([t, c]) => `${c} ${t}${c === 1 ? '' : 's'}`).join(', ');
+      if (kinds.length > 2) s += ` + ${kinds.length - 2} more`;
+      const first = list.filter(a => a.dueDate).sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0];
+      if (first) s += ` · next ${tickLabel(first)} ${shortDate(first.dueDate)}`;
+      return escHtml_cd(s);
+    };
     const doneOpen = state.assignFilter === 'submitted' || taskDoneOpen || taskSelectMode;
     return [
       openList('now', 'Now'),
-      openList('week', 'This week'),
-      buckets.later ? fold('later', 'Later', titles(buckets.later), nothingSoon || taskOpenFolds.later, "toggleTaskFold('later', this.open)") : '',
+      openList('week', 'Next 7 days'),
+      buckets.later ? fold('later', 'Later', laterSummary(buckets.later), nothingSoon || taskOpenFolds.later, "toggleTaskFold('later', this.open)") : '',
       buckets.goals ? fold('goals', 'Goals', titles(buckets.goals), nothingSoon || taskOpenFolds.goals, "toggleTaskFold('goals', this.open)") : '',
       buckets.done ? fold('done', 'Done', `${buckets.done.length} finished`, doneOpen, 'toggleTaskDoneSection(this.open)') : '',
     ].join('');
@@ -16625,7 +16642,7 @@ function renderAssignments() {
 
   const selN = [...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length;
   el.innerHTML = `
-    <div class="tk-page${subjIndex ? ' has-side' : ''}${stripHTML ? ' has-strip' : ''}">
+    <div class="tk-page${stripHTML ? ' has-strip' : ''}">
       <header class="tk-head">
         <div class="tk-kicker"><span>${DAY_NAMES[new Date().getDay()]} · your tasks</span>
           ${all.some(a => a.isCustom) && !taskSelectMode ? `<button type="button" class="tk-link" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
@@ -16633,8 +16650,8 @@ function renderAssignments() {
         <h1 class="tk-headline">${headA}${headB ? ` <span class="tk-headline-late${lateN ? ' is-late' : ''}">${headB}</span>` : ''}</h1>
       </header>
       ${stripHTML}
-      ${subjIndex ? `<aside class="tk-side">${subjIndex}</aside>` : ''}
       <div class="tk-main">
+        ${subjIndex}
         ${taskSelectMode ? `
           <div class="tk-selectbar" role="toolbar" aria-label="Select tasks" data-testid="task-selectbar">
             <span class="tk-sel-count">${selN} selected</span>

@@ -7679,23 +7679,18 @@ body.holiday-mode .holiday-banner {
 .tk-narrow, .tk-none { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); }
 .tk-none { padding: 18px 0; }
 
-/* By subject: a sideways row of names on phones, an index with each
-   subject's next deadline on laptops. */
+/* Subjects: one sideways row of names that filters the list. */
 .tk-subjects { display: flex; gap: 18px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--color-rule); white-space: nowrap; }
 .tk-subjects::-webkit-scrollbar { display: none; }
-.tk-side-head { display: none; }
 .tk-subj-pick { flex: none; min-height: 44px; margin-bottom: -1px; padding: 0; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; text-align: left; }
 .tk-subj-pick[aria-pressed="true"] { font-weight: 700; color: var(--text-primary); border-bottom-color: var(--color-thread, var(--accent)); }
 .tk-subj-pick .tk-subj-name { display: block; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-subj-next { display: none; }
 
 /* Sections: an ink rule under the heading, hairlines between rows. */
 #page-assignments .tk-group { margin: 0 0 6px; }
 #page-assignments .tk-group-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); }
 #page-assignments .tk-group-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
-#page-assignments .tk-group-head span { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
-/* Midnight Ink: small dates and counts need a little more size on dark. */
-:root[data-theme="midnight-ink"] #page-assignments .tk-group-head span,
+/* Midnight Ink: small dates need a little more size on dark. */
 :root[data-theme="midnight-ink"] #page-assignments .tk-day-date { font-size: 0.8125rem; color: var(--text-secondary); }
 
 #page-assignments .assignment-card.tk-card { flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: 56px; padding: 6px 0; border-left: 0; }
@@ -7762,11 +7757,6 @@ body.holiday-mode .holiday-banner {
 .tk-strip { display: none; }
 .tk-strip-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .tk-strip-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
-.tk-strip-key { font-size: 0.75rem; color: var(--text-secondary); }
-.tk-strip-key i { display: inline-block; height: 12px; margin: 0 4px 0 10px; vertical-align: -2px; background: var(--text-primary); }
-.tk-strip-key .k-due { width: 3px; margin-left: 0; }
-.tk-strip-key .k-exam { width: 6px; }
-.tk-strip-key b { margin-left: 10px; color: var(--status-error, var(--color-error)); }
 .tk-strip-grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); border-bottom: 1.5px solid var(--text-primary); }
 .tk-strip-day { position: relative; display: flex; flex-direction: column; }
 .tk-strip-day.is-weekend { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
@@ -7776,10 +7766,12 @@ body.holiday-mode .holiday-banner {
 .tk-strip-day.is-today::before { content: ''; position: absolute; left: 8px; top: 22px; bottom: 0; width: 2px; background: var(--color-thread, var(--accent)); }
 .tk-strip-ticks { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; padding: 0 2px 6px 14px; min-width: 0; }
 .tk-tick { overflow: hidden; padding-left: 6px; border-left: 3px solid currentColor; font-family: var(--font-display); font-size: 0.75rem; font-weight: 700; line-height: 18px; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
-.tk-tick.is-exam { border-left-width: 6px; }
 .tk-tick.is-late { color: var(--status-error, var(--color-error)); }
+/* Exams and quizzes: a filled block with the subject, so no legend is needed. */
+.tk-tick.is-exam { align-self: flex-start; max-width: 100%; padding: 0 6px; border-left: 0; border-radius: 4px; background: var(--text-primary); color: var(--color-canvas); }
+.tk-tick.is-exam.is-late { background: var(--status-error, var(--color-error)); color: var(--color-canvas); }
 /* A '!' as well as red, so late doesn't rely on colour alone. */
-.tk-tick.is-late::before, .tk-strip-key b::before { content: '! '; }
+.tk-tick.is-late::before { content: '! '; }
 .tk-tick.is-done::before { content: '\2713 '; }
 .tk-tick.is-done { color: var(--text-muted); text-decoration: line-through; }
 .tk-tick.is-dim { opacity: 0.25; }
@@ -7798,29 +7790,17 @@ body.holiday-mode .holiday-banner {
   #page-assignments .tk-page { padding-bottom: 16px; }
 }
 
-/* Laptops: headline beside the add line, list beside the subject index. */
+/* Laptops: headline beside the add line, the strip, then one capped list. */
 @media (min-width: 1024px) {
   #page-assignments .tk-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); grid-template-areas: "head add" "main main"; column-gap: 48px; row-gap: 18px; align-items: end; }
-  #page-assignments .tk-page.has-side { grid-template-areas: "head add" "main side"; }
   #page-assignments .tk-page.has-strip { grid-template-areas: "head add" "strip strip" "main main"; }
-  #page-assignments .tk-page.has-strip.has-side { grid-template-areas: "head add" "strip strip" "main side"; }
   #page-assignments .tk-strip { display: block; grid-area: strip; }
   #page-assignments .tk-head { grid-area: head; }
   #page-assignments .tk-add { grid-area: add; }
   /* Capped so the tick box stays beside its task, not 1000px away. */
-  #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; max-width: 840px; }
+  #page-assignments .tk-main { grid-area: main; align-self: start; min-width: 0; max-width: 760px; }
   #page-assignments .tk-kicker { justify-content: flex-start; gap: 16px; }
-  #page-assignments .tk-side { grid-area: side; align-self: start; }
-  /* One shared name column (as wide as the longest name, at most 45%), so
-     every row's next deadline starts at the same place. */
-  .tk-subjects { display: grid; grid-template-columns: fit-content(45%) minmax(0, 1fr); gap: 0 12px; margin: 0; padding: 0; overflow: visible; border-bottom: 0; white-space: normal; }
-  .tk-subjects .tk-side-head { grid-column: 1 / -1; }
-  .tk-side-head { display: block; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
-  .tk-subj-pick { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; width: 100%; min-height: 48px; margin: 0; border-bottom: 1px solid var(--color-rule); }
-  .tk-subj-pick .tk-subj-name { min-width: 56px; max-width: none; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); }
-  .tk-subj-pick[aria-pressed="true"] { border-bottom-color: var(--color-rule); }
-  .tk-subj-pick[aria-pressed="true"] .tk-subj-name { color: var(--color-thread, var(--accent)); text-decoration: underline; text-underline-offset: 4px; }
-  .tk-subj-next { display: block; min-width: 0; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tk-subjects { margin: 0; padding: 0; }
 }
 
 /* Laptop sidebar: small quiet group labels and space instead of rules; the
