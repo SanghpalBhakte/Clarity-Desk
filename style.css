@@ -22,42 +22,42 @@
   /* Warm paper page with a near-white sheet: one temperature, no sage cast.
      Sunken stays at least as light as the old sage well, so no text on it
      loses contrast. */
-  --raw-bg-0: #f6f2e9;
-  --raw-bg-1: #fffdf8;
-  --raw-bg-2: #f5efe1;
-  --raw-bg-3: #eae4d6;
+  --raw-bg-0: #f2f2ec;
+  --raw-bg-1: #fbfbf7;
+  --raw-bg-2: #eceee6;
+  --raw-bg-3: #e2e5dc;
 
-  --raw-ink-1: #4a4038;
-  --raw-ink-2: #5e554a;
-  --raw-ink-3: #71665a;
-  --raw-ink-inverse: #fbf7ee;
+  --raw-ink-1: #17211c;
+  --raw-ink-2: #3f4a44;
+  --raw-ink-3: #5a645e;
+  --raw-ink-inverse: #f4f6f1;
 
-  --raw-brand-1: #d17a5c;
-  --raw-brand-2: #b8593b;
-  --raw-brand-3: #f5ded4;
+  --raw-brand-1: #1e3a2f;
+  --raw-brand-2: #2b5243;
+  --raw-brand-3: #dbe7df;
 
-  --raw-accent-1: #d9a04e;
-  --raw-accent-2: #a97328;
-  --raw-accent-3: #f6e6c9;
+  --raw-accent-1: #e9a00c;
+  --raw-accent-2: #8a5a00;
+  --raw-accent-3: #fbe8bb;
 
-  --raw-success: #4f6b45;
-  --raw-warning: #a97328;
-  --raw-error: #a63a3a;            /* deep brick red: error text reads at 5.4:1+ on every light surface, white on it at 6.4:1 */
-  --raw-info: #5f7a7d;
+  --raw-success: #2f6b47;
+  --raw-warning: #8a5a00;
+  --raw-error: #b42318;            /* deep brick red: error text reads at 5.4:1+ on every light surface, white on it at 6.4:1 */
+  --raw-info: #3d6470;
 
-  --raw-rule: #e3dccd;
-  --raw-border-soft: rgba(74, 64, 56, 0.10);
-  --raw-border-strong: rgba(74, 64, 56, 0.18);
-  --raw-shadow-sm: 0 1px 2px rgba(74, 64, 56, 0.05);
-  --raw-shadow-md: 0 10px 24px -8px rgba(74, 64, 56, 0.14);
-  --raw-shadow-lg: 0 18px 40px -10px rgba(74, 64, 56, 0.18);
+  --raw-rule: #d8dbd2;
+  --raw-border-soft: rgba(23, 33, 28, 0.10);
+  --raw-border-strong: rgba(23, 33, 28, 0.18);
+  --raw-shadow-sm: 0 1px 2px rgba(23, 33, 28, 0.05);
+  --raw-shadow-md: 0 10px 24px -8px rgba(23, 33, 28, 0.14);
+  --raw-shadow-lg: 0 18px 40px -10px rgba(23, 33, 28, 0.18);
 
   /* Layer 2: Semantic Tokens */
   --color-canvas: var(--raw-bg-0);
   --color-surface: var(--raw-bg-1);
   --color-surface-muted: var(--raw-bg-2);
   --color-surface-sunken: var(--raw-bg-3);
-  --color-surface-overlay: #fffaf4;
+  --color-surface-overlay: #fbfbf7;
 
   --color-text-primary: var(--raw-ink-1);
   --color-text-secondary: var(--raw-ink-2);
@@ -85,10 +85,10 @@
   --color-error: var(--raw-error);
   --color-info: var(--raw-info);
 
-  --color-hover-fill: rgba(140, 58, 46, 0.06);
-  --color-pressed-fill: rgba(140, 58, 46, 0.10);
-  --color-focus-ring: #8c3a2e;
-  --color-selection: rgba(180, 136, 82, 0.24);
+  --color-hover-fill: rgba(30, 58, 47, 0.06);
+  --color-pressed-fill: rgba(30, 58, 47, 0.10);
+  --color-focus-ring: #1e3a2f;
+  --color-selection: rgba(233, 160, 12, 0.26);
 
   --shadow-sm: var(--raw-shadow-sm);
   --shadow:    var(--raw-shadow-md);
@@ -169,12 +169,12 @@
 
   --focus-ring: var(--color-focus-ring);
 
-  --font-sans:     'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-display:  'Quicksand', var(--font-sans);
-  --font-editorial:'Quicksand', 'Source Serif 4', Georgia, serif;
+  --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Bricolage Grotesque', var(--font-sans);
+  --font-editorial: 'Bricolage Grotesque', var(--font-sans);
   /* Numbers use the display face with tabular digits (set below), not a
      coding mono: the mono read as a terminal next to Quicksand/Nunito. */
-  --font-mono:     'Quicksand', var(--font-sans);
+  --font-mono: 'Instrument Sans', var(--font-sans);
   --font:          var(--font-sans);
 
   /* Type scale: 9 canonical steps, replacing ~40 ad-hoc inline
@@ -223,7 +223,7 @@
 
 /* ── 1b) Palettes (light mode) — mode is paper-slate/midnight-ink;
    the palette rides on the stored accent value via [data-accent], so
-   backups and sync are unchanged: terracotta = Rikyū (the default set
+   backups and sync are unchanged: terracotta = Register (the default set
    above), rose = Azuki & Matcha, lavender = Ai & Kaki, apricot = Tetsu
    lamp. Each palette sets the whole paper, ink and brand, not just a hue. ── */
 /* Ai & Kaki: indigo ink with persimmon */
@@ -347,32 +347,32 @@
   color-scheme: dark;
 
   /* Layer 1: Primitive Theme Values */
-  --raw-bg-0: #171412;
-  --raw-bg-1: #221d19;
-  --raw-bg-2: #2b241f;
-  --raw-bg-3: #312923;
+  --raw-bg-0: #101613;
+  --raw-bg-1: #161e19;
+  --raw-bg-2: #1c251f;
+  --raw-bg-3: #222c25;
 
-  --raw-ink-1: #f3ece3;
-  --raw-ink-2: #c8beb1;
-  --raw-ink-3: #9e9387;
-  --raw-ink-inverse: #171412;
+  --raw-ink-1: #e8ece5;
+  --raw-ink-2: #c2cac3;
+  --raw-ink-3: #939d95;
+  --raw-ink-inverse: #101613;
 
-  --raw-brand-1: #dd9470;
-  --raw-brand-2: #e8ac8f;
-  --raw-brand-3: #362720;
+  --raw-brand-1: #a9dcbd;
+  --raw-brand-2: #c2e8d0;
+  --raw-brand-3: #1f3a2c;
 
-  --raw-accent-1: #d2a56b;
-  --raw-accent-2: #e0b983;
-  --raw-accent-3: #3a2c20;
+  --raw-accent-1: #f2b230;
+  --raw-accent-2: #f7c75f;
+  --raw-accent-3: #3a2e12;
 
-  --raw-success: #6a9b7b;
-  --raw-warning: #d2a56b;
-  --raw-error: #c9655d;
-  --raw-info: #7e95b8;
+  --raw-success: #7cc497;
+  --raw-warning: #f2b230;
+  --raw-error: #ff8a7a;
+  --raw-info: #8fb4c4;
 
-  --raw-rule: #3a312a;
-  --raw-border-soft: rgba(243, 236, 227, 0.10);
-  --raw-border-strong: rgba(243, 236, 227, 0.16);
+  --raw-rule: #2a332d;
+  --raw-border-soft: rgba(232, 236, 229, 0.10);
+  --raw-border-strong: rgba(232, 236, 229, 0.16);
   --raw-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
   --raw-shadow-md: 0 10px 28px rgba(0, 0, 0, 0.34);
   --raw-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.38);
@@ -382,7 +382,7 @@
   --color-surface: var(--raw-bg-1);
   --color-surface-muted: var(--raw-bg-2);
   --color-surface-sunken: var(--raw-bg-3);
-  --color-surface-overlay: #2f2722;
+  --color-surface-overlay: #1c251f;
 
   --color-text-primary: var(--raw-ink-1);
   --color-text-secondary: var(--raw-ink-2);
@@ -410,10 +410,10 @@
   --color-error: var(--raw-error);
   --color-info: var(--raw-info);
 
-  --color-hover-fill: rgba(221, 148, 112, 0.10);
-  --color-pressed-fill: rgba(221, 148, 112, 0.16);
-  --color-focus-ring: #dd9470;
-  --color-selection: rgba(210, 165, 107, 0.26);
+  --color-hover-fill: rgba(169, 220, 189, 0.08);
+  --color-pressed-fill: rgba(169, 220, 189, 0.14);
+  --color-focus-ring: #a9dcbd;
+  --color-selection: rgba(242, 178, 48, 0.28);
 
   --shadow-sm: var(--raw-shadow-sm);
   --shadow:    var(--raw-shadow-md);
@@ -5018,10 +5018,7 @@ body::before {
   font-optical-sizing: auto;
 }
 .desk-greeting {
-  /* Distinct from the rest of the display type (page titles, topbar brand,
-     which stay on --font-editorial/Quicksand) so the daily greeting reads
-     as its own, slightly softer moment on the page. */
-  font-family: 'Comfortaa', var(--font-sans);
+  font-family: var(--font-display);
   font-variation-settings: 'opsz' 90;
   text-shadow: 0 1px 0 var(--sheen-top), 0 -1px 0 var(--sheen-bottom);
 }
@@ -5457,11 +5454,24 @@ body::before {
   }
 }
 
+/* Register (default palette): board green acts, marigold means "now", red means late.
+   Secondary buttons are neutral so marigold keeps its one meaning. */
 :root[data-theme="paper-slate"][data-accent="terracotta"],
 :root[data-theme="paper-slate"]:not([data-accent]) {
-  --raw-brand-1: #a8452c;
-  --raw-brand-2: #8a3822;
-  --color-accent-text: #8a5a14;
+  --color-accent-text: #8a5a00;
+  --color-action-secondary: var(--raw-bg-3);
+  --color-action-secondary-hover: #d6dad0;
+  --color-now: #b87b00;          /* marker lines: 3.2:1 on paper; the brighter marigold is for fills */
+  --color-now-wash: rgba(233, 160, 12, 0.16);
+  --color-now-ink: #5a3d00;
+}
+:root[data-theme="midnight-ink"][data-accent="terracotta"],
+:root[data-theme="midnight-ink"]:not([data-accent]) {
+  --color-action-secondary: var(--raw-bg-3);
+  --color-action-secondary-hover: #2c372f;
+  --color-now: #f2b230;
+  --color-now-wash: rgba(242, 178, 48, 0.16);
+  --color-now-ink: #f7d58a;
 }
 
 /* Tasks: grouped list, one title line + one meta line */
@@ -7150,18 +7160,18 @@ body.holiday-mode .holiday-banner {
    the room, not the app. Each non-default palette adds one CSS-only
    detail: Ai & Kaki stitched section rules, Tetsu lamp a brass glow on
    the live class, Azuki & Matcha tea-paper flecks. */
-:root { --color-thread: #a8452c; }
+:root { --color-thread: #1e3a2f; }
 :root[data-theme="paper-slate"][data-accent="lavender"],
 :root[data-theme="paper-slate"][data-accent="apricot"],
 :root[data-theme="paper-slate"][data-accent="rose"] { --color-thread: #9f4129; }
-:root[data-theme="midnight-ink"] { --color-thread: #dd9470; }
+:root[data-theme="midnight-ink"] { --color-thread: #a9dcbd; }
 :root[data-theme="midnight-ink"][data-accent="lavender"] { --color-thread: #f29372; }
 :root[data-theme="midnight-ink"][data-accent="apricot"] { --color-thread: #ef9c7b; }
 :root[data-theme="midnight-ink"][data-accent="rose"] { --color-thread: #e8957a; }
 
 .desk-greeting .desk-greeting-name { color: var(--color-thread); }
-.tt-now { color: var(--color-thread); }
-.tt-entry.current .tt-divider { background: var(--color-thread); }
+.tt-now { color: var(--color-now-ink, var(--color-thread)); }
+.tt-entry.current .tt-divider { background: var(--color-now, var(--color-thread)); }
 
 /* Ai & Kaki: section rules as indigo running stitches (sashiko). */
 :root[data-theme="paper-slate"][data-accent="lavender"] .panel-header,
@@ -7292,9 +7302,9 @@ body.holiday-mode .holiday-banner {
 }
 .day-bar-block:active { transform: scale(0.97); }
 .day-bar-block.is-present { background: var(--status-success); border-color: var(--status-success); color: var(--surface); }
-.day-bar-block.is-absent { background: var(--color-thread, var(--status-error)); border-color: var(--color-thread, var(--status-error)); color: var(--surface); }
+.day-bar-block.is-absent { background: var(--status-error); border-color: var(--status-error); color: var(--surface); }
 .day-bar-block.is-other { background: var(--surface-2); border-style: dashed; color: var(--text-secondary); }
-.day-bar-now { position: absolute; top: -6px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--color-thread, var(--accent)); pointer-events: none; }
+.day-bar-now { position: absolute; top: -6px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--color-now, var(--color-thread, var(--accent))); pointer-events: none; }
 .day-bar-now::before { content: ''; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: inherit; }
 .day-bar-all { width: 100%; min-height: 48px; justify-content: center; }
 @media (min-width: 761px) { .day-bar-all { width: auto; align-self: flex-start; padding: 0 28px; } }
@@ -7377,7 +7387,7 @@ body.holiday-mode .holiday-banner {
 .bf-row-title { font-weight: 500; }
 .bf-class-sub, .bf-row-sub { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
 .bf-row-when { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
-.bf-row.is-overdue .bf-row-when { color: var(--color-thread, var(--status-error)); font-weight: 700; }
+.bf-row.is-overdue .bf-row-when { color: var(--status-error); font-weight: 700; }
 .bf-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .bf-h h3 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
 .bf-act { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; }
@@ -7408,7 +7418,7 @@ body.holiday-mode .holiday-banner {
 .cd-hello { padding: 22px 4px 8px; }
 .cd-hello-title {
   margin: 0;
-  font-family: var(--font-display, 'Quicksand', sans-serif);
+  font-family: var(--font-display, sans-serif);
   font-size: 1.6rem;
   font-weight: 700;
   line-height: 1.2;
@@ -7600,7 +7610,7 @@ body.holiday-mode .holiday-banner {
   border-bottom: 2px solid var(--text-primary);
 }
 #page-settings .st-num {
-  font-family: var(--font-display, 'Quicksand', sans-serif);
+  font-family: var(--font-display, sans-serif);
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--color-thread, var(--accent));
@@ -7608,7 +7618,7 @@ body.holiday-mode .holiday-banner {
 #page-settings .st-title {
   flex: 1;
   margin: 0;
-  font-family: var(--font-display, 'Quicksand', sans-serif);
+  font-family: var(--font-display, sans-serif);
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.01em;

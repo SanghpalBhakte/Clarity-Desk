@@ -7887,7 +7887,7 @@ const ALL_ACCENTS = ['terracotta', 'rose', 'lavender', 'apricot'];
 // both modes; see style.css 1b/2b). The stored values stay the same, so
 // backups, sync and older app versions need no change.
 const ACCENT_LABELS = {
-  'terracotta': 'Rikyū',
+  'terracotta': 'Register',
   'rose':       'Azuki & Matcha',
   'lavender':   'Ai & Kaki',
   'apricot':    'Tetsu lamp'
@@ -7895,7 +7895,7 @@ const ACCENT_LABELS = {
 
 // Settings preview colours: page, ink, signature colour.
 const PALETTE_SWATCHES = [
-  { accent: 'terracotta', note: 'Warm paper and terracotta',   colors: ['#F6F2E9', '#4A4038', '#A8452C'] },
+  { accent: 'terracotta', note: 'Paper, ink and board green', colors: ['#F2F2EC', '#17211C', '#1E3A2F'] },
   { accent: 'lavender',   note: 'Indigo ink with persimmon',   colors: ['#E4E9EE', '#2C4F73', '#D0794F'] },
   { accent: 'apricot',    note: 'Iron teal and amber lamp',    colors: ['#E8E6DF', '#2F625C', '#D39A4E'] },
   { accent: 'rose',       note: 'Red bean and tea leaf',       colors: ['#E9ECDD', '#7D3F45', '#9AA65A'] }
@@ -7960,7 +7960,7 @@ function applyThemeColorMeta(theme) {
   const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
   // A browser tab follows the palette's page colour.
   const pageColor = getComputedStyle(document.documentElement).getPropertyValue('--raw-bg-0').trim();
-  meta.setAttribute('content', isStandalone ? '#171412' : (pageColor || (theme === 'midnight-ink' ? '#171412' : '#F6F1E8')));
+  meta.setAttribute('content', isStandalone ? '#101613' : (pageColor || (theme === 'midnight-ink' ? '#101613' : '#F2F2EC')));
 }
 
 function initTheme() {
@@ -19409,22 +19409,22 @@ function renderSettings() {
         <label class="form-label" style="margin-bottom:6px">Mode</label>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Light for a daytime desk, dark for focused night study.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate: warm daylight desk">
+          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate: daylight desk">
             <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#F6F1E8"></div>
-              <div class="swatch-surface" style="background:#FFFDFC"></div>
-              <div class="swatch-accent" style="background:#D17A5C"></div>
+              <div class="swatch-bg" style="background:#F2F2EC"></div>
+              <div class="swatch-surface" style="background:#FBFBF7"></div>
+              <div class="swatch-accent" style="background:#1E3A2F"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Paper Slate</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Warm daylight desk</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Daylight desk</span>
             </div>
           </button>
           <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
             <div class="swatch-preview" aria-hidden="true">
-              <div class="swatch-bg" style="background:#171412"></div>
-              <div class="swatch-surface" style="background:#221D19"></div>
-              <div class="swatch-accent" style="background:#DD9470"></div>
+              <div class="swatch-bg" style="background:#101613"></div>
+              <div class="swatch-surface" style="background:#161E19"></div>
+              <div class="swatch-accent" style="background:#A9DCBD"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
               <span class="swatch-name" style="font-weight:600">Midnight Ink</span>

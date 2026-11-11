@@ -6,8 +6,8 @@
   "id": "/clarity-desk",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#171412",
-  "theme_color": "#171412",
+  "background_color": "#101613",
+  "theme_color": "#101613",
   "share_target": {
     "action": "./share-target",
     "method": "POST",
