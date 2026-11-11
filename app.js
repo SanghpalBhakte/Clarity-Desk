@@ -16608,7 +16608,7 @@ function renderAssignments() {
       const counts = {};
       list.forEach(a => { const t = typeLabel(a.taskType || 'assignment').toLowerCase(); counts[t] = (counts[t] || 0) + 1; });
       const kinds = Object.entries(counts).sort((x, y) => y[1] - x[1]);
-      let s = kinds.slice(0, 2).map(([t, c]) => `${c} ${t}${c === 1 ? '' : 's'}`).join(', ');
+      let s = kinds.slice(0, 2).map(([t, c]) => `${c} ${c === 1 ? t : ({ quiz: 'quizzes' }[t] || t + 's')}`).join(', ');
       if (kinds.length > 2) s += ` + ${kinds.length - 2} more`;
       const first = list.filter(a => a.dueDate).sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0];
       if (first) s += ` · next ${tickLabel(first)} ${shortDate(first.dueDate)}`;

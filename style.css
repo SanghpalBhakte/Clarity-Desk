@@ -7774,6 +7774,7 @@ body.holiday-mode .holiday-banner {
 .tk-tick.is-late::before { content: '! '; }
 .tk-tick.is-done::before { content: '\2713 '; }
 .tk-tick.is-done { color: var(--text-muted); text-decoration: line-through; }
+.tk-tick.is-exam.is-done { background: none; padding-left: 0; }
 .tk-tick.is-dim { opacity: 0.25; }
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
 

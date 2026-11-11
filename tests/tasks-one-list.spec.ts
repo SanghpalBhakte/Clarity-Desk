@@ -92,3 +92,15 @@ test('later with three kinds names two and counts the rest', async ({ page }) =>
   ]);
   await expect(page.locator('.tk-group-later .tk-fold-sum')).toHaveText(new RegExp(`^2 exams, 1 (lab|quiz) \\+ 1 more · next PBST ${shortDate(9)}$`));
 });
+
+test('later plurals read right', async ({ page }) => {
+  await open(page, [task({ taskType: 'quiz', dueDate: dayKey(10) }), task({ taskType: 'quiz', dueDate: dayKey(11) })]);
+  await expect(page.locator('.tk-group-later .tk-fold-sum')).toHaveText(/^2 quizzes · /);
+});
+
+test('a finished exam on the strip drops its filled block', async ({ page }) => {
+  await open(page, [task({ code: 'DEMP', subject: DEMP, taskType: 'exam', dueDate: dayKey(1), status: 'submitted' }), task({ dueDate: dayKey(2) })]);
+  const done = page.locator('.tk-tick.is-exam.is-done');
+  await expect(done).toHaveCount(1);
+  expect(await done.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+});
