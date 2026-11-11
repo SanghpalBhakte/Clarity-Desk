@@ -360,47 +360,250 @@ function initFirebase() {
 // triggerConfetti removed — calm confirmation used instead
 
 
+// ---- Feedback: toasts ("the thread") ----
+// One toast at a time. Line 1 says what happened (item name in bold),
+// line 2 where it is kept or what to do next. The thin line under the text
+// is the countdown. Screen readers hear each toast once, through two hidden
+// announcers beside the container (the container itself is not a live
+// region, so updating a visible toast is never read twice).
+// Spec: docs/superpowers/specs/2026-11-11-feedback-voice-design.md
+const TOAST_KINDS = { success: 'done', info: 'note', error: 'fail', warning: 'wait', done: 'done', note: 'note', wait: 'wait', fail: 'fail' };
+const toastState = { visible: null, ordinaryQueue: [], failQueue: [] };
+let toastSeq = 0;
+
+// Time on screen: 4 s plus 60 ms a character, 4-10 s; with an action 7-12 s.
+function toastDuration(text, hasAction) {
+  const ms = 4000 + 60 * String(text || '').length;
+  return hasAction ? Math.min(12000, Math.max(7000, ms)) : Math.min(10000, Math.max(4000, ms));
+}
+
+function toastKey(type, msg, opts) {
+  if (opts && opts.key) return String(opts.key).slice(0, 80);
+  let h = 0;
+  for (const ch of String(msg)) h = (h * 31 + ch.codePointAt(0)) | 0;
+  return `${type}:${(h >>> 0).toString(36)}`;
+}
+
 function getToastContainer() {
   let toastContainer = document.getElementById('toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
-    // Announce toast text to screen readers -- these messages (saved,
-    // error, etc.) previously had no non-visual equivalent.
-    toastContainer.setAttribute('role', 'status');
-    toastContainer.setAttribute('aria-live', 'polite');
-    toastContainer.setAttribute('aria-atomic', 'true');
     document.body.appendChild(toastContainer);
+  }
+  if (!document.getElementById('cd-announce')) {
+    const hidden = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0';
+    [['cd-announce', 'status'], ['cd-alert', 'alert']].forEach(([id, role]) => {
+      const r = document.createElement('div');
+      r.id = id;
+      r.setAttribute('role', role);
+      r.setAttribute('aria-live', role === 'alert' ? 'assertive' : 'polite');
+      r.setAttribute('aria-atomic', 'true');
+      r.style.cssText = hidden;
+      document.body.appendChild(r);
+    });
   }
   return toastContainer;
 }
 
-function showToast(msg, type = 'info') {
-  const toastContainer = getToastContainer();
+// Writes one message to the polite or the alert announcer.
+function announceToast(text, urgent) {
+  getToastContainer();
+  const r = document.getElementById(urgent ? 'cd-alert' : 'cd-announce');
+  if (r) r.textContent = text;
+}
 
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  
-  const iconSpan = document.createElement('span');
-  iconSpan.style.fontSize = '0.95rem';
-  iconSpan.textContent = type === 'success' ? '✓' : type === 'error' ? '⚠️' : 'ℹ️';
-  
-  const textSpan = document.createElement('span');
-  // Success toasts already get a ✓ icon; drop a trailing ✓ from the text so it isn't shown twice.
-  textSpan.textContent = type === 'success' ? String(msg).replace(/\s*✓\s*$/, '') : msg;
+function toastLineText(t) {
+  return (t.item ? `${t.item} ${t.msg}` : t.msg).trim();
+}
 
-  toast.appendChild(iconSpan);
-  toast.appendChild(textSpan);
-  toastContainer.appendChild(toast);
+function toastPause(t, why) {
+  if (!t.pauses.size && t.timer) {
+    clearTimeout(t.timer);
+    t.timer = null;
+    t.remaining = Math.max(0, t.remaining - (Date.now() - t.startedAt));
+  }
+  t.pauses.add(why);
+  if (t.el) t.el.style.setProperty('--toast-play', 'paused');
+}
 
-  requestAnimationFrame(() => {
-    toast.classList.add('toast-show');
+function toastResume(t, why) {
+  t.pauses.delete(why);
+  if (why === 'pointer') { clearTimeout(t.pointerSafety); t.pointerSafety = null; }
+  toastRun(t);
+}
+
+function toastRun(t) {
+  if (t.sticky || t.closed || t.pauses.size || t.timer) return;
+  t.startedAt = Date.now();
+  t.timer = setTimeout(() => { t.timer = null; closeToast(t); }, t.remaining);
+  if (t.el) t.el.style.setProperty('--toast-play', 'running');
+}
+
+// (Re)starts the countdown at its full length, e.g. after an update by key.
+function toastRestart(t) {
+  clearTimeout(t.timer);
+  clearTimeout(t.pointerSafety);
+  t.timer = null;
+  t.pointerSafety = null;
+  t.pauses = new Set(document.hidden ? ['hidden'] : []);
+  t.duration = t.remaining = toastDuration(toastLineText(t) + (t.detail || ''), !!t.action);
+  if (t.el) {
+    t.el.style.setProperty('--toast-ms', `${t.duration}ms`);
+    const old = t.el.querySelector('.toast-thread');
+    const thread = document.createElement('span');
+    thread.className = 'toast-thread';
+    thread.setAttribute('aria-hidden', 'true');
+    if (old) old.replaceWith(thread); else t.el.appendChild(thread);
+  }
+  toastRun(t);
+}
+
+function fillToastEl(t) {
+  const el = t.el;
+  el.className = `toast toast-${t.kind}${t.action ? ' toast-has-action' : ''}`;
+  el.dataset.key = t.key;
+  el.textContent = '';
+  const text = document.createElement('div');
+  text.className = 'toast-text';
+  const line1 = document.createElement('div');
+  line1.className = 'toast-line1';
+  line1.id = `toast-l1-${t.id}`;
+  if (t.item) {
+    const b = document.createElement('b');
+    b.textContent = t.item;
+    line1.append(b, ` ${t.msg}`);
+  } else {
+    line1.textContent = t.msg;
+  }
+  text.appendChild(line1);
+  if (t.detail) {
+    const line2 = document.createElement('div');
+    line2.className = 'toast-line2';
+    line2.textContent = t.detail;
+    text.appendChild(line2);
+  }
+  el.appendChild(text);
+  if (t.action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = t.action.label;
+    btn.setAttribute('aria-describedby', line1.id);
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      closeToast(t, true);
+      t.action.fn();
+    }, { once: true });
+    el.appendChild(btn);
+  }
+  if (t.sticky) {
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'toast-dismiss';
+    x.setAttribute('aria-label', 'Dismiss notification');
+    x.textContent = '×';
+    x.addEventListener('click', () => closeToast(t, true));
+    el.appendChild(x);
+  }
+}
+
+function buildToastEl(t) {
+  const el = document.createElement('div');
+  t.el = el;
+  fillToastEl(t);
+  const pointerOn = () => {
+    toastPause(t, 'pointer');
+    clearTimeout(t.pointerSafety);
+    // A lost pointerup must not keep the toast forever.
+    t.pointerSafety = setTimeout(() => toastResume(t, 'pointer'), 20000);
+  };
+  const pointerOff = () => toastResume(t, 'pointer');
+  el.addEventListener('pointerenter', pointerOn);
+  el.addEventListener('pointerdown', pointerOn);
+  el.addEventListener('pointerleave', pointerOff);
+  el.addEventListener('pointerup', pointerOff);
+  el.addEventListener('pointercancel', pointerOff);
+  el.addEventListener('focusin', (e) => {
+    if (!t.pauses.has('focus')) t.prevFocus = e.relatedTarget || null;
+    toastPause(t, 'focus');
   });
+  el.addEventListener('focusout', (e) => {
+    if (!el.contains(e.relatedTarget)) toastResume(t, 'focus');
+  });
+  return el;
+}
 
-  setTimeout(() => {
-    toast.classList.remove('toast-show');
-    setTimeout(() => toast.remove(), 250);
-  }, 3200);
+function closeToast(t, now = false) {
+  if (t.closed) return;
+  t.closed = true;
+  clearTimeout(t.timer);
+  clearTimeout(t.pointerSafety);
+  const el = t.el;
+  const hadFocus = el && el.contains(document.activeElement);
+  if (toastState.visible === t) toastState.visible = null;
+  if (el) {
+    el.classList.remove('toast-show');
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (now || reduce || !el.animate) el.remove();
+    else el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out' }).onfinish = () => el.remove();
+  }
+  if (hadFocus && t.prevFocus && document.contains(t.prevFocus)) t.prevFocus.focus();
+}
+
+function dismissToast(key) {
+  const t = toastState.visible;
+  if (t && t.key === key) closeToast(t);
+}
+
+// msg is line 1; opts: { detail, action: { label, fn }, sticky, key, item, where }.
+function showToast(msg, type = 'note', opts = {}) {
+  const container = getToastContainer();
+  const kind = TOAST_KINDS[type] || 'note';
+  const key = toastKey(kind, `${opts.item || ''} ${msg}`, opts);
+  const fields = {
+    kind, key, msg: String(msg), item: opts.item ? String(opts.item) : '',
+    detail: opts.detail ? String(opts.detail) : '', action: opts.action || null,
+    sticky: opts.sticky != null ? !!opts.sticky : kind === 'fail', where: !!opts.where,
+  };
+
+  const cur = toastState.visible;
+  if (cur && cur.key === key && !cur.closed) {
+    const line1Changed = toastLineText(cur) !== toastLineText(fields);
+    Object.assign(cur, fields);
+    fillToastEl(cur);
+    toastRestart(cur);
+    if (line1Changed) announceToast(toastLineText(cur) + (cur.detail ? `. ${cur.detail}` : ''), cur.kind === 'fail');
+    return cur.el;
+  }
+  if (cur) closeToast(cur);
+
+  const t = { id: ++toastSeq, ...fields, pauses: new Set(), timer: null, pointerSafety: null, prevFocus: null, closed: false };
+  container.appendChild(buildToastEl(t));
+  toastState.visible = t;
+  void t.el.offsetWidth;   // start the enter transition from the hidden state
+  t.el.classList.add('toast-show');
+  announceToast(toastLineText(t) + (t.detail ? `. ${t.detail}` : ''), kind === 'fail');
+  toastRestart(t);
+  return t.el;
+}
+
+window.showToast = showToast;
+window.dismissToast = dismissToast;
+window.closeToast = closeToast;
+window.toastDuration = toastDuration;
+window.toastState = toastState;
+
+if (typeof document !== 'undefined' && document.addEventListener) {
+  // Live regions must already be in the page before text lands in them,
+  // or some screen readers skip the first message.
+  if (document.body) getToastContainer();
+  else document.addEventListener('DOMContentLoaded', getToastContainer);
+  document.addEventListener('visibilitychange', () => {
+    const t = toastState.visible;
+    if (!t) return;
+    if (document.hidden) toastPause(t, 'hidden'); else toastResume(t, 'hidden');
+  });
 }
 
 // A calm "well done" card for real milestones (all tasks done, attendance
@@ -436,6 +639,7 @@ function showCelebration(icon, title, subtitle = '') {
   card.addEventListener('click', close);
   container.appendChild(card);
   requestAnimationFrame(() => card.classList.add('toast-show'));
+  announceToast(subtitle ? `${title}. ${subtitle}` : title, false);
   setTimeout(close, 4500);
 }
 
@@ -16891,24 +17095,10 @@ function haptic(ms = 10) {
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
 }
 
-function showUndoToast(msg, onUndo, type = 'success') {
-  showToast(msg, type);
-  const container = document.getElementById('toast-container');
-  const toast = container && container.lastElementChild;
-  if (!toast) return;
-  toast.classList.add('toast-has-action');
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'toast-action';
-  btn.textContent = 'Undo';
-  btn.addEventListener('click', () => {
-    btn.disabled = true;
-    toast.remove();
-    onUndo();
-  }, { once: true });
-  toast.appendChild(btn);
-  setTimeout(() => { toast.classList.remove('toast-show'); setTimeout(() => toast.remove(), 250); }, 7000);
+function showUndoToast(msg, onUndo, type = 'done', opts = {}) {
+  return showToast(msg, type, { ...opts, action: { label: 'Undo', fn: onUndo } });
 }
+window.showUndoToast = showUndoToast;
 
 // Android share target: sw.js holds the shared chat in memory and hands it
 // over once. Anything missing or failing just opens the normal first step.

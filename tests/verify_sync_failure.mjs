@@ -22,8 +22,11 @@ globalThis.window = globalThis;
 globalThis.console.warn = () => {};
 let dom = {};
 const toasts = [];
-const el = (tag) => { const o = { tagName: tag, style: {}, children: [], textContent: '', classList: { add() {}, remove() {} }, setAttribute(k, v) { o[k] = v; }, remove() {}, addEventListener() {},
-  appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(c.children.map(x => x.textContent).join(' ')); } }; return o; };
+const textOf = (n) => n.textContent || (n.children || []).map(textOf).join(' ');
+const el = (tag) => { const o = { tagName: tag, style: { setProperty() {} }, dataset: {}, children: [], textContent: '', classList: { add() {}, remove() {} }, setAttribute(k, v) { o[k] = v; }, remove() {}, addEventListener() {},
+  querySelector: () => null, contains: () => false, replaceWith() {},
+  append(...cs) { cs.forEach((c) => o.children.push(typeof c === 'string' ? { textContent: c } : c)); },
+  appendChild(c) { o.children.push(c); if (o.id === 'toast-container') toasts.push(textOf(c).trim()); } }; return o; };
 globalThis.document = {
   getElementById: (id) => (dom[id] ||= Object.assign(el('div'), { id })),
   querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, removeEventListener() {},

@@ -3945,6 +3945,23 @@ button:disabled {
   border-color: var(--border-btn, var(--border));
 }
 
+/* The thread: the countdown line under a toast's text. */
+.toast { position: relative; }
+.toast-thread {
+  position: absolute; left: 14px; right: 14px; bottom: 6px; height: 2px; border-radius: 2px;
+  background: var(--color-action-primary);
+  transform-origin: left;
+  animation: toast-run var(--toast-ms, 5000ms) linear forwards;
+  animation-play-state: var(--toast-play, running);
+}
+.toast-wait .toast-thread { background: var(--color-warning); }
+.toast-fail .toast-thread { background: var(--color-error); animation: none; opacity: 0.55; }
+@keyframes toast-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .toast-thread { animation: none; }
+  .toast:not(.toast-fail) .toast-thread { display: none; }
+}
+
 .empty-state-card {
   text-align: center;
   padding: 40px 24px;

@@ -38,7 +38,9 @@ globalThis.window = globalThis;
 let undoBtn = null;
 function el(tag) {
   const e = {
-    tagName: tag, id: '', style: {}, children: [], disabled: false, _click: null,
+    tagName: tag, id: '', style: { setProperty() {} }, dataset: {}, children: [], disabled: false, _click: null,
+    append(...cs) { cs.forEach((c) => this.children.push(typeof c === 'string' ? { textContent: c } : c)); },
+    replaceWith() {}, contains: () => false,
     classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     appendChild(c) { this.children.push(c); if (c.className === 'toast-action') undoBtn = c; return c; },
     get lastElementChild() { return this.children[this.children.length - 1] || null; },
