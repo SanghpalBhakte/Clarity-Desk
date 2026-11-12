@@ -71,3 +71,13 @@ Checked against the board at 320×812, 375×812, 188px wide (200% zoom) and a la
 - **Kept:** a short line under the headline that says who it is for ("For college students · free · works offline"); the "Coming up" row as a register line with the day number large and the weekday small; "not saved" on the example so nobody thinks it is theirs; on phones the add field is a ruled line, not a box; footer "Made by a student, for students. No account needed: your desk stays on this device."
 - **Adapted:** the board's date line is dropped on the welcome (Today already shows the date); the lede stays as it was because the photo and message buttons depend on it. Fits 375×812 with no scroll in light and dark; 320×640 scrolls down, never sideways (existing test).
 - **Rejected:** none.
+
+## Refinement (after #324): master prompt review
+Checked against the before/after board (https://claude.ai/artifact/PQuEdNQ7jPMfTNETgyYcHy#before-after) and the real app at 320, 375, 768 and 1440 wide, light and dark, all four palettes, 200% zoom, reduced motion, the phone keyboard open (375×420) and keyboard Tab through Today.
+- **Better than before:** Today reads in time order with one next class; attendance appears once, only when a subject is under the aim; old tasks no longer fill Late; Welcome's first action is one field and one button.
+- **Still at risk of feeling formulaic:** the date column repeats on Today, Tasks and Welcome. Kept because it is the same information (a date) each time, but each screen has its own composition (rail, working list, invitation).
+- **Adopted:** the now line says "Now" in words and is read out, so the time is not told by colour alone ("Next" was already in words on its row); the Tasks headline for only-old tasks is "Nothing needs attention right now."; no "General" label on a task without a subject in Tasks (Today already hid it); no "Lecture" filler on rail rows.
+- **Adapted:** the Tasks fold keeps "Older · N tasks from <month>" rather than Today's "Look through", so Tasks does not copy Today. "All clear." / "A clean slate." / "Books down, feet up." stay: they are the app's existing voice.
+- **Rejected / deferred:** extending Register to the screens next to Today, Tasks and Welcome (waits for the sidebar IA decision); build, lint and typecheck checks (the repo has no build step).
+- **Untouched:** storage keys and shapes, attendance maths and rounding, sync, offline, routes and deep links, themes, Undo on marks and bulk done.
+- **Checks found nothing to fix:** no sideways scroll, no console errors, 25/25 Tab stops with a visible ring, the add line stays on screen and above the tab bar with the keyboard open, offline reload passes (pwa-smoke).
