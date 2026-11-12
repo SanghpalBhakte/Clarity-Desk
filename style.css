@@ -8268,3 +8268,9 @@ html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink);
 #page-assignments .tk-card.is-key .assignment-checkbox { border-color: var(--text-primary); }
 .tk-strip-day.is-today .tk-strip-date { color: var(--text-primary); }
 .tk-strip-day.is-today::before { background: var(--color-now, var(--color-thread, var(--accent))); }
+
+/* ── Board and Sheet: Welcome ──
+   First run is one calm sheet with one coloured thing on it: the Add button.
+   The timetable link stays bold but in ink, so it reads as the second path,
+   not a second button. */
+.ob-more-btn:not(.ob-more-quiet) { color: var(--text-primary); }
