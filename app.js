@@ -16316,7 +16316,7 @@ window.handleTaskNoDeadlineToggle = function(checked) {
 let taskSelectMode = false;
 const taskSelection = new Set();
 let taskDoneOpen = false;      // "Completed (N)" section; closed by default
-let taskOpenFolds = { later: false, goals: false }; // the other folded sections
+let taskOpenFolds = { later: false, goals: false, older: false }; // the other folded sections
 let taskOpenId = null;         // the row showing Edit · Open page · Delete
 let taskVisible = [];          // tasks on screen after filters; delete only touches these
 let _taskLongPressFired = false;
@@ -16557,13 +16557,28 @@ function renderAssignments() {
     return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}${d.getFullYear() === thisYear ? '' : ' ' + d.getFullYear()}`;
   };
 
-  // Headline in the Briefing's voice: how much is left, then what is late.
+  // Headline: how much is left, then the one to start with, by name.
+  // Tasks more than 14 days late wait in the Older fold (same rule as
+  // Today), so they don't count here.
   const NUM_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
   const numWord = (n) => n < NUM_WORDS.length ? NUM_WORDS[n] : String(n);
-  const dueLeft = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a)).length;
-  const lateN = all.filter(a => isTaskOverdue(a)).length;
-  const headA = !all.length ? 'A clean slate.' : dueLeft ? `${numWord(dueLeft)} to do.` : 'All clear.';
-  const headB = !all.length ? '' : lateN ? (lateN === 1 ? 'One is late.' : `${numWord(lateN)} are late.`) : (dueLeft ? 'Nothing late.' : 'Books down, feet up.');
+  const byDue = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '');
+  const live = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a) && !isTaskStale(a)).sort(byDue);
+  const staleN = all.filter(a => a.status === 'pending' && isTaskStale(a)).length;
+  const lateList = live.filter(a => isTaskOverdue(a));
+  const lateN = lateList.length;
+  const todayList = live.filter(a => dueDaysLeft(a.dueDate) === 0);
+  const soon = live.find(a => { const d = dueDaysLeft(a.dueDate); return d !== null && d > 0 && d <= 7; });
+  // Long titles stop at a word, so the headline stays two lines on a phone.
+  const nameOf = (a) => { const t = String(a.title || 'Task').trim(); if (t.length <= 24) return escHtml_cd(t); const cut = t.slice(0, 22); const sp = cut.lastIndexOf(' '); return escHtml_cd((sp > 8 ? cut.slice(0, sp) : cut).replace(/[\s,.:;-]+$/, '') + '…'); };
+  const headA = !all.length ? 'A clean slate.' : live.length ? `${numWord(live.length)} to do.` : staleN ? 'Nothing new.' : 'All clear.';
+  const headB = !all.length ? ''
+    : lateN === 1 ? `${nameOf(lateList[0])} is late. Start there.`
+    : lateN ? `${numWord(lateN)} are late. ${nameOf(lateList[0])} first.`
+    : todayList.length === 1 ? `${nameOf(todayList[0])} is due today.`
+    : todayList.length ? `${numWord(todayList.length)} due today. ${nameOf(todayList[0])} first.`
+    : soon ? (() => { const d = dueDaysLeft(soon.dueDate); return `Next: ${nameOf(soon)}, ${d === 1 ? 'tomorrow' : DAY_NAMES[new Date(soon.dueDate + 'T00:00:00').getDay()]}.`; })()
+    : live.length ? 'Nothing late.' : staleN ? '' : 'Books down, feet up.';
 
   // Filters opened from elsewhere (Today's "late" line, the Calendar) still
   // apply. One plain line says so, with the way back.
@@ -16699,6 +16714,7 @@ function renderAssignments() {
   const taskGroupOf = (a) => {
     if (a.status === 'submitted') return 'done';
     if (isOngoingTaskRow(a)) return 'goals';
+    if (isTaskStale(a)) return 'older';
     const d = dueDaysLeft(a.dueDate);
     if (d === null) return 'later';
     if (d <= 0) return 'now';
@@ -16710,10 +16726,10 @@ function renderAssignments() {
     const openList = (key, label) => {
       const list = buckets[key];
       if (!list) return '';
-      const lateN = key === 'now' ? list.filter(a => isTaskOverdue(a)).length : 0;
+      const lateHere = key === 'now' ? list.filter(a => isTaskOverdue(a)).length : 0;
       // The headline already counts; the section name says which kind.
-      if (key === 'now') label = lateN === list.length ? 'Late' : lateN ? 'Late and today' : 'Today';
-      return `<section class="tk-group tk-group-${key}${lateN ? ' has-late' : ''}" aria-label="${label}"><div class="tk-group-head"><h2>${label}</h2></div>${list.map(renderTaskCard).join('')}</section>`;
+      if (key === 'now') label = lateHere === list.length ? 'Late' : lateHere ? 'Late and today' : 'Today';
+      return `<section class="tk-group tk-group-${key}${lateHere ? ' has-late' : ''}" aria-label="${label}"><div class="tk-group-head"><h2>${label}</h2></div>${list.map(renderTaskCard).join('')}</section>`;
     };
     // With nothing due soon, the folds open so the page is never blank.
     const nothingSoon = !buckets.now && !buckets.week;
@@ -16741,9 +16757,19 @@ function renderAssignments() {
       return escHtml_cd(s);
     };
     const doneOpen = state.assignFilter === 'submitted' || taskDoneOpen || taskSelectMode;
+    // Older: more than 14 days late, folded like Today's line. Clearing
+    // them all takes opening the fold first, then one button, with Undo.
+    const olderFold = () => {
+      const list = buckets.older;
+      if (!list) return '';
+      const ownN = list.filter(a => a.isCustom).length;
+      const open = taskOpenFolds.older || state.assignFilter === 'overdue';
+      return `<details class="tk-group tk-group-older tk-fold" ${open ? 'open' : ''} ontoggle="toggleTaskFold('older', this.open)"><summary class="tk-fold-head"><span class="tk-fold-name">Older</span><span class="tk-fold-sum">${list.length} task${list.length !== 1 ? 's' : ''} ${escHtml_cd(staleTasksSpan(list))}</span><span class="tk-fold-sign" aria-hidden="true"></span></summary>${list.map(renderTaskCard).join('')}${ownN > 1 && !taskSelectMode ? `<p class="stale-bulk tk-older-bulk">Finished these already? <button type="button" class="stale-all" onclick="resolveStaleTasks()">Mark these ${ownN} done</button></p>` : ''}</details>`;
+    };
     return [
       openList('now', 'Now'),
       openList('week', 'Next 7 days'),
+      olderFold(),
       buckets.later ? fold('later', 'Later', laterSummary(buckets.later), nothingSoon || taskOpenFolds.later, "toggleTaskFold('later', this.open)") : '',
       buckets.goals ? fold('goals', 'Goals', titles(buckets.goals), nothingSoon || taskOpenFolds.goals, "toggleTaskFold('goals', this.open)") : '',
       buckets.done ? fold('done', 'Done', `${buckets.done.length} finished`, doneOpen, 'toggleTaskDoneSection(this.open)') : '',
@@ -16792,7 +16818,7 @@ function renderAssignments() {
       </div>
       <form class="tk-add" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
         <button type="submit" class="tk-add-plus" data-testid="add-task-button" aria-label="Add a task" title="Add a task">+</button>
-        <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="Type a task. &quot;CN quiz on 13 Nov&quot;">
+        <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="e.g. CN quiz on 13 Nov">
         ${all.length ? `<button type="button" class="tk-add-paste" data-testid="wa-import-button" onclick="showWhatsAppImport()" aria-label="Paste a message or circular" title="Paste a message or circular">Paste</button>` : ''}
       </form>
     </div>

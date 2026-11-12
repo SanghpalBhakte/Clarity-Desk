@@ -6753,7 +6753,7 @@ body.holiday-mode .holiday-banner {
 .stale-what strong { color: var(--text-primary); font-weight: 600; }
 .stale-acts { display: flex; gap: 14px; margin-left: auto; }
 .stale-toggle, .stale-all {
-  min-height: 40px; padding: 4px 0; background: none; border: none; cursor: pointer;
+  min-height: 44px; padding: 4px 0; background: none; border: none; cursor: pointer;
   font: inherit; font-size: var(--text-sm); font-weight: 600;
 }
 .stale-toggle { color: var(--accent); }
@@ -7820,11 +7820,10 @@ body.holiday-mode .holiday-banner {
   /* Fixed, not sticky: .content-area is overflow:auto but grows with its
      content, so a sticky bar pins to it, not the screen, and opens half
      under the nav. */
-  #page-assignments .tk-add { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 5; }
-  /* Square page-colour band behind the bar: rows scroll under it cleanly
-     (a rounded shadow let a rule's corner peek out above the bar). */
-  #page-assignments .tk-page::after { content: ''; position: fixed; left: 0; right: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); height: 72px; background: var(--color-canvas); z-index: 4; pointer-events: none; }
-  /* Room for the bar, so the last row (Done) scrolls clear of it. */
+  /* The add line ends the list and scrolls with it, so it never covers a
+     row, the tab bar or the keyboard. */
+  #page-assignments .tk-add { margin-top: 12px; border: 0; border-bottom: 1px solid var(--text-primary); border-radius: 0; padding-left: 0; background: none; }
+  #page-assignments .tk-add:has(input:focus-visible) { box-shadow: 0 1px 0 0 var(--color-thread, var(--accent)); }
   #page-assignments .tk-page { padding-bottom: 16px; }
 }
 
@@ -8147,3 +8146,6 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 .today-risk-line { flex: 1; min-width: 0; margin: 0; padding-top: 11px; font-size: var(--text-sm); line-height: 1.45; color: var(--color-text-primary); }
 .today-risk-subj { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
 .today-risk-subj:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 3px; }
+
+/* Register: Tasks — the Older fold's bulk line */
+.tk-older-bulk { margin: 10px 0 4px; }

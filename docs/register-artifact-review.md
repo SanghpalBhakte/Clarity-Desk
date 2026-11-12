@@ -61,3 +61,8 @@ Checked against the board at 320×812, 375×812, 188px wide (200% zoom) and a la
 - **Rejected:** a per-class attendance tick strip (no such history exists); a countdown shown only in colour; a separate "Now" card above the rail.
 - **Still open (later):** the Tasks headline content rule (slice 3), the sidebar destinations, one shared definition across the four colour sets, and the app icon (needs a safe PWA icon change).
 - **Polish after the first screenshots:** marked classes fold their buttons behind "Change"; the attendance warning is one plain sentence, not a card; "Next class:" reads as one line; the add line's example is shorter. The dark "filled box" on a late task was the hover shade; hover now applies only on devices that can hover.
+
+## Slice 3a (Tasks): kept, adapted, rejected
+- **Kept:** the headline names the task to start with; tasks more than 14 days late fold into one line (same rule as Today); "Mark these N done" only inside the opened fold, with Undo; on phones the add line ends the list; plain headings.
+- **Adapted:** the fold reuses Tasks' own fold style ("Older · 3 tasks from September"), not Today's "Look through" line, so Tasks keeps its own voice; done/move inside it is the row's own check box and Edit. Headline copy follows a rule (late → today → next this week), with long titles cut at a word.
+- **Rejected:** none.
