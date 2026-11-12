@@ -8163,3 +8163,57 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
   .ob-add-input, .ob-add-input:hover { padding: 0 2px; background: transparent; border: 0; border-bottom: 1.5px solid var(--text-primary); border-radius: 0; }
   .ob-add-input:focus-visible { outline: 0; border-bottom-color: var(--color-thread, var(--accent)); box-shadow: 0 1.5px 0 0 var(--color-thread, var(--accent)); }
 }
+
+/* ── Board and Sheet: the frame ──
+   The top bar, sidebar and phone dock are the board: the palette's own deep
+   colour. The page is the sheet: the brightest surface, where the reading
+   happens. One signal colour marks where you are. The board elements read
+   their colours from the same tokens as the rest of the app, so the tokens are
+   re-pointed inside them instead of restyling each rule. */
+:root {
+  --board: #17352a; --board-ink: #f1efe4; --board-ink-dim: rgba(241, 239, 228, .74);
+  --board-fill: rgba(255, 255, 255, .10); --board-rule: rgba(255, 255, 255, .16);
+  --board-signal: #f2b230;
+}
+:root[data-theme="paper-slate"] { --raw-bg-0: #f9f8f3; --raw-bg-1: #fffefb; }
+:root[data-theme="paper-slate"][data-accent="lavender"] { --board: #203b58; --board-ink: #eef1f4; --board-ink-dim: rgba(238, 241, 244, .76); --board-signal: #f29b78; --raw-bg-0: #f6f8fa; --raw-bg-1: #ffffff; }
+:root[data-theme="paper-slate"][data-accent="apricot"] { --board: #23403d; --board-ink: #f2f0e8; --board-ink-dim: rgba(242, 240, 232, .75); --board-signal: #e6b266; --raw-bg-0: #f8f7f2; --raw-bg-1: #fffefb; }
+:root[data-theme="paper-slate"][data-accent="rose"] { --board: #58292f; --board-ink: #f6efe9; --board-ink-dim: rgba(246, 239, 233, .76); --board-signal: #c3cd82; --raw-bg-0: #f9f9f1; --raw-bg-1: #fffffa; }
+/* Dark: the board sits a step below the sheet and keeps a trace of the palette. */
+:root[data-theme="midnight-ink"] { --board: #080d0a; --board-ink: #e8ece5; --board-ink-dim: rgba(232, 236, 229, .70); --board-fill: rgba(255, 255, 255, .08); --board-rule: rgba(255, 255, 255, .12); --board-signal: #f2b230; }
+:root[data-theme="midnight-ink"][data-accent="lavender"] { --board: #0c161a; --board-signal: #f29372; }
+:root[data-theme="midnight-ink"][data-accent="apricot"] { --board: #182221; --board-signal: #e6b266; }
+:root[data-theme="midnight-ink"][data-accent="rose"] { --board: #141516; --board-signal: #c3cd82; }
+
+.app-shell, .main-wrapper { background: var(--board); }
+.topbar, .sidebar, .bottom-nav {
+  --color-canvas: var(--board); --sidebar-bg: var(--board); --bg: var(--board);
+  --color-text-primary: var(--board-ink); --text-primary: var(--board-ink);
+  --color-text-secondary: var(--board-ink-dim); --text-secondary: var(--board-ink-dim);
+  --color-text-tertiary: var(--board-ink-dim); --text-tertiary: var(--board-ink-dim); --text-muted: var(--board-ink-dim);
+  --color-action-primary: var(--board-ink); --accent: var(--board-signal); --color-thread: var(--board-signal);
+  --color-surface-muted: var(--board-fill); --color-hover-fill: var(--board-fill); --accent-dim: var(--board-fill);
+  --bg-hover: var(--board-fill); --surface-2: var(--board-fill);
+  --color-border-subtle: var(--board-rule); --color-border-default: var(--board-rule); --border: var(--board-rule);
+  --color-rule: var(--board-rule); --border-light: var(--board-rule); --color-focus-ring: var(--board-ink); --focus-ring: var(--board-ink);
+  --sheen-top: transparent;
+  background: var(--board);
+  color: var(--board-ink);
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-theme] .sidebar { box-shadow: none; }
+.content-area { background: var(--raw-bg-0); border-radius: 20px 20px 0 0; }
+@media (min-width: 1024px) { .content-area { border-radius: 20px 0 0 0; } }
+/* The page you are on: a quiet chalk fill and the signal bar, not a full signal block. */
+.sidebar .nav-item.active { background: var(--board-fill); border-radius: 10px; }
+@media (min-width: 1024px) {
+  html:not(.sidebar-collapsed) .sidebar .nav-item { padding: 0 10px; border-radius: 10px; }
+  html:not(.sidebar-collapsed) .sidebar .nav-item:hover { background: var(--board-fill); text-decoration: none; }
+  html:not(.sidebar-collapsed) .sidebar .nav-item.active { background: var(--board-fill); }
+  html:not(.sidebar-collapsed) .sidebar .nav-item.active::before { left: -16px; }
+  html:not(.sidebar-collapsed) .sidebar .sidebar-section-label { padding-left: 10px; }
+}
+.bottom-nav-item.active { color: var(--board-ink); }
+html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink); color: var(--board); }
+@media print { .content-area { border-radius: 0; } }
