@@ -66,3 +66,8 @@ Checked against the board at 320×812, 375×812, 188px wide (200% zoom) and a la
 - **Kept:** the headline names the task to start with; tasks more than 14 days late fold into one line (same rule as Today); "Mark these N done" only inside the opened fold, with Undo; on phones the add line ends the list; plain headings.
 - **Adapted:** the fold reuses Tasks' own fold style ("Older · 3 tasks from September"), not Today's "Look through" line, so Tasks keeps its own voice; done/move inside it is the row's own check box and Edit. Headline copy follows a rule (late → today → next this week), with long titles cut at a word.
 - **Rejected:** none.
+
+## Slice 3b (Welcome): kept, adapted, rejected
+- **Kept:** a short line under the headline that says who it is for ("For college students · free · works offline"); the "Coming up" row as a register line with the day number large and the weekday small; "not saved" on the example so nobody thinks it is theirs; on phones the add field is a ruled line, not a box; footer "Made by a student, for students. No account needed: your desk stays on this device."
+- **Adapted:** the board's date line is dropped on the welcome (Today already shows the date); the lede stays as it was because the photo and message buttons depend on it. Fits 375×812 with no scroll in light and dark; 320×640 scrolls down, never sideways (existing test).
+- **Rejected:** none.
