@@ -8224,6 +8224,8 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
     } else {
       el.classList.toggle('active', navVal === page);
     }
+    el.toggleAttribute('aria-current', el.classList.contains('active'));
+    if (el.hasAttribute('aria-current')) el.setAttribute('aria-current', 'page');
   });
 
   updateBackButtonUI();
@@ -9354,7 +9356,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       return bits.join(' · ');
     };
     const rowHTML = (x) => `
-      <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}">
+      <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
         <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
         <span class="rail-body">
           <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="Open Subject Hub">${escHtml_cd(x.c.subject)}</button>
@@ -12331,7 +12333,7 @@ function renderTimetable() {
       ].filter(Boolean);
 
       return `
-        <div class="tt-entry ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}${isPast && isTeaching && status === 'unset' ? ' needs-mark' : ''}">
+        <div class="tt-entry ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''}${isPast && isTeaching && status === 'unset' ? ' needs-mark' : ''}"${isCurrent ? ' aria-current="time"' : ''}>
           <div class="tt-time-col">
             <div class="tt-time-start">${formatDisplayTime(c.time)}</div>
             <div class="tt-time-end">${c.end ? formatDisplayTime(c.end) : ''}</div>
@@ -17775,6 +17777,8 @@ function switchResourcesTab(tab) {
   document.querySelectorAll('[data-nav]').forEach(el => {
     const navVal = el.dataset.nav;
     el.classList.toggle('active', isResourcesNavActive(navVal, tab));
+    el.toggleAttribute('aria-current', el.classList.contains('active'));
+    if (el.hasAttribute('aria-current')) el.setAttribute('aria-current', 'page');
   });
   renderResources();
 }
