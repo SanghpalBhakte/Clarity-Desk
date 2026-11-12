@@ -8257,3 +8257,14 @@ html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink);
 @media (max-width: 360px) {
   #page-timetable .tt-entry .tt-actions.has-att { padding-left: 0; }
 }
+
+/* ── Board and Sheet: Tasks ──
+   Red is the only colour that means late, so nothing else on this page borrows
+   a warm or green tone: the headline stays ink, an unticked box is a plain ink
+   outline (bigger on rows to do first), and today in the two-week strip uses
+   the same "now" colour as Today and Timetable. */
+.tk-headline-late.is-late { color: inherit; }
+#page-assignments .tk-card.is-late .assignment-checkbox,
+#page-assignments .tk-card.is-key .assignment-checkbox { border-color: var(--text-primary); }
+.tk-strip-day.is-today .tk-strip-date { color: var(--text-primary); }
+.tk-strip-day.is-today::before { background: var(--color-now, var(--color-thread, var(--accent))); }
