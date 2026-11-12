@@ -21090,11 +21090,27 @@ function setupFABDrag() {
     localStorage.setItem('fabHintDismissed', 'true');
   };
 
-  if (window.innerWidth <= 768 && !localStorage.getItem('fabHintDismissed')) {
+  // The tip never covers a control: it waits until the spot beside the button
+  // is free of anything tappable (e.g. Present/Absent on Timetable), and is
+  // checked again each time the student changes page.
+  const hintSpotIsFree = () => {
+    const h = hintEl.getBoundingClientRect();
+    return ![...document.querySelectorAll('button, a[href], input, select, summary, [role="button"]')].some(c => {
+      if (fab.contains(c) || c.closest('[inert], [aria-hidden="true"]')) return false;
+      const r = c.getBoundingClientRect();
+      return r.width && r.height && r.left < h.right && r.right > h.left && r.top < h.bottom && r.bottom > h.top;
+    });
+  };
+  const showHint = () => {
+    if (hintEl || localStorage.getItem('fabHintDismissed') || window.innerWidth > 768) return;
+    if (!fab.getClientRects().length) return; // the button isn't on this page
     hintEl = document.createElement('div');
     hintEl.className = 'fab-hint';
     hintEl.innerText = 'In the way? Slide me sideways.';
+    hintEl.style.visibility = 'hidden';
     fab.appendChild(hintEl);
+    if (!hintSpotIsFree()) { hintEl.remove(); hintEl = null; return; }
+    hintEl.style.visibility = '';
 
     // Exit 1: tap the hint itself
     hintEl.addEventListener('click', (e) => {
@@ -21114,6 +21130,12 @@ function setupFABDrag() {
 
     // Exit 3: auto-hide after a few seconds if the user takes no action
     hintTimeoutId = setTimeout(dismissHint, 3500);
+  };
+  if (window.innerWidth <= 768 && !localStorage.getItem('fabHintDismissed')) {
+    const tryHint = () => { if (localStorage.getItem('fabHintDismissed')) { window.removeEventListener('hashchange', tryHintSoon); return; } showHint(); };
+    const tryHintSoon = () => setTimeout(tryHint, 700);
+    window.addEventListener('hashchange', tryHintSoon);
+    tryHintSoon();
   }
 
   const applySnapPosition = (pos) => {
