@@ -9190,7 +9190,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
         <button type="button" class="btn btn-secondary" data-id="${attrSafe(fixId)}" onclick="resolveTask(this.dataset.id, { done: true })">${icons.check()}<span>Done</span></button>
         <button type="button" class="btn btn-secondary" data-id="${attrSafe(fixId)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
         <button type="button" class="btn btn-secondary" onclick="pickTaskDay(this)">Pick a day</button>
-        <input type="date" class="today-focus-date" data-id="${attrSafe(fixId)}" min="${todayStr()}" aria-label="New due date for ${attrSafe(f.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
+        <input type="date" class="today-focus-date" tabindex="-1" data-id="${attrSafe(fixId)}" min="${todayStr()}" aria-label="New due date for ${attrSafe(f.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
       </div>` : '';
     const markHTML = markKey ? `
       <div class="today-focus-mark">
@@ -11106,6 +11106,14 @@ window.onboardingSampleDay = function(from) {
   backdrop.querySelector('.btn-primary')?.focus();
 };
 
+// While Welcome is open the app behind it is inert, so Tab, screen readers and
+// taps stay on the sheet. Welcome's own steps (photo, sample day) are separate
+// body children and are not touched.
+const WELCOME_BEHIND = '.skip-link, .app-shell, .bottom-nav, .fab, #more-sheet, #cd-assistant-panel';
+function setAppBehindWelcomeInert(on) {
+  document.querySelectorAll(WELCOME_BEHIND).forEach(el => { el.inert = on; });
+}
+
 window.showOnboardingModal = function() {
   if (document.getElementById('onboarding-backdrop')) return;
   // An update strip already up waits too, instead of covering the welcome.
@@ -11156,6 +11164,7 @@ window.showOnboardingModal = function() {
   };
   document.addEventListener('keydown', onEsc);
   document.body.appendChild(backdrop);
+  setAppBehindWelcomeInert(true);
   trackUsage('welcome_shown');
 };
 
@@ -11206,6 +11215,7 @@ window.dismissOnboarding = function() {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
   }
   document.getElementById('onboarding-backdrop')?.remove();
+  setAppBehindWelcomeInert(false);
   renderPage(state.currentPage);
   if (updateBannerWaiting) { updateBannerWaiting = false; showUpdateAvailableBanner(); }
 };
@@ -11690,7 +11700,7 @@ function renderDashboard() {
         <span class="stale-row-acts" role="group" aria-label="Sort out ${escAttr_cd(t.title)}">
           <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(t.id)}" onclick="${own ? 'resolveTask(this.dataset.id, { done: true })' : 'toggleAssignment(this.dataset.id)'}">Done</button>
           ${own ? `<button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Move</button>
-          <input type="date" class="today-focus-date" data-id="${escAttr_cd(t.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(t.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">` : ''}
+          <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(t.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(t.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">` : ''}
         </span>
       </li>`;
   };
@@ -11868,7 +11878,7 @@ function renderDashboard() {
                   <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="resolveTask(this.dataset.id, { done: true })">Done</button>
                   <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
                   <button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Pick a day</button>
-                  <input type="date" class="today-focus-date" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
+                  <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
                 </div>` : '';
               return `
                 <div class="task-ledger-item ${pCls}${canFix ? ' has-fix' : ''}">
