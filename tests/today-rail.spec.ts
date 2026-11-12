@@ -30,7 +30,9 @@ test('morning: the now line comes first, the next class says "Next" and counts d
   const today = await open(page, '2026-09-24T07:06:00');
   const rail = today.locator('.day-rail');
   await expect(rail.locator('> li').first()).toHaveClass(/rail-now/);
-  await expect(rail.locator('.rail-now')).toHaveAttribute('aria-hidden', 'true');
+  // The now line says "Now" in words (not colour alone) and is read out with its time.
+  await expect(rail.locator('.rail-now')).not.toHaveAttribute('aria-hidden', 'true');
+  await expect(rail.locator('.rail-now')).toHaveText(/7:06 AM\s*Now/);
   const next = rail.locator('.rail-row.is-next');
   await expect(next).toHaveCount(1);
   await expect(next).toContainText('Data Structures');
@@ -184,4 +186,10 @@ test('attendance from portal counts only says where the number comes from', asyn
   });
   await expect(today.locator('.att-stale-note')).toHaveText('From your portal counts. Mark classes from today to keep it current.');
   await expect(today.locator('.att-gauge')).toHaveAttribute('aria-hidden', 'true');
+});
+
+test('a plain lecture has no "Lecture" filler; a lab still says Lab', async ({ page }) => {
+  const today = await open(page, '2026-09-24T07:06:00');
+  await expect(today.locator('.day-rail .rail-meta').filter({ hasText: 'Lecture' })).toHaveCount(0);
+  await expect(today.locator('.rail-row', { hasText: 'Operating Systems Lab' }).locator('.rail-meta')).toContainText('Lab');
 });

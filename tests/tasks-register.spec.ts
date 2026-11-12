@@ -32,7 +32,7 @@ const headlines: [string, unknown[], string][] = [
   ['next tomorrow', [task('a', 'DBMS ER diagram', '2026-09-25', 'DBMS')], 'One to do. Next: DBMS ER diagram, tomorrow.'],
   ['next later in the week', [task('a', 'CN worksheet', '2026-09-28', 'CN')], 'One to do. Next: CN worksheet, Monday.'],
   ['long title stops at a word', [task('a', 'Submit the complete Design and Analysis of Algorithms assignment 3', '2026-09-23', 'DAA')], 'One to do. Submit the complete… is late. Start there.'],
-  ['only older tasks', OLD, 'Nothing new.'],
+  ['only older tasks', OLD, 'Nothing needs attention right now.'],
   ['nothing at all', [], 'A clean slate.'],
 ];
 for (const [name, tasks, text] of headlines) {
@@ -85,3 +85,10 @@ for (const width of [320, 375]) {
     expect((await input.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   });
 }
+
+test('a task with no subject shows no "General" label', async ({ page }) => {
+  const tk = await open(page, [{ id: 'g', subject: 'General', code: 'GEN', title: 'Pay hostel fee', taskType: 'assignment', dueDate: '2026-09-26', priority: 'medium', status: 'pending' }]);
+  const row = tk.locator('.tk-card', { hasText: 'Pay hostel fee' });
+  await expect(row.locator('.tk-meta')).not.toContainText('General');
+  await expect(row.locator('.tk-meta')).toContainText('in 2 days');
+});

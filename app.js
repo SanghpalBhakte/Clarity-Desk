@@ -9347,7 +9347,8 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       if (x.state === 'live' && markWord) bits.push(markWord);
       else if (x.state === 'ended') bits.push(markWord || 'Ended · not marked');
       if (x.c.room) bits.push(escHtml_cd(x.c.room));
-      else if (x.c.type && x.state !== 'live') bits.push(escHtml_cd(String(x.c.type).charAt(0).toUpperCase() + String(x.c.type).slice(1)));
+      // "Lecture" is the default, so it says nothing; Lab or Tutorial does.
+      else if (x.c.type && x.state !== 'live' && String(x.c.type).toLowerCase() !== 'lecture') bits.push(escHtml_cd(String(x.c.type).charAt(0).toUpperCase() + String(x.c.type).slice(1)));
       if (sameTime(x)) bits.push('same time');
       return bits.join(' · ');
     };
@@ -9365,7 +9366,8 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
     // class the row itself says "In class", so no line is drawn.
     const live = shown.find(x => x.state === 'live');
     const nowAt = live ? -1 : shown.findIndex(x => x.from > currentMin);
-    const nowLine = `<li class="rail-now" aria-hidden="true"><span>${formatDisplayTime(hhmm(Math.min(currentMin, 1439)))}</span><i></i></li>`;
+    // The line says "Now" in words, so the time is not told by colour alone.
+    const nowLine = `<li class="rail-now"><span>${formatDisplayTime(hhmm(Math.min(currentMin, 1439)))}</span><i aria-hidden="true"></i><b>Now</b></li>`;
     const rows = shown.map((x, k) => (k === nowAt ? nowLine : '') + rowHTML(x)).join('') + (!live && nowAt === -1 ? nowLine : '');
 
     const beaconAttrs = activeClass && activeClass.end
@@ -16576,7 +16578,7 @@ function renderAssignments() {
   const soon = live.find(a => { const d = dueDaysLeft(a.dueDate); return d !== null && d > 0 && d <= 7; });
   // Long titles stop at a word, so the headline stays two lines on a phone.
   const nameOf = (a) => { const t = String(a.title || 'Task').trim(); if (t.length <= 24) return escHtml_cd(t); const cut = t.slice(0, 22); const sp = cut.lastIndexOf(' '); return escHtml_cd((sp > 8 ? cut.slice(0, sp) : cut).replace(/[\s,.:;-]+$/, '') + '…'); };
-  const headA = !all.length ? 'A clean slate.' : live.length ? `${numWord(live.length)} to do.` : staleN ? 'Nothing new.' : 'All clear.';
+  const headA = !all.length ? 'A clean slate.' : live.length ? `${numWord(live.length)} to do.` : staleN ? 'Nothing needs attention right now.' : 'All clear.';
   const headB = !all.length ? ''
     : lateN === 1 ? `${nameOf(lateList[0])} is late. Start there.`
     : lateN ? `${numWord(lateN)} are late. ${nameOf(lateList[0])} first.`
@@ -16677,7 +16679,8 @@ function renderAssignments() {
     // The old "Mission" category reads as General (missions are a Task Type now).
     const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
 
-    const bits = [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page"><span class="tk-subj-text">${escHtml_cd(subjectText)}</span></span>`];
+    // "General" is filler: a task with no subject just shows its date.
+    const bits = subjectText === 'General' ? [] : [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page"><span class="tk-subj-text">${escHtml_cd(subjectText)}</span></span>`];
     if (taskType !== 'assignment' && typeLabel(taskType).toLowerCase() !== String(subjectText).toLowerCase()) bits.push(`<span class="tk-type">${typeLabel(taskType)}</span>`);
     if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
     if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">high priority</span>`);
