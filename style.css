@@ -8233,3 +8233,27 @@ html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink);
 .rail-row.is-live + .rail-row { border-top: 0; }
 .rail-row.is-ended:not(.needs-mark) .rail-name { font-weight: 500; color: var(--text-secondary); }
 .rail-row.is-ended:not(.needs-mark) .rail-time { font-weight: 500; color: var(--text-muted); }
+
+/* ── Board and Sheet: Timetable ──
+   A week strip you can scan: today's date sits in a small disc of the "now"
+   colour, the day you are viewing keeps its underline. The class on now gets
+   the same faint wash as on Today. An unmarked Present is a plain outline, so
+   it can't be mistaken for a class already marked. */
+.tt-tab.today .tt-tab-n {
+  min-width: 30px; padding: 4px 6px; border-radius: 999px; text-align: center;
+  background: var(--color-now-wash, var(--accent-dim)); color: var(--color-now-ink, var(--text-primary));
+}
+.tt-tab.today::after { display: none; }
+#page-timetable .tt-entry.current {
+  border-radius: 0 10px 10px 0;
+  background-color: color-mix(in srgb, var(--color-now-wash, var(--accent-dim)) 55%, transparent);
+}
+.tt-att .btn[aria-label$="as attended"][aria-pressed="false"] { border-color: var(--border-strong, var(--text-secondary)); color: var(--text-primary); }
+/* A marked class shows one filled button (same as Today), readable in every palette. */
+#page-timetable .tt-att .btn[aria-pressed="true"] {
+  background: var(--text-primary) !important; border-color: var(--text-primary) !important;
+  color: var(--color-canvas, var(--bg)) !important; box-shadow: none;
+}
+@media (max-width: 360px) {
+  #page-timetable .tt-entry .tt-actions.has-att { padding-left: 0; }
+}
