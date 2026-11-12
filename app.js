@@ -10922,17 +10922,22 @@ function onboardingComingUpHtml() {
       .sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0] || null;
   } catch (e) { task = null; }
   let when = 'Tomorrow', title = 'Physics assignment', example = true;
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  let d = new Date(t0); d.setDate(d.getDate() + 1);
   if (task) {
     example = false; title = String(task.title || 'Task');
-    const d = new Date(task.dueDate + 'T00:00:00'), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    d = new Date(task.dueDate + 'T00:00:00');
     const diff = Math.round((d - t0) / 86400000);
     when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   }
+  // Today's date column: the day number over the short weekday.
+  const dayCol = `<span class="ob-soon-when" aria-hidden="true"><b>${d.getDate()}</b><span>${d.toLocaleDateString('en-GB', { weekday: 'short' })}</span></span>`;
+  const whatCol = `<span class="ob-soon-what">${escHtml_cd(title)}<small>due ${escHtml_cd(when.toLowerCase())}</small></span>`;
   return `<section class="ob-soon${example ? ' is-example' : ''}" aria-label="${example ? 'Example' : 'Coming up'}">
-          <h2 class="ob-soon-h${example ? ' is-tag' : ''}">${example ? 'Example' : 'Coming up'}</h2>
+          <h2 class="ob-soon-h${example ? ' is-tag' : ''}">${example ? 'Example <span class="ob-soon-note">not saved</span>' : 'Coming up'}</h2>
           ${example
-            ? `<button type="button" class="ob-soon-row ob-soon-btn" aria-label="Example: ${escHtml_cd(title)}, due ${escHtml_cd(when.toLowerCase())}. See a sample day" onclick="onboardingSampleDay()"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></button>`
-            : `<div class="ob-soon-row"><span class="ob-soon-when">${escHtml_cd(when)}</span><span class="ob-soon-what">${escHtml_cd(title)}</span></div>`}
+            ? `<button type="button" class="ob-soon-row ob-soon-btn" aria-label="Example: ${escHtml_cd(title)}, due ${escHtml_cd(when.toLowerCase())}. See a sample day" onclick="onboardingSampleDay()">${dayCol}${whatCol}</button>`
+            : `<div class="ob-soon-row">${dayCol}${whatCol}</div>`}
         </section>`;
 }
 
@@ -11110,7 +11115,7 @@ window.showOnboardingModal = function() {
     <div class="ob-screen" id="onboarding-modal-box" role="dialog" aria-modal="true" aria-label="Welcome to Clarity Desk">
       <div class="ob-brand">${OB_LOGO}<span>Clarity Desk</span><button type="button" class="ob-close" onclick="onboardingExplore()" aria-label="Close welcome" title="Look around first">${icons.x()}</button></div>
       <div id="onboarding-step-1" class="ob-step ob-value">
-        <p class="ob-date">${onboardingDateLine()}</p>
+        <p class="ob-date">For college students · free · works offline</p>
         <h1 class="ob-hero">Make the next thing clear.</h1>
         <p class="ob-lede">Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.</p>
         <form class="ob-add" onsubmit="event.preventDefault(); onboardingAddDue()">
@@ -11127,7 +11132,7 @@ window.showOnboardingModal = function() {
           <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Add it when you\'re ready \u2192</button>
           <span class="ob-more-or">or <button type="button" class="ob-more-btn ob-more-quiet" onclick="setupSelfStudy(); dismissOnboarding()">study without one</button></span>
         </p>
-        <p class="ob-foot">Made by a student, for students. No account needed: your desk stays on this device and works offline.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
+        <p class="ob-foot">Made by a student, for students. No account needed: your desk stays on this device.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
         <div class="ob-actions">
           <button class="btn-secondary ob-quiet" onclick="onboardingShowName()">Show me around</button>
           <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">Log in</button>

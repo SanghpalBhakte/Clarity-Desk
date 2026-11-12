@@ -31,7 +31,7 @@ test.describe('Photo as reference', () => {
   test('a non-image is rejected and the welcome stays', async ({ page }) => {
     await welcome(page);
     await pick(page, { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hi') });
-    await expect(page.getByText('That file is not a photo')).toBeVisible();
+    await expect(page.locator('.toast-line1', { hasText: 'That file isn’t a photo' })).toBeVisible();
     await expect(sheet(page)).toHaveCount(0);
     await expect(page.locator('#onboarding-backdrop')).toBeVisible();
   });
