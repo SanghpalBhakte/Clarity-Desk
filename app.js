@@ -7958,8 +7958,9 @@ function applyThemeColorMeta(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
   const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-  // A browser tab follows the palette's page colour.
-  const pageColor = getComputedStyle(document.documentElement).getPropertyValue('--raw-bg-0').trim();
+  // A browser tab follows the board (top bar) colour, so the browser's own bar continues it.
+  const rootStyle = getComputedStyle(document.documentElement);
+  const pageColor = rootStyle.getPropertyValue('--board').trim() || rootStyle.getPropertyValue('--raw-bg-0').trim();
   meta.setAttribute('content', isStandalone ? '#101613' : (pageColor || (theme === 'midnight-ink' ? '#101613' : '#F2F2EC')));
 }
 

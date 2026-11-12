@@ -6,7 +6,7 @@
   <!-- theme-color must be declared BEFORE the inline script below: the
        script queries this meta tag synchronously during parsing, and a
        tag declared later in <head> would still be null at that point. -->
-  <meta name="theme-color" content="#F2F2EC" />
+  <meta name="theme-color" content="#17352a" />
   <script>
     (function() {
       try {
@@ -32,7 +32,7 @@
         var a = localStorage.getItem('cos_accent');
         if (['terracotta', 'rose', 'lavender', 'apricot'].includes(a)) document.documentElement.setAttribute('data-accent', a);
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', t === 'midnight-ink' ? '#101613' : '#F2F2EC');
+        if (meta) meta.setAttribute('content', t === 'midnight-ink' ? '#080d0a' : '#17352a');
         if (localStorage.getItem('cd_sidebar_collapsed') === '1') document.documentElement.classList.add('sidebar-collapsed');
       } catch(e) {}
     })();
