@@ -36,8 +36,10 @@ Review of the "Board and Sheet" board (https://claude.ai/artifact/LZ8MRBXoLgP3iX
 
 ## Slices
 1. **Frame and tokens** (this PR): `--board*` tokens per palette and mode, brighter light sheet, rounded sheet corner, active nav treatment, browser-tab colour. CSS plus one line in `applyThemeColorMeta`. No storage, routes, data flow or behaviour touched.
-2. Today. 3. Timetable. 4. Tasks. 5. Welcome. 6. Adjacent screens only where consistency improves.
+2. **Today**: CSS only, one section at the end of `style.css`. The class that is on now is the one tinted row on the page: a soft wash of the palette's signal, the signal edge, its name in the display face, and the words "In class". Between classes the next one takes that place, so there is never more than one. Marked classes step back to lighter weight and still say "Marked present/absent" with Change; an ended class that is not marked keeps full weight. Each palette now has its own "now" colour (Register marigold, Ai & Kaki kaki, Tetsu lamp, Azuki & Matcha matcha) in light and dark; Timetable's now line reads the same tokens. Attendance is left as it was: the panel once, plus the one-line warning only when at risk. No attendance maths, markup or storage touched.
+3. Timetable. 4. Tasks. 5. Welcome. 6. Adjacent screens only where consistency improves.
 
 ## Known limits
 - The phone More sheet and the Ask Desk panel sit on the sheet scale, not the board.
 - Visual snapshots change on every screen (frame colour); Linux snapshots are refreshed by the workflow.
+- Azuki & Matcha's "now" is an olive green. It differs from the done green by hue, and both states are always said in words ("In class", "Marked present").
