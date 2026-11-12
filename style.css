@@ -8167,7 +8167,7 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 /* ── Board and Sheet: the frame ──
    The top bar, sidebar and phone dock are the board: the palette's own deep
    colour. The page is the sheet: the brightest surface, where the reading
-   happens. One signal colour marks where you are. The board elements read
+   happens. The signal colour is kept for "now". The board elements read
    their colours from the same tokens as the rest of the app, so the tokens are
    re-pointed inside them instead of restyling each rule. */
 :root {
@@ -8205,7 +8205,7 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 :root[data-theme] .sidebar { box-shadow: none; }
 .content-area { background: var(--raw-bg-0); border-radius: 20px 20px 0 0; }
 @media (min-width: 1024px) { .content-area { border-radius: 20px 0 0 0; } }
-/* The page you are on: a quiet chalk fill and the signal bar, not a full signal block. */
+/* The page you are on: a quiet chalk fill and a chalk bar. */
 .sidebar .nav-item.active { background: var(--board-fill); border-radius: 10px; }
 @media (min-width: 1024px) {
   html:not(.sidebar-collapsed) .sidebar .nav-item { padding: 0 10px; border-radius: 10px; }
@@ -8215,6 +8215,9 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
   html:not(.sidebar-collapsed) .sidebar .sidebar-section-label { padding-left: 10px; }
 }
 .bottom-nav-item.active { color: var(--board-ink); }
+/* "Where you are" is marked in chalk, never in the signal colour: that one is
+   kept for the class that is on now, so the two meanings can't be confused. */
+html .sidebar .nav-item.active::before, .bottom-nav-item::before { background: var(--board-ink); }
 html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink); color: var(--board); }
 @media print { .content-area { border-radius: 0; } }
 

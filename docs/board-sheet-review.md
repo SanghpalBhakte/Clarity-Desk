@@ -5,14 +5,15 @@ Review of the "Board and Sheet" board (https://claude.ai/artifact/LZ8MRBXoLgP3iX
 ## The rule
 - **Board** = top bar, sidebar, phone dock. The palette's own deep colour. It tells you which app and which palette you are in, and nothing else.
 - **Sheet** = the page. The brightest, plainest surface. All reading happens here.
-- **Signal** = the palette's one loud colour. Budget per screen: the small bar beside the page you are on, and the class that is on now. Never a large fill.
+- **Signal** = the palette's one loud colour. It means "now" and nothing else: the class that is on, the now line, today's date. Never a large fill, never a hover, focus or selected state.
+- **Where you are** in the nav is chalk (the board's own ink): a quiet fill and a small bar, plus `aria-current="page"`.
 - Red = late and green = done stay the same in every palette. A state is always said in words or shape as well as colour.
 
 ## Kept
 | Idea | Why |
 |---|---|
 | Board frame around a bright sheet | Gives the app an identity without colouring the reading surface |
-| Signal colour for "where you are" and "now" | One meaning, easy to learn |
+| Signal colour for "now" | One meaning, easy to learn |
 | Register rail on Today, Due below | Already the right model (#319-#325) |
 | Four palettes, same rules | Meaning never moves when the palette changes |
 | Existing palette names and stored values (`cos_theme`, `cos_accent`) | No migration; a saved palette keeps working |
@@ -40,9 +41,11 @@ Review of the "Board and Sheet" board (https://claude.ai/artifact/LZ8MRBXoLgP3iX
 3. **Timetable**: CSS only, one section at the end of `style.css`. The week strip reads like a calendar: today's date sits in a small disc of the "now" colour, and the day you are viewing keeps its underline, so "today" and "selected" are two different marks. The class on now gets the same faint wash as on Today. An unmarked Present is a plain outline (it was green, which looked already marked); a marked class shows one filled ink button, readable in every palette (on phones it was white text on pale green). At 320px the mark buttons start at the row edge so the edit button is no longer cut off. Rejected: restyling the Manage menu or the subtitle, and a week grid (the day list is what students mark from). No markup, parsing, attendance or storage touched.
 4. **Tasks**: CSS only, one section at the end of `style.css`. Red is the only colour on this page, and it means late. The headline is all ink (the late half used to take the palette's action colour, which read as a second alarm beside the red rows). An unticked box is a plain ink outline, bigger on the rows to do first, so size says "start here" and colour does not. Today in the two-week strip uses the same "now" colour as Today and Timetable. Rejected: restyling the strip chips, highlighting a "first" row with a fill, and changing the headline wording or shortening in `app.js`. No markup, task actions, Undo or storage touched.
 5. **Welcome**: audited, one CSS rule. The screen was already on the system: one sheet, one field, one filled button, an example that says "not saved", and all seven ways in. The only change: "Add it when you're ready" is now bold ink instead of the palette's action colour, so the Add button is the one coloured thing on first run and, in Tetsu lamp, a red-brown link no longer sits near the meaning of "late". Rejected: the board behind Welcome, any new step or question, and reflowing the two capture links at 320px (they stack; the page scrolls). No markup, copy, first-run flow or storage touched.
-6. Adjacent screens only where consistency improves.
+6. **Now is not "where you are"** (second brief, 2026-11-13): the bar beside the active nav item and the bar over the active dock tab were the signal colour, the same mark as the live class. They are now chalk, so the signal colour appears only for "now". The live class row carries `aria-current="time"` on Today and Timetable, and the active nav item carries `aria-current="page"`, so both are announced, not only coloured. Audited and left alone: the wash is not used for hover, focus or selection anywhere; Timetable already separates today (disc), viewed day (underline) and current time ("Now" and the edge); Tasks already folds work more than 14 days late into Older and adds in document flow; Welcome already has one action and an optional timetable. No storage, routes, attendance maths or actions touched.
+7. Adjacent screens only where consistency improves.
 
 ## Known limits
 - The phone More sheet and the Ask Desk panel sit on the sheet scale, not the board.
 - Visual snapshots change on every screen (frame colour); Linux snapshots are refreshed by the workflow.
+- The small dot in the sidebar footer still shows the palette's signal colour. It is a palette swatch that opens Settings, not a state, so it was left.
 - Azuki & Matcha's "now" is an olive green. It differs from the done green by hue, and both states are always said in words ("In class", "Marked present").
