@@ -138,6 +138,7 @@ async function gotoApp(page: Page) {
     try {
       localStorage.setItem('cos_onboarding_dismissed', 'true');
       localStorage.setItem('cos_onboarding_done', '1');
+      localStorage.setItem('fabHintDismissed', 'true'); // the one-time first-visit tip is not part of these screenshots
       if (!localStorage.getItem('cos_profile')) {
         localStorage.setItem('cos_profile', JSON.stringify({
           name: 'Sanghpal Bhakte',
@@ -160,6 +161,7 @@ async function clearRuntime(page: Page) {
       sessionStorage.clear();
       localStorage.setItem('cos_onboarding_dismissed', 'true');
       localStorage.setItem('cos_onboarding_done', '1');
+      localStorage.setItem('fabHintDismissed', 'true'); // the one-time first-visit tip is not part of these screenshots
       localStorage.setItem('cos_profile', JSON.stringify({
         name: 'Sanghpal Bhakte',
         rollNo: '202501128002',
