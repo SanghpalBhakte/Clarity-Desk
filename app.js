@@ -9190,7 +9190,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
         <button type="button" class="btn btn-secondary" data-id="${attrSafe(fixId)}" onclick="resolveTask(this.dataset.id, { done: true })">${icons.check()}<span>Done</span></button>
         <button type="button" class="btn btn-secondary" data-id="${attrSafe(fixId)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
         <button type="button" class="btn btn-secondary" onclick="pickTaskDay(this)">Pick a day</button>
-        <input type="date" class="today-focus-date" data-id="${attrSafe(fixId)}" min="${todayStr()}" aria-label="New due date for ${attrSafe(f.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
+        <input type="date" class="today-focus-date" tabindex="-1" data-id="${attrSafe(fixId)}" min="${todayStr()}" aria-label="New due date for ${attrSafe(f.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
       </div>` : '';
     const markHTML = markKey ? `
       <div class="today-focus-mark">
@@ -11106,6 +11106,14 @@ window.onboardingSampleDay = function(from) {
   backdrop.querySelector('.btn-primary')?.focus();
 };
 
+// While Welcome is open the app behind it is inert, so Tab, screen readers and
+// taps stay on the sheet. Welcome's own steps (photo, sample day) are separate
+// body children and are not touched.
+const WELCOME_BEHIND = '.skip-link, .app-shell, .bottom-nav, .fab, #more-sheet, #cd-assistant-panel';
+function setAppBehindWelcomeInert(on) {
+  document.querySelectorAll(WELCOME_BEHIND).forEach(el => { el.inert = on; });
+}
+
 window.showOnboardingModal = function() {
   if (document.getElementById('onboarding-backdrop')) return;
   // An update strip already up waits too, instead of covering the welcome.
@@ -11156,6 +11164,7 @@ window.showOnboardingModal = function() {
   };
   document.addEventListener('keydown', onEsc);
   document.body.appendChild(backdrop);
+  setAppBehindWelcomeInert(true);
   trackUsage('welcome_shown');
 };
 
@@ -11206,6 +11215,7 @@ window.dismissOnboarding = function() {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
   }
   document.getElementById('onboarding-backdrop')?.remove();
+  setAppBehindWelcomeInert(false);
   renderPage(state.currentPage);
   if (updateBannerWaiting) { updateBannerWaiting = false; showUpdateAvailableBanner(); }
 };
@@ -11690,7 +11700,7 @@ function renderDashboard() {
         <span class="stale-row-acts" role="group" aria-label="Sort out ${escAttr_cd(t.title)}">
           <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(t.id)}" onclick="${own ? 'resolveTask(this.dataset.id, { done: true })' : 'toggleAssignment(this.dataset.id)'}">Done</button>
           ${own ? `<button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Move</button>
-          <input type="date" class="today-focus-date" data-id="${escAttr_cd(t.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(t.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">` : ''}
+          <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(t.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(t.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">` : ''}
         </span>
       </li>`;
   };
@@ -11868,7 +11878,7 @@ function renderDashboard() {
                   <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="resolveTask(this.dataset.id, { done: true })">Done</button>
                   <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
                   <button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Pick a day</button>
-                  <input type="date" class="today-focus-date" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
+                  <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
                 </div>` : '';
               return `
                 <div class="task-ledger-item ${pCls}${canFix ? ' has-fix' : ''}">
@@ -21080,11 +21090,27 @@ function setupFABDrag() {
     localStorage.setItem('fabHintDismissed', 'true');
   };
 
-  if (window.innerWidth <= 768 && !localStorage.getItem('fabHintDismissed')) {
+  // The tip never covers a control: it waits until the spot beside the button
+  // is free of anything tappable (e.g. Present/Absent on Timetable), and is
+  // checked again each time the student changes page.
+  const hintSpotIsFree = () => {
+    const h = hintEl.getBoundingClientRect();
+    return ![...document.querySelectorAll('button, a[href], input, select, summary, [role="button"]')].some(c => {
+      if (fab.contains(c) || c.closest('[inert], [aria-hidden="true"]')) return false;
+      const r = c.getBoundingClientRect();
+      return r.width && r.height && r.left < h.right && r.right > h.left && r.top < h.bottom && r.bottom > h.top;
+    });
+  };
+  const showHint = () => {
+    if (hintEl || localStorage.getItem('fabHintDismissed') || window.innerWidth > 768) return;
+    if (!fab.getClientRects().length) return; // the button isn't on this page
     hintEl = document.createElement('div');
     hintEl.className = 'fab-hint';
     hintEl.innerText = 'In the way? Slide me sideways.';
+    hintEl.style.visibility = 'hidden';
     fab.appendChild(hintEl);
+    if (!hintSpotIsFree()) { hintEl.remove(); hintEl = null; return; }
+    hintEl.style.visibility = '';
 
     // Exit 1: tap the hint itself
     hintEl.addEventListener('click', (e) => {
@@ -21104,6 +21130,12 @@ function setupFABDrag() {
 
     // Exit 3: auto-hide after a few seconds if the user takes no action
     hintTimeoutId = setTimeout(dismissHint, 3500);
+  };
+  if (window.innerWidth <= 768 && !localStorage.getItem('fabHintDismissed')) {
+    const tryHint = () => { if (localStorage.getItem('fabHintDismissed')) { window.removeEventListener('hashchange', tryHintSoon); return; } showHint(); };
+    const tryHintSoon = () => setTimeout(tryHint, 700);
+    window.addEventListener('hashchange', tryHintSoon);
+    tryHintSoon();
   }
 
   const applySnapPosition = (pos) => {
