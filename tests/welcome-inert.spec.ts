@@ -1,7 +1,18 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 // While Welcome is open the app behind it is inert: Tab stays on the sheet.
 // When Welcome closes, the app answers again.
+
+// Tab once per control on the sheet: every stop stays on it (nothing behind is reachable).
+async function tabThroughWelcome(page: Page) {
+  const n = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#onboarding-backdrop button, #onboarding-backdrop input, #onboarding-backdrop a[href]')]
+    .filter(e => e.getClientRects().length && !(e as HTMLButtonElement).disabled && e.tabIndex >= 0).length);
+  expect(n).toBeGreaterThan(3);
+  for (let i = 0; i < n; i++) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#onboarding-backdrop'))).toBe(true);
+  }
+}
 
 test('Welcome traps Tab on the sheet and gives the app back on close', async ({ page }) => {
   await page.goto('/');
@@ -12,10 +23,7 @@ test('Welcome traps Tab on the sheet and gives the app back on close', async ({ 
   expect(await page.evaluate(() => ['.skip-link', '.app-shell', '.bottom-nav', '.fab', '#cd-assistant-panel']
     .every(s => (document.querySelector(s) as HTMLElement).inert))).toBe(true);
 
-  for (let i = 0; i < 12; i++) {
-    await page.keyboard.press('Tab');
-    expect(await page.evaluate(() => !!document.activeElement?.closest('#onboarding-backdrop'))).toBe(true);
-  }
+  await tabThroughWelcome(page);
 
   await page.getByRole('button', { name: 'Close welcome' }).click();
   await expect(page.locator('#onboarding-backdrop')).toHaveCount(0);
@@ -29,10 +37,7 @@ test('Welcome traps Tab on the sheet and gives the app back on close', async ({ 
   await page.evaluate(() => (window as any).showOnboardingModal());
   await expect(box).toBeVisible();
   expect(await page.evaluate(() => (document.querySelector('.app-shell') as HTMLElement).inert)).toBe(true);
-  for (let i = 0; i < 12; i++) {
-    await page.keyboard.press('Tab');
-    expect(await page.evaluate(() => !!document.activeElement?.closest('#onboarding-backdrop'))).toBe(true);
-  }
+  await tabThroughWelcome(page);
   await page.getByRole('button', { name: 'Close welcome' }).click();
   expect(await page.evaluate(() => (document.querySelector('.app-shell') as HTMLElement).inert)).toBe(false);
 });
