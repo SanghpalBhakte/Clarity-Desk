@@ -170,6 +170,246 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u311",
+    date: "2026-11-13",
+    title: "The one-time \"Slide me sideways\" tip no longer covers buttons, and Welcome focus is tested on reopen",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The one-time \"Slide me sideways\" tip no longer covers buttons, and Welcome focus is tested on reopen",
+    points: [
+
+    ]
+  },
+  {
+    id: "u310",
+    date: "2026-11-13",
+    title: "First-run Welcome now keeps Tab on the sheet, and late tasks no longer add extra Tab stops",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "First-run Welcome now keeps Tab on the sheet, and late tasks no longer add extra Tab stops",
+    points: [
+
+    ]
+  },
+  {
+    id: "u309",
+    date: "2026-11-13",
+    title: "Keyboard focus stays visible, reduced motion is calmer, and small buttons and 200% zoom fit better",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Keyboard focus stays visible, reduced motion is calmer, and small buttons and 200% zoom fit better",
+    points: [
+
+    ]
+  },
+  {
+    id: "u308",
+    date: "2026-11-13",
+    title: "The page you are on is now marked in white, so the bright colour only ever means the class on right now",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The page you are on is now marked in white, so the bright colour only ever means the class on right now",
+    points: [
+
+    ]
+  },
+  {
+    id: "u307",
+    date: "2026-11-12",
+    title: "Welcome now has one coloured thing on it, the Add button: the timetable link is plain bold text",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Welcome now has one coloured thing on it, the Add button: the timetable link is plain bold text",
+    points: [
+
+    ]
+  },
+  {
+    id: "u306",
+    date: "2026-11-12",
+    title: "Tasks now keeps red for late work only: the headline is plain ink, tick boxes are a simple outline, and today in the two-week strip uses your palette's colour",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks now keeps red for late work only: the headline is plain ink, tick boxes are a simple outline, and today in the two-week strip uses your palette's colour",
+    points: [
+
+    ]
+  },
+  {
+    id: "u305",
+    date: "2026-11-12",
+    title: "Timetable now circles today's date in the week strip, tints the class that is on right now, and shows a marked class as one clear filled button",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Timetable now circles today's date in the week strip, tints the class that is on right now, and shows a marked class as one clear filled button",
+    points: [
+
+    ]
+  },
+  {
+    id: "u304",
+    date: "2026-11-12",
+    title: "Today now highlights only the class that is on right now, in your palette's own colour, and classes you have already marked step back",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today now highlights only the class that is on right now, in your palette's own colour, and classes you have already marked step back",
+    points: [
+
+    ]
+  },
+  {
+    id: "u303",
+    date: "2026-11-12",
+    title: "The app now has a coloured frame around a brighter page: the top bar, sidebar and phone dock take your palette's deep colour, and a small bar marks the page you are on",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The app now has a coloured frame around a brighter page: the top bar, sidebar and phone dock take your palette's deep colour, and a small bar marks the page you are on",
+    points: [
+
+    ]
+  },
+  {
+    id: "u302",
+    date: "2026-11-12",
+    title: "Today's time line now says \"Now\" in words, and Tasks drops filler labels like \"General\" and says \"Nothing needs attention right now\" when only old tasks are left",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today's time line now says \"Now\" in words, and Tasks drops filler labels like \"General\" and says \"Nothing needs attention right now\" when only old tasks are left",
+    points: [
+
+    ]
+  },
+  {
+    id: "u301",
+    date: "2026-11-12",
+    title: "The welcome screen now says who it is for, shows the next due day as a date, and marks the example as not saved",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The welcome screen now says who it is for, shows the next due day as a date, and marks the example as not saved",
+    points: [
+
+    ]
+  },
+  {
+    id: "u300",
+    date: "2026-11-12",
+    title: "Tasks now names the one to start with, folds tasks more than two weeks late into \"Older\", and the add line sits at the end of the list",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Clearing old tasks takes two steps: open \"Older\", then \"Mark these done\", with Undo.",
+    points: [
+      "On phones the add line no longer floats over your tasks."
+    ]
+  },
+  {
+    id: "u299",
+    date: "2026-11-12",
+    title: "Today is calmer: marked classes fold away behind \"Change\", and the attendance warning is one plain sentence",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Also fixes the spacing in \"Next class\", shortens the add line's example so it fits on phones, and stops a tapped task row staying shaded.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u298",
+    date: "2026-11-12",
+    title: "Today now shows your day as one timeline: each class says if it is next, in progress or not marked yet, and you mark Present or Absent right on it",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Late tasks can be sorted out on their own row, and the attendance line now says when it is based only on your portal counts.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u297",
+    date: "2026-11-12",
+    title: "A fresh look: calm paper, dark green buttons, clearer lettering, and red only for things that are late",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The default look now uses quiet paper and ink with a dark green for buttons, marigold for \"now\" and red only for late or absent.",
+    points: [
+      "Text uses two new fonts saved inside the app, so they also work offline. The other colour sets (Azuki & Matcha, Ai & Kaki, Tetsu lamp) are unchanged, and your saved choice stays as it is."
+    ]
+  },
+  {
+    id: "u296",
+    date: "2026-11-12",
+    title: "The welcome fits on one phone screen, and the \"New version ready\" strip waits until you close it",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On phones the privacy line, Show me around and Log in sit at the bottom edge, and shorter phones (375x667) get tighter spacing so nothing needs a scroll.",
+    points: [
+      "An update strip no longer covers the welcome: it shows once the welcome closes, so a refresh never throws away what you typed."
+    ]
+  },
+  {
+    id: "u295",
+    date: "2026-11-12",
+    title: "Today puts your day first: old tasks wait in one line you can look through, and attendance shows once",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks more than two weeks late no longer fill Today with red \"days overdue\" rows or take over the greeting.",
+    points: [
+      "They sit in one line (\"4 older tasks from February\") with Look through (Done or Move each) and Mark all done, each with Undo. The attendance question now lives in the Attendance section instead of above the schedule, so today's classes show on the first phone screen."
+    ]
+  },
+  {
+    id: "u294",
+    date: "2026-11-12",
+    title: "Today's Present and Absent buttons and class blocks work with voice control",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today's Present and Absent buttons and class blocks work with voice control",
+    points: [
+
+    ]
+  },
+  {
+    id: "u293",
+    date: "2026-11-12",
+    title: "Faint text in Calendar, Briefing, Tasks and Settings is easier to read, and day and attendance buttons work with voice control",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Faint text in Calendar, Briefing, Tasks and Settings is easier to read, and day and attendance buttons work with voice control",
+    points: [
+
+    ]
+  },
+  {
+    id: "u292",
+    date: "2026-11-12",
+    title: "When a timetable photo can't be read, the message now says how to take one that works",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When a timetable photo can't be read, the message now says how to take one that works",
+    points: [
+
+    ]
+  },
+  {
     id: "u291",
     date: "2026-11-11",
     title: "Tasks: one item in Later reads as its title and date, and the subject line has room to breathe",
