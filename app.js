@@ -21284,11 +21284,23 @@ function setupFABDrag() {
       e.preventDefault();
       window.showAddTaskModal();
     }
-    if (e.key === 'Escape' && root.classList.contains('more-sheet-open')) window.closeMoreSheet();
+    if (e.key === 'Escape' && root.classList.contains('more-sheet-open')) {
+      window.closeMoreSheet();
+      var moreBtn = document.getElementById('bnav-more');
+      if (moreBtn) moreBtn.focus();
+    }
   });
 
   // Mobile "More" sheet
+  // The sheet is a modal dialog: the page behind it is inert while it is open, so Tab
+  // and screen readers stay on the sheet and the dock. Welcome owns these same
+  // elements while it is up, so the sheet leaves them alone then.
+  function setPageBehindMoreSheetInert(on) {
+    if (document.getElementById('onboarding-backdrop')) return;
+    document.querySelectorAll('.skip-link, .app-shell, .fab, #cd-assistant-panel').forEach(function (el) { el.inert = on; });
+  }
   window.openMoreSheet = function () {
+    setPageBehindMoreSheetInert(true);
     root.classList.add('more-sheet-open');
     var sheet = document.getElementById('more-sheet');
     var btn = document.getElementById('bnav-more');
@@ -21300,6 +21312,7 @@ function setupFABDrag() {
   window.closeMoreSheet = function () {
     if (!root.classList.contains('more-sheet-open')) return;
     root.classList.remove('more-sheet-open');
+    setPageBehindMoreSheetInert(false);
     var sheet = document.getElementById('more-sheet');
     var btn = document.getElementById('bnav-more');
     if (sheet) sheet.setAttribute('aria-hidden', 'true');

@@ -38,3 +38,7 @@ test-results/
 
 # Brainstorm mockups (local only)
 .superpowers/
+
+# cook run state (local only)
+cook/
+cook-archive/

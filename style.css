@@ -8323,3 +8323,26 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-timetable .tt-entry .tt-actions, #page-timetable .tt-entry .tt-att { flex-wrap: wrap; max-width: 100%; min-width: 0; }
   .bottom-nav-item > span { max-width: 100%; overflow: hidden; text-overflow: clip; }
 }
+
+/* ── Board and Sheet: adjacent screens ──
+   Vault: the list column may shrink, so a long subject name ellipsizes and its
+   "⋯" menu stays on screen (it was pushed past the right edge on phones).
+   Calendar: today's number sits in the same soft "now" disc as the Timetable
+   week strip; the day you are viewing keeps its ink ring. */
+.links-grid { grid-template-columns: minmax(0, 1fr); }
+#page-calendar .cal-cell.today .cal-num {
+  background: var(--color-now-wash, var(--accent-dim)); color: var(--color-now-ink, var(--text-primary));
+}
+
+/* 200% zoom (about 190px): Subject Hubs and Study Vault headers stack so the
+   action no longer sits on the subtitle; Calendar weekday names fit seven columns. */
+@media (max-width: 240px) {
+  #page-subjects .page-header, #page-resources .page-header { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+  #page-subjects .page-header > *, #page-resources .page-header > * { min-width: 0; }
+  #page-calendar .cal-wd { font-size: 0.6rem; letter-spacing: -0.02em; overflow: hidden; }
+  #page-calendar .cal-top { flex-wrap: wrap; gap: 4px 8px; }
+  #page-calendar .cal-top > * { min-width: 0; }
+  .sj-list { grid-template-columns: minmax(0, 1fr); }
+  .sj-notice { flex-wrap: wrap; }
+  .sj-notice strong { white-space: normal; }
+}
