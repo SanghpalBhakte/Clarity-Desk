@@ -8277,3 +8277,49 @@ html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink);
    The timetable link stays bold but in ink, so it reads as the second path,
    not a second button. */
 .ob-more-btn:not(.ob-more-quiet) { color: var(--text-primary); }
+
+/* ── Board and Sheet: finish fixes (focus, motion, tap size, zoom) ──
+   No change to the look. Keyboard focus is never hidden behind the fixed
+   top bar or dock; the Tasks add line shows a clear focus mark on phones;
+   reduced motion really is quiet; small top-bar and link targets get a full
+   44px tap area; and at 200% zoom the headers stack and nothing is cut off. */
+html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px); }
+@media (min-width: 769px) { html { scroll-padding-bottom: 12px; } }
+
+#page-assignments .tk-add:has(input:focus-visible) { box-shadow: 0 2px 0 0 var(--text-primary); }
+@media (max-width: 768px) {
+  #page-assignments .tk-add:has(input:focus-visible) { box-shadow: 0 2px 0 0 var(--text-primary); border-bottom-color: var(--text-primary); }
+}
+
+/* Near-zero, not none, so transitionend and animationend still fire. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important; transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Tap areas: the look stays, the hit area is 44 x 44. */
+.btn-back::after, .topbar-brand::after, .topbar-theme-toggle::after,
+.btn-assistant-toggle::after, #topbar-avatar::after { width: max(100%, 44px); }
+.panel-action::after { min-width: 44px; }
+
+/* 200% zoom (about 190px wide): stack headers, fit the dock. */
+@media (max-width: 240px) {
+  #page-timetable .page-header { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+  #page-timetable .page-header > * { min-width: 0; }
+  /* The logo link is a second way to Today (the dock has it); drop it so the top bar fits. */
+  .topbar { padding: 0 8px; }
+  .topbar-brand { display: none; }
+  .tk-kicker { flex-wrap: wrap; gap: 4px 12px; }
+  .tk-link, .tk-headline { max-width: 100%; overflow-wrap: anywhere; }
+  .tk-headline { font-size: 22px; }
+  .tt-day-tabs { max-width: 100%; }
+  .bottom-nav-item { min-width: 0; padding-left: 0; padding-right: 0; font-size: 0.45rem; letter-spacing: -0.03em; }
+  #page-assignments .tk-meta { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  #page-assignments .tk-due.overdue { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  #page-timetable .tt-entry { flex-wrap: wrap; }
+  #page-timetable .tt-entry .tt-actions, #page-timetable .tt-entry .tt-att { flex-wrap: wrap; max-width: 100%; min-width: 0; }
+  .bottom-nav-item > span { max-width: 100%; overflow: hidden; text-overflow: clip; }
+}
