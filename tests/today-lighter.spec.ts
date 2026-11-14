@@ -234,6 +234,14 @@ test.describe('fit', () => {
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900);
   });
 
+  test('no timetable: Due keeps the first column, nothing sits beside an empty one', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 1280, height: 720, day: [] });
+    await expect(today.locator('.panel-day')).toBeHidden();
+    const due = await box(today.locator('.panel-due'));
+    const head = await box(today.locator('.desk-masthead'));
+    expect(Math.abs(due.x - head.x)).toBeLessThan(2);
+  });
+
   test('1099px wide: single column as before', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 1099, height: 800 });
     const day = await box(today.locator('.panel-day'));
