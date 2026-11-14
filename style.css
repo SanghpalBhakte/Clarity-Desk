@@ -8380,7 +8380,7 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
     --color-rule: unset; --border-light: unset; --color-focus-ring: unset; --focus-ring: unset;
     --sheen-top: unset;
     --chrome-hair: color-mix(in srgb, var(--text-primary) 12%, transparent);
-    background: color-mix(in srgb, var(--raw-bg-0) 80%, transparent);
+    background: color-mix(in srgb, var(--raw-bg-0) 90%, transparent);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     color: var(--text-primary);
@@ -8457,3 +8457,15 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 .sj-card.risk .sj-tier { color: var(--att-risk-ink); }
 .sj-card.watch .sj-tier { color: var(--att-watch-ink); }
 .sj-card.safe .sj-tier { color: var(--att-safe-ink); }
+
+/* ── Today attendance: same colours as Subjects ──
+   The figure, the "Aim" line and the bar use the attendance pair from Subjects
+   (--att-*), so one state is one colour on every screen. The unfilled part of
+   the bar is a pale tint of that colour. */
+#page-dashboard .att-stat-figure.at-risk, #page-dashboard .att-stat-figure.at-risk + .att-stat-label { color: var(--att-risk-ink); }
+#page-dashboard .att-stat-figure.is-safe, #page-dashboard .att-stat-figure.is-safe + .att-stat-label { color: var(--att-safe-ink); }
+#page-dashboard .att-stat-figure.at-risk .att-dec, #page-dashboard .att-stat-figure.is-safe .att-dec { color: inherit; opacity: .75; }
+.dashboard-panel:has(.att-stat-figure.at-risk) .att-gauge .att-seg-present { background: var(--att-risk); }
+.dashboard-panel:has(.att-stat-figure.at-risk) .att-gauge .att-bar-wrap { background: color-mix(in srgb, var(--att-risk) 18%, transparent); }
+.dashboard-panel:has(.att-stat-figure.is-safe) .att-gauge .att-seg-present { background: var(--att-safe); }
+.dashboard-panel:has(.att-stat-figure.is-safe) .att-gauge .att-bar-wrap { background: color-mix(in srgb, var(--att-safe) 20%, transparent); }
