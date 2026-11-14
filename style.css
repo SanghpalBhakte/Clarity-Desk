@@ -8434,8 +8434,8 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    an empty ring still reads as a ring. State is always also written in words. */
 :root {
   --att-risk: #ff3b30;  --att-risk-ink: #d70015;
-  --att-watch: #ff9500; --att-watch-ink: #a45a00;
-  --att-safe: #34c759;  --att-safe-ink: #1f7a3a;
+  --att-watch: #cc7000; --att-watch-ink: #a45a00;
+  --att-safe: #1b9a46;  --att-safe-ink: #1f7a3a;
 }
 :root[data-theme="midnight-ink"] {
   --att-risk: #ff453a;  --att-risk-ink: #ff6b61;
@@ -8469,3 +8469,37 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 .dashboard-panel:has(.att-stat-figure.at-risk) .att-gauge .att-bar-wrap { background: color-mix(in srgb, var(--att-risk) 18%, transparent); }
 .dashboard-panel:has(.att-stat-figure.is-safe) .att-gauge .att-seg-present { background: var(--att-safe); }
 .dashboard-panel:has(.att-stat-figure.is-safe) .att-gauge .att-bar-wrap { background: color-mix(in srgb, var(--att-safe) 20%, transparent); }
+
+/* ── Attendance colours, second pass ──
+   On the lightest pages the amber and green ring fills were about 2:1, too
+   faint to hold a ring. They are now a deeper marigold and leaf green (about
+   3.4:1). In the Rose palette the "now" colour is an olive, so there the safe
+   green leans toward teal and the two can't be mixed up. */
+:root[data-theme="paper-slate"][data-accent="rose"] { --att-safe: #0a9068; --att-safe-ink: #0b6e55; }
+
+/* ── Phone feel: small things you touch every day ──
+   - The top bar blends into the page at rest and gets its hairline only once
+     the page has scrolled, as the large title slides under it.
+   - Subject rows and rings answer a press; the active tab's icon settles with
+     a small spring; the "now" dot on the day rail gives off a slow halo.
+   All of it is CSS, phones only, and stands still with reduced motion. */
+@media (max-width: 767px) {
+  .bottom-nav-item, .sj-card, .rail-row { -webkit-tap-highlight-color: transparent; }
+  @supports (animation-timeline: scroll()) {
+    html .topbar { border-bottom-color: transparent; animation: topbarHair linear both; animation-timeline: scroll(root); animation-range: 0 40px; }
+    @keyframes topbarHair { to { border-bottom-color: var(--chrome-hair); } }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .sj-card { transition: background-color .18s ease; }
+    .sj-card .sj-ring { transition: transform .22s cubic-bezier(.34, 1.56, .64, 1); transform-origin: center; }
+    .sj-card:active { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+    .sj-card:active .sj-ring { transform: scale(.93); }
+    .bottom-nav-item svg { transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+    .bottom-nav-item.active svg { transform: translateY(-1px) scale(1.07); }
+    .rail-now i::before { animation: nowHalo 2.8s ease-out infinite; }
+    @keyframes nowHalo {
+      0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-now, var(--accent)) 45%, transparent); }
+      70%, 100% { box-shadow: 0 0 0 8px transparent; }
+    }
+  }
+}
