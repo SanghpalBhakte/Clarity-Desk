@@ -8565,3 +8565,29 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
   html .topbar { animation: none; border-bottom-color: var(--chrome-hair); }
 }
+
+/* ── Today, lighter (rows): marks on the status line, late tasks fold their choices behind Move ──
+   Display only. Scoped to #page-dashboard; older .rail-marks / .due-fix rules are overridden here. */
+#page-dashboard .rail-line { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; }
+#page-dashboard .rail-line .rail-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#page-dashboard .rail-line .rail-marks { flex: 0 0 auto; grid-column: auto; margin: 0; gap: 4px; flex-wrap: nowrap; }
+#page-dashboard .rail-line .rail-marks.is-folded { display: none; }
+#page-dashboard .rail-row.show-marks .rail-line .rail-marks.is-folded { display: flex; }
+#page-dashboard .rail-line .rail-att { position: relative; isolation: isolate; min-height: 44px; min-width: 44px; margin-block: -8px; padding: 0 11px; border: 0; background: none; border-radius: 999px; }
+#page-dashboard .rail-line .rail-att::before { content: ""; position: absolute; inset: 7px 0; z-index: -1; border: 1px solid var(--text-primary); border-radius: 999px; }
+#page-dashboard .rail-line .rail-att.is-on { background: none; color: var(--color-canvas, var(--bg)); }
+#page-dashboard .rail-line .rail-att.is-on::before { background: var(--text-primary); }
+#page-dashboard .rail-line .rail-change { grid-column: auto; grid-row: auto; align-self: auto; justify-self: auto; flex: 0 0 auto; margin-block: -8px; }
+#page-dashboard .rail-body { gap: 0; }
+#page-dashboard .rail-row.needs-mark, #page-dashboard .rail-row.is-live { padding-block: 10px; }
+#page-dashboard .task-ledger-item .due-fix[hidden] { display: none; }
+#page-dashboard .task-ledger-meta .due-move { flex: 0 0 auto; position: relative; min-height: 44px; min-width: 44px; margin-block: -13px; padding: 0 6px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#page-dashboard .due-move:focus-visible, #page-dashboard .rail-line .rail-att:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+#page-dashboard .due-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+#page-dashboard .due-foot .dash-more-link { min-height: 44px; margin-block: -8px; display: inline-flex; align-items: center; }
+/* At 200% text zoom (about 300 CSS px or less) the marks may drop under the status words, never off screen. */
+@media (max-width: 300px) {
+  #page-dashboard .rail-line { flex-wrap: wrap; row-gap: 0; }
+  #page-dashboard .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
+  #page-dashboard .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
+}
