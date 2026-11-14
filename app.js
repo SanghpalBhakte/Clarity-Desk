@@ -8785,9 +8785,42 @@ function getDynamicGreeting(firstName, opts = {}) {
   const seed = new Date().getDate() + h;
   const [withName, withoutName] = pool[seed % pool.length];
 
-  if (!has) return withoutName;
-  const nameHtml = `<span class="desk-greeting-name">${escHtml_cd(firstName)}</span>`;
-  return withName.replace('{n}', nameHtml);
+  const nameHtml = has ? `<span class="desk-greeting-name">${escHtml_cd(firstName)}</span>` : '';
+  const entry = has ? withName.replace('{n}', nameHtml) : withoutName;
+  if (!opts.parts) return entry;
+  // Structured form: the first sentence is the title, anything after it is the quip.
+  const m = entry.match(/^(.*?\.)\s+(\S.*)$/);
+  return m ? { title: m[1], quip: m[2] } : { title: entry, quip: '' };
+}
+
+// Title and quip as data, so the renderer never has to pick HTML apart. The quip
+// only shows on a calm day or when a goal is reached, never above an alarm.
+function getGreetingParts({ name = '', overdue = 0, holiday = false, calm = false, goalReached = false } = {}) {
+  const { title, quip } = getDynamicGreeting(name, { overdue, holiday, parts: true });
+  const show = !!quip && (calm || goalReached);
+  return { title, quip: show ? quip : '', tone: calm || goalReached ? 'calm' : 'alert' };
+}
+
+// Which single banner leads Today. Order: safety/holiday, attendance risk,
+// setup Today needs, late or due-soon work, welcome-back. First true wins.
+// (Today's late work lives in the Due panel, so only the others are banners.)
+function chooseTodayBanner({ safety = false, attendanceRisk = false, setupNeeded = false, lateOrSoon = false, welcomeBack = false } = {}) {
+  if (safety) return 'safety';
+  if (attendanceRisk) return 'risk';
+  if (setupNeeded) return 'setup';
+  if (lateOrSoon) return 'late';
+  if (welcomeBack) return 'welcome';
+  return null;
+}
+
+// Up to three Due rows: every overdue or due-today task first (never hidden by
+// the cap), then the next ones in the order given. `more` is the exact remainder.
+function pickDueRows(sorted, limit = 3) {
+  const urgent = sorted.filter(a => { const d = dueDaysLeft(a.dueDate); return d !== null && d <= 0 && !a.noDeadline; });
+  const rows = urgent.slice();
+  for (const a of sorted) { if (rows.length >= limit) break; if (!rows.includes(a)) rows.push(a); }
+  rows.sort((a, b) => sorted.indexOf(a) - sorted.indexOf(b));
+  return { rows, more: sorted.length - rows.length };
 }
 
 // Returns user's configured attendance target (default 75)
@@ -9000,7 +9033,7 @@ function buildDashboardContextLine(opts = {}) {
   }
 
   // Attendance at risk — highest urgency, surfaces immediately
-  if (attendanceAtRisk ?? (attendancePct !== null && attendancePct < attTarget)) {
+  if (!opts.attendanceInBanner && (attendanceAtRisk ?? (attendancePct !== null && attendancePct < attTarget))) {
     return `Attendance is <strong>below your ${attTarget}% target</strong>. Try not to miss today's classes.`;
   }
 
@@ -9313,6 +9346,28 @@ window.railShowMarks = function(btn) {
   const on = row.querySelector('.rail-att.is-on') || row.querySelector('.rail-att');
   if (on) on.focus();
 };
+// The class name as Today's rail shows it: display only, never stored. Short names
+// stay as they are; a long (often combined lab) title keeps the course code and is
+// cut at a word boundary. Nothing is abbreviated into an acronym. The full name stays
+// in the row's title, its aria-label and the Subject Hub link.
+function railClassLabel(entry, max = 28) {
+  const full = String((entry && entry.subject) || '').trim();
+  if (full.length <= max) return full;
+  const code = String((entry && entry.code) || '').trim();
+  let title = full;
+  if (code && title.toUpperCase().startsWith(code.toUpperCase())) title = title.slice(code.length).replace(/^[\s·:\-–]+/, '');
+  const room = max - (code ? code.length + 3 : 0);
+  let cut = '';
+  for (const w of title.split(/\s+/)) {
+    const next = cut ? cut + ' ' + w : w;
+    if (next.length > room) break;
+    cut = next;
+  }
+  if (!cut) cut = title.split(/\s+/)[0].slice(0, Math.max(room, 1));
+  cut = cut.replace(/[\s+&,/·:-]+$/, '') || cut;
+  return (code ? code + ' · ' : '') + cut + '…';
+}
+
 function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx }) {
   try {
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -9361,7 +9416,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
         <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
         <span class="rail-body">
-          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="Open Subject Hub">${escHtml_cd(x.c.subject)}</button>
+          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}${railClassLabel(x.c) !== x.c.subject ? `<span class="sr-only"> (${escHtml_cd(x.c.subject)})</span>` : ''}</button>
           <span class="rail-meta">${metaOf(x)}</span>
         </span>
         ${x.state === 'next' ? `<span class="rail-count"><b data-beacon-count>${formatCountdown(x.from - currentMin)}</b><span>until it starts</span></span>` : ''}
@@ -11465,7 +11520,6 @@ function renderDashboard() {
 
   const displayName = getDisplayName();
   const firstName = displayName ? displayName.split(' ')[0] : '';
-  const greeting = getDynamicGreeting(firstName, { overdue: recentOverdue, holiday: onHoliday });
   const needsSetup = !displayName;
   const hasAttendanceData = totalMarked > 0;
 
@@ -11475,7 +11529,7 @@ function renderDashboard() {
     : null;
 
   // Situation-aware context line replacing the generic sub-greeting
-  const contextLine = buildDashboardContextLine({
+  const ctxOpts = {
     attendancePct,
     attendancePctLabel,
     attendanceAtRisk: isAttendanceAtRisk,
@@ -11493,7 +11547,8 @@ function renderDashboard() {
     dayClasses,
     hasTimetable: hasAnyTimetable(),
     holiday: onHoliday,
-  });
+  };
+  let contextLine = buildDashboardContextLine(ctxOpts);
 
   // Setup completeness — recommended setup order for first-run users.
   // The timetable comes first (it's what makes Today useful); the profile
@@ -11684,9 +11739,10 @@ function renderDashboard() {
         if (daysB < 0 && daysA >= 0) return 1;
       }
       return (a.dueDate || '').localeCompare(b.dueDate || '');
-    })
-    .slice(0, 4);
-  const moreTasks = Math.max(0, pending - urgentTasks.length - staleTasks.length);
+    });
+  const dueRows = pickDueRows(urgentTasks);
+  const dueShown = dueRows.rows;
+  const moreTasks = Math.max(0, pending - dueShown.length - staleTasks.length);
 
   // One calm line for tasks long past their date. "Look through" opens them
   // here, each with Done or Move (the same resolveTask as the next-step row).
@@ -11758,6 +11814,16 @@ function renderDashboard() {
   const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks: [], skipUnmarked: true });
   const heroClass = activeClass || nextClass;
 
+  // One banner at a time, by fixed priority. Attendance says itself once: when
+  // the risk banner shows, the line under the title moves on to the next thing.
+  const showSetup = !(setupLast || attAsk) && !!setupBanner;
+  const banner = chooseTodayBanner({ safety: !!beaconHTML, attendanceRisk: !!focusHTML, setupNeeded: showSetup, welcomeBack: !!welcomeBackHTML });
+  if (banner === 'risk') contextLine = buildDashboardContextLine({ ...ctxOpts, attendanceInBanner: true });
+  const examSoon = examDaysLeftNum !== null && examDaysLeftNum >= 0 && examDaysLeftNum <= 7;
+  const calmDay = !isAttendanceAtRisk && recentOverdue === 0 && !examSoon && !focusHTML && banner !== 'safety';
+  const goalReached = hasAttendanceData && !isAttendanceAtRisk && recentOverdue === 0 && pending === 0 && !focusHTML;
+  const greetingParts = getGreetingParts({ name: firstName, overdue: recentOverdue, holiday: onHoliday, calm: calmDay, goalReached });
+
   // Shortcuts follow the day: the subject of the class now or next comes
   // first, then the subject of the top task, then the rest in saved order.
   // Display order only: the Vault is not changed.
@@ -11781,6 +11847,7 @@ function renderDashboard() {
   const greetingSub = classesOver && endedUnmarkedClassKeys(dateStr).length
     ? `Mark today, then the evening's yours.${pending > 0 ? ` ${pending} task${pending !== 1 ? 's' : ''} pending.` : ''}`
     : contextLine;
+  const subHTML = `${greetingParts.quip ? `<span class="desk-quip">${escHtml_cd(greetingParts.quip)}</span> ` : ''}${greetingSub || ''}`.trim();
 
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
@@ -11788,7 +11855,7 @@ function renderDashboard() {
       <div class="desk-masthead-top">
         <div>
           <div class="desk-date"><span class="desk-dnum" aria-hidden="true">${now.getDate()}</span><span class="desk-dday"><span class="sr-only">${now.getDate()} </span>${now.toLocaleDateString('en-GB', { weekday: 'long' })} · ${now.toLocaleDateString('en-GB', { month: 'long' })}</span></div>
-          <div class="desk-greeting">${askName ? `Hey there.` : greeting}</div>
+          <div class="desk-greeting">${askName ? `Hey there.` : greetingParts.title}</div>
           ${askName ? `
           <div class="greet-ask">
             <label class="greet-ask-line" for="greet-name">Your week's all set. What should we call you?</label>
@@ -11799,7 +11866,7 @@ function renderDashboard() {
             </div>
             <button type="button" class="setup-first-alt greet-ask-skip" onclick="onbSaveGreetingName(true)">Not now</button>
           </div>` : ''}
-          ${greetingSub ? `<div class="desk-greeting-sub">${greetingSub}</div>` : ''}
+          ${subHTML ? `<div class="desk-greeting-sub">${subHTML}</div>` : ''}
           ${deskNoteLinksHTML}
           ${holidaySoonHTML}
         </div>
@@ -11813,10 +11880,10 @@ function renderDashboard() {
     </div>
 
     <!-- 2. PRIMARY FOCUS ANCHOR (CHRONO BEACON) -->
-    ${welcomeBackHTML}
-    ${beaconHTML}
-    ${focusHTML}
-    ${setupLast || attAsk ? '' : setupBanner}
+    ${banner === 'welcome' ? welcomeBackHTML : ''}
+    ${banner === 'safety' ? beaconHTML : ''}
+    ${banner === 'risk' ? focusHTML : ''}
+    ${banner === 'setup' ? setupBanner : ''}
 
     <!-- 3. WORKBENCH & AMBIENT PANEL -->
     <div class="dashboard-layout">
@@ -11850,15 +11917,15 @@ function renderDashboard() {
           <div class="panel-header">
             <div class="panel-title is-label" role="heading" aria-level="2">Due</div>
             <div style="display:flex;align-items:center;gap:10px">
-              ${urgentTasks.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
+              ${dueShown.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
               <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
             </div>
           </div>
-          ${urgentTasks.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
+          ${dueShown.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
 
           <!-- Open task rows -->
           <div style="position:relative;padding-left:4px">
-            ${urgentTasks.length > 0 ? urgentTasks.map(a => {
+            ${dueShown.length > 0 ? dueShown.map(a => {
               const isOngoing = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
               const rel = isOngoing ? { label: 'Ongoing', cls: 'ongoing' } : formatRelativeDueDate(a.dueDate);
               const done = a.status === 'submitted';
@@ -11870,7 +11937,6 @@ function renderDashboard() {
               const metaBits = [
                 realSubject ? `<span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(realSubject)}</span>` : '',
                 step && daysLeft !== null && daysLeft <= 2 && daysLeft >= 0 ? `<span>Start: ${escHtml_cd(step)}</span>` : '',
-                isOngoing ? '' : `<span>${formatDate(a.dueDate)}</span>`
               ].filter(Boolean);
               // A recently slipped task of the student's own sorts out in its row:
               // Done / Tomorrow / Pick a day, each with Undo (resolveTask).
