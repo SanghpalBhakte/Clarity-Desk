@@ -9338,6 +9338,24 @@ function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead
 // otherwise. The rail root carries data-beacon so tickBeacon updates the
 // countdown each minute and rebuilds Today at a class boundary.
 const RAIL_MAX_ROWS = 6;
+// Which late task's Move choices are open on Today (memory only, survives the minute re-render).
+let dueMoveOpenId = null;
+window.toggleDueMove = function(btn) {
+  const item = btn && btn.closest('.task-ledger-item');
+  const group = item && item.querySelector('.due-fix');
+  if (!group) return;
+  const open = group.hidden;
+  document.querySelectorAll('#page-dashboard .due-fix:not([hidden])').forEach((g) => {
+    g.hidden = true;
+    const b = g.closest('.task-ledger-item').querySelector('.due-move');
+    if (b) b.setAttribute('aria-expanded', 'false');
+  });
+  group.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  dueMoveOpenId = open ? btn.dataset.id : null;
+  if (open) { const first = group.querySelector('button'); if (first) first.focus(); }
+  else btn.focus();
+};
 window.railShowMarks = function(btn) {
   const row = btn.closest('.rail-row');
   if (!row) return;
@@ -9417,10 +9435,9 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
         <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
         <span class="rail-body">
           <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}${railClassLabel(x.c) !== x.c.subject ? `<span class="sr-only"> (${escHtml_cd(x.c.subject)})</span>` : ''}</button>
-          <span class="rail-meta">${metaOf(x)}</span>
+          <span class="rail-line"><span class="rail-meta">${metaOf(x)}</span>${x.state === 'ended' || x.state === 'live' ? markButtons(x) : ''}</span>
         </span>
         ${x.state === 'next' ? `<span class="rail-count"><b data-beacon-count>${formatCountdown(x.from - currentMin)}</b><span>until it starts</span></span>` : ''}
-        ${x.state === 'ended' || x.state === 'live' ? markButtons(x) : ''}
       </li>`;
     // The "now" line sits before the first class still to start. During a
     // class the row itself says "In class", so no line is drawn.
@@ -11740,6 +11757,7 @@ function renderDashboard() {
     });
   const dueRows = pickDueRows(urgentTasks);
   const dueShown = dueRows.rows;
+  if (dueMoveOpenId && !dueShown.some((r) => r.id === dueMoveOpenId)) dueMoveOpenId = null;
   const moreTasks = Math.max(0, pending - dueShown.length - staleTasks.length);
 
   // One calm line for tasks long past their date. "Look through" opens them
@@ -11914,12 +11932,8 @@ function renderDashboard() {
         <div class="dashboard-panel">
           <div class="panel-header">
             <div class="panel-title is-label" role="heading" aria-level="2">Due</div>
-            <div style="display:flex;align-items:center;gap:10px">
-              ${dueShown.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
-              <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
-            </div>
+            <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
           </div>
-          ${dueShown.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
 
           <!-- Open task rows -->
           <div style="position:relative;padding-left:4px">
@@ -11939,9 +11953,11 @@ function renderDashboard() {
               // A recently slipped task of the student's own sorts out in its row:
               // Done / Tomorrow / Pick a day, each with Undo (resolveTask).
               const canFix = !done && daysLeft !== null && daysLeft < 0 && state.customTasks.some(x => x.id === a.id);
+              const moveOpen = canFix && dueMoveOpenId === a.id;
+              // The checkbox is Done; Move folds the other two choices in the row.
+              if (canFix) metaBits.push(`<button type="button" class="due-move" data-id="${escAttr_cd(a.id)}" aria-expanded="${moveOpen}" aria-controls="due-move-${escAttr_cd(a.id)}" aria-label="Move ${escAttr_cd(a.title)}" onclick="event.stopPropagation();toggleDueMove(this)">Move</button>`);
               const fixHTML = canFix ? `
-                <div class="due-fix" role="group" aria-label="Sort out ${escAttr_cd(a.title)}">
-                  <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="resolveTask(this.dataset.id, { done: true })">Done</button>
+                <div class="due-fix" id="due-move-${escAttr_cd(a.id)}"${moveOpen ? '' : ' hidden'} role="group" aria-label="Sort out ${escAttr_cd(a.title)}" onkeydown="if(event.key==='Escape'){event.stopPropagation();toggleDueMove(this.closest('.task-ledger-item').querySelector('.due-move'))}">
                   <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
                   <button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Pick a day</button>
                   <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
@@ -11962,7 +11978,11 @@ function renderDashboard() {
                 </div>`;
             }).join('') : staleTasks.length ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
-            ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
+            ${dueShown.length > 1 || moreTasks > 0 ? `<div class="due-foot">
+              ${dueShown.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
+              ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
+            </div>` : ''}
+            ${dueShown.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
             ${staleHTML}
           </div>

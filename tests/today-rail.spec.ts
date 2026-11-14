@@ -150,7 +150,14 @@ test('200% zoom (a 375px phone is 188 CSS px wide): no sideways scroll, marks st
 test('a recently late task sorts out in its own Due row; no "General" filler', async ({ page }) => {
   const today = await open(page, '2026-09-24T07:00:00', { cos_custom_tasks: [task('late-1', 'OS quiz', '2026-09-22'), task('soon-1', 'CN worksheet', '2026-09-26', 'CN')] });
   const row = today.locator('.task-ledger-item', { hasText: 'OS quiz' });
-  for (const name of ['Done', 'Tomorrow', 'Pick a day']) {
+  // The checkbox is Done; Tomorrow / Pick a day fold behind Move (the old Done button is gone on purpose).
+  await expect(row.getByRole('button', { name: 'Done', exact: true })).toHaveCount(0);
+  const done = row.getByRole('checkbox');
+  await expect(done).toBeVisible();
+  const move = row.locator('.due-move');
+  expect((await move.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await move.click();
+  for (const name of ['Tomorrow', 'Pick a day']) {
     const b = row.getByRole('button', { name, exact: true });
     await expect(b).toBeVisible();
     expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);

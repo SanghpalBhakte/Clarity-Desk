@@ -171,7 +171,7 @@ check('Slipped task: Today offers Done / Tomorrow / Pick a day for your own over
   const tasks = [{ id: 'c-9', title: 'Lab report', dueDate: '2026-09-27', status: 'pending', taskType: 'assignment', isCustom: true }];
   const { html } = today(DAY + 'T09:00:00', { cos_custom_tasks: JSON.stringify(tasks) });
   const h = html();
-  const ok = h.includes('resolveTask(this.dataset.id, { done: true })') && h.includes('moveTaskTomorrow(') && h.includes('Pick a day') && h.includes('type="date"');
+  const ok = h.includes('toggleAssignment(') && h.includes('class="due-move"') && h.includes('moveTaskTomorrow(') && h.includes('Pick a day') && h.includes('type="date"');
   if (/need[s]? attention/.test(h)) return 'old overdue wording still shown';
   // The buttons sit in the task's own Due row.
   return focusOf(h) === undefined && ok && h.includes('class="due-fix"') && h.includes('1 task slipped. Pick a new day or mark it done.') ? true : 'buttons or kinder line missing';
