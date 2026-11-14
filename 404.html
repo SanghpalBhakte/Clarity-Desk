@@ -21,9 +21,6 @@
           'paper-slate': 'paper-slate', 'midnight-ink': 'midnight-ink'
         };
         if (t && m[t]) t = m[t];
-        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          t = 'midnight-ink';
-        }
         t = t || 'paper-slate';
         var valid = ['paper-slate', 'midnight-ink'];
         if (!valid.includes(t)) t = 'paper-slate';

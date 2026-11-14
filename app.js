@@ -7977,9 +7977,7 @@ function initTheme() {
     theme = 'paper-slate';
   }
   if (theme && LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
-  if (!theme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    theme = 'midnight-ink';
-  }
+  // A new student starts on the light desk, whatever the phone's dark setting says; Settings changes it.
   theme = theme || 'paper-slate';
   if (!ALL_THEMES.includes(theme)) theme = 'paper-slate';
 
@@ -7999,7 +7997,8 @@ function initAccent() {
     const legacyTheme = localStorage.getItem(KEY_THEME);
     accent = LEGACY_ACCENT_THEME_MAP[legacyTheme] || null;
   }
-  if (!accent || !ALL_ACCENTS.includes(accent)) accent = 'terracotta';
+  // New students start on Azuki & Matcha ('rose'); a saved choice always wins.
+  if (!accent || !ALL_ACCENTS.includes(accent)) accent = 'rose';
   localStorage.setItem(KEY_ACCENT, accent);
   document.documentElement.setAttribute('data-accent', accent);
   applyThemeColorMeta(document.documentElement.getAttribute('data-theme'));
