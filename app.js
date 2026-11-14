@@ -9415,7 +9415,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
         <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
         <span class="rail-body">
-          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}" aria-label="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}</button>
+          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}${railClassLabel(x.c) !== x.c.subject ? `<span class="sr-only"> (${escHtml_cd(x.c.subject)})</span>` : ''}</button>
           <span class="rail-meta">${metaOf(x)}</span>
         </span>
         ${x.state === 'next' ? `<span class="rail-count"><b data-beacon-count>${formatCountdown(x.from - currentMin)}</b><span>until it starts</span></span>` : ''}
