@@ -8356,3 +8356,45 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 #page-calendar .cal-today-btn, #page-calendar .cal-quick-add, #page-subjects .sj-mark-link { color: var(--text-primary); }
 #page-settings .st-num { color: var(--text-muted); }
 :root[data-theme="midnight-ink"] .bw-block { background: color-mix(in srgb, var(--text-muted) 55%, transparent); }
+
+/* ── Phone chrome: frosted, page-coloured ──
+   On phones the dark board frame took about a fifth of the screen. The top bar
+   and tab bar now take the page's own colour with a light blur and a hairline
+   edge, and are slimmer (44px and 49px). The board colour stays on tablet and
+   desktop, where the sidebar lives. "Where you are" stays marked in ink; the
+   signal colour still means "now" only. */
+@media (max-width: 767px) {
+  :root:root:root { --topbar-h: 44px; --nav-h: 49px; }
+  .app-shell, .main-wrapper { background: var(--raw-bg-0); }
+  .content-area { border-radius: 0; }
+  html .topbar, html .bottom-nav {
+    /* give back the page tokens the board frame re-pointed */
+    --color-canvas: unset; --sidebar-bg: unset; --bg: unset;
+    --color-text-primary: unset; --text-primary: unset;
+    --color-text-secondary: unset; --text-secondary: unset;
+    --color-text-tertiary: unset; --text-tertiary: unset; --text-muted: unset;
+    --color-action-primary: unset; --accent: unset; --color-thread: unset;
+    --color-surface-muted: unset; --color-hover-fill: unset; --accent-dim: unset;
+    --bg-hover: unset; --surface-2: unset;
+    --color-border-subtle: unset; --color-border-default: unset; --border: unset;
+    --color-rule: unset; --border-light: unset; --color-focus-ring: unset; --focus-ring: unset;
+    --sheen-top: unset;
+    --chrome-hair: color-mix(in srgb, var(--text-primary) 12%, transparent);
+    background: color-mix(in srgb, var(--raw-bg-0) 80%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    color: var(--text-primary);
+    box-shadow: none;
+  }
+  html .topbar { border-bottom: 1px solid var(--chrome-hair); }
+  html .bottom-nav { border-top: 1px solid var(--chrome-hair); }
+  .bottom-nav-item { gap: 2px; padding: 5px 4px 3px; font-size: 0.66rem; }
+  .bottom-nav-item.active { color: var(--text-primary); }
+  html .bottom-nav-item::before { background: var(--text-primary); width: 20px; margin-left: -10px; }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    html .topbar, html .bottom-nav { background: var(--raw-bg-0); }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    html .topbar, html .bottom-nav { background: var(--raw-bg-0); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+}

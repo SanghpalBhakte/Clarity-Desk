@@ -7958,9 +7958,11 @@ function applyThemeColorMeta(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
   const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-  // A browser tab follows the board (top bar) colour, so the browser's own bar continues it.
+  // A browser tab follows the top bar colour, so the browser's own bar continues it:
+  // the board on tablet and desktop, the page colour on phones (frosted top bar).
   const rootStyle = getComputedStyle(document.documentElement);
-  const pageColor = rootStyle.getPropertyValue('--board').trim() || rootStyle.getPropertyValue('--raw-bg-0').trim();
+  const onPhone = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+  const pageColor = (!onPhone && rootStyle.getPropertyValue('--board').trim()) || rootStyle.getPropertyValue('--raw-bg-0').trim();
   meta.setAttribute('content', isStandalone ? '#101613' : (pageColor || (theme === 'midnight-ink' ? '#101613' : '#F2F2EC')));
 }
 
