@@ -170,6 +170,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u336",
+    date: "2026-11-14",
+    title: "The welcome looks calmer in Azuki & Matcha, with small motion and soft tap sounds",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The welcome looks calmer in Azuki & Matcha, with small motion and soft tap sounds",
+    points: [
+
+    ]
+  },
+  {
+    id: "u335",
+    date: "2026-11-14",
+    title: "New students start on the light desk with Azuki & Matcha",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "New students start on the light desk with Azuki & Matcha",
+    points: [
+
+    ]
+  },
+  {
+    id: "u334",
+    date: "2026-11-14",
+    title: "Smoother page changes in the installed app, and a richer install screen",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Smoother page changes in the installed app, and a richer install screen",
+    points: [
+
+    ]
+  },
+  {
+    id: "u333",
+    date: "2026-11-14",
+    title: "Today uses the full width on laptops, and tablets start with the slim sidebar",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today uses the full width on laptops, and tablets start with the slim sidebar",
+    points: [
+
+    ]
+  },
+  {
+    id: "u332",
+    date: "2026-11-14",
+    title: "Today folds away classes you have marked and shows how many are marked",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today folds away classes you have marked and shows how many are marked",
+    points: [
+
+    ]
+  },
+  {
+    id: "u331",
+    date: "2026-11-14",
+    title: "Today is lighter: mark a class and move a late task from the same line",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today is lighter: mark a class and move a late task from the same line",
+    points: [
+
+    ]
+  },
+  {
     id: "u330",
     date: "2026-11-14",
     title: "The first screen now has one clear action: add what's due. Timetable, example day, tour and log in sit under \"Set up more later\"",
