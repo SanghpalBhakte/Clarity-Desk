@@ -8398,3 +8398,30 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
     html .topbar, html .bottom-nav { background: var(--raw-bg-0); -webkit-backdrop-filter: none; backdrop-filter: none; }
   }
 }
+
+/* ── Phone Today: the greeting, in the style of a large title ──
+   A small caps date line ("SATURDAY · NOVEMBER 14") over one large, calm title
+   in ink, then a plain-weight sentence. The number is no longer a second
+   headline, the name is no longer a second colour (red and the signal colour
+   keep their meanings), and the italic is gone. Markup is unchanged. */
+@media (max-width: 767px) {
+  #page-dashboard .desk-masthead-top { padding-top: 18px; margin-bottom: 18px; }
+  #page-dashboard .desk-masthead-top > div:first-child { display: block; }
+  #page-dashboard .desk-masthead-top > div:first-child > .desk-date { display: flex; align-items: baseline; gap: .38em; margin: 0 0 8px; }
+  #page-dashboard .desk-dday, #page-dashboard .desk-dnum {
+    padding: 0; font-family: var(--font-sans); font-size: .8125rem; font-weight: 600; line-height: 1.2;
+    letter-spacing: .07em; text-transform: uppercase; color: var(--text-secondary);
+  }
+  #page-dashboard .desk-dday { order: 1; }
+  #page-dashboard .desk-dnum { order: 2; }
+  #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting {
+    margin: 0; font-size: clamp(1.875rem, 8.2vw, 2.375rem); font-weight: 700; line-height: 1.08;
+    letter-spacing: -.03em; font-variation-settings: 'opsz' 48; text-shadow: none; text-wrap: balance;
+  }
+  #page-dashboard .desk-greeting .desk-greeting-name { color: inherit; font-weight: inherit; }
+  #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting-sub {
+    margin-top: 10px; max-width: 32ch; font-family: var(--font-sans); font-variation-settings: normal; font-style: normal;
+    font-weight: 400; font-size: 1.0625rem; line-height: 1.4; letter-spacing: -.011em; color: var(--text-secondary); text-wrap: pretty;
+  }
+  #page-dashboard .desk-greeting-sub strong, #page-dashboard .desk-greeting-sub b { font-weight: 600; color: var(--text-primary); }
+}
