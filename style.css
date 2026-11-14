@@ -8346,3 +8346,13 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   .sj-notice { flex-wrap: wrap; }
   .sj-notice strong { white-space: normal; }
 }
+
+/* ── Board and Sheet: colour keeps its meaning ──
+   Signal means "now" and red means late, so words that are only links or labels
+   read in ink: the Ask Desk hello, the Calendar's Today and Add links, the
+   Subject Hubs "Mark today" link and the Settings section numbers. Dark Briefing
+   class bars are one step brighter so the week reads. */
+.cd-hello-title span, .cd-hello-setup button { color: var(--text-primary); }
+#page-calendar .cal-today-btn, #page-calendar .cal-quick-add, #page-subjects .sj-mark-link { color: var(--text-primary); }
+#page-settings .st-num { color: var(--text-muted); }
+:root[data-theme="midnight-ink"] .bw-block { background: color-mix(in srgb, var(--text-muted) 55%, transparent); }
