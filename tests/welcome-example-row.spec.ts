@@ -1,15 +1,17 @@
 import { test, expect } from '@playwright/test';
 
-// The Example row on the welcome opens a read-only sample day over the welcome.
+// "See an example day" (under Set up more later) opens a read-only sample day over the welcome.
 // Nothing is saved and the welcome stays, so closing the sample lands back on it.
 
-test.describe('Welcome example row', () => {
+test.describe('Welcome example day', () => {
   test('opens the sample day, saves nothing and returns focus', async ({ page }) => {
     await page.goto('/');
     const welcome = page.locator('#onboarding-backdrop');
     await expect(welcome).toBeVisible();
     await expect(page.getByRole('button', { name: 'Try a sample day' })).toHaveCount(0);
-    const row = page.getByRole('button', { name: /^Example: Physics assignment, due tomorrow/ });
+    await expect(welcome.getByText('Physics assignment')).toHaveCount(0);
+    await welcome.getByText('Set up more later').click();
+    const row = welcome.getByRole('button', { name: 'See an example day' });
     expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await row.click();
     const sample = page.locator('#sample-day-backdrop');
@@ -32,7 +34,8 @@ test.describe('Welcome example row', () => {
   test('study without one: Today stops asking for a timetable at once', async ({ page }) => {
     await page.goto('/');
     const welcome = page.locator('#onboarding-backdrop');
-    await welcome.getByRole('button', { name: 'study without one' }).click();
+    await welcome.getByText('Set up more later').click();
+    await welcome.getByRole('button', { name: 'Study without a timetable' }).click();
     await expect(welcome).toHaveCount(0);
     await expect(page.getByText('Set your exam countdown')).toBeVisible();
     await expect(page.getByText('Have a timetable?')).toHaveCount(0);

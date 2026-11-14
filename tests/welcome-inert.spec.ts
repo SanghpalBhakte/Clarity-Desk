@@ -5,8 +5,8 @@ import { test, expect, Page } from '@playwright/test';
 
 // Tab once per control on the sheet: every stop stays on it (nothing behind is reachable).
 async function tabThroughWelcome(page: Page) {
-  const n = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#onboarding-backdrop button, #onboarding-backdrop input, #onboarding-backdrop a[href]')]
-    .filter(e => e.getClientRects().length && !(e as HTMLButtonElement).disabled && e.tabIndex >= 0).length);
+  const n = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#onboarding-backdrop button, #onboarding-backdrop input, #onboarding-backdrop a[href], #onboarding-backdrop summary')]
+    .filter(e => e.checkVisibility() && !(e as HTMLButtonElement).disabled && e.tabIndex >= 0).length);
   expect(n).toBeGreaterThan(3);
   for (let i = 0; i < n; i++) {
     await page.keyboard.press('Tab');

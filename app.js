@@ -10969,13 +10969,14 @@ function hasExistingUserData() {
   return false;
 }
 
-// Welcome: full screen, value first. Type or paste something due right away;
-// timetable, self-study and a sample day sit below as optional. Show me around
-// (name, then the tour) and Log in stay as quiet links.
+// Welcome: full screen, value first. Type or paste something due right away.
+// Timetable, self-study, a sample day, Show me around (name, then the tour) and
+// Log in all sit behind one quiet "Set up more later" disclosure.
 const OB_LOGO = `<img src="favicon.svg" alt="" width="24" height="24" style="border-radius:6px">`;
 
-// First screen helpers. "Coming up" shows the student's own next dated task;
-// a first-run student has none, so an example row is shown and labeled.
+// First screen helper. "Coming up" shows the student's own next dated task;
+// a first-run student has none, so nothing shows (the example day sits under
+// "Set up more later").
 function onboardingComingUpHtml() {
   let task = null;
   try {
@@ -10983,23 +10984,18 @@ function onboardingComingUpHtml() {
     task = (state.customTasks || []).filter(t => t && t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= today)
       .sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0] || null;
   } catch (e) { task = null; }
-  let when = 'Tomorrow', title = 'Physics assignment', example = true;
+  if (!task) return '';
   const t0 = new Date(); t0.setHours(0, 0, 0, 0);
-  let d = new Date(t0); d.setDate(d.getDate() + 1);
-  if (task) {
-    example = false; title = String(task.title || 'Task');
-    d = new Date(task.dueDate + 'T00:00:00');
-    const diff = Math.round((d - t0) / 86400000);
-    when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  }
+  const title = String(task.title || 'Task');
+  const d = new Date(task.dueDate + 'T00:00:00');
+  const diff = Math.round((d - t0) / 86400000);
+  const when = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   // Today's date column: the day number over the short weekday.
   const dayCol = `<span class="ob-soon-when" aria-hidden="true"><b>${d.getDate()}</b><span>${d.toLocaleDateString('en-GB', { weekday: 'short' })}</span></span>`;
   const whatCol = `<span class="ob-soon-what">${escHtml_cd(title)}<small>due ${escHtml_cd(when.toLowerCase())}</small></span>`;
-  return `<section class="ob-soon${example ? ' is-example' : ''}" aria-label="${example ? 'Example' : 'Coming up'}">
-          <h2 class="ob-soon-h${example ? ' is-tag' : ''}">${example ? 'Example <span class="ob-soon-note">not saved</span>' : 'Coming up'}</h2>
-          ${example
-            ? `<button type="button" class="ob-soon-row ob-soon-btn" aria-label="Example: ${escHtml_cd(title)}, due ${escHtml_cd(when.toLowerCase())}. See a sample day" onclick="onboardingSampleDay()">${dayCol}${whatCol}</button>`
-            : `<div class="ob-soon-row">${dayCol}${whatCol}</div>`}
+  return `<section class="ob-soon" aria-label="Coming up">
+          <h2 class="ob-soon-h">Coming up</h2>
+          <div class="ob-soon-row">${dayCol}${whatCol}</div>
         </section>`;
 }
 
@@ -11143,7 +11139,7 @@ window.onboardingSampleDay = function(from) {
   const close = () => {
     document.getElementById('sample-day-backdrop')?.remove();
     document.removeEventListener('keydown', onKey, true);
-    if (welcome) { welcome.inert = false; welcome.querySelector('.ob-soon-btn')?.focus(); }
+    if (welcome) { welcome.inert = false; welcome.querySelector('.ob-sample-btn')?.focus(); }
     else if (opener && opener.isConnected) opener.focus();
   };
   const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
@@ -11198,15 +11194,17 @@ window.showOnboardingModal = function() {
           <button type="button" class="ob-paste" onclick="onboardingTakePhoto()">Use a photo</button>
         </div>
         ${onboardingComingUpHtml()}
-        <p class="ob-more">Have a timetable?
-          <button type="button" class="ob-more-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Add it when you\'re ready \u2192</button>
-          <span class="ob-more-or">or <button type="button" class="ob-more-btn ob-more-quiet" onclick="setupSelfStudy(); dismissOnboarding()">study without one</button></span>
-        </p>
+        <details class="ob-later" ontoggle="if (this.open) this.scrollIntoView({ block: 'end' })">
+          <summary class="ob-later-sum">Set up more later</summary>
+          <div class="ob-later-list">
+            <button type="button" class="ob-later-btn" onclick="dismissOnboarding(); showAddTimetableChoice()">Add my timetable</button>
+            <button type="button" class="ob-later-btn" onclick="setupSelfStudy(); dismissOnboarding()">Study without a timetable</button>
+            <button type="button" class="ob-later-btn ob-sample-btn" onclick="onboardingSampleDay(this)">See an example day</button>
+            <button type="button" class="ob-later-btn" onclick="onboardingShowName()">Show me around</button>
+            <button type="button" class="ob-later-btn" onclick="onboardingLogin()">Log in</button>
+          </div>
+        </details>
         <p class="ob-foot">Made by a student, for students. No account needed: your desk stays on this device.${usageActive() ? '<br>We count anonymous visits (no names, no data). Turn it off in Settings.' : ''}</p>
-        <div class="ob-actions">
-          <button class="btn-secondary ob-quiet" onclick="onboardingShowName()">Show me around</button>
-          <button class="btn-secondary ob-quiet" onclick="onboardingLogin()">Log in</button>
-        </div>
       </div>
     </div>
   `;
