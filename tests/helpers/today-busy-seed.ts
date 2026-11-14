@@ -22,10 +22,12 @@ export const BUSY_TASKS = [
 
 export async function seedBusyToday(
   page: Page,
-  { width = 390, height = 844, at = '2026-09-24T11:20:00', extra = {}, day = BUSY_DAY, tasks = BUSY_TASKS }: { width?: number; height?: number; at?: string; extra?: Record<string, unknown>; day?: unknown[]; tasks?: unknown[] } = {},
+  { width = 390, height = 844, at = '2026-09-24T11:20:00', extra = {}, day = BUSY_DAY, tasks = BUSY_TASKS, install = false }: { width?: number; height?: number; at?: string; extra?: Record<string, unknown>; day?: unknown[]; tasks?: unknown[]; install?: boolean } = {},
 ) {
   await page.setViewportSize({ width, height });
-  await page.clock.setFixedTime(new Date(at));
+  // install: a clock that moves when the test advances it (for timed effects); default is frozen.
+  if (install) await page.clock.install({ time: new Date(at) });
+  else await page.clock.setFixedTime(new Date(at));
   await page.addInitScript((seed) => {
     if (sessionStorage.getItem('__seeded')) return;
     sessionStorage.setItem('__seeded', '1');
@@ -57,3 +59,6 @@ export async function tapTargetsOnFirstScreen(page: Page): Promise<number> {
     return n;
   });
 }
+
+// Marks for the busy day, as cos_attendance stores them: { date: { classKey: status } }.
+export const marked = (...keys: string[]) => ({ cos_attendance: { '2026-09-24': Object.fromEntries(keys.map((k) => [k, 'attended'])) } });

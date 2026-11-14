@@ -53,6 +53,8 @@ test('after a class: Present / Absent on the rail, the choice is announced and i
   expect((await present.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await present.click();
   await page.clock.runFor(300);
+  // An ended class that is marked folds into "1 earlier class · marked" (on purpose); open it to see the row.
+  await today.locator('.rail-earlier-toggle').click();
   await expect(ds.locator('.rail-meta')).toContainText('Marked present');
   await expect(ds.getByRole('button', { name: /^Present/ })).toBeHidden();
   await expect(today.getByRole('button', { name: /^I was at all/ })).toHaveCount(0);

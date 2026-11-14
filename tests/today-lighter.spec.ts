@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedBusyToday, tapTargetsOnFirstScreen } from './helpers/today-busy-seed';
+import { seedBusyToday, tapTargetsOnFirstScreen, marked } from './helpers/today-busy-seed';
 
 // Today, lighter: rows carry their controls on the status line, late tasks fold their
 // choices behind "Move", and the busy day measures within the guardrails.
@@ -26,6 +26,8 @@ test.describe('lighter rows', () => {
     const today = await seedBusyToday(page);
     const row = today.locator('.rail-row.needs-mark').first();
     await row.getByRole('button', { name: /^Present/ }).click();
+    // An ended class that is marked folds away; open the fold to see it and use Change.
+    await today.locator('.rail-earlier-toggle').click();
     const marked = today.locator('.rail-row').filter({ hasText: 'Marked present' }).first();
     await expect(marked).toBeVisible();
     await marked.getByRole('button', { name: /Change the mark/ }).click();
@@ -68,8 +70,8 @@ test.describe('lighter rows', () => {
     const move = today.locator('.task-ledger-item.has-fix .due-move').first();
     await move.click();
     // Marking a class re-renders Today the same way the minute tick does.
-    await today.locator('.rail-row.needs-mark').first().getByRole('button', { name: /^Present/ }).click();
-    await expect(today.locator('.rail-row').filter({ hasText: 'Marked present' })).toHaveCount(1);
+    await today.locator('.rail-row.is-live').getByRole('button', { name: /^Present/ }).click();
+    await expect(today.locator('.rail-row.is-live')).toContainText('Marked present');
     await expect(today.locator('.task-ledger-item.has-fix .due-move').first()).toHaveAttribute('aria-expanded', 'true');
     await expect(today.locator('.due-fix:not([hidden])')).toHaveCount(1);
   });
@@ -102,5 +104,105 @@ test.describe('lighter rows', () => {
       expect(box.x + box.width).toBeLessThanOrEqual(360);
       expect(box.x >= meta.x + meta.width - 1 || box.y >= meta.y + meta.height - 1, 'marks do not overlap the words').toBe(true);
     }
+  });
+});
+
+test.describe('come back', () => {
+  const classAt = (i: number) => ({ subject: `Class ${i}`, code: `C${i}`, time: `${String(7 + i).padStart(2, '0')}:00`, end: `${String(8 + i).padStart(2, '0')}:00`, type: 'lecture', batches: [] });
+  const many = (n: number) => Array.from({ length: n }, (_, i) => classAt(i));
+  const visibleRows = (today: any) => today.locator('.rail-row:visible');
+
+  test('ended and marked classes fold into one line', async ({ page }) => {
+    const today = await seedBusyToday(page, { extra: marked('DS_0900', 'PBST_1000') });
+    const toggle = today.locator('.rail-earlier-toggle');
+    await expect(toggle).toHaveText('2 earlier classes · marked');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(visibleRows(today)).toHaveCount(2);
+    await toggle.click();
+    await expect(today.locator('.rail-earlier-toggle')).toHaveAttribute('aria-expanded', 'true');
+    await expect(visibleRows(today)).toHaveCount(4);
+    await expect(today.locator('.rail-earlier-toggle')).toBeFocused();
+  });
+
+  test('one marked class reads "1 earlier class · marked"', async ({ page }) => {
+    const today = await seedBusyToday(page, { extra: marked('DS_0900') });
+    await expect(today.locator('.rail-earlier-toggle')).toHaveText('1 earlier class · marked');
+  });
+
+  test('ended and unmarked classes never fold', async ({ page }) => {
+    const today = await seedBusyToday(page, { extra: marked('DS_0900') });
+    await expect(today.locator('.rail-row.needs-mark')).toHaveCount(1);
+    await expect(today.locator('.rail-row.needs-mark')).toContainText('Probability and Statistics');
+    await expect(today.locator('.rail-row').filter({ hasText: 'Data Structures' })).toHaveCount(0);
+  });
+
+  test('fold stays open across the minute re-render', async ({ page }) => {
+    const today = await seedBusyToday(page, { extra: marked('DS_0900', 'PBST_1000') });
+    await today.locator('.rail-earlier-toggle').click();
+    // Marking the live class re-renders Today the same way the minute tick does.
+    await today.locator('.rail-row.is-live').getByRole('button', { name: /^Present/ }).click();
+    await expect(today.locator('.rail-earlier-toggle')).toHaveAttribute('aria-expanded', 'true');
+    await expect(visibleRows(today)).toHaveCount(4);
+  });
+
+  test('heading counts marks in words', async ({ page }) => {
+    const today = await seedBusyToday(page, { extra: marked('DS_0900') });
+    await expect(today.locator('.panel-header', { hasText: 'Your day' }).locator('.panel-count')).toHaveText('1 of 4 marked');
+  });
+
+  test('no count before the first class starts', async ({ page }) => {
+    const today = await seedBusyToday(page, { at: '2026-09-24T08:00:00' });
+    await expect(today.locator('.rail-row').first()).toBeVisible();
+    await expect(today.locator('.panel-count')).toHaveCount(0);
+  });
+
+  test('all classes ended and marked', async ({ page }) => {
+    const today = await seedBusyToday(page, { at: '2026-09-24T17:00:00', extra: marked('DS_0900', 'PBST_1000', 'DBMS_1100', 'DBL_1400') });
+    await expect(today.locator('.rail-earlier-toggle')).toHaveText('4 earlier classes · marked');
+    const done = today.locator('.rail-then', { hasText: 'Day marked. Books down, feet up.' });
+    await expect(done).toBeVisible();
+    await expect(done).toBeInViewport();
+  });
+
+  test('more than RAIL_MAX_ROWS classes', async ({ page }) => {
+    const six = await seedBusyToday(page, { at: '2026-09-24T09:30:00', day: many(8), extra: { cos_attendance: { '2026-09-24': { C0_0700: 'attended', C1_0800: 'attended' } } } });
+    await expect(six.locator('.rail-earlier-toggle')).toHaveText('2 earlier classes · marked');
+    await expect(visibleRows(six)).toHaveCount(6);
+    await expect(six.locator('.dash-more-link', { hasText: 'more class' })).toHaveCount(0);
+  });
+
+  test('nine classes leave "+1 more class"', async ({ page }) => {
+    const nine = await seedBusyToday(page, { at: '2026-09-24T09:30:00', day: many(9), extra: { cos_attendance: { '2026-09-24': { C0_0700: 'attended', C1_0800: 'attended' } } } });
+    await expect(visibleRows(nine)).toHaveCount(6);
+    await expect(nine.locator('.dash-more-link', { hasText: '+1 more class' })).toBeVisible();
+  });
+
+  test('marking settles the row once', async ({ page }) => {
+    const today = await seedBusyToday(page, { install: true });
+    const live = today.locator('.rail-row.is-live');
+    await live.getByRole('button', { name: /^Present/ }).click();
+    await expect(live).toHaveClass(/is-settling/);
+    expect(await live.evaluate((e) => getComputedStyle(e).animationName)).toBe('cd-settle');
+    await page.clock.runFor(700);
+    // Leave Today and come back: a fresh render after 700ms does not settle the row again.
+    await page.evaluate(() => { (window as any).navigate('timetable'); (window as any).navigate('dashboard'); });
+    await expect(today.locator('.rail-row.is-live')).toContainText('Marked present');
+    await expect(today.locator('.rail-row.is-live')).not.toHaveClass(/is-settling/);
+  });
+
+  test('reduced motion: no animation', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const today = await seedBusyToday(page, { install: true });
+    const live = today.locator('.rail-row.is-live');
+    await live.getByRole('button', { name: /^Present/ }).click();
+    await expect(live).toHaveClass(/is-settling/);
+    expect(await live.evaluate((e) => getComputedStyle(e).animationName)).toBe('none');
+  });
+
+  test('ticking a task still works: the row leaves and the next one comes up', async ({ page }) => {
+    const today = await seedBusyToday(page, { install: true });
+    await expect(today.locator('.task-ledger-item').nth(2)).toContainText('End sem prep');
+    await today.locator('.task-ledger-item').nth(2).getByRole('checkbox').click();
+    await expect(today.locator('.task-ledger-item').nth(2)).toContainText('Mini project');
   });
 });
