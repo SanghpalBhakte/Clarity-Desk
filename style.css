@@ -8581,7 +8581,7 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 #page-dashboard .rail-body { gap: 0; }
 #page-dashboard .rail-row.needs-mark, #page-dashboard .rail-row.is-live { padding-block: 10px; }
 #page-dashboard .task-ledger-item .due-fix[hidden] { display: none; }
-#page-dashboard .task-ledger-meta .due-move { flex: 0 0 auto; position: relative; min-height: 44px; min-width: 44px; margin-block: -13px; padding: 0 6px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#page-dashboard .task-ledger-meta .due-move { flex: 0 0 auto; position: relative; box-sizing: border-box; height: 44px; min-height: 44px; min-width: 44px; margin-block: -13px; padding: 0 6px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 #page-dashboard .due-move:focus-visible, #page-dashboard .rail-line .rail-att:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 #page-dashboard .due-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
 #page-dashboard .due-foot .dash-more-link { min-height: 44px; margin-block: -8px; display: inline-flex; align-items: center; }
@@ -8604,3 +8604,27 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 }
 @keyframes cd-settle { from { background-color: color-mix(in srgb, var(--color-success) 16%, transparent); } to { background-color: transparent; } }
 @keyframes cd-tick { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+
+/* ── Today, lighter (fit): two columns on laptops and desktops ──
+   "Your day" on the left; Due (with the add line) and the attendance prompt stacked on the right.
+   DOM order is unchanged (day, due, attendance), so Tab follows the reading order. Overrides the
+   1100px grid above without editing it; rows 1-9 stay reserved for the full-width items. */
+@media (min-width: 1100px) {
+  #page-dashboard.active { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr); grid-template-rows: repeat(9, auto) repeat(4, auto) 1fr; }
+  #page-dashboard.active .dashboard-left { display: contents; }
+  /* The day panel spans down to the flexible last row, so it never stretches the rows the right column sets. */
+  #page-dashboard.active .panel-day { grid-column: 1; grid-row: 10 / -1; }
+  #page-dashboard.active .panel-due { grid-column: 2; grid-row: 11; }
+  #page-dashboard.active .dashboard-right-panel { grid-column: 2; grid-row: 12; }
+  #page-dashboard.active .desk-setup-guide.setup-first { grid-row: 13; }
+}
+@media (min-width: 1280px) {
+  #page-dashboard.active { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr); }
+}
+/* Short laptop screens (up to 800px tall): tighter vertical spacing only, so the busy day fits one
+   screen. No type or tap-area change. Taller monitors keep the roomier spacing above. */
+@media (min-width: 1100px) and (max-height: 800px) {
+  .content-area:has(#page-dashboard.active) { padding-bottom: 20px; }
+  #page-dashboard .desk-masthead { padding: 10px 0 8px; margin-bottom: 10px; }
+  #page-dashboard.active .panel-due .task-ledger-item { padding-block: 8px; }
+}

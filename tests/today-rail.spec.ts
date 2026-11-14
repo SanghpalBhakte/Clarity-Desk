@@ -157,7 +157,8 @@ test('a recently late task sorts out in its own Due row; no "General" filler', a
   const done = row.getByRole('checkbox');
   await expect(done).toBeVisible();
   const move = row.locator('.due-move');
-  expect((await move.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // offsetHeight, not the box: the page's fade-up transform makes the box 43.99998 for a moment.
+  expect(await move.evaluate((e) => (e as HTMLElement).offsetHeight)).toBeGreaterThanOrEqual(44);
   await move.click();
   for (const name of ['Tomorrow', 'Pick a day']) {
     const b = row.getByRole('button', { name, exact: true });
