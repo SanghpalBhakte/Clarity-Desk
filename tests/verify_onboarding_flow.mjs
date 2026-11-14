@@ -142,13 +142,13 @@ check('Pruning old reminder keys never drops onb_ flags', () => {
 check('Welcome is value first: headline, add field, paste, optional setup', () => {
   seed(); makeApp(); const html = welcomeHtml();
   const want = ['Make the next thing clear.', 'Add one deadline, message, or photo. Clarity Desk puts it in order, so you know what to do first.', 'Add deadline', 'Paste a class-group message', 'Use a photo',
-    'For college students \u00b7 free \u00b7 works offline', 'Example', 'not saved', 'due tomorrow', 'Physics assignment', 'Have a timetable?', 'study without one',
+    'For college students \u00b7 free \u00b7 works offline', 'Set up more later', 'Add my timetable', 'Study without a timetable', 'See an example day',
     'Made by a student, for students. No account needed: your desk stays on this device.', 'Show me around', 'Log in'];
   const t = visibleText(html).replace(/\s+/g, ' ');
   const missing = want.filter(w => !t.includes(w));
   if (missing.length) return `missing: ${missing.join(' | ')}`;
-  return html.includes('placeholder="e.g. Lab report due Friday"') && html.indexOf('Add deadline') < html.indexOf('Have a timetable?')
-    && html.indexOf('Have a timetable?') < html.indexOf('study without one') && !html.includes('Try a sample day') && html.includes('onboardingSampleDay()') ? true : 'order or placeholder wrong';
+  return html.includes('placeholder="e.g. Lab report due Friday"') && html.indexOf('Add deadline') < html.indexOf('Set up more later')
+    && html.indexOf('Add my timetable') < html.indexOf('Study without a timetable') && !html.includes('Try a sample day') && !html.includes('Physics assignment') && html.includes('onboardingSampleDay(this)') ? true : 'order or placeholder wrong';
 });
 
 check('Welcome keeps Show me around and log in, and the add action only calls globals', () => {

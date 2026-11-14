@@ -10,6 +10,7 @@ async function freshWelcome(page: Page, width: number, height: number) {
 }
 
 async function startTour(page: Page, name: string | null) {
+  await page.getByText('Set up more later').click();
   await page.getByRole('button', { name: 'Show me around' }).click();
   if (name) {
     await page.locator('#ob-name').fill(name);
