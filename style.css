@@ -8639,3 +8639,26 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 @media (display-mode: standalone) and (prefers-reduced-motion: no-preference) {
   .section-page.active { animation: cd-page-in 160ms ease-out; }
 }
+
+/* ── Welcome polish (Azuki & Matcha only) ──
+   Matcha wash behind the welcome, a red-bean primary button, a leaf-green eyebrow and a green-black headline.
+   "That's me" is pale until a name is typed. Motion is transform/opacity only and off for reduced motion. */
+:root[data-theme="paper-slate"][data-accent="rose"] #onboarding-backdrop.ob-full {
+  background-color: var(--bg);
+  background-image: radial-gradient(120% 70% at 50% -10%, rgba(168, 190, 104, .34), rgba(168, 190, 104, 0) 62%), radial-gradient(90% 50% at 100% 100%, rgba(168, 190, 104, .16), rgba(168, 190, 104, 0) 70%);
+}
+:root[data-theme="paper-slate"][data-accent="rose"] .ob-value .ob-date { color: #4f6a1f; }
+:root[data-theme="paper-slate"][data-accent="rose"] .ob-hero,
+:root[data-theme="paper-slate"][data-accent="rose"] .ob-big { color: #26301b; }
+:root[data-theme="paper-slate"][data-accent="rose"] #onboarding-backdrop .btn-primary { background: #8a2a36; border-color: #8a2a36; color: #fff; box-shadow: 0 6px 16px rgba(138, 42, 54, .22); }
+:root[data-theme="paper-slate"][data-accent="rose"] #onboarding-backdrop .btn-primary:hover { background: #7a2430; border-color: #7a2430; }
+/* Name step: quiet until there is a name. Still works as "continue" (a name is optional). */
+:root[data-theme="paper-slate"][data-accent="rose"] #onboarding-backdrop .ob-name-step-quiet:not(.ob-has-name) .ob-actions .btn-primary { background: #dfe6cc; border-color: #dfe6cc; color: #26301b; box-shadow: none; }
+:root[data-theme="paper-slate"][data-accent="rose"] .ob-name-input:focus-visible { border-color: #4f6a1f; box-shadow: 0 0 0 3px rgba(79, 106, 31, .22); }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ob-pop { 0% { transform: scale(1); } 45% { transform: scale(1.04); } 100% { transform: scale(1); } }
+  #onboarding-backdrop .btn-primary { transition: transform .12s ease, background-color .2s ease, box-shadow .2s ease, color .2s ease; }
+  #onboarding-backdrop .btn-primary:active { transform: scale(.97); }
+  .ob-has-name .ob-actions .btn-primary { animation: ob-pop .28s ease-out; }
+  .ob-name-input { transition: border-color .2s ease, box-shadow .2s ease; }
+}
