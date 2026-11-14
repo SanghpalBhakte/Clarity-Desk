@@ -9364,6 +9364,7 @@ function railClassLabel(entry, max = 28) {
     cut = next;
   }
   if (!cut) cut = title.split(/\s+/)[0].slice(0, Math.max(room, 1));
+  cut = cut.replace(/[\s+&,/·:-]+$/, '') || cut;
   return (code ? code + ' · ' : '') + cut + '…';
 }
 

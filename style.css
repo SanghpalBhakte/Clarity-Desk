@@ -8503,3 +8503,44 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
     }
   }
 }
+
+/* ==== Today, calmer on a phone: one type scale (daily Today only) ====
+   Title ~30 (2 lines max), class now/next 18, rows 16, meta 14, labels 12 caps.
+   Nothing else under 13px. Spacing steps: 8, 12, 16, 24, 32. */
+@media (max-width: 767px) {
+  #page-dashboard .desk-greeting { font-size: clamp(1.5rem, 7.4vw, 1.875rem); line-height: 1.12; text-wrap: balance; }
+  #page-dashboard .desk-greeting-sub { font-size: 1rem; line-height: 1.45; max-width: 34ch; }
+  #page-dashboard .desk-quip { font-weight: 600; color: var(--text-primary); }
+  #page-dashboard .panel-title.is-label { font-size: 12px; font-weight: 600; letter-spacing: .07em; }
+  #page-dashboard .panel-action { font-size: 14px; }
+  #page-dashboard .rail-time { font-size: 14px; }
+  #page-dashboard .rail-time small { font-size: 13px; }
+  #page-dashboard .rail-name { font-size: 1rem; font-weight: 600; }
+  #page-dashboard .rail-meta { font-size: 14px; }
+  #page-dashboard .rail-count span { font-size: 13px; }
+  #page-dashboard .rail-row { padding-block: 12px; }
+  #page-dashboard .task-ledger-item { padding-block: 12px; }
+  #page-dashboard .task-ledger-meta { font-size: 14px !important; margin-top: 4px !important; }
+  #page-dashboard .task-ledger-item .due-badge { font-size: 13px !important; padding: 3px 8px !important; }
+  #page-dashboard .dash-why { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+  #page-dashboard .dash-why-line { font-size: 14px; }
+  #page-dashboard .dash-more-link { font-size: 14px; }
+}
+@media (max-width: 767px) {
+  #page-dashboard .today-risk-line, #page-dashboard .today-risk-subj { font-size: 15px; line-height: 1.4; }
+  #page-dashboard .stale-tasks, #page-dashboard .stale-tasks button { font-size: 14px; }
+  #page-dashboard .dashboard-panel .att-stat-label, #page-dashboard .dashboard-panel .att-note, #page-dashboard .dashboard-panel .att-stat-sub { font-size: 13px; }
+}
+@media (max-width: 767px) {
+  #page-dashboard .rail-now span { font-size: 13px; }
+  #page-dashboard .stale-tasks strong, #page-dashboard .stale-tasks span { font-size: 14px !important; }
+  #page-dashboard .dashboard-panel strong { font-size: max(1em, 13px); }
+  #page-dashboard .quick-add .btn-sm, #page-dashboard .dashboard-panel .btn-sm { font-size: 14px !important; }
+  #page-dashboard .att-gauge-label, #page-dashboard .att-stale-note { font-size: 13px; }
+}
+@media (max-width: 767px) {
+  /* Task rows stay two lines: a long subject is cut, never a third line. */
+  #page-dashboard .task-ledger-meta { flex-wrap: nowrap; min-width: 0; }
+  #page-dashboard .task-ledger-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #page-dashboard .today-risk-line, #page-dashboard .today-risk-subj { font-size: 14px; }
+}

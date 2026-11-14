@@ -100,6 +100,7 @@ const lab = app.railClassLabel({ subject: long, code: 'CS301' });
 check('long combined title keeps the code and cuts at a word', lab === 'CS301 · Data Engineering…');
 check('short name unchanged', app.railClassLabel({ subject: 'Data Structures', code: 'CS201' }) === 'Data Structures');
 check('no code: word-boundary cut with ellipsis', /^Advanced Database Systems and…$|^Advanced Database Systems…$/.test(app.railClassLabel({ subject: 'Advanced Database Systems and Applications Laboratory' })));
+check('no dangling connector before the ellipsis', !/[+&,/-]\s*…$/.test(app.railClassLabel({ subject: 'LAB · DEMP-AI-B2 (VAK) + Data Science Lab Section Two' })));
 check('missing subject is empty', app.railClassLabel({}) === '' && app.railClassLabel(null) === '');
 
 console.log(fails ? `${fails} FAILED` : 'All Today calm checks passed.');
