@@ -8548,3 +8548,8 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .panel-title { font-size: 12px; }
   #page-dashboard .filter-chip { font-size: 13px; }
 }
+
+/* Reduced motion: the top bar's line stays put (visible) instead of fading in as you scroll. */
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  html .topbar { animation: none; border-bottom-color: var(--chrome-hair); }
+}
