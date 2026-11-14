@@ -170,6 +170,222 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u329",
+    date: "2026-11-14",
+    title: "With reduced motion on, the top bar keeps a steady thin line instead of fading it in as you scroll",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "With reduced motion on, the top bar keeps a steady thin line instead of fading it in as you scroll",
+    points: [
+
+    ]
+  },
+  {
+    id: "u328",
+    date: "2026-11-14",
+    title: "Calmer dark themes and no more pink or green for \"now\" in every theme",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Calmer dark themes and no more pink or green for \"now\" in every theme",
+    points: [
+
+    ]
+  },
+  {
+    id: "u327",
+    date: "2026-11-14",
+    title: "Today uses one calm type scale on phones and task rows stay two lines",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today uses one calm type scale on phones and task rows stay two lines",
+    points: [
+
+    ]
+  },
+  {
+    id: "u326",
+    date: "2026-11-14",
+    title: "Shortened class names keep the full name for screen readers",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Shortened class names keep the full name for screen readers",
+    points: [
+
+    ]
+  },
+  {
+    id: "u325",
+    date: "2026-11-14",
+    title: "Long class names on Today are shortened; the full name stays one tap away",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Long class names on Today are shortened; the full name stays one tap away",
+    points: [
+
+    ]
+  },
+  {
+    id: "u324",
+    date: "2026-11-14",
+    title: "Today now says your attendance once, shows one banner at a time and your three most pressing tasks",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today now says your attendance once, shows one banner at a time and your three most pressing tasks",
+    points: [
+
+    ]
+  },
+  {
+    id: "u323",
+    date: "2026-11-14",
+    title: "docs: implementation plan for a calmer Today screen",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "docs: implementation plan for a calmer Today screen",
+    points: [
+
+    ]
+  },
+  {
+    id: "u322",
+    date: "2026-11-14",
+    title: "docs: fold review into the Today calm spec",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "docs: fold review into the Today calm spec",
+    points: [
+
+    ]
+  },
+  {
+    id: "u321",
+    date: "2026-11-14",
+    title: "docs: quips also show when a student reaches a goal",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "docs: quips also show when a student reaches a goal",
+    points: [
+
+    ]
+  },
+  {
+    id: "u320",
+    date: "2026-11-14",
+    title: "docs: spec for a calmer daily Today screen on phones",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "docs: spec for a calmer daily Today screen on phones",
+    points: [
+
+    ]
+  },
+  {
+    id: "u319",
+    date: "2026-11-14",
+    title: "Subject rings hold their colour on light pages, and the phone feels more alive: press feedback, a settling tab icon, a slow glow on the now dot and a top bar line that appears as you scroll",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject rings hold their colour on light pages, and the phone feels more alive: press feedback, a settling tab icon, a slow glow on the now dot and a top bar line that appears as you scroll",
+    points: [
+
+    ]
+  },
+  {
+    id: "u318",
+    date: "2026-11-14",
+    title: "Today's attendance number, line and bar now use the same clear red and green as Subjects, and the top bar hides scrolled text better",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today's attendance number, line and bar now use the same clear red and green as Subjects, and the top bar hides scrolled text better",
+    points: [
+
+    ]
+  },
+  {
+    id: "u317",
+    date: "2026-11-14",
+    title: "Subject rings, percentages and status words now use clear red, amber and green, with a soft tint behind each ring",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subject rings, percentages and status words now use clear red, amber and green, with a soft tint behind each ring",
+    points: [
+
+    ]
+  },
+  {
+    id: "u316",
+    date: "2026-11-14",
+    title: "On phones the Today greeting is one calm title with a small date line above, and the italic is gone",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On phones the Today greeting is one calm title with a small date line above, and the italic is gone",
+    points: [
+
+    ]
+  },
+  {
+    id: "u315",
+    date: "2026-11-14",
+    title: "In a phone browser, the address bar colour now matches the lighter top bar",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "In a phone browser, the address bar colour now matches the lighter top bar",
+    points: [
+
+    ]
+  },
+  {
+    id: "u314",
+    date: "2026-11-14",
+    title: "On phones the top bar and tab bar are slimmer and blend into the page, so more of the screen is yours",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On phones the top bar and tab bar are slimmer and blend into the page, so more of the screen is yours",
+    points: [
+
+    ]
+  },
+  {
+    id: "u313",
+    date: "2026-11-14",
+    title: "Links and labels on Ask Desk, Calendar, Subject Hubs and Settings read in plain ink so colour keeps its meaning",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Links and labels on Ask Desk, Calendar, Subject Hubs and Settings read in plain ink so colour keeps its meaning",
+    points: [
+
+    ]
+  },
+  {
+    id: "u312",
+    date: "2026-11-13",
+    title: "Study Vault menus stay reachable, the More menu keeps keyboard focus, and three pages fit when zoomed in",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Study Vault menus stay reachable, the More menu keeps keyboard focus, and three pages fit when zoomed in",
+    points: [
+
+    ]
+  },
+  {
     id: "u311",
     date: "2026-11-13",
     title: "The one-time \"Slide me sideways\" tip no longer covers buttons, and Welcome focus is tested on reopen",
