@@ -48,7 +48,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
   const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { getGreetingParts, chooseTodayBanner, pickDueRows, buildDashboardContextLine, state };`)();
+const app = new Function(`${code}\n return { railClassLabel, getGreetingParts, chooseTodayBanner, pickDueRows, buildDashboardContextLine, state };`)();
 let fails = 0;
 const check = (name, ok) => { if (!ok) { fails++; console.error('FAIL', name); } else console.log('ok  ', name); };
 
@@ -93,6 +93,14 @@ r = app.pickDueRows([]);
 check('nothing urgent', r.rows.length === 0 && r.more === 0);
 r = app.pickDueRows([1, 2, 3, 4, 5].map(n => T('u' + n, day(n))));
 check('upcoming only: three rows, order kept', r.rows.map(x => x.id).join() === 'u1,u2,u3' && r.more === 2);
+
+// Class labels.
+const long = 'CS301 Data Engineering Management Project + Data Science + Web Development Lab';
+const lab = app.railClassLabel({ subject: long, code: 'CS301' });
+check('long combined title keeps the code and cuts at a word', lab === 'CS301 · Data Engineering…');
+check('short name unchanged', app.railClassLabel({ subject: 'Data Structures', code: 'CS201' }) === 'Data Structures');
+check('no code: word-boundary cut with ellipsis', /^Advanced Database Systems and…$|^Advanced Database Systems…$/.test(app.railClassLabel({ subject: 'Advanced Database Systems and Applications Laboratory' })));
+check('missing subject is empty', app.railClassLabel({}) === '' && app.railClassLabel(null) === '');
 
 console.log(fails ? `${fails} FAILED` : 'All Today calm checks passed.');
 process.exit(fails ? 1 : 0);

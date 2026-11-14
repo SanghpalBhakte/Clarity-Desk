@@ -9346,6 +9346,27 @@ window.railShowMarks = function(btn) {
   const on = row.querySelector('.rail-att.is-on') || row.querySelector('.rail-att');
   if (on) on.focus();
 };
+// The class name as Today's rail shows it: display only, never stored. Short names
+// stay as they are; a long (often combined lab) title keeps the course code and is
+// cut at a word boundary. Nothing is abbreviated into an acronym. The full name stays
+// in the row's title, its aria-label and the Subject Hub link.
+function railClassLabel(entry, max = 28) {
+  const full = String((entry && entry.subject) || '').trim();
+  if (full.length <= max) return full;
+  const code = String((entry && entry.code) || '').trim();
+  let title = full;
+  if (code && title.toUpperCase().startsWith(code.toUpperCase())) title = title.slice(code.length).replace(/^[\s·:\-–]+/, '');
+  const room = max - (code ? code.length + 3 : 0);
+  let cut = '';
+  for (const w of title.split(/\s+/)) {
+    const next = cut ? cut + ' ' + w : w;
+    if (next.length > room) break;
+    cut = next;
+  }
+  if (!cut) cut = title.split(/\s+/)[0].slice(0, Math.max(room, 1));
+  return (code ? code + ' · ' : '') + cut + '…';
+}
+
 function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx }) {
   try {
     const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -9394,7 +9415,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
         <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
         <span class="rail-body">
-          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="Open Subject Hub">${escHtml_cd(x.c.subject)}</button>
+          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}" aria-label="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}</button>
           <span class="rail-meta">${metaOf(x)}</span>
         </span>
         ${x.state === 'next' ? `<span class="rail-count"><b data-beacon-count>${formatCountdown(x.from - currentMin)}</b><span>until it starts</span></span>` : ''}
