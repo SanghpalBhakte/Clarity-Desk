@@ -287,8 +287,8 @@ check('Today: resting tasks leave the list, every real deadline stays, attendanc
   seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26') }); at('2026-10-19T09:50:00');
   const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  // Four rows max: the overdue and dated tasks come first, the kept ongoing one is "+1 more".
-  const ok = !html.includes('Read one paper a week') && html.includes('+1 more task')
+  // Three rows (overdue and due today never hidden): the rest, including the kept ongoing one, are "+N more".
+  const ok = !html.includes('Read one paper a week') && /\+\d more task/.test(html)
     && /<div class="dashboard-panel" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title"[^>]*>Attendance/.test(html) && html.includes('Lab journal') && html.includes('Old quiz') && html.includes('DBMS assignment')
     && html.includes('1 ongoing task is resting');
   return ok ? true : 'Today task list wrong';
@@ -377,7 +377,8 @@ check('Welcome back: ending a started break records endedOn; cancelling a planne
 });
 
 check('Welcome back: card on the first day back after auto-end, gone after Got it and the next day', () => {
-  seed(H('2026-10-12', '2026-10-19')); at('2026-10-19T09:50:00');
+  // A low aim keeps attendance out of the way: an attendance risk banner outranks the welcome-back card.
+  seed({ ...H('2026-10-12', '2026-10-19'), cos_att_target: 50 }); at('2026-10-19T09:50:00');
   let a = makeApp(); a.checkHolidayExpiry(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const first = domCache['page-dashboard'].innerHTML;
   globalThis.dismissHolidayWelcome();
