@@ -8425,3 +8425,35 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   }
   #page-dashboard .desk-greeting-sub strong, #page-dashboard .desk-greeting-sub b { font-weight: 600; color: var(--text-primary); }
 }
+
+/* ── Attendance colours: clear, not muted ──
+   The status colours used for text everywhere are tuned for reading and look
+   dull on a ring. Attendance gets its own pair per state: a bright fill for
+   rings and dots, and a darker ink that still passes contrast for words and
+   numbers. The unfilled part of a ring is a pale tint of the same colour, so
+   an empty ring still reads as a ring. State is always also written in words. */
+:root {
+  --att-risk: #ff3b30;  --att-risk-ink: #d70015;
+  --att-watch: #ff9500; --att-watch-ink: #a45a00;
+  --att-safe: #34c759;  --att-safe-ink: #1f7a3a;
+}
+:root[data-theme="midnight-ink"] {
+  --att-risk: #ff453a;  --att-risk-ink: #ff6b61;
+  --att-watch: #ff9f0a; --att-watch-ink: #ffb340;
+  --att-safe: #30d158;  --att-safe-ink: #4ae07a;
+}
+.sj-ring.risk .sj-ring-fill { stroke: var(--att-risk); }
+.sj-ring.watch .sj-ring-fill { stroke: var(--att-watch); }
+.sj-ring.safe .sj-ring-fill { stroke: var(--att-safe); }
+.sj-ring.risk .sj-ring-track { stroke: color-mix(in srgb, var(--att-risk) 18%, transparent); }
+.sj-ring.watch .sj-ring-track { stroke: color-mix(in srgb, var(--att-watch) 20%, transparent); }
+.sj-ring.safe .sj-ring-track { stroke: color-mix(in srgb, var(--att-safe) 20%, transparent); }
+.sj-card .sj-pct { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+.sj-card.risk .sj-pct { color: var(--att-risk-ink); }
+.sj-card.watch .sj-pct { color: var(--att-watch-ink); }
+.sj-card.safe .sj-pct { color: var(--att-safe-ink); }
+.sj-card .sj-tier { display: inline-flex; align-items: center; gap: 6px; font-size: .8125rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-secondary); }
+.sj-card .sj-tier::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.sj-card.risk .sj-tier { color: var(--att-risk-ink); }
+.sj-card.watch .sj-tier { color: var(--att-watch-ink); }
+.sj-card.safe .sj-tier { color: var(--att-safe-ink); }
