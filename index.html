@@ -21,15 +21,14 @@
           'paper-slate': 'paper-slate', 'midnight-ink': 'midnight-ink'
         };
         if (t && m[t]) t = m[t];
-        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          t = 'midnight-ink';
-        }
         t = t || 'paper-slate';
         var valid = ['paper-slate', 'midnight-ink'];
         if (!valid.includes(t)) t = 'paper-slate';
         document.documentElement.setAttribute('data-theme', t);
         // Palette before first paint, so a chosen palette doesn't flash the default.
         var a = localStorage.getItem('cos_accent');
+        // No saved palette yet: a new student starts on Azuki & Matcha (rose).
+        if (!a) a = 'rose';
         if (['terracotta', 'rose', 'lavender', 'apricot'].includes(a)) document.documentElement.setAttribute('data-accent', a);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', t === 'midnight-ink' ? '#080d0a' : '#17352a');
