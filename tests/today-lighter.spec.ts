@@ -179,6 +179,7 @@ test.describe('come back', () => {
 
   test('marking settles the row once', async ({ page }) => {
     const today = await seedBusyToday(page, { install: true });
+    await page.clock.pauseAt(new Date('2026-09-24T11:21:00')); // frozen: only runFor() moves time
     const live = today.locator('.rail-row.is-live');
     await live.getByRole('button', { name: /^Present/ }).click();
     await expect(live).toHaveClass(/is-settling/);
@@ -193,6 +194,7 @@ test.describe('come back', () => {
   test('reduced motion: no animation', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const today = await seedBusyToday(page, { install: true });
+    await page.clock.pauseAt(new Date('2026-09-24T11:21:00')); // frozen: only runFor() moves time
     const live = today.locator('.rail-row.is-live');
     await live.getByRole('button', { name: /^Present/ }).click();
     await expect(live).toHaveClass(/is-settling/);
@@ -204,5 +206,87 @@ test.describe('come back', () => {
     await expect(today.locator('.task-ledger-item').nth(2)).toContainText('End sem prep');
     await today.locator('.task-ledger-item').nth(2).getByRole('checkbox').click();
     await expect(today.locator('.task-ledger-item').nth(2)).toContainText('Mini project');
+  });
+});
+
+test.describe('fit', () => {
+  const box = async (loc: any) => (await loc.first().boundingBox())!;
+
+  test('1280x720: busy day fits one screen in two columns', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 1280, height: 720 });
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    expect(height, `page is ${height}px tall`).toBeLessThanOrEqual(720);
+    const day = await box(today.locator('.panel-day'));
+    const due = await box(today.locator('.panel-due'));
+    expect(due.x).toBeGreaterThanOrEqual(day.x + day.width);
+    const add = await box(today.locator('#quick-add-input'));
+    expect(add.x).toBeGreaterThanOrEqual(day.x + day.width);
+    const att = await box(today.locator('.dashboard-right-panel .dashboard-panel'));
+    expect(att.x).toBeGreaterThanOrEqual(day.x + day.width);
+  });
+
+  test('1440x900: same two columns, no horizontal scroll', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 1440, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const day = await box(today.locator('.panel-day'));
+    const due = await box(today.locator('.panel-due'));
+    expect(due.x).toBeGreaterThanOrEqual(day.x + day.width);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900);
+  });
+
+  test('no timetable: Due keeps the first column, nothing sits beside an empty one', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 1280, height: 720, day: [] });
+    await expect(today.locator('.panel-day')).toBeHidden();
+    const due = await box(today.locator('.panel-due'));
+    const head = await box(today.locator('.desk-masthead'));
+    expect(Math.abs(due.x - head.x)).toBeLessThan(2);
+  });
+
+  test('1099px wide: single column as before', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 1099, height: 800 });
+    const day = await box(today.locator('.panel-day'));
+    const due = await box(today.locator('.panel-due'));
+    expect(due.y).toBeGreaterThanOrEqual(day.y + day.height - 1);
+    expect(Math.abs(due.x - day.x)).toBeLessThan(2);
+  });
+
+  test('820x1180, no saved choice: sidebar starts as the icon rail', async ({ page }) => {
+    await seedBusyToday(page, { width: 820, height: 1180 });
+    await expect(page.locator('html')).toHaveClass(/sidebar-collapsed/);
+    expect(await page.evaluate(() => localStorage.getItem('cd_sidebar_collapsed'))).toBeNull();
+  });
+
+  test('820x1180, saved "0": sidebar stays open', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('cd_sidebar_collapsed', '0'));
+    await seedBusyToday(page, { width: 820, height: 1180 });
+    await expect(page.locator('html')).not.toHaveClass(/sidebar-collapsed/);
+    expect(await page.evaluate(() => localStorage.getItem('cd_sidebar_collapsed'))).toBe('0');
+  });
+
+  test('820x1180, saved "1": sidebar is the icon rail', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('cd_sidebar_collapsed', '1'));
+    await seedBusyToday(page, { width: 820, height: 1180 });
+    await expect(page.locator('html')).toHaveClass(/sidebar-collapsed/);
+  });
+
+  test('1280x720, no saved choice: sidebar open', async ({ page }) => {
+    await seedBusyToday(page, { width: 1280, height: 720 });
+    await expect(page.locator('html')).not.toHaveClass(/sidebar-collapsed/);
+  });
+
+  test('tab order follows reading order on wide screens', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 1280, height: 720 });
+    await today.locator('.rail-name').first().focus();
+    let reachedDue = false;
+    for (let i = 0; i < 30 && !reachedDue; i++) {
+      await page.keyboard.press('Tab');
+      const where = await page.evaluate(() => {
+        const a = document.activeElement;
+        return a?.closest('.task-ledger-item') ? 'due' : a?.closest('.dashboard-right-panel') ? 'attendance' : 'other';
+      });
+      expect(where, 'attendance must not come before a Due row').not.toBe('attendance');
+      reachedDue = where === 'due';
+    }
+    expect(reachedDue).toBe(true);
   });
 });

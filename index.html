@@ -33,7 +33,9 @@
         if (['terracotta', 'rose', 'lavender', 'apricot'].includes(a)) document.documentElement.setAttribute('data-accent', a);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', t === 'midnight-ink' ? '#080d0a' : '#17352a');
-        if (localStorage.getItem('cd_sidebar_collapsed') === '1') document.documentElement.classList.add('sidebar-collapsed');
+        // A saved choice wins; with none, a portrait tablet (768-1023px) starts as the icon rail. Nothing is written.
+        var sc = localStorage.getItem('cd_sidebar_collapsed');
+        if (sc === '1' || (sc === null && window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches)) document.documentElement.classList.add('sidebar-collapsed');
       } catch(e) {}
     })();
 

@@ -11934,7 +11934,7 @@ function renderDashboard() {
       <!-- LEFT COLUMN: WORKBENCH -->
       <div class="dashboard-left">
         <!-- SCHEDULE LEDGER -->
-        <div class="dashboard-panel"${hideSchedulePanel ? ' style="display:none"' : ''}>
+        <div class="dashboard-panel panel-day"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title is-label" role="heading" aria-level="2">Your day${railCountHTML}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Timetable →</button>
@@ -11956,7 +11956,7 @@ function renderDashboard() {
         </div>
 
         <!-- TASKS & DEADLINES -->
-        <div class="dashboard-panel">
+        <div class="dashboard-panel panel-due">
           <div class="panel-header">
             <div class="panel-title is-label" role="heading" aria-level="2">Due</div>
             <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
