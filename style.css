@@ -8570,10 +8570,10 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    Display only. Scoped to #page-dashboard; older .rail-marks / .due-fix rules are overridden here. */
 #page-dashboard .rail-line { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; }
 #page-dashboard .rail-line .rail-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#page-dashboard .rail-line .rail-marks { flex: 0 0 auto; grid-column: auto; margin: 0; gap: 4px; flex-wrap: nowrap; }
+#page-dashboard .rail-line .rail-marks { flex: 0 0 auto; grid-column: auto; margin: 0; gap: 2px; flex-wrap: nowrap; }
 #page-dashboard .rail-line .rail-marks.is-folded { display: none; }
 #page-dashboard .rail-row.show-marks .rail-line .rail-marks.is-folded { display: flex; }
-#page-dashboard .rail-line .rail-att { position: relative; isolation: isolate; min-height: 44px; min-width: 44px; margin-block: -8px; padding: 0 11px; border: 0; background: none; border-radius: 999px; }
+#page-dashboard .rail-line .rail-att { position: relative; isolation: isolate; min-height: 44px; min-width: 44px; margin-block: -8px; padding: 0 8px; border: 0; background: none; border-radius: 999px; }
 #page-dashboard .rail-line .rail-att::before { content: ""; position: absolute; inset: 7px 0; z-index: -1; border: 1px solid var(--text-primary); border-radius: 999px; }
 #page-dashboard .rail-line .rail-att.is-on { background: none; color: var(--color-canvas, var(--bg)); }
 #page-dashboard .rail-line .rail-att.is-on::before { background: var(--text-primary); }
@@ -8631,4 +8631,11 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   .content-area:has(#page-dashboard.active) { padding-bottom: 20px; }
   #page-dashboard .desk-masthead { padding: 10px 0 8px; margin-bottom: 10px; }
   #page-dashboard.active .panel-due .task-ledger-item { padding-block: 8px; }
+}
+
+/* ── App shell: in the installed app only, a page change is a short opacity-only cross-fade.
+   A browser tab keeps its existing fade-up. CSS only; navigate() is not touched. ── */
+@keyframes cd-page-in { from { opacity: 0; } to { opacity: 1; } }
+@media (display-mode: standalone) and (prefers-reduced-motion: no-preference) {
+  .section-page.active { animation: cd-page-in 160ms ease-out; }
 }

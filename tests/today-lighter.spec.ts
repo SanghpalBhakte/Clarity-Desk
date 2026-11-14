@@ -94,6 +94,14 @@ test.describe('lighter rows', () => {
     expect(taps, `${taps} tap targets on the first screen`).toBeLessThanOrEqual(24);
   });
 
+  test('360px: the status words are never cut off by the marks', async ({ page }) => {
+    const today = await seedBusyToday(page, { width: 360, height: 780 });
+    for (const row of await today.locator('.rail-row.needs-mark, .rail-row.is-live').all()) {
+      const cut = await row.locator('.rail-meta').evaluate((e) => e.scrollWidth - e.clientWidth);
+      expect(cut, (await row.locator('.rail-meta').textContent()) + ' is cut').toBeLessThanOrEqual(0);
+    }
+  });
+
   test('360px: long lab name does not push the marks off screen', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 360, height: 780, at: '2026-09-24T16:10:00' });
     const row = today.locator('.rail-row.needs-mark').filter({ hasText: 'Database Management Systems Lab' });
@@ -288,5 +296,52 @@ test.describe('fit', () => {
       reachedDue = where === 'due';
     }
     expect(reachedDue).toBe(true);
+  });
+});
+
+test.describe('shell', () => {
+  // Chromium cannot emulate display-mode: standalone (setEmulatedMedia ignores it), so the installed-app
+  // rule is checked in the stylesheet itself, and the browser-tab and reduced-motion cases are checked live.
+  const pageAnimation = (page: any) => page.evaluate(() => {
+    (window as any).navigateTo('assignments');
+    return getComputedStyle(document.querySelector('#page-assignments')!).animationName;
+  });
+
+  test('installed app: the stylesheet cross-fades pages with opacity only, 160ms, motion allowed only', async ({ page }) => {
+    await seedBusyToday(page);
+    const found = await page.evaluate(() => {
+      const out: any = { rule: null, keyframes: null };
+      const walk = (rules: CSSRuleList) => {
+        for (const r of Array.from(rules)) {
+          if (r instanceof CSSMediaRule) {
+            const c = r.conditionText.replace(/\s+/g, ' ');
+            for (const inner of Array.from(r.cssRules)) {
+              if (inner instanceof CSSStyleRule && inner.selectorText === '.section-page.active' && inner.style.animationName === 'cd-page-in') out.rule = { media: c, duration: inner.style.animationDuration };
+            }
+            walk(r.cssRules);
+          } else if (r instanceof CSSKeyframesRule && r.name === 'cd-page-in') {
+            out.keyframes = Array.from(r.cssRules).map((k: any) => Array.from(k.style as any).join(','));
+          }
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) { try { walk(sheet.cssRules); } catch (e) { /* cross-origin sheet */ } }
+      return out;
+    });
+    expect(found.rule, 'cd-page-in rule inside a media query').not.toBeNull();
+    expect(found.rule.media).toContain('display-mode: standalone');
+    expect(found.rule.media).toContain('prefers-reduced-motion: no-preference');
+    expect(found.rule.duration).toBe('160ms');
+    expect(found.keyframes, 'opacity is the only animated property').toEqual(['opacity', 'opacity']);
+  });
+
+  test('browser tab: no change (the existing fade-up, never cd-page-in)', async ({ page }) => {
+    await seedBusyToday(page);
+    expect(await pageAnimation(page)).toBe('fadeUp');
+  });
+
+  test('reduced motion: no page animation', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await seedBusyToday(page);
+    expect(await pageAnimation(page)).toBe('none');
   });
 });

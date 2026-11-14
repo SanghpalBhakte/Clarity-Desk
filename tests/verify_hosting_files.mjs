@@ -20,7 +20,7 @@ const RUNTIME_FILES = [
   'firebase-config.js', 'desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
-  'og-image.png', 'robots.txt',
+  'og-image.png', 'robots.txt', 'screenshot-phone.png', 'screenshot-wide.png',
   'fonts/instrument-sans.woff2', 'fonts/instrument-sans-italic.woff2', 'fonts/bricolage-grotesque.woff2'
 ];
 // Runtime files a fresh clone may legitimately lack (none at the moment).
