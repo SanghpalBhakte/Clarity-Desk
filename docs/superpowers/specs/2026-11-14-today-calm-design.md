@@ -35,7 +35,7 @@ Not found wrong: the Weekly Review pill already shows only on Saturday and Sunda
 
 | Role | Size / weight |
 |---|---|
-| Title | 30px / 700, one line |
+| Title | 30px / 700; one line for normal names, at most two lines for long ones (never truncated, never shrunk below 24px) |
 | Class on now or next | 18px / 700 |
 | Rows, body, status sentence | 16px / 500 and 600 |
 | Meta, secondary | 14px / 400 |
@@ -45,16 +45,16 @@ Nothing else under 13px. Spacing set: 8, 12, 16, 24, 32. Rows are separated by h
 
 ### B. Less on the first screen (Today renderer, display only)
 
-1. **Title and quip.** `getDynamicGreeting` stays as is. A new pure helper `splitGreeting(html) -> { title, quip }` splits at the first sentence break after the name. The title renders alone. The quip renders as the lead of the status line, only on calm days or when a target or goal is achieved.
+1. **Title and quip.** No parsing of rendered HTML. A new pure helper `getGreetingParts({ name, state }) -> { title, quip, tone }` sits beside `getDynamicGreeting`, which stays for compatibility, and the renderer migrates to it. `quip` is empty unless the day is calm or a goal is reached. Title and quip are escaped separately. The title renders alone; the quip leads the status line.
 2. **One attendance message.** When `todayFocusHTML` will show the attendance banner, `buildDashboardContextLine` skips its at-risk branch (new option `attendanceInBanner`) and falls to the next priority.
 3. **Two-line task rows.** Meta line shows the subject (and "Start: step" when it applies). The date is removed; the chip keeps "Due in N days" or the date beyond a week.
-4. **Three due rows** (`slice(0, 4)` becomes `slice(0, 3)`); "+N more tasks" absorbs the rest.
+4. **Three due rows, chosen by priority, not by position.** Order: overdue, due today, due next, upcoming, older backlog. Overdue and due-today tasks are never pushed out by the cap. "+N more tasks" shows the count and keeps every task one tap away.
 5. **"Why this order?"** becomes a small info button on the Due label, same accessible name, same behaviour.
-6. **One banner at a time** among welcome-back, attendance banner and setup banner, by priority. The audit of which combinations can coexist today is the first task of the plan.
+6. **One banner at a time**, by a fixed priority: (1) safety or an action in progress, (2) attendance risk, (3) setup the screen needs to be useful, (4) late or due-soon work, (5) welcome-back or quip. A suppressed message stays reachable from its own section. A test covers every combination. The first plan task audits which combinations can coexist today.
 
 ### C. Short class names (display only)
 
-`railClassLabel(name) -> string` shortens combined lab entries to "DEMP + DS + Web Dev"; batch and faculty codes move to the meta line; full name stays in `title`, `aria-label` and the Subject Hub link. Timetable parsing and stored names are not touched.
+`railClassLabel(entry) -> string`, conservative: (1) the subject's existing short name, (2) the course code plus a shortened title, (3) truncation at a word boundary. No acronyms are invented. Batch and faculty codes move to the meta line; the full name stays in `title`, `aria-label` and the Subject Hub link. Timetable parsing and stored names are not touched.
 
 ### D. Palettes
 
@@ -66,14 +66,27 @@ Nothing else under 13px. Spacing set: 8, 12, 16, 24, 32. Rows are separated by h
 
 Protected systems are untouched: `cos_*` schemas, attendance maths and history, timetable parsing, backup/restore, offline behaviour, service worker and manifest, existing navigation, 12-hour time format. No new dependencies. Update `docs/ARCHITECTURE.md` (Today masthead paragraph) in the same PRs as the behaviour changes.
 
-## Success criteria (measured with one reusable script on the busy fixture)
+## Success criteria
+
+The numbers are guardrails, not the goal. Nothing useful is hidden just to hit a count. The outcome checks come first.
+
+Outcome checks (manual on a phone plus Playwright where possible):
+- The next class is identifiable in about three seconds.
+- A class can be marked Present or Absent without leaving Today.
+- The first task to act on is findable without reading every task.
+- A deadline can be added or corrected without losing the place.
+- Attendance risk reads as one message.
+- A screen reader gets the same priorities in linear order.
+- The page feels calmer, not empty.
+
+Guardrails (measured with one reusable script on the busy fixture):
 
 - Above the fold at 412×915: 24 or fewer text items (from 36), 12 or fewer tap targets (from 17), 7 or fewer size/weight combinations (from 12).
 - No text under 13px except 12px uppercase labels.
 - All three due rows and the quick-add line visible without scrolling.
 - Task rows are two lines at 320, 360 and 412px with long subjects.
 - Exactly one attendance message at a time; no two banners together.
-- Title is one line for a 23-character name at 320px.
+- A 23-character name wraps to at most two lines at 320px, with the first class still above the fold.
 
 ## Tests
 
@@ -81,4 +94,4 @@ New: a density spec that measures the criteria above; unit checks for `splitGree
 
 ## Slices (one PR each)
 
-A type and spacing; B first-screen changes; C short class names; D palettes. A first, because B and C are measured against it.
+B first-screen content; C class labels; A type and spacing; D palettes. Order follows the content first: B (content model and hierarchy), C (class labels), then A (type and spacing, set after the duplicates are gone and checked with long names), then D (palettes, only after the hierarchy is stable). Slice 0 is a baseline capture of the busy fixture at 320, 360, 412 and 768px, light and dark, all palettes. Palettes are validated for contrast, now/next/done/late distinction, colour-blind reading and focus states; Register stays the loudest, the others quieter.
