@@ -40,6 +40,27 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
     }
   });
 
+  test('1c. Install screenshots: a narrow and a wide one, and the app identity is unchanged', async ({ page, request }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const href = await page.locator('link[rel="manifest"]').getAttribute('href');
+    const manifest = await (await request.get(href || 'manifest.json')).json();
+    // These three decide which installed app the phone updates: never changed.
+    expect(manifest.id).toBe('/clarity-desk');
+    expect(manifest.start_url).toBe('./index.html');
+    expect(manifest.scope).toBe('.');
+    const shots = manifest.screenshots || [];
+    for (const [form, size] of [['narrow', '1080x1920'], ['wide', '1920x1080']]) {
+      const one = shots.filter((x: any) => x.form_factor === form);
+      expect(one, `one ${form} screenshot`).toHaveLength(1);
+      expect(one[0].sizes).toBe(size);
+      expect(one[0].type).toBe('image/png');
+      expect(one[0].label).toBeTruthy();
+      const res = await request.get(one[0].src);
+      expect(res.status(), `${one[0].src} must be reachable`).toBe(200);
+      expect(res.headers()['content-type']).toContain('image/png');
+    }
+  });
+
   test('1b. A shortcut opens its page', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('cos_onboarding_done', 'true'));
     await page.goto('/index.html#timetable', { waitUntil: 'domcontentloaded' });

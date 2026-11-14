@@ -33,6 +33,10 @@
     { "name": "Tasks", "short_name": "Tasks", "description": "What's due, and add a task", "url": "./index.html#assignments", "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }] },
     { "name": "Timetable", "short_name": "Timetable", "description": "Your week of classes", "url": "./index.html#timetable", "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ],
+  "screenshots": [
+    { "src": "./screenshot-phone.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Today: your classes and what is due, on one screen" },
+    { "src": "./screenshot-wide.png", "sizes": "1920x1080", "type": "image/png", "form_factor": "wide", "label": "Today on a laptop: your day, what is due and attendance side by side" }
+  ],
   "icons": [
     {
       "src": "./icon-192.png",
