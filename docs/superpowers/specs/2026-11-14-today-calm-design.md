@@ -11,7 +11,7 @@ Decided by the user (2026-11-14):
 - Drop the date from Due rows (the chip already carries the relative day, or the date beyond a week).
 - Rework the weak dark palettes (do not retire them). Register stays the default for new installs.
 
-Assumption to confirm: a quip appears only on calm days (no risk, no late task, no exam inside a week), so a cheerful line never sits above an alarming one.
+Confirmed by the user (2026-11-14): a quip appears only on calm days (no risk, no late task, no exam inside a week) or when a target or goal has been reached (attendance at or above the aim, all of today's tasks done), so a cheerful line never sits above an alarming one.
 
 ## Audit (what is there today)
 
@@ -45,7 +45,7 @@ Nothing else under 13px. Spacing set: 8, 12, 16, 24, 32. Rows are separated by h
 
 ### B. Less on the first screen (Today renderer, display only)
 
-1. **Title and quip.** `getDynamicGreeting` stays as is. A new pure helper `splitGreeting(html) -> { title, quip }` splits at the first sentence break after the name. The title renders alone. The quip renders as the lead of the status line, only on calm days.
+1. **Title and quip.** `getDynamicGreeting` stays as is. A new pure helper `splitGreeting(html) -> { title, quip }` splits at the first sentence break after the name. The title renders alone. The quip renders as the lead of the status line, only on calm days or when a target or goal is achieved.
 2. **One attendance message.** When `todayFocusHTML` will show the attendance banner, `buildDashboardContextLine` skips its at-risk branch (new option `attendanceInBanner`) and falls to the next priority.
 3. **Two-line task rows.** Meta line shows the subject (and "Start: step" when it applies). The date is removed; the chip keeps "Due in N days" or the date beyond a week.
 4. **Three due rows** (`slice(0, 4)` becomes `slice(0, 3)`); "+N more tasks" absorbs the rest.
