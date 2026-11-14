@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u330",
+    date: "2026-11-14",
+    title: "The first screen now has one clear action: add what's due. Timetable, example day, tour and log in sit under \"Set up more later\"",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The first screen now has one clear action: add what's due. Timetable, example day, tour and log in sit under \"Set up more later\"",
+    points: [
+
+    ]
+  },
+  {
     id: "u329",
     date: "2026-11-14",
     title: "With reduced motion on, the top bar keeps a steady thin line instead of fading it in as you scroll",
