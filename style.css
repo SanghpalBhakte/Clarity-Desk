@@ -8591,3 +8591,16 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
   #page-dashboard .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
 }
+
+/* ── Today, lighter (come back): earlier classes fold, a count in words, rows settle once ── */
+#page-dashboard .rail-earlier { list-style: none; padding: 0; border-top: 0; }
+#page-dashboard .rail-earlier-toggle { display: inline-flex; align-items: center; min-height: 44px; margin: -4px 0; padding: 0; border: 0; background: none; color: var(--text-secondary); font: inherit; font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+#page-dashboard .rail-earlier-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+#page-dashboard .rail-earlier + .rail-row { border-top: 0; }
+#page-dashboard .panel-count { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
+@media (prefers-reduced-motion: no-preference) {
+  #page-dashboard .rail-row.is-settling, #page-dashboard .task-ledger-item.is-settling { animation: cd-settle 200ms ease-out; }
+  #page-dashboard .is-settling .task-checkbox svg, #page-dashboard .rail-row.is-settling .att-chip { animation: cd-tick 200ms ease-out; }
+}
+@keyframes cd-settle { from { background-color: color-mix(in srgb, var(--color-success) 16%, transparent); } to { background-color: transparent; } }
+@keyframes cd-tick { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }

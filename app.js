@@ -9356,6 +9356,17 @@ window.toggleDueMove = function(btn) {
   if (open) { const first = group.querySelector('button'); if (first) first.focus(); }
   else btn.focus();
 };
+// Today's earlier-classes fold (memory only, survives re-renders) and the row that was just acted on.
+let railEarlierOpen = false;
+window.toggleRailEarlier = function() {
+  railEarlierOpen = !railEarlierOpen;
+  if (state.currentPage === 'dashboard') renderDashboard();
+  const t = document.querySelector('#page-dashboard .rail-earlier-toggle');
+  if (t) t.focus();
+};
+let todaySettleState = { key: '', at: 0 };
+window.todaySettle = function(key) { todaySettleState = { key: String(key), at: Date.now() }; };
+const todaySettling = (key) => todaySettleState.key === String(key) && Date.now() - todaySettleState.at < 600;
 window.railShowMarks = function(btn) {
   const row = btn.closest('.rail-row');
   if (!row) return;
@@ -9404,14 +9415,18 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
     // Up to six rows, most urgent first (ended but unmarked, now, next,
     // later, then ended and marked), shown in time order.
     const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
-    const shown = all.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, RAIL_MAX_ROWS)
+    // Classes that are over and marked fold into one line; they never count against the cap,
+    // so opening the fold can't hide a class that still needs marking.
+    const earlier = all.filter(x => x.state === 'ended' && x.status !== 'unset');
+    const rest = all.filter(x => !earlier.includes(x));
+    const shown = rest.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, RAIL_MAX_ROWS)
       .sort((a, b) => a.from - b.from || a.i - b.i);
-    const more = all.length - shown.length;
+    const more = rest.length - shown.length;
     const sameTime = (x) => shown.some(y => y !== x && y.from === x.from);
 
     const markButtons = (x) => {
       const name = attrSafe(x.c.subject);
-      const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${val === 'attended' ? 'attended' : 'skipped'}" data-key="${attrSafe(x.key)}" onclick="setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
+      const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${val === 'attended' ? 'attended' : 'skipped'}" data-key="${attrSafe(x.key)}" onclick="todaySettle(this.dataset.key);setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
       const group = `<div class="rail-marks${x.status === 'unset' ? '' : ' is-folded'}" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}${attStatusChipHTML(x.status)}</div>`;
       // Once marked, the mark is in words on the row; "Change" brings the buttons back.
       return x.status === 'unset' ? group
@@ -9431,7 +9446,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       return bits.join(' · ');
     };
     const rowHTML = (x) => `
-      <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
+      <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}${todaySettling(x.key) ? ' is-settling' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
         <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
         <span class="rail-body">
           <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}${railClassLabel(x.c) !== x.c.subject ? `<span class="sr-only"> (${escHtml_cd(x.c.subject)})</span>` : ''}</button>
@@ -9445,7 +9460,12 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
     const nowAt = live ? -1 : shown.findIndex(x => x.from > currentMin);
     // The line says "Now" in words, so the time is not told by colour alone.
     const nowLine = `<li class="rail-now"><span>${formatDisplayTime(hhmm(Math.min(currentMin, 1439)))}</span><i aria-hidden="true"></i><b>Now</b></li>`;
-    const rows = shown.map((x, k) => (k === nowAt ? nowLine : '') + rowHTML(x)).join('') + (!live && nowAt === -1 ? nowLine : '');
+    if (!earlier.length) railEarlierOpen = false;
+    const earlierHTML = earlier.length
+      ? `<li class="rail-earlier"><button type="button" class="rail-earlier-toggle" aria-expanded="${railEarlierOpen}" onclick="toggleRailEarlier()">${earlier.length} earlier class${earlier.length === 1 ? '' : 'es'} · marked</button></li>`
+        + (railEarlierOpen ? earlier.slice().sort((a, b) => a.from - b.from || a.i - b.i).map(rowHTML).join('') : '')
+      : '';
+    const rows = earlierHTML + shown.map((x, k) => (k === nowAt ? nowLine : '') + rowHTML(x)).join('') + (!live && nowAt === -1 ? nowLine : '');
 
     const beaconAttrs = activeClass && activeClass.end
       ? ` data-beacon="live" data-start="${timeToMinutes(activeClass.time || '00:00')}" data-end="${timeToMinutes(activeClass.end)}"`
@@ -11694,6 +11714,13 @@ function renderDashboard() {
       </div>`;
   }
   // Classes live on the day rail (Your day); the card above is only for a holiday.
+  // "1 of 4 marked" in words, once a class has started (display only).
+  const railCountHTML = (() => {
+    if (onHoliday || !dayClasses.length || !dayClasses.some(c => timeToMinutes(c.time || '00:00') <= currentMin)) return '';
+    const dayMarks = attendanceData[dateStr] || {};
+    const done = dayClasses.filter(c => (dayMarks[attendanceKeyFor(c)] || 'unset') !== 'unset').length;
+    return ` <span class="panel-count">${done} of ${dayClasses.length} marked</span>`;
+  })();
   const railHTML = onHoliday ? '' : dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx });
   const classesOver = !onHoliday && dayClasses.length > 0 && !activeClass && !nextClass;
 
@@ -11909,7 +11936,7 @@ function renderDashboard() {
         <!-- SCHEDULE LEDGER -->
         <div class="dashboard-panel"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
-            <div class="panel-title is-label" role="heading" aria-level="2">Your day</div>
+            <div class="panel-title is-label" role="heading" aria-level="2">Your day${railCountHTML}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Timetable →</button>
           </div>
           ${railHTML || `
@@ -11963,8 +11990,8 @@ function renderDashboard() {
                   <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
                 </div>` : '';
               return `
-                <div class="task-ledger-item ${pCls}${canFix ? ' has-fix' : ''}">
-                  <div class="task-checkbox ${done ? 'checked' : ''}" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}" title="Mark completed">
+                <div class="task-ledger-item ${pCls}${canFix ? ' has-fix' : ''}${todaySettling(a.id) ? ' is-settling' : ''}">
+                  <div class="task-checkbox ${done ? 'checked' : ''}" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="todaySettle('${a.id}');toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();todaySettle('${a.id}');toggleAssignment('${a.id}')}" title="Mark completed">
                     ${done ? icons.check() : ''}
                   </div>
                   <div style="flex:1;min-width:0;cursor:pointer" data-task="${escAttr_cd(a.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
