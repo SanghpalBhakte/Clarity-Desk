@@ -1,6 +1,6 @@
 # New-semester reel: "Same four questions" (spec, 2026-11-14)
 
-Status: spec only, nothing built. A short vertical motion video for students who
+Status: phase 2 (screen capture) done 2026-11-16 in `~/Projects/clarity-desk-reel`; phase 3 next. A short vertical motion video for students who
 have never seen Clarity Desk, timed for the start of the new semester.
 
 ## Brief
@@ -26,23 +26,24 @@ is that: question, answer, four times.
 
 | | Reel v4 | This reel |
 |---|---|---|
-| Voice | founder: "so i built something" | "you", the new student |
-| Problem shown as | a student in chaos, then the app opens | four questions piling up in a group chat |
-| Footage | raw screen recording | designed motion with real screens set into it |
-| Look | old UI | Board and Sheet, calm Today |
-| Structure | one arc: hook, build, payoff | question and answer, four times |
+| Opening | a WhatsApp class group filling with chat bubbles, "the class group won't stop." | four questions typed as big words onto a ruled paper sheet; no chat, no phone frame |
+| Problem shown as | a deadline lost in a busy group chat | the same four questions every week |
+| Look | dark theme, the owner's real college data | Paper Slate, invented sample data, Board and Sheet |
+| Reveal | WhatsApp deadline import | timetable scan with review |
+| Structure | one arc, back to the chat at the end | question and answer, four times |
+| Close | "free · no app store · link in bio / made by a student" | "Start your semester on one desk." Free. address |
 
-v4 was described from the Creator HQ notes, not rewatched. The "v4 record" step
-in phase 2 closes that gap.
+Checked on 2026-11-16 from still frames of the v4 file, played muted (`V4-NOTES.md` in the
+reel folder). v4's sound was not checked.
 
 ## Shot list
 
 | # | Time | On screen | Text | Real feature behind it |
 |---|---|---|---|---|
-| 1 | 0.0-2.0 | Three chat bubbles land one after another, each readable as it lands: "which room??", "how many can i miss", "what's due tmrw" | **New sem. Same four questions.** (visible in frame 1) | none, the problem |
-| 2 | 2.0-4.5 | The bubbles are swept flat into one ruled sheet; the wordmark lands | **Clarity Desk.** Your semester in one place. | none, the turn |
+| 1 | 0.0-2.0 | On a blank ruled sheet, three questions are typed in fast, one per line, each readable as it lands: "which room?", "how many can I miss?", "what's due tomorrow?" | **New sem. Same four questions.** (visible in frame 1) | none, the problem |
+| 2 | 2.0-4.5 | The typed lines are struck through and the sheet settles into the app's Today; the wordmark lands | **Clarity Desk.** Your semester in one place. | none, the turn |
 | 3 | 4.5-9.0 | Timetable photo, scan line, the review screen, then the saved week | **Where's my class?** Snap your timetable. | timetable scan with review |
-| 4 | 9.0-12.5 | Today: now and next, with room and time | **What's on now?** | Today screen |
+| 4 | 9.0-12.5 | Today: the class in progress with its time and minutes left, and the next class with its room | **What's on now?** | Today screen |
 | 5 | 12.5-17.0 | The line is set to 80, classes are marked, and the app's own result line appears and holds for 1.5 s | **Can I miss this one?** Set your line. Mark your classes. | attendance line, register |
 | 6 | 17.0-21.0 | Tasks due this week, nearest first | **What's due?** This week at a glance. | Tasks |
 | 7 | 21.0-24.0 | The Wi-Fi mark drops out; Today stays open and a class is marked | **No internet? Still opens.** | offline-first PWA |
@@ -53,12 +54,15 @@ the cue sheet for sound.
 
 Notes on the shots:
 
-- **Shot 1** has three bubbles, not four, so each can be read. Each one is a
+- **Shot 1** has three typed lines, not four, so each can be read. Each one is a
   question the reel answers later. "Four questions" is paid off by shots 3-6.
+  No chat bubbles or chat UI: v4 opened on a group chat.
 - **Shot 5** ends on the result in the app's real words. The live class row and
   toast read like `82% · can miss 3` (`attendanceStandingLine` in `app.js`). The
   capture shows whatever the app prints for the sample data; the number is not
   typed in by hand.
+- **Shot 4** shows the screen as it is: the room of the class in progress is cut
+  off by its Present/Absent buttons, so the room is read from the next class.
 - **Shot 6** is Tasks only. Study Vault is left for its own reel (backlog 3).
 - **Shot 8** shows the plain address, because nobody types a query string.
 
@@ -106,7 +110,7 @@ Each claim must be true on the live site on the day the reel is posted.
 - **Text size:** questions 80-90 px, answer lines 60-70 px, weight 600 or more.
 - **Motion:** shots 1-2 are fast and crowded; from shot 3 on, calm and even. The
   contrast is the message.
-- **Sound:** bubble pops building to one hit at 2.0 s, then a quiet tick per
+- **Sound:** quick key taps building to one hit at 2.0 s, then a quiet tick per
   answer and a soft close. Music is added only after the silent cut is approved.
   Sounds are generated or from a licence-free source, listed in `ASSETS.md`.
 
