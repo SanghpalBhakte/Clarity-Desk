@@ -8702,3 +8702,23 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 @media (hover: hover) and (min-width: 1024px) and (prefers-reduced-motion: reduce) {
   #page-dashboard .task-ledger-item, #page-dashboard .rail-row, #page-dashboard .dash-shortcuts .filter-chip { transition: none; }
 }
+
+/* Settings: every option reads at a comfortable size on every screen. Re-pointing the tokens here
+   also lifts the inline sizes inside Settings. Floor is 14px; fields are 16px (no zoom on iOS). */
+#page-settings {
+  --text-2xs: 0.875rem;
+  --text-xs:  0.875rem;
+  --text-sm:  0.9375rem;
+  --text-base: 1rem;
+  --text-md:  1.0625rem;
+}
+#page-settings .form-label { font-size: 0.9375rem; }
+#page-settings .form-input, #page-settings .form-select, #page-settings textarea { font-size: 1rem; min-height: 44px; }
+#page-settings .st-row-title { font-size: 1.0625rem; }
+#page-settings .st-row-sub, #page-settings .st-head-note, #page-settings .st-saved { font-size: 0.9375rem; }
+#page-settings .st-sub { font-size: 0.875rem; }
+#page-settings .st-link, #page-settings .st-nav-btn { font-size: 1rem; }
+#page-settings .swatch-name { font-size: 0.875rem; }
+#page-settings .btn { font-size: 0.9375rem; }
+/* Inline width:170px cut the longer options ("Day Before (Morning)") at the bigger size. */
+#page-settings .st-row select.form-select, #page-settings select[id^="np-"] { width: auto !important; min-width: 190px; max-width: 100%; padding: 5px 30px 5px 12px !important; }
