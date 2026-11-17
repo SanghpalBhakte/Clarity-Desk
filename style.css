@@ -8662,3 +8662,41 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   .ob-has-name .ob-actions .btn-primary { animation: ob-pop .28s ease-out; }
   .ob-name-input { transition: border-color .2s ease, box-shadow .2s ease; }
 }
+
+/* ── Laptop & desktop (1024px+): larger, calmer type; Settings uses its width; rows answer the mouse ──
+   The --text-* tokens drive both this file and the inline styles in app.js, so one block lifts every
+   screen. Floor is 13px, the same as phone Today. Phones are not touched. */
+@media (min-width: 1024px) {
+  :root:root {
+    --text-2xs:  0.8125rem;
+    --text-xs:   0.8125rem;
+    --text-sm:   0.875rem;
+    --text-base: 0.9375rem;
+    --text-md:   1rem;
+    --text-lg:   1.15rem;
+    --text-xl:   1.35rem;
+  }
+  body { font-size: 1rem; }
+  #page-settings .st-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 56px; }
+  #page-settings .st-body { max-width: 800px; }
+  #page-settings .st-nav-btn { min-height: 44px; }
+  #page-settings .st-sec .form-group { margin-bottom: 14px; }
+  .form-label { font-size: var(--text-base); }
+  .page-subtitle { font-size: var(--text-md); }
+  #page-settings .form-input, #page-settings .form-select { min-height: 44px; font-size: var(--text-md); }
+}
+@media (min-width: 1400px) {
+  .section-page { max-width: 1240px; }
+}
+@media (hover: hover) and (min-width: 1024px) {
+  #page-dashboard .task-ledger-item, #page-dashboard .rail-row { transition: background-color .15s ease; }
+  #page-dashboard .task-ledger-item:hover, #page-dashboard .rail-row:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+  #page-dashboard .quick-add input, #page-dashboard #quick-add-input { height: 44px !important; font-size: var(--text-md) !important; }
+  #page-dashboard #quick-add-input + .btn { height: 44px; font-size: var(--text-base) !important; padding-inline: 18px !important; }
+  #page-dashboard .dash-shortcuts .filter-chip { transition: border-color .15s ease; }
+  #page-dashboard .dash-shortcuts .filter-chip:hover { border-color: var(--color-thread, var(--accent)); }
+  #page-settings .st-nav-btn:hover { color: var(--text-primary); }
+}
+@media (hover: hover) and (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  #page-dashboard .task-ledger-item, #page-dashboard .rail-row, #page-dashboard .dash-shortcuts .filter-chip { transition: none; }
+}
