@@ -170,6 +170,42 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u339",
+    date: "2026-11-18",
+    title: "Settings: bigger text for every option, reminder dropdowns show their full label",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings: bigger text for every option, reminder dropdowns show their full label",
+    points: [
+
+    ]
+  },
+  {
+    id: "u338",
+    date: "2026-11-18",
+    title: "Laptop and desktop: bigger, easier-to-read text, Settings uses the full width, rows react to the mouse",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Laptop and desktop: bigger, easier-to-read text, Settings uses the full width, rows react to the mouse",
+    points: [
+
+    ]
+  },
+  {
+    id: "u337",
+    date: "2026-11-18",
+    title: "Today on a laptop: the right column starts level with your tasks, no stray scrollbar",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today on a laptop: the right column starts level with your tasks, no stray scrollbar",
+    points: [
+
+    ]
+  },
+  {
     id: "u336",
     date: "2026-11-14",
     title: "The welcome looks calmer in Azuki & Matcha, with small motion and soft tap sounds",
