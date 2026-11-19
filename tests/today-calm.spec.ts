@@ -79,3 +79,23 @@ test('late work: no quip above it', async ({ page }) => {
   const today = await open(page, 360, LATE);
   await expect(today.locator('.desk-quip')).toHaveCount(0);
 });
+
+test('desktop first run: setup guide and due panel do not overlap', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('__seeded')) return;
+    sessionStorage.setItem('__seeded', '1');
+    localStorage.setItem('cos_onboarding_dismissed', 'true');
+    localStorage.setItem('cos_onboarding_done', '1');
+  });
+  await page.goto('/');
+  await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+  const guide = page.locator('#page-dashboard .desk-setup-guide.setup-first');
+  const due = page.locator('#page-dashboard .panel-due');
+  await expect(guide).toBeVisible();
+  await expect(due).toBeVisible();
+  const [g, d] = [await guide.boundingBox(), await due.boundingBox()];
+  expect(g && d).toBeTruthy();
+  const overlap = g!.x < d!.x + d!.width && d!.x < g!.x + g!.width && g!.y < d!.y + d!.height && d!.y < g!.y + g!.height;
+  expect(overlap, JSON.stringify({ g, d })).toBe(false);
+});

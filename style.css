@@ -8618,7 +8618,7 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard.active .dashboard-right-panel { grid-column: 2; grid-row: 12; }
   #page-dashboard.active .desk-setup-guide.setup-first { grid-row: 13; }
   /* No day panel (no timetable, or on a break): Due keeps column 1 as before, nothing sits beside an empty column. */
-  #page-dashboard.active:has(.panel-day[style*="display:none"]) .panel-due { grid-column: 1; grid-row: 10 / -1; }
+  #page-dashboard.active:has(.panel-day[style*="display:none"]) .panel-due { grid-column: 1; grid-row: 10 / 12; }
   #page-dashboard.active:has(.panel-day[style*="display:none"]) .dashboard-right-panel { grid-row: 11; }
   #page-dashboard.active:has(.panel-day[style*="display:none"]) .desk-setup-guide.setup-first { grid-row: 12; }
   /* The right column is plain flow here, not the old sticky scroll box (no stray scrollbar). */
