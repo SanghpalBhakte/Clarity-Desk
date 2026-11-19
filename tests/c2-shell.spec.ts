@@ -36,7 +36,7 @@ test.describe('phone 390x844', () => {
 
   test('no topbar on a phone; the large title says Today with the date', async ({ page }) => {
     await expect(page.locator('.topbar')).toBeHidden();
-    await expect(page.locator('.c2-lt-title')).toHaveText(/^(Today|Tomorrow)$/);
+    await expect(page.locator('.c2-lt-title')).toHaveText('Today');
     await expect(page.locator('.c2-lt-date')).not.toBeEmpty();
     await expect(page.locator('.c2-largetitle #assistant-toggle-btn')).toBeVisible();
   });
