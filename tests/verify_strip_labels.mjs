@@ -98,5 +98,35 @@ check('gap: longest gap of 1.5 h or more', eq(busy.gap, { from: 18, to: 20.5 }))
 check('gap: none under 1.5 h', app.layoutStrip([E('a', 'A', 9, 10), E('b', 'B', 11, 12)], { width: 340, measure, own: {} }).gap === null);
 check('empty day', eq(app.layoutStrip([], { width: 340, measure, own: {} }).blocks, []));
 
+// Real timetable text: batch tags, brackets, typed short names, combined lab rows
+const C = (subject, code = '', type) => app.stripLabelCandidates({ subject, code, type });
+check('"OS Lab (Batch A2)" -> Operating Systems Lab, OS Lab, OS (never "OLBA")', eq(C('OS Lab (Batch A2)'), ['Operating Systems Lab', 'OS Lab', 'OS']));
+check('"Computer Networks Lab A1" -> CN Lab, CN', eq(C('Computer Networks Lab A1'), ['Computer Networks Lab', 'CN Lab', 'CN']));
+check('typed "DBMS" finds the full name first', eq(C('DBMS'), ['Database Management Systems', 'DBMS']));
+check('lab by type, not by name', eq(C('Data Structures', '', 'lab'), ['Data Structures Lab', 'DS Lab', 'DS']));
+check('a batch tag code ("A2") is not a short form', !C('Maths III', 'A2').includes('A2'));
+check('lowercase course number goes last', C('Signals', 'cs302').slice(-1)[0] === 'cs302');
+check('hyphenated name: Object-Oriented Programming -> OOP', C('Object-Oriented Programming').includes('OOP'));
+check('combined lab row -> whole text, "DS Lab + OS Lab", "2 labs"', eq(C('DS Lab A1 + OS Lab A2'), ['DS Lab A1 + OS Lab A2', 'DS + OS', '2 labs']));
+check('blank own name falls back to automatic', C('DBMS').length === app.stripLabelCandidates({ subject: 'DBMS' }, '   ').length);
+check('prototype names are safe', Array.isArray(C('constructor')) && !String(C('constructor')).includes('function'));
+
+// Same subject, two raw spellings: they may share a label; different subjects may not
+const same = app.layoutStrip([E('a', 'OS Lab (Batch A2)', 9, 9.4), E('b', 'Operating Systems', 10, 10.4), E('c', 'X', 14, 15)], { width: 340, measure, own: {} });
+check('same subject may repeat its short form (lab and theory both "OS")', same.blocks[0].label === 'OS' && same.blocks[1].label === 'OS');
+const ownCanon = app.layoutStrip([E('a', 'DBMS', 9, 15)], { width: 340, measure, own: { 'Database Management Systems': 'DB' } });
+check('own name is found by the canonical subject name', ownCanon.blocks[0].label === 'DB');
+check('own map with prototype keys is ignored', app.layoutStrip([E('a', 'constructor', 9, 15)], { width: 340, measure, own: {} }).blocks[0].label.indexOf('function') === -1);
+check('garbage own map does not throw', app.layoutStrip([E('a', 'DBMS', 9, 15)], { width: 340, measure, own: 'oops' }).blocks.length === 1);
+
+// Bad input
+const strTimes = app.layoutStrip([E('a', 'A', '9', '10'), E('b', 'B', '10', '11')], { width: 340, measure, own: {} });
+check('times given as text still sort as numbers', strTimes.start === 9 && strTimes.blocks.length === 2);
+const bad = app.layoutStrip([E('a', 'A', 10, 9), E('b', 'B', NaN, 11), null, E('c', 'C', 9, 10)], { width: 340, measure, own: {} });
+check('reversed, NaN and null entries are dropped', bad.blocks.length === 1 && eq(bad.blocks[0].ids, ['c']));
+const tiny = app.layoutStrip([E('a', 'A', 9, 9.01), E('b', 'B', 9.01, 15)], { width: 340, measure, own: {} });
+check('a sliver never gets a negative width', tiny.blocks.every(b => b.width >= 0));
+check('not an array', eq(app.layoutStrip(null, { width: 340, measure }).blocks, []));
+
 if (fails) { console.error(`${fails} strip check(s) failed`); process.exit(1); }
 console.log('All strip label checks passed.');

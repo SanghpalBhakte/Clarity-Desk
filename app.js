@@ -9486,11 +9486,11 @@ const STRIP_SHORT_FORMS = Object.assign({}, SUBJECT_CODE_MAP, {
 const STRIP_STOP_WORDS = new Set(['and', 'of', 'the', '&', 'for', 'in', 'to', 'with', 'on']);
 const STRIP_SUFFIX = { lab: 'Lab', labs: 'Lab', practical: 'Lab', practicals: 'Lab', tutorial: 'Tut' };
 const STRIP_ROMAN = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
-const STRIP_COURSE_NO = /^[A-Z]{2,4}\s?-?\d{3}/;
+const STRIP_COURSE_NO = /^[A-Z]{2,4}\s?-?\d{3}/i;
 
 // "Data Structures Lab" -> ['DS Lab', 'DS']; "Maths III" -> ['Maths III', 'M3']; "Library" -> ['Library'].
 function deriveShortForms(name) {
-  const w = String(name || '').replace(/[()]/g, ' ').split(/\s+/).filter(Boolean);
+  const w = String(name || '').replace(/[()]/g, ' ').replace(/([A-Za-z])[-/]([A-Za-z])/g, '$1 $2').split(/\s+/).filter(Boolean);
   let suf = '', num = '';
   if (w.length > 1 && STRIP_SUFFIX[w[w.length - 1].toLowerCase()]) suf = STRIP_SUFFIX[w.pop().toLowerCase()];
   if (w.length > 1 && /^(I{1,3}|IV|V|[1-5])$/.test(w[w.length - 1])) num = w.pop();
@@ -9511,20 +9511,39 @@ function deriveShortForms(name) {
   return out;
 }
 
+// The subject a class belongs to, as one name: "OS Lab (Batch A2)" -> "Operating Systems". Keys own strip
+// names (cos_strip_labels) and the "never two subjects on one label" rule.
+function stripSubjectKey(entry) {
+  const raw = String((entry && entry.subject) || '').trim();
+  const name = getCanonicalSubjectName(raw);
+  return (typeof name === 'string' && name.trim()) || raw.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // Labels to try for one class, best first. A student's own strip name is the only candidate when set.
 function stripLabelCandidates(entry, own) {
-  if (own) return [String(own)];
-  const subject = String((entry && entry.subject) || '').trim();
+  const ownName = String(own || '').trim();
+  if (ownName) return [ownName];
+  const raw = String((entry && entry.subject) || '').trim();
+  const uniq = (list) => list.filter((x, i) => x && list.indexOf(x) === i);
+  // A combined lab row ("DS Lab A1 + OS Lab A2"): the whole text, each part's shortest name, then "2 labs".
+  if (raw.includes('+')) {
+    const parts = raw.split('+').map(p => p.trim()).filter(Boolean);
+    const shortest = (p) => stripLabelCandidates({ subject: p }).slice(1).sort((a, b) => a.length - b.length)[0] || '';
+    const joined = parts.map(shortest);
+    return uniq([raw, joined.every(Boolean) ? joined.join(' + ') : '', parts.length > 1 ? `${parts.length} labs` : '']);
+  }
+  const isLab = (entry && entry.type === 'lab') || /\b(lab|labs|practicals?)\b/i.test(raw);
+  const name = stripSubjectKey(entry);
+  const full = isLab && !/\b(lab|labs|practicals?)$/i.test(name) ? name + ' Lab' : name;
   const rawCode = String((entry && entry.code) || '').trim();
   const course = STRIP_COURSE_NO.test(rawCode) ? rawCode : '';
-  const code = rawCode && !course && !/lab|theory|batch/i.test(rawCode) ? rawCode : '';
-  const base = subject.replace(/\s+(Lab|Practicals?)$/i, '');
-  const known = Object.prototype.hasOwnProperty.call(STRIP_SHORT_FORMS, subject) ? STRIP_SHORT_FORMS[subject]
-    : Object.prototype.hasOwnProperty.call(STRIP_SHORT_FORMS, base) ? STRIP_SHORT_FORMS[base] + (base !== subject ? ' Lab' : '')
-    : '';
-  const short = code || known;
-  const list = [subject, short, ...(short ? [] : deriveShortForms(subject)), course].filter(Boolean);
-  return list.filter((x, i) => list.indexOf(x) === i);
+  // Only a real short form counts as a code: not a batch tag ("A2"), "Lab"/"Theory", or a course number.
+  const code = rawCode && !course && /^[A-Za-z][A-Za-z&]{1,7}$/.test(rawCode)
+    && !/^[A-D][1-4]?$/i.test(rawCode) && !/lab|theory|batch/i.test(rawCode) ? rawCode : '';
+  const withLab = (s) => (isLab ? [s + ' Lab', s] : [s]);
+  const known = Object.prototype.hasOwnProperty.call(STRIP_SHORT_FORMS, name) ? STRIP_SHORT_FORMS[name] : '';
+  const shorts = code ? withLab(code) : known ? withLab(known) : deriveShortForms(full);
+  return uniq([full, ...shorts, course]);
 }
 
 // The strip for one day. entries: [{id, subject, code, from, to}] with times in decimal hours.
@@ -9533,8 +9552,11 @@ function layoutStrip(entries, opts) {
   const width = (opts && opts.width) || 0;
   const measure = (opts && opts.measure) || (t => String(t).length * 7);
   const own = (opts && opts.own) || {};
-  const list = (entries || []).filter(e => e && isFinite(e.from) && isFinite(e.to) && e.to > e.from)
-    .slice().sort((a, b) => a.from - b.from);
+  const list = (Array.isArray(entries) ? entries : [])
+    .filter(e => e && e.from !== null && e.to !== null && e.from !== '' && e.to !== '')
+    .map(e => Object.assign({}, e, { from: Number(e.from), to: Number(e.to) }))
+    .filter(e => isFinite(e.from) && isFinite(e.to) && e.to > e.from)
+    .sort((a, b) => a.from - b.from);
   if (!list.length) return { start: 0, end: 0, blocks: [], gap: null };
   const start = list[0].from;
   let end = Math.max(...list.map(e => e.to));
@@ -9549,21 +9571,18 @@ function layoutStrip(entries, opts) {
     else groups.push({ from: e.from, to: e.to, items: [e] });
   });
 
-  const used = {};   // label -> subject that has it, so two subjects never share one
-  const ownName = (subject) => {
-    const s = String(subject || '');
-    const key = typeof getCanonicalSubjectName === 'function' ? getCanonicalSubjectName(s) : s;
-    return own[key] || own[s] || '';
-  };
+  const used = new Map();   // label -> subject that has it, so two subjects never share one
+  const ownName = (key) => (Object.prototype.hasOwnProperty.call(own, key) && typeof own[key] === 'string' ? own[key] : '');
   const blocks = groups.map(g => {
     const left = x(g.from) + 1;
-    const w = x(g.to) - x(g.from) - 2;
+    const w = Math.max(0, x(g.to) - x(g.from) - 2);
     let label = '';
     if (g.items.length === 1) {
       const e = g.items[0];
-      for (const c of stripLabelCandidates(e, ownName(e.subject))) {
-        if (used[c] && used[c] !== e.subject) continue;
-        if (fits(c, w)) { used[c] = e.subject; label = c; break; }
+      const key = stripSubjectKey(e);
+      for (const c of stripLabelCandidates(e, ownName(key))) {
+        if (used.has(c) && used.get(c) !== key) continue;
+        if (fits(c, w)) { used.set(c, key); label = c; break; }
       }
     } else {
       const c = `${g.items.length} labs`;
