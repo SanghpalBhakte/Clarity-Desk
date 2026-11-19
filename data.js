@@ -170,6 +170,32 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u341",
+    date: "2026-11-19",
+    title: "Clearer messages when a timetable scan finds nothing, and an honest note on what a WhatsApp import keeps",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When a timetable photo gives no classes, the message no longer blames only the photo.",
+    points: [
+      "It now says the AI that helps read photos may be busy, so trying again in a few minutes can work, and when you are offline it says so plainly.",
+      "The WhatsApp import screen now says exactly what happens: the chat is read on this phone and never uploaded, and only the deadlines you add are kept, each with its message, syncing like your other tasks."
+    ]
+  },
+  {
+    id: "u340",
+    date: "2026-11-19",
+    title: "Clean up desk no longer removes breaks and free slots, and Subject Hubs shows one clean-up prompt",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "\"Declutter my desk\" used to delete a free slot or break when its label looked like scan noise or carried another group's tag, even though the \"Duplicate subject cards found\" banner never flagged it.",
+    points: [
+      "The cleanup now leaves every non-class row alone, the same rule the banner uses, so the banner, the preview and the cleanup always agree. Classes are cleaned exactly as before.",
+      "Subject Hubs no longer shows a red dot on Manage next to the banner that already says the same thing."
+    ]
+  },
+  {
     id: "u339",
     date: "2026-11-18",
     title: "Settings: bigger text for every option, reminder dropdowns show their full label",
