@@ -3317,10 +3317,7 @@ function handleTimetableImageUpload(event) {
 
       if (schedule.length === 0) {
         // Extraction found no valid classes
-        showTimetableUploadErrorModal(
-          'No classes showed up in this photo. A straight-on shot in good light, with the whole grid in frame, usually reads well.',
-          base64Data, mimeType
-        );
+        showTimetableUploadErrorModal(scanFoundNothingMessage(false), base64Data, mimeType);
         return;
       }
 
@@ -3344,6 +3341,18 @@ function handleTimetableImageUpload(event) {
   };
 
   reader.readAsDataURL(file);
+}
+
+// A scan with no classes can mean a hard-to-read photo OR that the AI which
+// helps read photos was busy, out of free scans or unreachable (the scan then
+// falls back to the phone alone and never sees the AI's error). Don't blame
+// only the photo. Offline is the one case known for sure.
+function scanFoundNothingMessage(isRetry) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'You’re offline, so your phone read this photo on its own and found no classes. Try again when you’re online, or type it in.';
+  }
+  return (isRetry ? 'Still no classes found. ' : 'No classes showed up in this photo. ')
+    + 'The AI that helps read photos may be busy right now, so trying again in a few minutes can work. A straight-on photo in good light, with the whole grid in frame, also helps.';
 }
 
 // Non-blocking error dialog with Retry, Upload Again, and Enter Manually options.
@@ -3381,7 +3390,7 @@ function showTimetableUploadErrorModal(reason, base64Data, mimeType) {
         document.getElementById('tt-loading-backdrop')?.remove();
         const schedule = result?.schedule;
         if (!Array.isArray(schedule) || schedule.length === 0) {
-          showTimetableUploadErrorModal('Still no classes found. A sharper photo may work, or you can type it in.', base64Data, mimeType);
+          showTimetableUploadErrorModal(scanFoundNothingMessage(true), base64Data, mimeType);
         } else {
           pendingExtractionNeedsReview = result?.needsReview || false;
           showTimetablePreviewModal(schedule);
@@ -17382,7 +17391,7 @@ function waRenderAddChat(errorMsg = '') {
   const body = document.getElementById('wa-body');
   if (!body) return;
   body.innerHTML = `
-    <p class="wa-lead">Paste the text, or pick a class group chat file. It’s read on this phone only and never uploaded.</p>
+    <p class="wa-lead">Paste the text, or pick a class group chat file. The chat is read on this phone and never uploaded. Only the deadlines you add are kept, each with its message, and they sync like your other tasks.</p>
     <input type="file" id="wa-file" accept=".txt,.zip,text/plain,application/zip" hidden onchange="waFilePicked(this)">
     <button type="button" class="btn-primary wa-choose" data-testid="wa-choose" onclick="document.getElementById('wa-file').click()">Choose chat file</button>
     <div class="form-group wa-paste-group">
