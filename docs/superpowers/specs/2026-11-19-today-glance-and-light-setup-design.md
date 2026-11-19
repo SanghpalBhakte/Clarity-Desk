@@ -1,6 +1,6 @@
 # Today at a glance, and a lighter setup: design
 
-Status: draft for review (2026-11-19). **The visual direction below is superseded; read `2026-11-19-handoff.md` first.** The audit, the desktop bug and the "visible holes" setup decision still stand. Scope: Today on every screen size, the new-student first run (welcome to a filled Today), and a short trust/polish list. Other screens are out of scope except where Today links into them.
+Status: draft for review (2026-11-19). **Superseded for Today and the look by `2026-11-20-today-c2-design.md`.** The audit, the desktop bug and the "visible holes" setup decision still stand. Scope: Today on every screen size, the new-student first run (welcome to a filled Today), and a short trust/polish list. Other screens are out of scope except where Today links into them.
 
 ## Understanding
 
