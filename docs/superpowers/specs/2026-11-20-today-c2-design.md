@@ -162,7 +162,7 @@ Feel rules:
 |---|---|---|---|---|---|
 | Highlighter (`terracotta`, was Register) | `#f3f1ea` | `#1d2024` | charcoal `#25292f` | marigold `#e9a00c` / `#f7e4b8` | `#0d0e10`, `#1e2126`, `#f2b13a` |
 | Old Campus (`rose`, default, was Azuki & Matcha) | `#eef0e4` | `#2e3428` | wine `#683238` | olive `#8a9645` / `#e4ebc8` | `#0e0f0c`, `#2a1d1f`, `#b5c46a` |
-| Campus Sunset (`lavender`, was Ai & Kaki) | `#eaeef2` | `#1d3346` | navy `#223f5d` | persimmon `#d0794f` / `#f6dccd` | `#0b0e12`, `#18263a`, `#f29372` |
+| Last Bench (`lavender`, was Ai & Kaki) | `#eaeef2` | `#1d3346` | navy `#223f5d` | persimmon `#d0794f` / `#f6dccd` | `#0b0e12`, `#18263a`, `#f29372` |
 | Lo-fi (`apricot`, was Tetsu lamp) | `#e7edeb` | `#1d3433` | iron teal `#1c4a4e` | lamp lilac `#b3a5ee` / `#e6e1fa` | `#0a0f0f`, `#16363a`, `#c3b8f7` |
 
 **Dark mode.**
