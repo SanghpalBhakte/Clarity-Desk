@@ -8803,3 +8803,135 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 :root[data-theme="midnight-ink"][data-accent="apricot"] {
   --c2-bg: #0a0f0f; --c2-bar: #0a0f0f; --c2-now: #16363a; --c2-acc: #c3b8f7; --c2-acc-soft: color-mix(in srgb, #c3b8f7 22%, #0a0f0f);
 }
+
+/* ═══ C2 shell: floating tab bar (phone), floating sidebar (laptop), large title ═══
+   Last on purpose. Colours come from the --c2-* tokens above; status colours never change.
+   Markup and ids are the old ones; only classes and CSS changed. */
+:root { --c2-on-bg: var(--c2-ink); --c2-on-ink: var(--c2-bg); --c2-dock-bd: color-mix(in srgb, var(--c2-ink) 10%, transparent); --c2-dock-sh: 0 14px 30px -12px rgba(20, 24, 40, 0.28); }
+:root[data-theme="midnight-ink"] { --c2-on-bg: var(--c2-acc); --c2-on-ink: #111214; --c2-dock-bd: #2a2d34; --c2-dock-sh: 0 16px 34px -12px rgba(0, 0, 0, 0.85); }
+
+.app-shell, .main-wrapper, .content-area { background: var(--c2-bg); }
+.c2-compact, .c2-largetitle { display: none; }
+.c2-slot-title { display: none; }
+
+/* Floating pieces share one surface */
+html body .bottom-nav, html body .sidebar {
+  --text-primary: var(--c2-ink); --color-text-primary: var(--c2-ink);
+  --text-secondary: var(--c2-mut); --color-text-secondary: var(--c2-mut); --text-muted: var(--c2-mut); --color-text-tertiary: var(--c2-mut);
+  --border: var(--c2-line); --color-border-subtle: var(--c2-line); --color-border-default: var(--c2-line); --color-rule: var(--c2-line);
+  --accent: var(--c2-acc); --color-thread: var(--c2-acc); --bg-hover: var(--c2-blk-end); --surface-2: var(--c2-blk-end);
+  background: var(--c2-dock); color: var(--c2-ink);
+  border: 1px solid var(--c2-dock-bd); box-shadow: var(--c2-dock-sh);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+}
+@media (prefers-reduced-transparency: reduce) { html body .bottom-nav, html body .sidebar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--c2-sheet); } }
+
+/* ── Phone ── */
+@media (max-width: 767px) {
+  :root:root:root { --nav-h: 88px; --topbar-h: 56px; }
+  html body .topbar { display: none; }
+  .app-shell { grid-template-rows: 1fr; }
+
+  html body .bottom-nav {
+    left: 16px; right: 16px; width: auto; height: 64px;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    border-radius: 99px; padding: 0 7px;
+    justify-content: space-between; align-items: center;
+  }
+  html body .bottom-nav .bottom-nav-item {
+    flex: 0 0 auto; flex-direction: row; gap: 7px; height: 50px; min-width: 50px; min-height: 44px; padding: 0 13px;
+    border-radius: 99px; justify-content: center; color: var(--c2-mut); font-size: 0.875rem; font-weight: 600; letter-spacing: 0;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease;
+  }
+  html body .bottom-nav .bottom-nav-item::before { content: none; }
+  html body .bottom-nav .bottom-nav-item > span { max-width: 0; overflow: hidden; white-space: nowrap; transition: max-width 0.25s cubic-bezier(0.23, 1, 0.32, 1); }
+  html body .bottom-nav .bottom-nav-item.active { background: var(--c2-on-bg); color: var(--c2-on-ink); }
+  html body .bottom-nav .bottom-nav-item.active > span { max-width: 90px; }
+  html body .bottom-nav .bottom-nav-item:active { transform: scale(0.9); }
+  html body .bottom-nav .bottom-nav-item svg { flex-shrink: 0; transform: none; }
+  html body .bottom-nav .bnav-dot { top: 11px; right: 11px; width: 8px; height: 8px; background: var(--c2-bad); box-shadow: 0 0 0 2px var(--c2-dock); }
+
+  /* Narrow phones (320 px): the label of the active tab still has to fit beside four icons */
+  @media (max-width: 359px) {
+    html body .bottom-nav .bottom-nav-item { min-width: 40px; padding: 0 9px; gap: 5px; font-size: 0.8125rem; }
+  }
+
+  /* Large title, then a slim frosted bar once it scrolls away (and on every other page) */
+  .c2-largetitle { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding-top: env(safe-area-inset-top, 0px); }
+  body.c2-pinned .c2-largetitle { display: none; }
+  .c2-lt-date { margin: 0; font-size: 0.875rem; color: var(--c2-mut); }
+  .c2-lt-title { margin: 2px 0 0; font-size: 2.125rem; line-height: 1.05; font-weight: 700; letter-spacing: -0.025em; color: var(--c2-ink); }
+  .c2-lt-actions #assistant-toggle-btn { width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--c2-s1); border: 1px solid var(--c2-line); color: var(--c2-ink); box-shadow: none; }
+  .c2-lt-actions #assistant-toggle-btn span { display: none; }
+  .c2-lt-actions #assistant-toggle-btn svg { width: 20px; height: 20px; }
+
+  .c2-compact {
+    display: flex; align-items: center; gap: 10px; position: fixed; top: 0; left: 0; right: 0; z-index: 120;
+    height: calc(52px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 16px 0 16px;
+    background: color-mix(in srgb, var(--c2-bar) 82%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+    border-bottom: 1px solid var(--c2-line);
+    opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.18s ease, visibility 0s linear 0.18s;
+  }
+  body.c2-scrolled .c2-compact, body.c2-pinned .c2-compact { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 0.18s ease, visibility 0s; }
+  .c2-compact-title { flex: 1; min-width: 0; font-size: 1.0625rem; font-weight: 600; color: var(--c2-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c2-back, .c2-ask { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--c2-ink); flex-shrink: 0; }
+  .c2-back[hidden] { display: none; }
+  .c2-back { margin-left: -10px; }
+  .c2-ask { width: 36px; height: 36px; background: var(--c2-s1); border: 1px solid var(--c2-line); }
+  body.c2-pinned .content-area { padding-top: calc(52px + env(safe-area-inset-top, 0px) + 12px); }
+  .c2-compact button:focus-visible, .c2-lt-actions button:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
+
+  /* More sheet floats above the bar and carries the parts the topbar used to hold */
+  .more-sheet { max-height: calc(100vh - var(--nav-h) - env(safe-area-inset-bottom, 0px) - 24px); overflow-y: auto; border-radius: 24px; background: var(--c2-sheet); border-color: var(--c2-line); }
+  .more-sheet-backdrop { background: var(--c2-scrim); }
+  .more-sheet-slots { display: flex; flex-direction: column; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--c2-line); }
+  .more-sheet-slots > * {
+    display: flex; align-items: center; gap: 14px; width: 100%; min-height: 56px; height: auto; padding: 10px 12px; margin: 0;
+    border: 0; border-radius: 12px; background: transparent; box-shadow: none; color: var(--c2-ink);
+    font: inherit; font-size: 0.92rem; font-weight: 600; text-align: left; cursor: pointer;
+  }
+  .more-sheet-slots > *:active { background: var(--c2-blk-end); }
+  .more-sheet-slots > *:focus-visible { outline: 2px solid var(--c2-acc); outline-offset: -2px; }
+  .more-sheet-slots .c2-slot-title { display: inline; order: 1; }
+  .more-sheet-slots .theme-toggle-label, .more-sheet-slots #sync-text { display: inline; order: 2; margin-left: auto; font-size: 0.76rem; font-weight: 500; color: var(--c2-mut); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .more-sheet-slots .storage-status-dot { display: none; }
+  .more-sheet-slots svg { color: var(--c2-mut); flex-shrink: 0; }
+  .more-sheet-slots #topbar-avatar svg { width: 20px; height: 20px; }
+  .more-sheet-slots .theme-toggle-icon, .more-sheet-slots .storage-status-icon { display: inline-flex; width: 20px; justify-content: center; }
+}
+
+/* ── Laptop ── */
+@media (min-width: 768px) {
+  :root:root { --c2-side-w: 264px; }
+  html.sidebar-collapsed:root { --c2-side-w: 100px; }
+  html body .sidebar {
+    display: flex; position: fixed; left: 16px; top: 16px; bottom: 16px; height: auto; z-index: 90;
+    width: 232px; border-radius: 24px; padding: 20px 12px; gap: 2px;
+  }
+  html.sidebar-collapsed body .sidebar { width: 68px; padding: 16px 10px; }
+  html body .topbar { margin-left: var(--c2-side-w); background: var(--c2-bg); border-bottom: 1px solid var(--c2-line); color: var(--c2-ink); box-shadow: none; --text-primary: var(--c2-ink); --text-secondary: var(--c2-mut); --text-muted: var(--c2-mut); --border: var(--c2-line); --accent: var(--c2-acc); }
+  html body .topbar .topbar-theme-toggle { color: var(--c2-mut); background: var(--c2-blk-end); border-color: var(--c2-line); }
+  html body .topbar-brand { display: none; }
+  html body .content-area { margin-left: var(--c2-side-w); width: auto; flex: 1; border-radius: 0; }
+
+  .c2-side-brand { display: flex; align-items: center; gap: 10px; padding: 2px 12px 16px; font-weight: 600; font-size: 1rem; color: var(--c2-ink); cursor: pointer; border-radius: 12px; }
+  .c2-side-brand .brand-desk { color: inherit; }
+  .c2-side-brand img { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; }
+  html.sidebar-collapsed .c2-side-brand { justify-content: center; padding: 2px 0 12px; }
+  .c2-side-brand:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
+
+  html body .sidebar .nav-item { min-height: 44px; padding: 0 12px; border-radius: 99px; font-size: 0.9375rem; font-weight: 500; color: var(--c2-mut); gap: 12px; border-bottom: 0; }
+  html body .sidebar .nav-item svg { width: 20px; height: 20px; color: currentColor; }
+  html body .sidebar .nav-item:hover { background: var(--c2-blk-end); color: var(--c2-ink); text-decoration: none; }
+  html:not(.sidebar-collapsed) body .sidebar .nav-item.active, html body .sidebar .nav-item.active { background: var(--c2-on-bg); color: var(--c2-on-ink); font-weight: 500; box-shadow: none; }
+  html body .sidebar .nav-item.active svg { color: currentColor; }
+  html body .sidebar .nav-item.active::before { content: none; }
+  html body .sidebar .nav-item:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
+  html body .sidebar .sidebar-section-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-mut); padding: 18px 12px 4px; margin: 0; }
+  html.sidebar-collapsed body .sidebar .nav-item { justify-content: center; padding: 0; }
+  html body .sidebar .nav-item .nav-alert-dot { background: var(--c2-bad); }
+}
+
+/* The page colour is now the palette's own, a touch lighter: nudge the Lab badge text so it keeps AA contrast on the "now" row */
+.type-lab { color: color-mix(in srgb, var(--green) 85%, var(--text-primary)); }

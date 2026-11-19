@@ -262,17 +262,28 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     await clearRuntime(page);
   });
 
-  test('topbar theme switch is visible', async ({ page }) => {
-    const topbar = page.locator(SEL.topbar).first();
-    await expect(topbar).toBeVisible();
+  // On a phone the topbar is gone and the theme switch lives in the More sheet.
+  async function themeToggle(page: Page) {
+    const found = await firstVisible(page, SEL.themeToggle);
+    if (found) return found;
+    if (await page.locator('#bnav-more').isVisible().catch(() => false)) {
+      await page.locator('#bnav-more').click();
+      await page.locator('#theme-toggle-btn').waitFor({ state: 'visible' });   // the sheet slides in
+      return firstVisible(page, SEL.themeToggle);
+    }
+    return null;
+  }
 
-    const toggle = await firstVisible(page, SEL.themeToggle);
+  test('topbar theme switch is visible', async ({ page }) => {
+    if ((page.viewportSize()?.width ?? 1440) >= 768) await expect(page.locator(SEL.topbar).first()).toBeVisible();
+
+    const toggle = await themeToggle(page);
     expect(toggle, 'No visible topbar theme toggle found').not.toBeNull();
     await expect(toggle!).toBeVisible();
   });
 
   test('topbar theme switch toggles only between canonical themes', async ({ page }) => {
-    const toggle = await firstVisible(page, SEL.themeToggle);
+    const toggle = await themeToggle(page);
     expect(toggle, 'No visible theme toggle found').not.toBeNull();
 
     const before = await page.locator(SEL.rootHtml).getAttribute('data-theme');
