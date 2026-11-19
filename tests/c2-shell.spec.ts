@@ -48,6 +48,11 @@ test.describe('phone 390x844', () => {
     const before = await page.locator('html').getAttribute('data-theme');
     await sheet.locator('#theme-toggle-btn').click();
     await expect(page.locator('html')).not.toHaveAttribute('data-theme', before!);
+    // Two more taps come back to Auto, and the row says so (a tap never drops Auto unseen)
+    await sheet.locator('#theme-toggle-btn').click();
+    await sheet.locator('#theme-toggle-btn').click();
+    await expect(sheet.locator('#theme-toggle-label')).toHaveText('Auto');
+    expect(await page.evaluate(() => localStorage.getItem('cos_theme'))).toBe('auto');
     await sheet.locator('#topbar-avatar').click();
     await expect(page.locator('#page-settings')).toBeVisible();
   });

@@ -2391,27 +2391,31 @@ function isLikelyGarbledSubjectName(name) {
   return false;
 }
 
+// Known short codes. getCanonicalSubjectCode's output becomes a subject's `code`, and attendance is
+// stored under that code: never add or change an entry here without a migration. The Today strip
+// reads this list too, plus its own display-only extras (STRIP_SHORT_FORMS).
+const SUBJECT_CODE_MAP = {
+  'Data Structures': 'DS',
+  'Digital Electronics and Microprocessors': 'DEMP',
+  'Probability and Statistics': 'PBST',
+  'Business Management and Financial Accounting': 'BMFA',
+  'Constitution of India': 'COI',
+  'Community Engagement': 'CE',
+  'Web Development': 'WD',
+  'Operating Systems': 'OS',
+  'Database Management Systems': 'DBMS',
+  'Artificial Intelligence': 'AI',
+  'Machine Learning': 'ML',
+  'Computer Networks': 'CN',
+  'Multi Disciplinary Minor': 'MDM'
+};
+
 function getCanonicalSubjectCode(rawName, rawCode) {
   if (rawCode && rawCode.trim() && !/lab|theory|batch/i.test(rawCode)) {
     return rawCode.trim().toUpperCase();
   }
   const cleanName = getCanonicalSubjectName(rawName);
-  const CODE_MAP = {
-    'Data Structures': 'DS',
-    'Digital Electronics and Microprocessors': 'DEMP',
-    'Probability and Statistics': 'PBST',
-    'Business Management and Financial Accounting': 'BMFA',
-    'Constitution of India': 'COI',
-    'Community Engagement': 'CE',
-    'Web Development': 'WD',
-    'Operating Systems': 'OS',
-    'Database Management Systems': 'DBMS',
-    'Artificial Intelligence': 'AI',
-    'Machine Learning': 'ML',
-    'Computer Networks': 'CN',
-    'Multi Disciplinary Minor': 'MDM'
-  };
-  if (CODE_MAP[cleanName]) return CODE_MAP[cleanName];
+  if (SUBJECT_CODE_MAP[cleanName]) return SUBJECT_CODE_MAP[cleanName];
   if (rawCode && rawCode.trim()) return rawCode.trim().toUpperCase();
   const words = cleanName.split(/\s+/).filter(Boolean);
   if (words.length > 1) {
@@ -8075,11 +8079,16 @@ function setAccent(accent, originEvent) {
 }
 
 function toggleTheme(originEvent) {
-  // Simple binary day/night switch (until the header button goes in Task 3). It stores an explicit
-  // light or dark choice, even from Auto. Accent is a separate choice (see setAccent()).
-  const current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
-  const next = current === 'midnight-ink' ? 'paper-slate' : 'midnight-ink';
-  setTheme(next, originEvent);
+  // Cycles Auto -> the phone's opposite -> the phone's own mode -> Auto. The first tap always changes the
+  // colours, and the label names the saved choice, so Auto is never lost unseen. Accent is separate (setAccent()).
+  setTheme(nextThemeSetting(localStorage.getItem(KEY_THEME), systemPrefersDark()), originEvent);
+}
+
+function nextThemeSetting(stored, prefersDark) {
+  const setting = normalizeThemeSetting(stored);
+  const phoneMode = prefersDark ? 'midnight-ink' : 'paper-slate';
+  if (setting === 'auto') return prefersDark ? 'paper-slate' : 'midnight-ink';
+  return setting === phoneMode ? 'auto' : phoneMode;
 }
 
 function setTheme(setting, originEvent) {
@@ -8203,11 +8212,12 @@ function updateThemeSelector(setting) {
   const icon = document.getElementById('theme-toggle-icon');
   const label = document.getElementById('theme-toggle-label');
 
-  // `setting` is the saved choice (auto / light / dark); the button shows the mode actually painted.
+  // `setting` is the saved choice (auto / light / dark). The label names that choice; the icon shows the mode painted.
   const theme = resolveThemeMode(setting, systemPrefersDark());
   const isDark = theme === 'midnight-ink';
-  const themeName = THEME_LABELS[theme] || 'Paper Slate';
-  const nextThemeName = isDark ? 'Paper Slate' : 'Midnight Ink';
+  const nameOf = (s) => s === 'auto' ? 'Auto' : (THEME_LABELS[s] || 'Paper Slate');
+  const themeName = nameOf(normalizeThemeSetting(setting));
+  const nextThemeName = nameOf(nextThemeSetting(setting, systemPrefersDark()));
   if (btn) {
     btn.setAttribute('aria-label', `Current theme: ${themeName}. Click to switch to ${nextThemeName}.`);
     btn.setAttribute('title', `Switch to ${nextThemeName}`);
@@ -9462,6 +9472,112 @@ function railClassLabel(entry, max = 28) {
   if (!cut) cut = title.split(/\s+/)[0].slice(0, Math.max(room, 1));
   cut = cut.replace(/[\s+&,/·:-]+$/, '') || cut;
   return (code ? code + ' · ' : '') + cut + '…';
+}
+
+// ── C2 strip helpers ──
+// Pure: no DOM, no storage. Display only; nothing here is ever saved (the student's own
+// strip names come in as `own`, read from cos_strip_labels by the caller). Spec §4.
+// Short forms the strip may show but that must never become a subject code (see SUBJECT_CODE_MAP).
+const STRIP_SHORT_FORMS = Object.assign({}, SUBJECT_CODE_MAP, {
+  'Environmental Studies': 'EVS',
+  'Object Oriented Programming': 'OOP',
+  'Computer Organisation and Architecture': 'COA'
+});
+const STRIP_STOP_WORDS = new Set(['and', 'of', 'the', '&', 'for', 'in', 'to', 'with', 'on']);
+const STRIP_SUFFIX = { lab: 'Lab', labs: 'Lab', practical: 'Lab', practicals: 'Lab', tutorial: 'Tut' };
+const STRIP_ROMAN = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
+const STRIP_COURSE_NO = /^[A-Z]{2,4}\s?-?\d{3}/;
+
+// "Data Structures Lab" -> ['DS Lab', 'DS']; "Maths III" -> ['Maths III', 'M3']; "Library" -> ['Library'].
+function deriveShortForms(name) {
+  const w = String(name || '').replace(/[()]/g, ' ').split(/\s+/).filter(Boolean);
+  let suf = '', num = '';
+  if (w.length > 1 && STRIP_SUFFIX[w[w.length - 1].toLowerCase()]) suf = STRIP_SUFFIX[w.pop().toLowerCase()];
+  if (w.length > 1 && /^(I{1,3}|IV|V|[1-5])$/.test(w[w.length - 1])) num = w.pop();
+  const core = w.filter(x => !STRIP_STOP_WORDS.has(x.toLowerCase()));
+  if (!core.length) return [];
+  const compound = /^(micro|thermo|bio|nano|geo|hydro|aero)([a-z]{5,})$/i;
+  const single = core.length === 1;
+  const base = single ? core[0] : core.map(x => {
+    const m = x.match(compound);
+    return m ? (m[1][0] + m[2][0]).toUpperCase() : x[0].toUpperCase();
+  }).join('');
+  const n = num ? (STRIP_ROMAN[num] || num) : '';
+  const withNum = num ? (single ? base + ' ' + num : base + n) : base;
+  const out = [];
+  if (suf) out.push(withNum + ' ' + suf);
+  out.push(withNum);
+  if (num) out.push(base[0].toUpperCase() + n);
+  return out;
+}
+
+// Labels to try for one class, best first. A student's own strip name is the only candidate when set.
+function stripLabelCandidates(entry, own) {
+  if (own) return [String(own)];
+  const subject = String((entry && entry.subject) || '').trim();
+  const rawCode = String((entry && entry.code) || '').trim();
+  const course = STRIP_COURSE_NO.test(rawCode) ? rawCode : '';
+  const code = rawCode && !course && !/lab|theory|batch/i.test(rawCode) ? rawCode : '';
+  const base = subject.replace(/\s+(Lab|Practicals?)$/i, '');
+  const known = Object.prototype.hasOwnProperty.call(STRIP_SHORT_FORMS, subject) ? STRIP_SHORT_FORMS[subject]
+    : Object.prototype.hasOwnProperty.call(STRIP_SHORT_FORMS, base) ? STRIP_SHORT_FORMS[base] + (base !== subject ? ' Lab' : '')
+    : '';
+  const short = code || known;
+  const list = [subject, short, ...(short ? [] : deriveShortForms(subject)), course].filter(Boolean);
+  return list.filter((x, i) => list.indexOf(x) === i);
+}
+
+// The strip for one day. entries: [{id, subject, code, from, to}] with times in decimal hours.
+// Returns blocks in px (left, width, a whole-word label or '') and the longest free gap of 1.5 h+.
+function layoutStrip(entries, opts) {
+  const width = (opts && opts.width) || 0;
+  const measure = (opts && opts.measure) || (t => String(t).length * 7);
+  const own = (opts && opts.own) || {};
+  const list = (entries || []).filter(e => e && isFinite(e.from) && isFinite(e.to) && e.to > e.from)
+    .slice().sort((a, b) => a.from - b.from);
+  if (!list.length) return { start: 0, end: 0, blocks: [], gap: null };
+  const start = list[0].from;
+  let end = Math.max(...list.map(e => e.to));
+  if (end - start < 6) end = start + 6;
+  const x = h => (h - start) / (end - start) * width;
+  const fits = (label, w) => measure(label) + 6 <= w;
+
+  const groups = [];
+  list.forEach(e => {
+    const g = groups[groups.length - 1];
+    if (g && e.from < g.to - 1e-9) { g.items.push(e); g.to = Math.max(g.to, e.to); }
+    else groups.push({ from: e.from, to: e.to, items: [e] });
+  });
+
+  const used = {};   // label -> subject that has it, so two subjects never share one
+  const ownName = (subject) => {
+    const s = String(subject || '');
+    const key = typeof getCanonicalSubjectName === 'function' ? getCanonicalSubjectName(s) : s;
+    return own[key] || own[s] || '';
+  };
+  const blocks = groups.map(g => {
+    const left = x(g.from) + 1;
+    const w = x(g.to) - x(g.from) - 2;
+    let label = '';
+    if (g.items.length === 1) {
+      const e = g.items[0];
+      for (const c of stripLabelCandidates(e, ownName(e.subject))) {
+        if (used[c] && used[c] !== e.subject) continue;
+        if (fits(c, w)) { used[c] = e.subject; label = c; break; }
+      }
+    } else {
+      const c = `${g.items.length} labs`;
+      if (fits(c, w)) label = c;
+    }
+    return { left, width: w, label, ids: g.items.map(e => e.id), kind: g.items.length === 1 ? 'one' : 'group' };
+  });
+
+  let gap = null;
+  for (let i = 1; i < groups.length; i++) {
+    const from = groups[i - 1].to, to = groups[i].from;
+    if (to - from >= 1.5 && (!gap || to - from > gap.to - gap.from)) gap = { from, to };
+  }
+  return { start, end, blocks, gap };
 }
 
 function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx }) {
