@@ -159,7 +159,7 @@ D:\Clarity Desk\
 | (task fields, v192) | `cos_custom_tasks` | Optional, additive: `source: 'whatsapp'`, `startTime`/`endTime` ('HH:MM', 24h). Only present on tasks made by the WhatsApp import; `sanitizeTask()` keeps them when valid and never adds them to other tasks. Older app versions drop them on save, which is harmless. See §12. |
 | `KEY_CUSTOM_LINKS` | `cos_custom_links` | Subject vault items `{ subject, code, color, resources: [...] }` |
 | `KEY_BACKUP_SNAPSHOTS` | `cos_backup_snapshots` | Array of rollback snapshots for instant undo/restore |
-| `KEY_THEME` | `cos_theme` | Current theme key (`paper-slate` or `midnight-ink` — legacy names alias into these, see §7) |
+| `KEY_THEME` | `cos_theme` | Theme setting (`auto`, `paper-slate` or `midnight-ink` — `auto` follows the phone; legacy names alias into the two modes, see §7) |
 | `KEY_NOTIF_PREFS` | (see `loadNotifPrefs`) | Per-category notification preferences — also drives the server-side push job, see §10 |
 | `KEY_PUSH_REGISTERED` | `cos_push_registered` | Local flag: has this device registered an FCM token for background push? See §10 |
 | `KEY_ATT_TARGET` | `cos_att_target` | Attendance target %; now also synced to Firestore as `attTarget` so the background-push job can read it, see §10 |

@@ -39,7 +39,8 @@ const PRECACHE_ASSETS = [
   './badge-96.png',
   'fonts/instrument-sans.woff2',
   'fonts/instrument-sans-italic.woff2',
-  'fonts/bricolage-grotesque.woff2'
+  'fonts/bricolage-grotesque.woff2',
+  'fonts/lexend.woff2'
 ];
 
 // The app shell must be saved, or this version does not install (the old one
