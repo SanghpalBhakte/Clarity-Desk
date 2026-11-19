@@ -249,6 +249,12 @@ console.log('\n10. Plain pasted text (a circular, no WhatsApp timestamps)');
   check('chat: DD/MM chat headers still drop an impossible 11/30 (unchanged)', usChat.items.length === 0, JSON.stringify(usChat.items.map(describe)));
   check('findDate without the flag keeps DD/MM only', P.findDate('due 11/30/2026', NOW, true) === null);
   check('entry points say "Paste a message or circular"', (appSrc2.match(/Paste a message or circular/g) || []).length >= 4 && !/Paste from WhatsApp|>From WhatsApp</.test(appSrc2));
+  // The import screen's promise must match what is saved: the chat itself is
+  // never uploaded, but each added deadline keeps its message (description)
+  // and syncs like any task, so the screen must say so.
+  const lead = (appSrc2.match(/<p class="wa-lead">([^<]*)<\/p>/) || [])[1] || '';
+  const keepsMessage = P.candidateToTaskFields({ kind: 'sub', date: NOW, title: 't', text: 'Submit lab record by Friday' }).description === 'Submit lab record by Friday';
+  check('import screen says added deadlines keep their message and sync', keepsMessage && /never uploaded/.test(lead) && /each with its message/.test(lead) && /sync/.test(lead), lead);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

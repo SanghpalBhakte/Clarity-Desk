@@ -431,6 +431,21 @@ check('11. A scan-legend-only abbreviation resolves end-to-end via reconstructTi
   return entry.subjectInferred === true || 'expected subjectInferred flag set on the schedule entry';
 });
 
+// A scan that finds no classes must not blame only the photo: the AI that
+// helps read photos may have been busy or out of free scans (its error is
+// swallowed and the phone's own read is used). Offline says so plainly.
+check('"no classes found" message mentions a busy AI, and says offline when offline', () => {
+  const fnSrc = (appSrc.match(/function scanFoundNothingMessage\(isRetry\) \{[\s\S]*?\n\}\n/) || [])[0];
+  if (!fnSrc) return 'scanFoundNothingMessage not found in app.js';
+  const run = (onLine, isRetry) => new Function('navigator', `${fnSrc}; return scanFoundNothingMessage(${isRetry});`)({ onLine });
+  const first = run(true, false), retry = run(true, true), offline = run(false, false);
+  if (!/AI .*busy/.test(first) || !/photo/.test(first)) return `first scan: ${first}`;
+  if (!/^Still no classes found/.test(retry) || !/AI .*busy/.test(retry)) return `retry: ${retry}`;
+  if (!/offline/.test(offline) || /busy/.test(offline)) return `offline: ${offline}`;
+  const callers = (appSrc.match(/showTimetableUploadErrorModal\(scanFoundNothingMessage\((true|false)\)/g) || []).length;
+  return callers === 2 || `expected both empty-scan paths to use it, found ${callers}`;
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);
