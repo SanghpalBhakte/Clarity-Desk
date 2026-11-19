@@ -30,7 +30,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
   const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { resolveThemeMode, normalizeThemeSetting, ACCENT_LABELS, PALETTE_SWATCHES };`)();
+const app = new Function(`${code}\n return { resolveThemeMode, normalizeThemeSetting, nextThemeSetting, ACCENT_LABELS, PALETTE_SWATCHES };`)();
 let fails = 0;
 const check = (name, ok) => { if (!ok) { fails++; console.error('FAIL', name); } else console.log('ok  ', name); };
 
@@ -49,6 +49,9 @@ check('auto + phone light = paper-slate', app.resolveThemeMode('auto', false) ==
 check('saved light wins over a dark phone', app.resolveThemeMode('paper-slate', true) === 'paper-slate');
 check('saved dark wins over a light phone', app.resolveThemeMode('midnight-ink', false) === 'midnight-ink');
 check('garbage follows the phone', app.resolveThemeMode('banana', true) === 'midnight-ink' && app.resolveThemeMode(null, false) === 'paper-slate');
+check('tap cycle, light phone: auto -> dark -> light -> auto', app.nextThemeSetting('auto', false) === 'midnight-ink' && app.nextThemeSetting('midnight-ink', false) === 'paper-slate' && app.nextThemeSetting('paper-slate', false) === 'auto');
+check('tap cycle, dark phone: auto -> light -> dark -> auto', app.nextThemeSetting('auto', true) === 'paper-slate' && app.nextThemeSetting('paper-slate', true) === 'midnight-ink' && app.nextThemeSetting('midnight-ink', true) === 'auto');
+check('tap from nothing saved or garbage behaves like auto', app.nextThemeSetting(null, false) === 'midnight-ink' && app.nextThemeSetting('banana', true) === 'paper-slate');
 check('palette names', app.ACCENT_LABELS.apricot === 'Lo-fi' && app.ACCENT_LABELS.terracotta === 'Highlighter' && app.ACCENT_LABELS.rose === 'Old Campus' && app.ACCENT_LABELS.lavender === 'Last Bench');
 const note = Object.fromEntries(app.PALETTE_SWATCHES.map(p => [p.accent, p.note]));
 check('palette notes', note.terracotta === 'Charcoal ink, marigold highlighter' && note.rose === 'Old brick and olive lawns' && note.lavender === 'Evening navy, persimmon sky' && note.apricot === 'Deep teal, lamplight lilac');

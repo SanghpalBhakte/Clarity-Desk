@@ -8075,11 +8075,16 @@ function setAccent(accent, originEvent) {
 }
 
 function toggleTheme(originEvent) {
-  // Simple binary day/night switch (until the header button goes in Task 3). It stores an explicit
-  // light or dark choice, even from Auto. Accent is a separate choice (see setAccent()).
-  const current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
-  const next = current === 'midnight-ink' ? 'paper-slate' : 'midnight-ink';
-  setTheme(next, originEvent);
+  // Cycles Auto -> the phone's opposite -> the phone's own mode -> Auto. The first tap always changes the
+  // colours, and the label names the saved choice, so Auto is never lost unseen. Accent is separate (setAccent()).
+  setTheme(nextThemeSetting(localStorage.getItem(KEY_THEME), systemPrefersDark()), originEvent);
+}
+
+function nextThemeSetting(stored, prefersDark) {
+  const setting = normalizeThemeSetting(stored);
+  const phoneMode = prefersDark ? 'midnight-ink' : 'paper-slate';
+  if (setting === 'auto') return prefersDark ? 'paper-slate' : 'midnight-ink';
+  return setting === phoneMode ? 'auto' : phoneMode;
 }
 
 function setTheme(setting, originEvent) {
@@ -8203,11 +8208,12 @@ function updateThemeSelector(setting) {
   const icon = document.getElementById('theme-toggle-icon');
   const label = document.getElementById('theme-toggle-label');
 
-  // `setting` is the saved choice (auto / light / dark); the button shows the mode actually painted.
+  // `setting` is the saved choice (auto / light / dark). The label names that choice; the icon shows the mode painted.
   const theme = resolveThemeMode(setting, systemPrefersDark());
   const isDark = theme === 'midnight-ink';
-  const themeName = THEME_LABELS[theme] || 'Paper Slate';
-  const nextThemeName = isDark ? 'Paper Slate' : 'Midnight Ink';
+  const nameOf = (s) => s === 'auto' ? 'Auto' : (THEME_LABELS[s] || 'Paper Slate');
+  const themeName = nameOf(normalizeThemeSetting(setting));
+  const nextThemeName = nameOf(nextThemeSetting(setting, systemPrefersDark()));
   if (btn) {
     btn.setAttribute('aria-label', `Current theme: ${themeName}. Click to switch to ${nextThemeName}.`);
     btn.setAttribute('title', `Switch to ${nextThemeName}`);

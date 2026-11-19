@@ -8849,6 +8849,8 @@ html body .bottom-nav, html body .sidebar {
   html body .bottom-nav .bottom-nav-item.active > span { max-width: 90px; }
   html body .bottom-nav .bottom-nav-item:active { transform: scale(0.9); }
   html body .bottom-nav .bottom-nav-item svg { flex-shrink: 0; transform: none; }
+  /* The bar floats 24 px above the home indicator, so the add button has to clear the safe area too */
+  html body .fab { bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom, 0px)); }
   html body .bottom-nav .bnav-dot { top: 11px; right: 11px; width: 8px; height: 8px; background: var(--c2-bad); box-shadow: 0 0 0 2px var(--c2-dock); }
 
   /* Narrow phones (320 px): the label of the active tab still has to fit beside four icons */
