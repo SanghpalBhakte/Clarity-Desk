@@ -20668,6 +20668,7 @@ function openAssistant() {
   panel.setAttribute('aria-hidden', 'false');
   overlay?.classList.add('open');
   btn?.setAttribute('aria-expanded', 'true');
+  document.getElementById('c2-ask-compact')?.setAttribute('aria-expanded', 'true');
 
   const thread = document.getElementById('cd-chat-thread');
   if (thread && thread.children.length === 0) {
@@ -20687,6 +20688,7 @@ function closeAssistant() {
   panel.setAttribute('aria-hidden', 'true');
   overlay?.classList.remove('open');
   btn?.setAttribute('aria-expanded', 'false');
+  document.getElementById('c2-ask-compact')?.setAttribute('aria-expanded', 'false');
 }
 
 function toggleAssistant() {
@@ -21479,7 +21481,7 @@ function setupFABDrag() {
       || typeof document.getElementById !== 'function' || !document.body || !document.body.classList) return; // headless test harness
   var mq = window.matchMedia('(max-width: 767px)');
   var PAGE_NAMES = { timetable: 'Timetable', subjects: 'Subjects', assignments: 'Tasks', calendar: 'Calendar',
-    links: 'Study Vault', resources: 'Study Vault', summary: 'Daily Briefing', settings: 'Settings' };
+    links: 'Study Vault', resources: 'Study Vault', summary: 'Daily Briefing', review: 'Weekly Review', settings: 'Settings' };
 
   function place() {
     var phone = mq.matches;
@@ -21499,7 +21501,8 @@ function setupFABDrag() {
     }
   }
 
-  function dayLabel() { return new Date().getHours() >= 21 ? 'Tomorrow' : 'Today'; }
+  // "Tomorrow" after 9 PM only once Today shows tomorrow's classes (Task 7); until then the title must match the page.
+  function dayLabel() { return 'Today'; }
 
   window.c2SyncShell = function () {
     var body = document.body;
