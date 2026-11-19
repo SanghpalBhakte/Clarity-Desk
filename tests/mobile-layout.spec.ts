@@ -189,7 +189,7 @@ for (const width of WIDTHS) {
             .map(({ n, r }) => `${n} ${Math.round(r.left)}–${Math.round(r.right)}`);
         }, row);
         expect(bad, `row contents outside the screen at ${width}px`).toEqual([]);
-        for (const b of await r.locator('.rail-att').all()) {
+        for (const b of await r.locator('.rail-att:visible').all()) {
           expect((await b.boundingBox())!.height, 'Present / Absent height').toBeGreaterThanOrEqual(44);
         }
       });

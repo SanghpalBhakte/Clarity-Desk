@@ -9383,6 +9383,20 @@ window.railShowMarks = function(btn) {
   const on = row.querySelector('.rail-att.is-on') || row.querySelector('.rail-att');
   if (on) on.focus();
 };
+// Which rail row's "More" marks (Didn't happen / OD) are open (memory only, survives the minute re-render).
+let railMoreOpenKey = null;
+window.railMoreClear = function() { railMoreOpenKey = null; };
+window.toggleRailMore = function(btn) {
+  const group = btn && btn.parentElement && btn.parentElement.querySelector('.rail-more-marks');
+  if (!group) return;
+  const open = group.hidden;
+  group.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  const first = group.querySelector('.rail-att');
+  railMoreOpenKey = open && first ? first.dataset.key : null;
+  if (open) { if (first) first.focus(); }
+  else btn.focus();
+};
 // The class name as Today's rail shows it: display only, never stored. Short names
 // stay as they are; a long (often combined lab) title keeps the course code and is
 // cut at a word boundary. Nothing is abbreviated into an acronym. The full name stays
@@ -9420,6 +9434,7 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       return { c, i, from, to, key, status, state };
     });
     if (!all.length) return '';
+    if (railMoreOpenKey && !all.some(x => x.key === railMoreOpenKey)) railMoreOpenKey = null;
     // Up to six rows, most urgent first (ended but unmarked, now, next,
     // later, then ended and marked), shown in time order.
     const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
@@ -9434,8 +9449,9 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
 
     const markButtons = (x) => {
       const name = attrSafe(x.c.subject);
-      const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${val === 'attended' ? 'attended' : 'skipped'}" data-key="${attrSafe(x.key)}" onclick="todaySettle(this.dataset.key);setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
-      const group = `<div class="rail-marks${x.status === 'unset' ? '' : ' is-folded'}" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}${attStatusChipHTML(x.status)}</div>`;
+      const moreOpen = railMoreOpenKey === x.key || x.status === 'cancelled' || x.status === 'od_pending';
+      const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${ATT_STATUS_LABEL[val] || (val === 'attended' ? 'attended' : 'skipped')}" data-key="${attrSafe(x.key)}" onclick="railMoreClear();todaySettle(this.dataset.key);setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
+      const group = `<div class="rail-marks${x.status === 'unset' ? '' : ' is-folded'}" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}<button type="button" class="rail-more" aria-expanded="${moreOpen}" aria-controls="rail-more-${x.i}" aria-label="More marks for ${name}" onclick="toggleRailMore(this)">More</button><span class="rail-more-marks" id="rail-more-${x.i}" role="group" aria-label="Other marks for ${name}" onkeydown="if(event.key==='Escape'){event.stopPropagation();toggleRailMore(this.parentElement.querySelector('.rail-more'))}"${moreOpen ? '' : ' hidden'}>${btn('cancelled', "Didn't happen")}${btn('od_pending', 'On duty (OD)')}</span>${attStatusChipHTML(x.status)}</div>`;
       // Once marked, the mark is in words on the row; "Change" brings the buttons back.
       return x.status === 'unset' ? group
         : `<button type="button" class="rail-change" aria-label="Change the mark for ${name}" onclick="railShowMarks(this)">Change</button>${group}`;
