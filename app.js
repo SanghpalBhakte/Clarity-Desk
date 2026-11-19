@@ -206,12 +206,14 @@ function updateTopbarProfile() {
   const nameToDisplay = getDisplayName();
   const av = document.getElementById('topbar-avatar');
   if (av) {
+    // The row title is shown when the avatar lives in the phone More sheet (CSS hides it elsewhere).
+    const rowTitle = '<span class="c2-slot-title">Profile and settings</span>';
     if (nameToDisplay) {
-      av.textContent = getInitials(nameToDisplay);
+      av.innerHTML = escHtml_cd(getInitials(nameToDisplay)) + rowTitle;
       av.title       = nameToDisplay;
     } else {
       // A person icon, not "?": new users read "?" as a Help button.
-      av.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      av.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' + rowTitle;
       av.title     = 'Set up your profile';
     }
   }
@@ -8279,6 +8281,7 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
   });
 
   updateBackButtonUI();
+  if (typeof window.c2SyncShell === 'function') window.c2SyncShell();
   if (page !== current) dashboardSettled = false;   // arriving: greeting settles in once
   renderPage(page);
   // A new page starts at the top. Without this, Today opened at whatever
@@ -8357,6 +8360,7 @@ function updateBackButtonUI() {
     backBtn.style.display = 'none';
     backBtn.disabled = true;
   }
+  if (typeof window.c2SyncShell === 'function') window.c2SyncShell();
 }
 
 let __lastRenderPage = null;
@@ -8574,6 +8578,7 @@ function updateLiveClockDisplay() {
   if (!el) return;
   const { dateStr, timeStr } = formatLiveClockParts(new Date());
   el.textContent = `${dateStr} · ${timeStr}`;
+  if (typeof window.c2SyncShell === 'function') window.c2SyncShell();
 }
 
 // ── Class countdown on Today's Next Up / In Session card ─────────────────
@@ -21463,6 +21468,72 @@ function setupFABDrag() {
     }
   }, true); // use capture phase
 }
+
+// ── Phone shell: large title, slim bar, and the header parts that live in More ──
+// On a phone the topbar is gone. Its Ask Desk button moves into the large title and
+// its theme switch, sync status and avatar move into the More sheet. They are the same
+// elements (same ids, same handlers), so nothing else has to know. On a wider screen
+// they go back to the topbar in their original order. UI only: no cos_* data.
+(function () {
+  if (typeof document === 'undefined' || typeof window === 'undefined' || !window.matchMedia
+      || typeof document.getElementById !== 'function' || !document.body || !document.body.classList) return; // headless test harness
+  var mq = window.matchMedia('(max-width: 767px)');
+  var PAGE_NAMES = { timetable: 'Timetable', subjects: 'Subjects', assignments: 'Tasks', calendar: 'Calendar',
+    links: 'Study Vault', resources: 'Study Vault', summary: 'Daily Briefing', settings: 'Settings' };
+
+  function place() {
+    var phone = mq.matches;
+    var actions = document.querySelector('.topbar-actions');
+    var titleSlot = document.getElementById('c2-title-actions');
+    var sheetSlot = document.getElementById('more-sheet-slots');
+    if (!actions || !titleSlot || !sheetSlot) return;
+    var ask = document.getElementById('assistant-toggle-btn');
+    var theme = document.getElementById('theme-toggle-btn');
+    var sync = document.getElementById('sync-status-btn');
+    var avatar = document.getElementById('topbar-avatar');
+    if (phone) {
+      if (ask) titleSlot.appendChild(ask);
+      [avatar, theme, sync].forEach(function (el) { if (el) sheetSlot.appendChild(el); });
+    } else {
+      [theme, sync, ask, avatar].forEach(function (el) { if (el) actions.appendChild(el); });
+    }
+  }
+
+  function dayLabel() { return new Date().getHours() >= 21 ? 'Tomorrow' : 'Today'; }
+
+  window.c2SyncShell = function () {
+    var body = document.body;
+    if (!body) return;
+    var page = (typeof state !== 'undefined' && state && state.currentPage) || 'dashboard';
+    var onToday = page === 'dashboard';
+    var hasBack = (function () {
+      var b = document.getElementById('nav-back-btn');
+      return !!b && b.style.display !== 'none' && !b.disabled;
+    })();
+    var title = onToday ? dayLabel() : (PAGE_NAMES[page] || 'Clarity Desk');
+    var t = document.getElementById('c2-lt-title');
+    var d = document.getElementById('c2-lt-date');
+    var ct = document.getElementById('c2-compact-title');
+    var back = document.getElementById('c2-back-btn');
+    if (t && t.textContent !== title) t.textContent = title;
+    if (ct && ct.textContent !== title) ct.textContent = title;
+    if (d) {
+      var now = new Date();
+      var txt = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      if (d.textContent !== txt) d.textContent = txt;
+    }
+    if (back) back.hidden = !hasBack;
+    body.classList.toggle('c2-pinned', !onToday);
+  };
+
+  function onScroll() { document.body.classList.toggle('c2-scrolled', (window.scrollY || 0) > 50); }
+
+  place();
+  if (mq.addEventListener) mq.addEventListener('change', place); else if (mq.addListener) mq.addListener(place);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  window.c2SyncShell();
+})();
 
 // ── Calm navigation: collapsible sidebar, mobile "More" sheet, chip overflow ──
 // Self-contained on purpose: it never touches navigate() or any cos_* data.

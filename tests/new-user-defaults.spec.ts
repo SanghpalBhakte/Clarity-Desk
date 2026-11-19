@@ -29,6 +29,8 @@ test('Auto follows the phone when it flips, and a saved choice does not', async 
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('midnight-ink');
   await page.evaluate(() => (window as any).setTheme('paper-slate'));
+  // setTheme paints inside a view transition, so the saved value lands a moment later
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('cos_theme'))).toBe('paper-slate');
   await page.emulateMedia({ colorScheme: 'light' });
   await page.emulateMedia({ colorScheme: 'dark' });
   expect(await page.evaluate(() => [document.documentElement.dataset.theme, localStorage.getItem('cos_theme')])).toEqual(['paper-slate', 'paper-slate']);
