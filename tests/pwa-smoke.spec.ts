@@ -226,3 +226,18 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
     await expect.poll(() => fresh.length, { message: 'the worker should fetch app.js from the network' }).toBeGreaterThan(0);
   });
 });
+
+test('Lexend is self-hosted, in use, and precached for offline', async ({ page, request }) => {
+  expect((await request.get('/fonts/lexend.woff2')).status()).toBe(200);
+  await page.goto('/');
+  await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+  await page.evaluate(() => document.fonts.load("400 16px Lexend"));
+  expect(await page.evaluate(() => document.fonts.check("400 16px Lexend"))).toBe(true);
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toContain('Lexend');
+  const cached = await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    for (const k of await caches.keys()) if (await (await caches.open(k)).match('fonts/lexend.woff2')) return true;
+    return false;
+  });
+  expect(cached).toBe(true);
+});

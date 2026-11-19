@@ -8735,3 +8735,71 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 #page-dashboard .rail-line:has(.rail-marks:not(.is-folded)) .rail-marks, #page-dashboard .rail-row.show-marks .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
 #page-dashboard .rail-line .rail-more { margin-block: -8px; margin-inline-start: 6px; }
 #page-dashboard .rail-line .rail-more-marks { flex: 1 1 100%; }
+
+/* ═══ C2 tokens (owns colour/type; keep last) ═══
+   Today C2 token layer. Later tasks read only these --c2-* tokens. Status colours (ok / bad) never change per palette.
+   A palette sets five things: page, ink, now card, accent, accent-soft (dark: page, now, accent). --c2-bar is the opaque page
+   colour: theme-color reads it, and the frosted bars mix it with transparency. Old layers above are retired in a later cleanup. ═══ */
+:root:root { /* beats the theme-scoped font tokens above */
+  --font-ui: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: var(--font-ui);
+  --font-display: var(--font-ui);
+  --font-editorial: var(--font-ui);
+  --font-mono: var(--font-ui);
+}
+
+/* Shared light values */
+:root, :root[data-theme="paper-slate"] {
+  --c2-s1: #ffffff; --c2-mut: #5d6460; --c2-line: #e1e1d9; --c2-acc-ink: #1d1405;
+  --c2-now-ink: #f4f4ef; --c2-now-mut: #b5c0ba;
+  --c2-blk: #dedcd3; --c2-blk-end: #ebeae3;
+  --c2-ok: #15784e; --c2-ok-bg: #dcf1e6; --c2-bad: #bd3a20; --c2-bad-bg: #fbe6df;
+  --c2-now-ok: #5fe0a1; --c2-now-bad: #ff8a78;
+  --c2-dock: rgba(255, 255, 255, 0.84); --c2-sheet: #ffffff; --c2-scrim: rgba(12, 14, 13, 0.32);
+}
+
+/* Shared dark values */
+:root[data-theme="midnight-ink"] {
+  --c2-s1: #17191e; --c2-ink: #f1f2f4; --c2-mut: #a3a8b0; --c2-line: #25282f; --c2-acc-ink: #1c1406;
+  --c2-now-ink: #f1f2f4; --c2-now-mut: #a3a8b0;
+  --c2-blk: #363a44; --c2-blk-end: #24272e;
+  --c2-ok: #5fe0a1; --c2-ok-bg: #163628; --c2-bad: #ff8a78; --c2-bad-bg: #3a1f1a;
+  --c2-dock: rgba(28, 30, 35, 0.86); --c2-sheet: #1b1d22; --c2-scrim: rgba(0, 0, 0, 0.5);
+}
+
+/* Before data-accent is set: Old Campus, light */
+:root {
+  --c2-bg: #eef0e4; --c2-bar: #eef0e4; --c2-ink: #2e3428; --c2-now: #683238; --c2-acc: #8a9645; --c2-acc-soft: #e4ebc8;
+}
+
+/* Highlighter (terracotta) */
+:root[data-theme="paper-slate"][data-accent="terracotta"] {
+  --c2-bg: #f3f1ea; --c2-bar: #f3f1ea; --c2-ink: #1d2024; --c2-now: #25292f; --c2-acc: #e9a00c; --c2-acc-soft: #f7e4b8;
+}
+:root[data-theme="midnight-ink"][data-accent="terracotta"] {
+  --c2-bg: #0d0e10; --c2-bar: #0d0e10; --c2-now: #1e2126; --c2-acc: #f2b13a; --c2-acc-soft: color-mix(in srgb, #f2b13a 22%, #0d0e10);
+}
+
+/* Old Campus (rose) */
+:root[data-theme="paper-slate"][data-accent="rose"] {
+  --c2-bg: #eef0e4; --c2-bar: #eef0e4; --c2-ink: #2e3428; --c2-now: #683238; --c2-acc: #8a9645; --c2-acc-soft: #e4ebc8;
+}
+:root[data-theme="midnight-ink"][data-accent="rose"] {
+  --c2-bg: #0e0f0c; --c2-bar: #0e0f0c; --c2-now: #2a1d1f; --c2-acc: #b5c46a; --c2-acc-soft: color-mix(in srgb, #b5c46a 22%, #0e0f0c);
+}
+
+/* Last Bench (lavender) */
+:root[data-theme="paper-slate"][data-accent="lavender"] {
+  --c2-bg: #eaeef2; --c2-bar: #eaeef2; --c2-ink: #1d3346; --c2-now: #223f5d; --c2-acc: #d0794f; --c2-acc-soft: #f6dccd;
+}
+:root[data-theme="midnight-ink"][data-accent="lavender"] {
+  --c2-bg: #0b0e12; --c2-bar: #0b0e12; --c2-now: #18263a; --c2-acc: #f29372; --c2-acc-soft: color-mix(in srgb, #f29372 22%, #0b0e12);
+}
+
+/* Lo-fi (apricot) */
+:root[data-theme="paper-slate"][data-accent="apricot"] {
+  --c2-bg: #e7edeb; --c2-bar: #e7edeb; --c2-ink: #1d3433; --c2-now: #1c4a4e; --c2-acc: #b3a5ee; --c2-acc-soft: #e6e1fa;
+}
+:root[data-theme="midnight-ink"][data-accent="apricot"] {
+  --c2-bg: #0a0f0f; --c2-bar: #0a0f0f; --c2-now: #16363a; --c2-acc: #c3b8f7; --c2-acc-soft: color-mix(in srgb, #c3b8f7 22%, #0a0f0f);
+}

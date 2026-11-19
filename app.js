@@ -5505,7 +5505,7 @@ function applyCloudDataInner(data) {
     // write-back was never needed for that case and only actively harmful
     // for the multi-device case, so it's gone. A cloud value that differs
     // from local now just leaves this device's local choice alone.
-    if (!localTheme && ALL_THEMES.includes(cloudTheme)) {
+    if (!localTheme && ALL_THEME_SETTINGS.includes(cloudTheme)) {
       localStorage.setItem(KEY_THEME, cloudTheme);
       initTheme();
     }
@@ -7884,6 +7884,8 @@ window.resetAssignmentFilters = function() {
 // (data-accent) is an independent personalization axis that works
 // in both modes, so switching mode never resets a chosen accent.
 const ALL_THEMES = ['paper-slate', 'midnight-ink'];
+// What is saved in cos_theme: a mode, or 'auto' (follow the phone). data-theme always holds the resolved mode.
+const ALL_THEME_SETTINGS = ['auto', ...ALL_THEMES];
 
 const THEME_LABELS = {
   'paper-slate':  'Paper Slate',
@@ -7896,18 +7898,18 @@ const ALL_ACCENTS = ['terracotta', 'rose', 'lavender', 'apricot'];
 // both modes; see style.css 1b/2b). The stored values stay the same, so
 // backups, sync and older app versions need no change.
 const ACCENT_LABELS = {
-  'terracotta': 'Register',
-  'rose':       'Azuki & Matcha',
-  'lavender':   'Ai & Kaki',
-  'apricot':    'Tetsu lamp'
+  'terracotta': 'Highlighter',
+  'rose':       'Old Campus',
+  'lavender':   'Last Bench',
+  'apricot':    'Lo-fi'
 };
 
-// Settings preview colours: page, ink, signature colour.
+// Settings preview colours: page, ink, now-card colour.
 const PALETTE_SWATCHES = [
-  { accent: 'terracotta', note: 'Paper, ink and board green', colors: ['#F2F2EC', '#17211C', '#1E3A2F'] },
-  { accent: 'lavender',   note: 'Indigo ink with persimmon',   colors: ['#E4E9EE', '#2C4F73', '#D0794F'] },
-  { accent: 'apricot',    note: 'Iron teal and amber lamp',    colors: ['#E8E6DF', '#2F625C', '#D39A4E'] },
-  { accent: 'rose',       note: 'Red bean and tea leaf',       colors: ['#E9ECDD', '#7D3F45', '#9AA65A'] }
+  { accent: 'terracotta', note: 'Charcoal ink, marigold highlighter', colors: ['#F3F1EA', '#1D2024', '#25292F'] },
+  { accent: 'lavender',   note: 'Evening navy, persimmon sky',        colors: ['#EAEEF2', '#1D3346', '#223F5D'] },
+  { accent: 'apricot',    note: 'Deep teal, lamplight lilac',         colors: ['#E7EDEB', '#1D3433', '#1C4A4E'] },
+  { accent: 'rose',       note: 'Old brick and olive lawns',          colors: ['#EEF0E4', '#2E3428', '#683238'] }
 ];
 
 // Retired flat 5-theme names (each baked mode+accent into one value)
@@ -7950,6 +7952,27 @@ const LEGACY_THEME_MAP = {
   'midnight-executive': 'midnight-ink'
 };
 
+// A saved cos_theme -> 'auto' | 'paper-slate' | 'midnight-ink'. Nothing saved or an unknown value is 'auto'.
+// Mirrored inline in the index.html head script (it must run before this file loads).
+function normalizeThemeSetting(stored) {
+  if (typeof stored !== 'string') return 'auto';
+  if (ALL_THEME_SETTINGS.includes(stored)) return stored;
+  if (Object.prototype.hasOwnProperty.call(LEGACY_ACCENT_THEME_MAP, stored)) return 'paper-slate';
+  if (Object.prototype.hasOwnProperty.call(LEGACY_THEME_MAP, stored)) return LEGACY_THEME_MAP[stored];
+  return 'auto';
+}
+
+// The mode to paint: a saved light or dark wins; 'auto' follows the phone.
+function resolveThemeMode(stored, prefersDark) {
+  const setting = normalizeThemeSetting(stored);
+  if (setting === 'auto') return prefersDark ? 'midnight-ink' : 'paper-slate';
+  return setting;
+}
+
+function systemPrefersDark() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+
 // Installed Android PWAs bake the status bar's actual BACKGROUND color once
 // from manifest.json's theme_color -- it never tracks this live meta tag.
 // But Chrome still reads this live tag to pick the status bar's ICON color
@@ -7967,37 +7990,50 @@ function applyThemeColorMeta(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
   const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-  // A browser tab follows the top bar colour, so the browser's own bar continues it:
-  // the board on tablet and desktop, the page colour on phones (frosted top bar).
+  // A browser tab follows the active palette's bar colour (--c2-bar), so the browser's own bar continues it.
   const rootStyle = getComputedStyle(document.documentElement);
-  const onPhone = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-  const pageColor = (!onPhone && rootStyle.getPropertyValue('--board').trim()) || rootStyle.getPropertyValue('--raw-bg-0').trim();
-  meta.setAttribute('content', isStandalone ? '#101613' : (pageColor || (theme === 'midnight-ink' ? '#101613' : '#F2F2EC')));
+  const barColor = rootStyle.getPropertyValue('--c2-bar').trim();
+  meta.setAttribute('content', isStandalone ? '#101613' : (barColor || (theme === 'midnight-ink' ? '#0e0f0c' : '#eef0e4')));
 }
 
 function initTheme() {
   const saved = localStorage.getItem(KEY_THEME);
-  let theme   = saved;
   let migratedAccent = null;
-  if (theme && LEGACY_ACCENT_THEME_MAP[theme]) {
+  if (saved && LEGACY_ACCENT_THEME_MAP[saved]) {
     // Old flat theme (e.g. 'dusty-rose') baked mode+accent together —
     // split it: mode becomes Paper Slate, accent carries the color.
-    migratedAccent = LEGACY_ACCENT_THEME_MAP[theme];
-    theme = 'paper-slate';
+    migratedAccent = LEGACY_ACCENT_THEME_MAP[saved];
   }
-  if (theme && LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
-  // A new student starts on the light desk, whatever the phone's dark setting says; Settings changes it.
-  theme = theme || 'paper-slate';
-  if (!ALL_THEMES.includes(theme)) theme = 'paper-slate';
+  // A new student starts on Auto (follows the phone); a saved light or dark choice always wins.
+  const setting = normalizeThemeSetting(saved);
 
-  if (!saved || saved !== theme) {
-    localStorage.setItem(KEY_THEME, theme);
+  if (saved !== setting) {
+    localStorage.setItem(KEY_THEME, setting);
   }
   if (migratedAccent) localStorage.setItem(KEY_ACCENT, migratedAccent);
 
-  document.documentElement.setAttribute('data-theme', theme);
-  applyThemeColorMeta(theme);
-  updateThemeSelector(theme);
+  const mode = resolveThemeMode(setting, systemPrefersDark());
+  document.documentElement.setAttribute('data-theme', mode);
+  applyThemeColorMeta(mode);
+  updateThemeSelector(setting);
+  watchSystemTheme();
+}
+
+// While the setting is Auto, a change of the phone's light/dark follows straight away.
+let systemThemeWatched = false;
+function watchSystemTheme() {
+  if (systemThemeWatched || !window.matchMedia) return;
+  systemThemeWatched = true;
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const onChange = () => {
+    if (normalizeThemeSetting(localStorage.getItem(KEY_THEME)) !== 'auto') return;
+    const mode = resolveThemeMode('auto', mq.matches);
+    document.documentElement.setAttribute('data-theme', mode);
+    applyThemeColorMeta(mode);
+    updateThemeSelector('auto');
+  };
+  if (mq.addEventListener) mq.addEventListener('change', onChange);
+  else if (mq.addListener) mq.addListener(onChange);
 }
 
 function initAccent() {
@@ -8006,7 +8042,7 @@ function initAccent() {
     const legacyTheme = localStorage.getItem(KEY_THEME);
     accent = LEGACY_ACCENT_THEME_MAP[legacyTheme] || null;
   }
-  // New students start on Azuki & Matcha ('rose'); a saved choice always wins.
+  // New students start on Old Campus ('rose'); a saved choice always wins.
   if (!accent || !ALL_ACCENTS.includes(accent)) accent = 'rose';
   localStorage.setItem(KEY_ACCENT, accent);
   document.documentElement.setAttribute('data-accent', accent);
@@ -8037,24 +8073,26 @@ function setAccent(accent, originEvent) {
 }
 
 function toggleTheme(originEvent) {
-  // Simple binary day/night switch. Accent is a separate, independent
-  // choice (see setAccent()) so toggling mode never touches it.
+  // Simple binary day/night switch (until the header button goes in Task 3). It stores an explicit
+  // light or dark choice, even from Auto. Accent is a separate choice (see setAccent()).
   const current = document.documentElement.getAttribute('data-theme') || 'paper-slate';
   const next = current === 'midnight-ink' ? 'paper-slate' : 'midnight-ink';
   setTheme(next, originEvent);
 }
 
-function setTheme(theme, originEvent) {
-  if (LEGACY_THEME_MAP[theme]) theme = LEGACY_THEME_MAP[theme];
-  if (!ALL_THEMES.includes(theme)) return;
+function setTheme(setting, originEvent) {
+  if (LEGACY_THEME_MAP[setting]) setting = LEGACY_THEME_MAP[setting];
+  if (!ALL_THEME_SETTINGS.includes(setting)) return;
+  const theme = resolveThemeMode(setting, systemPrefersDark());
 
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', theme);
     applyThemeColorMeta(theme);
-    localStorage.setItem(KEY_THEME, theme);
-    updateThemeSelector(theme);
+    localStorage.setItem(KEY_THEME, setting);
+    updateThemeSelector(setting);
+    watchSystemTheme();
     // No renderPage() here: every themed value in the page already flows
     // from CSS custom properties, so the DOM needs no rebuild on a theme
     // switch. Rebuilding used to tear down and instantly repaint the main
@@ -8149,20 +8187,22 @@ function setTheme(theme, originEvent) {
       customTasks: state.customTasks,
       customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
       assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
-      theme: theme
+      theme: setting
     });
     db.collection('users').doc(currentUser.uid).set({
-      theme: theme,
+      theme: setting,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).catch(() => {});
   }
 }
 
-function updateThemeSelector(theme) {
+function updateThemeSelector(setting) {
   const btn = document.getElementById('theme-toggle-btn');
   const icon = document.getElementById('theme-toggle-icon');
   const label = document.getElementById('theme-toggle-label');
-  
+
+  // `setting` is the saved choice (auto / light / dark); the button shows the mode actually painted.
+  const theme = resolveThemeMode(setting, systemPrefersDark());
   const isDark = theme === 'midnight-ink';
   const themeName = THEME_LABELS[theme] || 'Paper Slate';
   const nextThemeName = isDark ? 'Paper Slate' : 'Midnight Ink';
@@ -8181,7 +8221,7 @@ function updateThemeSelector(theme) {
   // Sync Settings page theme swatches if currently rendered
   const swatches = document.querySelectorAll('.theme-swatch:not(.palette-swatch)');
   swatches.forEach(sw => {
-    const isMatch = sw.getAttribute('onclick')?.includes(`'${theme}'`);
+    const isMatch = sw.getAttribute('onclick')?.includes(`'${normalizeThemeSetting(setting)}'`);
     sw.classList.toggle('active', !!isMatch);
     sw.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
   });
@@ -19639,9 +19679,20 @@ function renderSettings() {
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-group" style="margin-bottom:20px">
         <label class="form-label" style="margin-bottom:6px">Mode</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Light for a daytime desk, dark for focused night study.</div>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Auto follows your phone. Or keep it light for the day and dark for night study.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          <button type="button" class="theme-swatch ${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${(document.documentElement?.getAttribute('data-theme') || 'paper-slate') === 'paper-slate'}" aria-label="Paper Slate: daylight desk">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'auto' ? 'active' : ''}" onclick="setTheme('auto', event)" aria-pressed="${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'auto'}" aria-label="Auto: follows your phone">
+            <div class="swatch-preview" aria-hidden="true">
+              <div class="swatch-bg" style="background:linear-gradient(90deg,#EEF0E4 50%,#0E0F0C 50%)"></div>
+              <div class="swatch-surface" style="background:linear-gradient(90deg,#FFFFFF 50%,#1B1D22 50%)"></div>
+              <div class="swatch-accent" style="background:#8A9645"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
+              <span class="swatch-name" style="font-weight:600">Auto</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">Follows your phone</span>
+            </div>
+          </button>
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'paper-slate'}" aria-label="Paper Slate: daylight desk">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#F2F2EC"></div>
               <div class="swatch-surface" style="background:#FBFBF7"></div>
@@ -19652,7 +19703,7 @@ function renderSettings() {
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Daylight desk</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${document.documentElement?.getAttribute('data-theme') === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${document.documentElement?.getAttribute('data-theme') === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#101613"></div>
               <div class="swatch-surface" style="background:#161E19"></div>
