@@ -64,8 +64,7 @@ Mode differences:
   - later: filled
   - ended: lighter fill with a 1.5 px outline; never see-through text
   - live: now-card colour
-  - present / on duty: green tint
-  - absent: red tint
+  - present / on duty and absent: keep the ended fill, with a green or red label and a 6 px dot. Status is never a block fill, so it can't be mistaken for a palette's Free colour. Inside the dark now card, the ring and tick use `#5fe0a1` / `#ff8a78`
   - didn't happen: hatched
   - next: 2 px ink ring
 - Free gap: the longest gap of 1.5 h or more, in accent-soft, labelled "Free" if it fits.
@@ -161,10 +160,10 @@ Feel rules:
 
 | Palette | Page | Ink | Now card | Accent / soft | Dark: page, now, accent |
 |---|---|---|---|---|---|
-| Register | `#f3f1ea` | `#1d2024` | charcoal `#25292f` | marigold `#e9a00c` / `#f7e4b8` | `#0d0e10`, `#1e2126`, `#f2b13a` |
-| Azuki & Matcha (default) | `#eef0e4` | `#2e3428` | wine `#683238` | olive `#8a9645` / `#e4ebc8` | `#0e0f0c`, `#2a1d1f`, `#b5c46a` |
-| Ai & Kaki | `#eaeef2` | `#1d3346` | navy `#223f5d` | persimmon `#d0794f` / `#f6dccd` | `#0b0e12`, `#18263a`, `#f29372` |
-| Tetsu lamp | `#e7edeb` | `#1d3433` | iron teal `#1c4a4e` | lamp lilac `#b3a5ee` / `#e6e1fa` (pending user pick) | `#0a0f0f`, `#16363a`, `#c3b8f7` |
+| Highlighter (`terracotta`, was Register) | `#f3f1ea` | `#1d2024` | charcoal `#25292f` | marigold `#e9a00c` / `#f7e4b8` | `#0d0e10`, `#1e2126`, `#f2b13a` |
+| Old Campus (`rose`, default, was Azuki & Matcha) | `#eef0e4` | `#2e3428` | wine `#683238` | olive `#8a9645` / `#e4ebc8` | `#0e0f0c`, `#2a1d1f`, `#b5c46a` |
+| Campus Sunset (`lavender`, was Ai & Kaki) | `#eaeef2` | `#1d3346` | navy `#223f5d` | persimmon `#d0794f` / `#f6dccd` | `#0b0e12`, `#18263a`, `#f29372` |
+| Lo-fi (`apricot`, was Tetsu lamp) | `#e7edeb` | `#1d3433` | iron teal `#1c4a4e` | lamp lilac `#b3a5ee` / `#e6e1fa` | `#0a0f0f`, `#16363a`, `#c3b8f7` |
 
 **Dark mode.**
 - `cos_theme` gains the value `auto`, which follows `prefers-color-scheme`.
@@ -263,5 +262,5 @@ Each is its own PR, with its own tests and screenshots.
 
 ## 12. Open
 
-- Tetsu lamp accent: lilac is recommended; ice blue is the alternative.
-- Label cascade note: a student who never typed a code and whose subject is not in `CODE_MAP` gets made-up initials (Environmental Studies → ES). The fix is to add common subjects to `CODE_MAP` (EVS, OOP, COA, M3 style) in PR 3. "Name on the strip" covers the rest.
+- None blocking. Palette names and lilac were chosen on 2026-11-20 (https://claude.ai/artifact/9U5rjGoCWoczzjyNyjuxLK).
+- Label cascade note: a student who never typed a code and whose subject is not in `CODE_MAP` gets made-up initials (Environmental Studies → ES). The fix is to add common subjects to `CODE_MAP` (EVS, OOP, COA, M3 style) in plan Task 4. "Name on the strip" covers the rest.
