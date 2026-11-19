@@ -8722,3 +8722,16 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 #page-settings .btn { font-size: 0.9375rem; }
 /* Inline width:170px cut the longer options ("Day Before (Morning)") at the bigger size. */
 #page-settings .st-row select.form-select, #page-settings select[id^="np-"] { width: auto !important; min-width: 190px; max-width: 100%; padding: 5px 30px 5px 12px !important; }
+
+/* Day Rail: More marks (Didn't happen / OD), 2026-11-19 */
+.rail-more { min-height: 44px; min-width: 44px; padding: 0 2px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.rail-more:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
+.rail-more-marks { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; }
+.rail-more-marks[hidden] { display: none; }
+#page-dashboard .rail-line .rail-more { flex: 0 0 auto; margin-block: -8px; }
+#page-dashboard .rail-line .rail-more-marks { gap: 2px; }
+#page-dashboard .rail-line:has(.rail-marks:not(.is-folded)), #page-dashboard .rail-row.show-marks .rail-line { flex-wrap: wrap; row-gap: 0; }
+#page-dashboard .rail-line:has(.rail-marks:not(.is-folded)) .rail-meta, #page-dashboard .rail-row.show-marks .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
+#page-dashboard .rail-line:has(.rail-marks:not(.is-folded)) .rail-marks, #page-dashboard .rail-row.show-marks .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
+#page-dashboard .rail-line .rail-more { margin-block: -8px; margin-inline-start: 6px; }
+#page-dashboard .rail-line .rail-more-marks { flex: 1 1 100%; }

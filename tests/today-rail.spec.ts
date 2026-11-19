@@ -141,7 +141,7 @@ test('200% zoom (a 375px phone is 188 CSS px wide): no sideways scroll, marks st
   await page.setViewportSize({ width: 188, height: 406 });
   const today = await open(page, '2026-09-24T12:40:00');
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), 'no sideways scroll').toBe(true);
-  for (const b of await today.locator('.rail-att').all()) {
+  for (const b of await today.locator('.rail-att:visible').all()) {
     const r = (await b.boundingBox())!;
     expect(r.x).toBeGreaterThanOrEqual(0);
     expect(r.x + r.width).toBeLessThanOrEqual(188.5);
@@ -202,4 +202,88 @@ test('a plain lecture has no "Lecture" filler; a lab still says Lab', async ({ p
   const today = await open(page, '2026-09-24T07:06:00');
   await expect(today.locator('.day-rail .rail-meta').filter({ hasText: 'Lecture' })).toHaveCount(0);
   await expect(today.locator('.rail-row', { hasText: 'Operating Systems Lab' }).locator('.rail-meta')).toContainText('Lab');
+});
+
+const dsStatus = (page: Page) => page.evaluate(() => {
+  const a = JSON.parse(localStorage.getItem('cos_attendance') || '{}')['2026-09-24'] || {};
+  return Object.values(a)[0];
+});
+
+test("a class that did not happen: More offers Didn't happen and OD, the mark is in words and Undo takes it back", async ({ page }) => {
+  const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
+  const ds = today.locator('.rail-row', { hasText: 'Data Structures' });
+  const more = ds.getByRole('button', { name: 'More marks for Data Structures' });
+  expect((await more.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  const didnt = ds.getByRole('button', { name: /^Didn't happen/ });
+  await expect(didnt).toBeHidden();
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(didnt).toBeFocused();
+  await didnt.click();
+  await page.clock.runFor(300);
+  expect(await dsStatus(page)).toBe('cancelled');
+  await today.locator('.rail-earlier-toggle').click();
+  await expect(ds.locator('.rail-meta')).toContainText("Marked · Didn't happen");
+  await page.locator('.toast', { hasText: "Didn't happen" }).getByRole('button', { name: 'Undo' }).click();
+  await page.clock.runFor(300);
+  await expect(ds.locator('.rail-meta')).toContainText('Ended · not marked');
+});
+
+test('OD from the rail is stored as waiting for teacher and is not counted as unmarked', async ({ page }) => {
+  const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
+  const ds = today.locator('.rail-row', { hasText: 'Data Structures' });
+  await ds.getByRole('button', { name: 'More marks for Data Structures' }).click();
+  await ds.getByRole('button', { name: /^On duty \(OD\)/ }).click();
+  await page.clock.runFor(300);
+  expect(await dsStatus(page)).toBe('od_pending');
+  await today.locator('.rail-earlier-toggle').click();
+  await expect(ds.locator('.rail-meta')).toContainText('Marked · OD · waiting for teacher');
+  await expect(today.getByRole('button', { name: /^I was at all/ })).toHaveCount(0);
+});
+
+test('More stays open across the minute re-render; Escape closes it and returns focus', async ({ page }) => {
+  const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
+  const ds = today.locator('.rail-row', { hasText: 'Data Structures' });
+  const more = ds.getByRole('button', { name: 'More marks for Data Structures' });
+  await more.click();
+  await page.clock.runFor(61_000);
+  const again = today.locator('.rail-row', { hasText: 'Data Structures' });
+  await expect(again.getByRole('button', { name: 'More marks for Data Structures' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(again.getByRole('button', { name: /^Didn't happen/ })).toBeVisible();
+  await again.getByRole('button', { name: /^Didn't happen/ }).focus();
+  await page.keyboard.press('Escape');
+  await expect(again.getByRole('button', { name: 'More marks for Data Structures' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(again.getByRole('button', { name: 'More marks for Data Structures' })).toBeFocused();
+});
+
+test('Change on a "Didn\'t happen" row shows it selected', async ({ page }) => {
+  const today = await open(page, '2026-09-24T12:40:00', { cos_attendance: { '2026-09-24': {} } });
+  // Seed through the app so the key matches attendanceKeyFor.
+  await today.locator('.rail-row', { hasText: 'Data Structures' }).getByRole('button', { name: 'More marks for Data Structures' }).click();
+  await today.locator('.rail-row', { hasText: 'Data Structures' }).getByRole('button', { name: /^Didn't happen/ }).click();
+  await expect.poll(() => dsStatus(page)).toBe('cancelled');
+  await page.reload();
+  await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+  await today.locator('.rail-earlier-toggle').click();
+  const ds = today.locator('.rail-row', { hasText: 'Data Structures' });
+  await ds.getByRole('button', { name: 'Change the mark for Data Structures' }).click();
+  const didnt = ds.getByRole('button', { name: /^Didn't happen/ });
+  await expect(didnt).toBeVisible();
+  await expect(didnt).toHaveAttribute('aria-pressed', 'true');
+  await expect(didnt).toBeFocused();
+});
+
+test('360x812 with More open on a long name: no sideways scroll, every pill on screen and 44px tall', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 812 });
+  const long = [cls('Design and Analysis of Algorithms (Theory and Tutorial)', 'DAA', '09:00', '10:00')];
+  const today = await open(page, '2026-09-24T12:40:00', { cos_custom_timetable: every(long) });
+  await today.locator('.rail-row').first().locator('.rail-more').click();
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), 'no sideways scroll').toBe(true);
+  for (const b of await today.locator('.rail-row').first().locator('.rail-att:visible').all()) {
+    const r = (await b.boundingBox())!;
+    expect(r.x).toBeGreaterThanOrEqual(0);
+    expect(r.x + r.width).toBeLessThanOrEqual(360.5);
+    expect(r.height).toBeGreaterThanOrEqual(44);
+  }
 });

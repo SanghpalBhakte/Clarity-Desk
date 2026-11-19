@@ -12,9 +12,10 @@ test.describe('lighter rows', () => {
     for (const row of await rows.all()) {
       const meta = (await row.locator('.rail-meta').boundingBox())!;
       const marks = (await row.locator('.rail-marks').boundingBox())!;
-      expect(Math.abs(marks.y - meta.y), 'marks sit on the status line').toBeLessThan(26);
-      expect((await row.boundingBox())!.height).toBeLessThan(76);
-      for (const b of await row.locator('.rail-att').all()) {
+      // Re-based with the user (2026-11-19): the status words keep their own line and Present / Absent / More sit directly under them.
+      expect(marks.y - meta.y, 'marks sit right under the status line').toBeLessThan(36);
+      expect((await row.boundingBox())!.height).toBeLessThan(110);
+      for (const b of await row.locator('.rail-att:visible').all()) {
         const box = (await b.boundingBox())!;
         expect(box.height).toBeGreaterThanOrEqual(44 - 0.5);
         expect(box.x + box.width).toBeLessThanOrEqual(390);
@@ -89,9 +90,11 @@ test.describe('lighter rows', () => {
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     // Re-based with the user (2026-11-14): was 1.90 screens and 23 tap targets on this seed.
     // The 1.3 / 12 targets are re-measured after Tasks 2 and 3; the top and tab bars alone are 8 targets.
-    expect(height / 844, `page is ${(height / 844).toFixed(2)} screens`).toBeLessThanOrEqual(1.55);
+    // Re-based with the user (2026-11-19): 1.55 -> 1.70 for the "More" marks on unmarked rows (measured 1.64).
+    expect(height / 844, `page is ${(height / 844).toFixed(2)} screens`).toBeLessThanOrEqual(1.7);
     const taps = await tapTargetsOnFirstScreen(page);
-    expect(taps, `${taps} tap targets on the first screen`).toBeLessThanOrEqual(24);
+    // Re-based with the user (2026-11-19): 24 -> 27, one "More" link per unmarked or live class (measured 27).
+    expect(taps, `${taps} tap targets on the first screen`).toBeLessThanOrEqual(27);
   });
 
   test('360px: the status words are never cut off by the marks', async ({ page }) => {
@@ -107,7 +110,7 @@ test.describe('lighter rows', () => {
     const row = today.locator('.rail-row.needs-mark').filter({ hasText: 'Database Management Systems Lab' });
     await expect(row).toHaveCount(1);
     const meta = (await row.locator('.rail-meta').boundingBox())!;
-    for (const b of await row.locator('.rail-att').all()) {
+    for (const b of await row.locator('.rail-att:visible').all()) {
       const box = (await b.boundingBox())!;
       expect(box.x + box.width).toBeLessThanOrEqual(360);
       expect(box.x >= meta.x + meta.width - 1 || box.y >= meta.y + meta.height - 1, 'marks do not overlap the words').toBe(true);
@@ -223,7 +226,8 @@ test.describe('fit', () => {
   test('1280x720: busy day fits one screen in two columns', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 1280, height: 720 });
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(height, `page is ${height}px tall`).toBeLessThanOrEqual(720);
+    // Re-based with the user (2026-11-19): 720 -> 750 for the "More" marks on unmarked rows (measured 742 on desktop, 734 on phone).
+    expect(height, `page is ${height}px tall`).toBeLessThanOrEqual(750);
     const day = await box(today.locator('.panel-day'));
     const due = await box(today.locator('.panel-due'));
     expect(due.x).toBeGreaterThanOrEqual(day.x + day.width);
