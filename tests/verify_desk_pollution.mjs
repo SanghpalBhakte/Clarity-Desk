@@ -163,6 +163,41 @@ check('13. A class spelled differently from a subject with saved attendance stil
   return a.detectDeskPollution() === true ? true : 'split subject not flagged';
 });
 
+// The banner and the cleanup must agree: a break or free slot is never
+// flagged, so the cleanup must never remove it either (it used to: the
+// banner skipped it, but "Declutter my desk" deleted it as garbled text).
+const fullPlan = (batch = 'all') => a.generateDeclutterPlan(a.loadTimetable(), a.loadAttendanceBaselines(), [], batch);
+const offSlot = (subject, time, batches = []) => ({ subject, code: '', time, end: '12:00', type: 'off', batches });
+
+check('14. A free slot with garbled text is kept by the cleanup (and shows no banner)', () => {
+  seed(week({ 1: [lecture('Data Structures'), offSlot('ADzeame', '11:00')] }));
+  const plan = fullPlan();
+  if (plan.archivedSlots.length) return `cleanup would remove: ${plan.archivedSlots.map(s => s.subject).join(', ')}`;
+  if (!plan.newTimetable[1].some(c => c.subject === 'ADzeame' && c.type === 'off')) return 'free slot missing from the cleaned timetable';
+  return a.detectDeskPollution() === false ? true : 'banner shown for a free slot';
+});
+
+check('15. Another group\'s "Library" break is kept; that group\'s lab is still removed', () => {
+  seed(week({ 1: [lecture('Data Structures'), offSlot('Library', '11:00', ['B1']), { subject: 'Web Development', code: 'WD', time: '13:30', end: '15:30', type: 'lab', batches: ['B1'] }] }), 'A1');
+  const plan = fullPlan('A1');
+  const gone = plan.archivedSlots.map(s => s.subject);
+  if (gone.join() !== 'Web Development') return `removed: ${gone.join(', ') || 'nothing'}`;
+  return plan.newTimetable[1].some(c => c.subject === 'Library') ? true : 'Library break was removed';
+});
+
+check('16. Garbled text on a real class is still removed by the cleanup', () => {
+  seed(week({ 1: [lecture('Data Structures'), lecture('ADzeame', '11:00')] }));
+  const plan = fullPlan();
+  return plan.archivedSlots.some(s => s.subject === 'ADzeame' && s.reason === 'garbled-ocr') ? true : 'garbled class kept';
+});
+
+check('17. Subject Hubs shows one clean-up prompt: the banner, no extra dot on Manage', () => {
+  const summary = appSrc.match(/<summary aria-label="Manage subjects">[^\n]*<\/summary>/);
+  if (!summary) return 'Manage subjects button not found';
+  if (summary[0].includes('sj-dot')) return 'dot still shown next to the banner';
+  return /\$\{hasPollution \? `\s*<button type="button" class="sj-notice"/.test(appSrc) ? true : 'banner missing';
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);

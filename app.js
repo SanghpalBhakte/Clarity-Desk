@@ -14588,6 +14588,9 @@ function generateDeclutterPlan(liveTT, liveBaselines, liveTasks, userBatch = 'al
   // 1. Process Timetable Slots
   [1, 2, 3, 4, 5, 6, 0].forEach(d => {
     (liveTT[d] || []).forEach(c => {
+      // Breaks and free slots are never cleaned (same rule the banner uses),
+      // so the cleanup can't remove a slot the banner never flagged.
+      if (!isTeachingClass(c)) { newTT[d].push(c); return; }
       const rawName = c.subject || '';
       if (!rawName.trim() || /^(off|lunch|break|holiday|recess|free)$/i.test(rawName.trim())) {
         newTT[d].push(c);
@@ -16030,7 +16033,7 @@ function renderSubjectsOverview(el, subjects) {
         <div class="page-subtitle">${noneYet ? `${summaryLine}. Each ring fills as you mark classes; the notch is your ${getAttendanceTarget()}% line. <button type="button" class="sj-mark-link" onclick="navigateTo('dashboard')">Mark today →</button>` : summaryLine}</div>
       </div>
       <details class="tk-more sj-manage">
-        <summary aria-label="Manage subjects">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage${hasPollution ? '<span class="sj-dot" title="Duplicate subject cards found"></span>' : ''}</summary>
+        <summary aria-label="Manage subjects">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage</summary>
         <div class="tk-more-menu">
           <button type="button" onclick="showAddSyllabusSubjectModal()">+ Add a subject</button>
           <button type="button" onclick="showBaselineModal(null, 'manual')">${icons.chartLine()} Set attendance baseline</button>
