@@ -8523,7 +8523,7 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .desk-greeting { font-size: clamp(1.5rem, 7.4vw, 1.875rem); line-height: 1.12; text-wrap: balance; }
   #page-dashboard .desk-greeting-sub { font-size: 1rem; line-height: 1.45; max-width: 34ch; }
   #page-dashboard .desk-quip { font-weight: 600; color: var(--text-primary); }
-  #page-dashboard .panel-title.is-label { font-size: 12px; font-weight: 600; letter-spacing: .07em; }
+  #page-dashboard .panel-title.is-label { font-size: 15px; font-weight: 600; letter-spacing: .07em; }
   #page-dashboard .panel-action { font-size: 14px; }
   #page-dashboard .rail-time { font-size: 14px; }
   #page-dashboard .rail-time small { font-size: 13px; }
@@ -9135,3 +9135,13 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
   #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle { display: block; font-size: 38px; line-height: 1.05; font-weight: 700; letter-spacing: -0.025em; color: var(--c2-ink); margin: 2px 0 0; }
   #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting.c2-smart { font-size: 22px; }
 }
+
+/* ── Calm Today details (C2): sentence-case section titles, the quiet holiday line ── */
+#page-dashboard .panel-title.is-label { font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-ink); }
+#page-dashboard .panel-title .panel-count { font-size: 13px; font-weight: 400; color: var(--c2-mut); letter-spacing: 0; text-transform: none; }
+body.holiday-mode .desk-masthead { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; }
+body.holiday-mode .desk-masthead::after { content: none; }
+@media (max-width: 560px) { body.holiday-mode #page-dashboard .desk-masthead-top { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; } }
+body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; margin: 6px 0 14px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.c2-hol-t { margin: 0; font-size: 14px; color: var(--c2-mut); }
+.holiday-banner.c2-hol .c2-all { margin-top: 0; }

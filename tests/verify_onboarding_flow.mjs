@@ -213,12 +213,12 @@ check('After the name step the welcome never comes back, even mid tour', () => {
 
 // ── Task 3: one timetable card and the "how to add it" dialog ──
 const todayHtml = (app) => { app.state.currentPage = 'dashboard'; app.renderDashboard(); return domCache['page-dashboard'].innerHTML; };
-check('A new Today shows one quiet timetable line under the tasks and a quiet self-study link', () => {
+check('A new Today shows the three add rows and an example day; self-study lives on the welcome screen and the Timetable page', () => {
   seed(); const html = todayHtml(makeApp());
   const cards = (html.match(/class="c2-empty"/g) || []).length;
   const t = visibleText(html).replace(/\s+/g, ' ');
   const ok = cards === 1 && t.includes('Add timetable') && !html.includes('desk-setup-guide') && html.indexOf('c2-empty') < html.indexOf('quick-add-input')
-    && html.includes('onclick="showAddTimetableChoice()"') && html.includes('onclick="setupSelfStudy()"') && t.includes('Study without a timetable');
+    && html.includes('onclick="showAddTimetableChoice()"') && t.includes('See an example day') && !t.includes('Study without a timetable');
   return ok ? true : `cards=${cards} ${t.slice(0, 160)}`;
 });
 
