@@ -659,3 +659,16 @@ test.describe('calm details', () => {
     await expect(today.getByRole('button', { name: 'Add', exact: true })).toBeVisible();
   });
 });
+
+test.describe('smart line in the evening and at night with late work', () => {
+  const late = [T('t1', 'OS quiz', '2026-09-22')];
+  test('evening: the class line wins over the slipped-task line', async ({ page }) => {
+    const today = await open(page, '2026-09-24T18:40:00', { cos_custom_tasks: late });
+    await expect(today.locator('.desk-greeting')).toHaveText('3 classes today. Mark them in one tap.');
+    await expect(today.locator('.c2-row.t .due-badge').first()).toHaveText('2 days late');
+  });
+  test('night: tomorrow starts at the first class, even with a late task', async ({ page }) => {
+    const today = await open(page, '2026-09-24T22:50:00', { cos_custom_tasks: late });
+    await expect(today.locator('.desk-greeting')).toHaveText('Tomorrow starts at 9:00 AM with DS.');
+  });
+});
