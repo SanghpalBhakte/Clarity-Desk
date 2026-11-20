@@ -524,3 +524,37 @@ test.describe('modes', () => {
     expect((await line.boundingBox())!.y).toBeGreaterThan(tasksBox.y);
   });
 });
+
+test.describe('laptop', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test('two columns: the strip on the left, Due on the right, within 980 px of the sidebar', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'DBMS record', '2026-09-26')] });
+    const strip = (await today.locator('.c2-strip').boundingBox())!;
+    const due = (await today.locator('.panel-due').boundingBox())!;
+    expect(due.x).toBeGreaterThan(strip.x + strip.width);
+    const day = (await today.locator('.panel-day').boundingBox())!;
+    expect(Math.round(due.x - (day.x + day.width))).toBe(64);
+    expect(day.width / due.width).toBeGreaterThan(1.1);
+    const side = (await page.locator('.sidebar').boundingBox())!;
+    const edge = Math.max(...(await today.locator('.c2-day, .panel-due, .dashboard-right-panel').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right))));
+    expect(edge).toBeLessThanOrEqual(side.x + side.width + 48 + 980 + 1);
+  });
+
+  test('the class sheet is a 420 px panel on the right, and right-click on a row opens it', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    await face(today, 'Data Structures').click({ button: 'right' });
+    await expect.poll(() => sheetOpen(page)).toBe(true);
+    const box = (await page.locator('.c2-sheet').boundingBox())!;
+    expect(Math.round(box.width)).toBe(420);
+    expect(box.x + box.width).toBeGreaterThan(1280 - 40);
+  });
+
+  for (const w of [1024, 1280, 1440]) {
+    test(`no horizontal scroll at ${w}`, async ({ page }) => {
+      await page.setViewportSize({ width: w, height: 800 });
+      await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'DBMS record', '2026-09-26')] });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    });
+  }
+});
