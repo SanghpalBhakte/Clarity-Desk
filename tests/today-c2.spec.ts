@@ -596,3 +596,32 @@ test.describe('smart line', () => {
     expect(lines).toBeLessThanOrEqual(2);
   });
 });
+
+test.describe('evening and night details', () => {
+  test('evening: Mark all present is a full-width filled button, with the swipe tip under the rows', async ({ page }) => {
+    const today = await open(page, '2026-09-24T18:40:00');
+    const btn = today.getByRole('button', { name: 'Mark all present' });
+    await expect(btn).toBeVisible();
+    const box = (await btn.boundingBox())!, col = (await today.locator('.c2-rows').boundingBox())!;
+    expect(Math.round(box.width)).toBe(Math.round(col.width));
+    expect(await btn.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+    await expect(today.locator('.c2-tip')).toHaveText('Missed one? Swipe its row left, then mark the rest.');
+  });
+  test('evening: marking everything removes the button and the tip', async ({ page }) => {
+    const today = await open(page, '2026-09-24T18:40:00');
+    await today.getByRole('button', { name: 'Mark all present' }).click();
+    await expect(today.getByRole('button', { name: 'Mark all present' })).toHaveCount(0);
+    await expect(today.locator('.c2-tip')).toHaveCount(0);
+  });
+  test('night: says how many of today are unmarked, titles the list "Due tomorrow", and has no free row', async ({ page }) => {
+    const today = await open(page, '2026-09-24T22:50:00');
+    await expect(today.locator('.c2-tip')).toHaveText("3 classes from today aren't marked.");
+    await expect(today.getByRole('heading', { name: 'Due tomorrow' })).toBeVisible();
+    await expect(today.locator('.c2-gaprow')).toHaveCount(0);
+  });
+  test('daytime still has its free row and a plain "Due"', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    await expect(today.locator('.c2-gaprow')).toHaveCount(1);
+    await expect(today.getByRole('heading', { name: 'Due', exact: true })).toBeVisible();
+  });
+});
