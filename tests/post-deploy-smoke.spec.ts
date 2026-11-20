@@ -32,8 +32,8 @@ test.describe('Clarity Desk Post-Deploy / Target URL Smoke Suite', () => {
     const title = await page.title();
     expect(title).toContain('Clarity Desk');
 
-    // Verify topbar branding renders
-    const topbar = page.locator('.topbar, [data-testid="topbar"]');
+    // Verify the app shell renders (the laptop has no top bar strip; Ask Desk is its one fixed control)
+    const topbar = page.locator('.topbar #assistant-toggle-btn, [data-testid="topbar"] #assistant-toggle-btn');
     await expect(topbar.first()).toBeVisible({ timeout: 10_000 });
 
     // Verify zero fatal page errors occurred during boot
@@ -55,11 +55,12 @@ test.describe('Clarity Desk Post-Deploy / Target URL Smoke Suite', () => {
 
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    const themeToggle = page.locator('.topbar-theme-toggle, [data-testid="theme-toggle"], #theme-toggle-btn').first();
-    await expect(themeToggle).toBeVisible({ timeout: 5000 });
-
+    // The laptop has no top bar switch: the theme is chosen in Settings.
+    await page.locator('#sidebar-settings').click();
     const initialTheme = await page.locator('html').getAttribute('data-theme');
-    await themeToggle.click();
+    const other = page.locator('.theme-swatch', { hasText: initialTheme === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' });
+    await expect(other).toBeVisible({ timeout: 5000 });
+    await other.click();
     await page.waitForTimeout(300);
 
     const toggledTheme = await page.locator('html').getAttribute('data-theme');
