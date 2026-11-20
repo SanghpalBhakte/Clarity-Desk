@@ -12710,7 +12710,9 @@ function renderDashboard() {
 
   // One line under the title. Work that needs attention (slipped tasks, risk, exams, holiday, an aim, no timetable)
   // keeps its own wording; otherwise the day's classes say it. Names and quips no longer sit above it.
-  const ctxFirst = recentOverdue > 0 || examSoon || onHoliday || selfStudy || isEmptyDesk || !hasCustomTT || (isAttendanceAtRisk && banner !== 'risk') || !!ctxOpts.rhythm || !!finishAimLine(ctxOpts.finish);
+  // In the evening and at night the day's own line (mark them, or tomorrow's first class) says what to do next; late tasks are in Due.
+  const ctxFirst = onHoliday || selfStudy || isEmptyDesk || !hasCustomTT
+    || (!(night || evening) && (recentOverdue > 0 || examSoon || (isAttendanceAtRisk && banner !== 'risk') || !!ctxOpts.rhythm || !!finishAimLine(ctxOpts.finish)));
   const unmarkedNow = (dayClasses.length && !night) ? endedUnmarkedClassKeys(dateStr).length : 0;
   const dueTom = night ? dueShown.find(a => dueDaysLeft(a.dueDate) === 1) : null;
   const smartText = c2SmartLine({ mode: night ? 'night' : evening ? 'evening' : 'day', dayClasses, tomorrowClasses, activeClass, nextClass, currentMin, unmarkedCount: unmarkedNow, dueTomorrowTitle: dueTom ? dueTom.title : '' });
