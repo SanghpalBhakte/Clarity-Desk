@@ -12495,9 +12495,10 @@ function renderDashboard() {
       <div class="setup-ask-sub">${s.desc}</div>
       ${body}
     </div>`;
-  // No timetable yet: the task line leads and the timetable is one quiet line
-  // under the work, not a card above it.
+  // No timetable yet. A completely blank desk (no tasks, no attendance) starts with three add rows at
+  // the top; once there is any work, the timetable is one quiet line under it, not a block above it.
   const setupLast = !!firstStep && firstStep.id === 'tt';
+  const blankDesk = setupLast && !allTasks().length && !hasAttendanceData;
   // The attendance ask lives in the Attendance section, so Today shows attendance once.
   const attAsk = !!firstStep && firstStep.id === 'att';
   const setupBanner = !firstStep ? '' : firstStep.id === 'group' ? setupAsk(firstStep, `
@@ -12509,7 +12510,11 @@ function renderDashboard() {
         <button class="btn btn-sm btn-primary" onclick="${firstStep.action}">Add counts</button>
         <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbAttLater()">Later</button>
       </div>
-      ${_onbBunkOpen ? bunkCalcHtml('today') : `<button type="button" class="setup-first-alt setup-ask-link" onclick="onbShowBunk()">Just check how many I can miss</button>`}`) : firstStep.id === 'tt' ? `
+      ${_onbBunkOpen ? bunkCalcHtml('today') : `<button type="button" class="setup-first-alt setup-ask-link" onclick="onbShowBunk()">Just check how many I can miss</button>`}`) : firstStep.id === 'tt' && !blankDesk ? `
+    <div class="desk-setup-guide setup-first" role="complementary" aria-label="Add your timetable">
+      <p class="setup-first-line">Have a timetable? <button type="button" class="setup-first-btn" onclick="${firstStep.action}">Add it when you're ready →</button></p>
+      <p class="setup-first-alts">or <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">study without one</button><span aria-hidden="true"> · </span><button type="button" class="setup-first-alt" onclick="onboardingSampleDay(this)">see an example day</button></p>
+    </div>` : firstStep.id === 'tt' ? `
     <div class="c2-empty" role="complementary" aria-label="Start your desk">
       <div class="c2-empty-strip" aria-hidden="true"></div>
       <ol class="c2-rows">
@@ -12693,7 +12698,7 @@ function renderDashboard() {
     ${banner === 'safety' ? beaconHTML : ''}
     ${banner === 'risk' ? focusHTML : ''}
     ${banner === 'setup' ? setupBanner : ''}
-    ${setupLast ? setupBanner : ''}
+    ${blankDesk ? setupBanner : ''}
 
     <!-- 3. WORKBENCH & AMBIENT PANEL -->
     <div class="dashboard-layout">
@@ -12842,6 +12847,7 @@ function renderDashboard() {
 
       </div>
     </div>
+    ${setupLast && !blankDesk ? setupBanner : ''}
   `;
   dashboardSettled = true;
   wireRowGestures(el);
