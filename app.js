@@ -8637,6 +8637,12 @@ function findNextClassDay(tt, fromDayIdx) {
 function tickBeacon() {
   if (typeof state === 'undefined' || state.currentPage !== 'dashboard') return;
   if (refreshIfDayChanged()) return;
+  // Never rebuild Today underneath someone who is typing (e.g. Ask Desk).
+  const typing = () => { const a = document.activeElement; return !!(a && a.closest && a.closest('#page-dashboard') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
+  if (c2RenderedMode !== null && c2Mode() !== c2RenderedMode) {
+    if (!typing()) renderPage('dashboard');
+    return;
+  }
   const card = document.querySelector('#page-dashboard [data-beacon]');
   if (!card) return;
   const kind = card.dataset.beacon;
@@ -8645,9 +8651,7 @@ function tickBeacon() {
   const nowMin = currentTimeMinutes();
   const outOfDate = (kind === 'next' && nowMin >= startMin) || (kind === 'live' && nowMin >= endMin);
   if (outOfDate) {
-    // Never rebuild Today underneath someone who is typing (e.g. Ask Desk).
-    const a = document.activeElement;
-    if (a && a.closest && a.closest('#page-dashboard') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    if (typing()) return;
     renderPage('dashboard');
     return;
   }
@@ -9631,13 +9635,14 @@ function c2Standing(c) {
   if (!Number.isFinite(held) || !Number.isFinite(attended) || held <= 0) return null;
   const target = Number(a.targetPct) || getAttendanceTarget();
   const raw = Number(a.pctLabel ?? a.exactPct ?? a.pct);
-  return { pct: Math.round(Number.isFinite(raw) ? raw : (attended / held) * 100), attended, held, target };
+  // Rounded down and judged from the exact counts, so 74.6% shows 74% and is under a 75% rule.
+  return { pct: Math.floor(Number.isFinite(raw) ? raw : (attended / held) * 100), attended, held, target, low: attended * 100 < target * held };
 }
 
 const C2_RING_LEN = 2 * Math.PI * 21.5;
 function c2RingHTML(st) {
   const dash = (C2_RING_LEN * Math.max(0, Math.min(100, st.pct))) / 100;
-  return `<div class="c2-ring${st.pct < st.target ? ' low' : ''}" aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="bgc" cx="26" cy="26" r="21.5"/><circle class="fg" cx="26" cy="26" r="21.5" style="stroke-dasharray:${dash} ${C2_RING_LEN}"/></svg><b>${st.pct}%</b></div>`;
+  return `<div class="c2-ring${st.low ? ' low' : ''}" aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="bgc" cx="26" cy="26" r="21.5"/><circle class="fg" cx="26" cy="26" r="21.5" style="stroke-dasharray:${dash} ${C2_RING_LEN}"/></svg><b>${st.pct}%</b></div>`;
 }
 
 function c2NowHTML(x, currentMin) {
@@ -9699,6 +9704,10 @@ function c2IsNight() {
     return now < (c.end ? timeToMinutes(c.end) : from + 60);
   });
 }
+// The time of day Today was last drawn for. After the last class there is no class boundary to redraw at,
+// so tickBeacon redraws when this changes (6 PM evening, 9 PM tomorrow).
+const c2Mode = () => c2IsNight() ? 'night' : currentTimeMinutes() >= C2_EVENING_MIN ? 'evening' : 'day';
+let c2RenderedMode = null;
 
 function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine, tomorrow = false, evening = false }) {
   try {
@@ -9834,6 +9843,7 @@ function c2SheetEls() {
   sheet.addEventListener('click', (e) => {
     const m = e.target.closest('[data-c2-mark]');
     if (m) { c2Mark(m.dataset.key, m.dataset.c2Mark); return; }
+    if (e.target.closest('[data-c2-keep]')) { closeSheet(); return; }
     const tk = e.target.closest('[data-c2-task]');
     if (tk) { c2TaskAct(tk); return; }
     const sub = e.target.closest('[data-c2-subject]');
@@ -9902,7 +9912,8 @@ function c2SheetHTML(x) {
     }
     h += `<button type="button" class="c2-opt" data-c2-subject="${c2Attr(c.subject)}">Open in Subjects</button>`;
   } else {
-    const opt = (v, label, note) => `<button type="button" class="c2-opt" data-c2-mark="${v}" data-key="${key}"><span>${label}${note ? `<small>${note}</small>` : ''}</span>${x.status === v ? `<span class="chk">${icons.check()}</span>` : ''}</button>`;
+    // The ticked choice keeps its mark and just closes the sheet; only "Clear mark" clears.
+    const opt = (v, label, note) => `<button type="button" class="c2-opt" ${x.status === v ? 'data-c2-keep aria-current="true"' : `data-c2-mark="${v}"`} data-key="${key}"><span>${label}${note ? `<small>${note}</small>` : ''}</span>${x.status === v ? `<span class="chk">${icons.check()}</span>` : ''}</button>`;
     h += `<p class="c2-sl">Mark this class</p>
       ${opt('attended', 'Present')}${opt('skipped', 'Absent')}${opt('cancelled', "Didn't happen", 'Not counted, as if it was never held')}${opt('od_pending', 'On duty (OD)', 'Excused by college; counts as present once approved')}
       ${x.status !== 'unset' ? `<button type="button" class="c2-opt" data-c2-mark="${x.status}" data-key="${key}">${icons.x()}Clear mark</button>` : ''}`;
@@ -12291,6 +12302,7 @@ function renderDashboard() {
 
   // Evening (6 to 9 PM, no class running) lists every row; from 9 PM Today shows tomorrow's classes.
   const night = c2IsNight();
+  c2RenderedMode = c2Mode();
   const evening = !night && !onHoliday && !activeClass && currentMin >= C2_EVENING_MIN;
   const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowKey = localDateKey(tomorrowDate);

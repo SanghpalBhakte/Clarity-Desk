@@ -124,6 +124,26 @@ test.describe('class sheet', () => {
     expect(JSON.parse((await marks(page)) || '{}')['2026-09-24'] || {}).not.toHaveProperty('DS_0900');
   });
 
+  test('tapping the ticked mark keeps it and closes the sheet; only Clear mark clears', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    await face(today, 'Data Structures').click();
+    await page.locator('.c2-sheet').getByRole('button', { name: /^Present/ }).click();
+    const before = await marks(page);
+    expect(JSON.parse(before)['2026-09-24']).toMatchObject({ DS_0900: 'attended' });
+    await today.locator('.c2-fold-btn').click();
+    await face(today, 'Data Structures').click();
+    await page.locator('.c2-sheet').getByRole('button', { name: /^Present/ }).click();
+    expect(await marks(page)).toBe(before);
+    expect(await sheetOpen(page)).toBe(false);
+  });
+
+  test('the ring and its figure never round up to the rule: 50 of 67 (74.6%) shows 74% and is low', async ({ page }) => {
+    const today = await open(page, '2026-09-24T11:30:00', { cos_attendance_baseline: { DBMS: { ...BASE.DBMS, present: 50, absent: 17 } } });
+    const ring = today.locator('.c2-now .c2-ring');
+    await expect(ring).toHaveClass(/\blow\b/);
+    await expect(ring).toContainText('74%');
+  });
+
   test('a later class shows "Can I skip this?" instead of marks', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00', { cos_attendance_baseline: { OS: { subjectName: 'Operating Systems', subjectCode: 'OS', present: 18, absent: 2, leave: 0, notEntered: 0 } } });
     await face(today, 'Operating Systems Lab').click();
@@ -454,6 +474,16 @@ test.describe('modes', () => {
     const today = await open(page, '2026-09-24T18:40:00', { cos_custom_timetable: every(eight) });
     await expect(today.locator('.c2-rows .c2-row')).toHaveCount(8);
     await expect(today.locator('.c2-more')).toHaveCount(0);
+  });
+
+  test('left open after the last class, Today turns to evening at 6 PM and to Tomorrow at 9 PM', async ({ page }) => {
+    const today = await open(page, '2026-09-24T17:58:00', {}, { install: true });
+    await expect(today.getByRole('button', { name: 'Mark all present' })).toHaveCount(0);
+    await page.clock.runFor(3 * 60000);
+    await expect(today.getByRole('button', { name: 'Mark all present' })).toBeVisible();
+    await page.clock.runFor(3 * 3600000);
+    await expect(page.locator('#c2-lt-title')).toHaveText('Tomorrow');
+    await expect(today.getByRole('button', { name: 'Mark today' })).toBeVisible();
   });
 
   test('daytime keeps the title Today', async ({ page }) => {
