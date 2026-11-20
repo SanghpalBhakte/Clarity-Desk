@@ -9767,7 +9767,7 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
       <div class="c2-day" data-date="${dateStr}"${beaconAttrs}>
         <div class="c2-strip" aria-hidden="true"><div class="c2-track"></div></div>
         ${live ? c2NowHTML(live, currentMin) : ''}
-        ${attLine ? `<p class="c2-att">${attLine}</p>` : ''}
+        ${attLine ? `<p class="c2-att"><span>${attLine}</span></p>` : ''}
         ${evening && unmarked >= 1 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">Mark all present</button>` : ''}
         <ol class="c2-rows" aria-label="${tomorrow ? 'Your classes tomorrow' : 'Your classes today'}">${earlierHTML}${rowsHTML}</ol>
         ${!evening && unmarked >= 2 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}

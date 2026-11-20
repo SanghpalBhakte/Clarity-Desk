@@ -81,6 +81,8 @@ test.describe('strip and rows', () => {
   test('the attendance line says it once, in words, when there are counts', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00', { cos_attendance_baseline: BASE });
     await expect(today.locator('.c2-att')).toContainText(/Overall\s+\d+(\.\d+)?%/);
+    // innerText is what is drawn: a flex parent used to swallow the space before the bold figure ("Overall84%").
+    expect(await today.locator('.c2-att').evaluate((e) => (e as HTMLElement).innerText)).toMatch(/Overall \d+(\.\d+)?%/);
   });
 
   test('tapping a block on the strip scrolls to its row', async ({ page }) => {
