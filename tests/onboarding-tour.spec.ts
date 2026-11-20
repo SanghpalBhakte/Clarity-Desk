@@ -121,7 +121,7 @@ test.describe('First-run tour', () => {
     await page.reload();
     await page.waitForTimeout(1200);
     await expect(page.locator('#onboarding-backdrop')).toHaveCount(0);
-    await expect(page.locator('.setup-first-btn')).toBeVisible();
+    await expect(page.locator('.c2-empty .c2-face').first()).toBeVisible();
   });
 
   test('320 phone with a 40 letter name: tour title and greeting stay on screen', async ({ page }) => {

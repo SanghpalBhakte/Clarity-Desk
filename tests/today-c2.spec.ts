@@ -331,3 +331,54 @@ test.describe('tasks', () => {
     expect((await byId(page, 't1')).status).toBe('submitted');
   });
 });
+
+test.describe('modes', () => {
+  test('evening: Mark all present sits above all the rows, and nothing folds away', async ({ page }) => {
+    const today = await open(page, '2026-09-24T18:40:00', { cos_attendance_baseline: BASE });
+    const key = await page.locator('#page-dashboard .c2-row').first().getAttribute('data-row');
+    await page.evaluate((k) => localStorage.setItem('cos_attendance', JSON.stringify({ '2026-09-24': { [k as string]: 'attended' } })), key);
+    await page.reload();
+    await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+    await expect(today.getByRole('button', { name: 'Mark all present' })).toBeVisible();
+    await expect(today.locator('.c2-fold')).toHaveCount(0);
+    await expect(today.locator('.c2-rows .c2-row')).toHaveCount(3);
+  });
+
+  test('night: the title says Tomorrow, the first class can be skipped-checked, due stops at 2, Mark today shows', async ({ page }) => {
+    const many = ['a', 'b', 'c', 'd'].map((k, i) => T(k, `Task ${k}`, `2026-09-2${6 + i}`));
+    const today = await open(page, '2026-09-24T22:50:00', { cos_custom_tasks: many, cos_attendance_baseline: BASE });
+    await expect(page.locator('#c2-lt-title')).toHaveText('Tomorrow');
+    await expect(today.locator('.c2-rows .c2-row').first().locator('.c2-skipq')).toHaveText('Can I skip this?');
+    await expect(today.locator('.c2-row.t')).toHaveCount(2);
+    await expect(today.getByRole('button', { name: 'Mark today' })).toBeVisible();
+  });
+
+  test('daytime keeps the title Today', async ({ page }) => {
+    await open(page, '2026-09-24T12:40:00');
+    await expect(page.locator('#c2-lt-title')).toHaveText('Today');
+  });
+
+  test('holiday: no strip, and End holiday early', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_holiday: { on: true, since: '2026-09-20', until: '2026-10-05' } });
+    await expect(today.locator('.c2-strip')).toHaveCount(0);
+    await expect(today.getByRole('button', { name: 'End holiday early' })).toBeVisible();
+  });
+
+  test('self-study: no strip', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', studyMode: 'self' }, cos_custom_timetable: {} });
+    await expect(today.locator('.c2-strip')).toHaveCount(0);
+  });
+
+  test('a day with no classes says so', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_timetable: { ...every(DAY), 4: [] } });
+    await expect(today).toContainText('No classes today.');
+  });
+
+  test('empty desk: three add rows and an example day, no setup cards', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_timetable: {} });
+    for (const n of ['Add timetable', 'Add attendance so far', 'Add a deadline', 'See an example day']) {
+      await expect(today.getByRole('button', { name: n })).toBeVisible();
+    }
+    await expect(today.locator('.desk-setup-guide')).toHaveCount(0);
+  });
+});

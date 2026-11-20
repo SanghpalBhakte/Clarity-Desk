@@ -141,11 +141,11 @@ check('Welcome has no calculator (it lives on Today) and still offers Show me ar
   return !step1.includes('id="ob-bunk"') && step1.includes('onboardingShowName()') && step1.includes('onboardingLogin()') ? true : `buttons=${buttons}`;
 });
 
-check('Empty Today: one setup card, calculator not on it (it opens from the attendance card)', () => {
+check('Empty Today: one empty-desk block and no setup cards, calculator not on it (it opens from the attendance card)', () => {
   seed(); const app = makeApp(); app.state.currentPage = 'dashboard'; app.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  const cards = (html.match(/class="desk-setup-guide/g) || []).length;
-  return cards === 1 && !html.includes('id="today-bunk"') ? true : `cards=${cards} calc=${html.includes('id="today-bunk"')}`;
+  const cards = (html.match(/class="c2-empty"/g) || []).length;
+  return cards === 1 && !html.includes('desk-setup-guide') && !html.includes('id="today-bunk"') ? true : `cards=${cards} calc=${html.includes('id="today-bunk"')}`;
 });
 
 check('Not shown once a timetable exists', () => {
