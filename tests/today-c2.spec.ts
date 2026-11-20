@@ -28,7 +28,7 @@ const marks = (page: Page) => page.evaluate(() => localStorage.getItem('cos_atte
 const sheetOpen = (page: Page) => page.evaluate(() => document.body.classList.contains('c2-sheeted'));
 
 async function drag(page: Page, sel: string, dx: number, dy = 0, steps = 12, from?: { x: number }) {
-  await page.locator(sel).first().scrollIntoViewIfNeeded();
+  await page.locator(sel).first().evaluate((e) => e.scrollIntoView({ block: 'center', behavior: 'instant' }));  // centre: the floating tab bar covers the bottom edge
   const r = (await page.locator(sel).first().boundingBox())!;
   const x = from ? from.x : r.x + r.width / 2, y = r.y + r.height / 2;
   await page.mouse.move(x, y);
@@ -38,7 +38,7 @@ async function drag(page: Page, sel: string, dx: number, dy = 0, steps = 12, fro
   await page.waitForTimeout(450);
 }
 async function hold(page: Page, sel: string, ms = 600) {
-  await page.locator(sel).first().scrollIntoViewIfNeeded();
+  await page.locator(sel).first().evaluate((e) => e.scrollIntoView({ block: 'center', behavior: 'instant' }));  // centre: the floating tab bar covers the bottom edge
   const r = (await page.locator(sel).first().boundingBox())!;
   await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
   await page.mouse.down();
@@ -333,6 +333,8 @@ test.describe('tasks', () => {
     expect(await taskStore(page)).toEqual(before);
     await page.locator('#c2-sheet').getByRole('button', { name: 'This weekend' }).click();
     expect((await byId(page, 't1')).dueDate).toBe('2026-09-26');   // Thursday -> Saturday
+    await expect.poll(() => sheetOpen(page)).toBe(false);
+    await page.waitForTimeout(450);   // on a laptop the side panel is still sliding out over the Due column
     await hold(page, '.c2-row.t[data-task="t2"] .c2-face');
     await page.locator('#c2-sheet').getByRole('button', { name: 'Mark done instead' }).click();
     expect((await byId(page, 't2')).status).toBe('submitted');
@@ -559,4 +561,38 @@ test.describe('laptop', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
   }
+});
+
+test.describe('smart line', () => {
+  const line = (today: ReturnType<Page['locator']>) => today.locator('.desk-greeting');
+  test('morning: next class and the free stretch; no name above it', async ({ page }) => {
+    const today = await open(page, '2026-09-24T08:10:00');
+    await expect(line(today)).toHaveText('DS at 9:00 AM. Free from 12:00 PM to 2:00 PM.');
+    await expect(today).not.toContainText('Riya');
+  });
+  test('in class: minutes left, then what is next', async ({ page }) => {
+    const today = await open(page, '2026-09-24T11:20:00');
+    await expect(line(today)).toHaveText('40 minutes left. Then free until OS at 2:00 PM.');
+  });
+  test('evening: Mark them in one tap', async ({ page }) => {
+    const today = await open(page, '2026-09-24T18:40:00');
+    await expect(line(today)).toHaveText('3 classes today. Mark them in one tap.');
+  });
+  test('night: tomorrow starts with the first class, and what is due tomorrow', async ({ page }) => {
+    const today = await open(page, '2026-09-24T22:50:00', { cos_custom_tasks: [T('t2', 'DBMS assignment 2', '2026-09-25')] });
+    await expect(line(today)).toHaveText('Tomorrow starts at 9:00 AM with DS. DBMS assignment 2 is due.');
+  });
+  test('slipped tasks keep their own wording over the class line', async ({ page }) => {
+    const today = await open(page, '2026-09-24T08:10:00', { cos_custom_tasks: [T('t1', 'OS quiz', '2026-09-22')] });
+    await expect(line(today)).toHaveText('1 task slipped. Pick a new day or mark it done.');
+  });
+  test('a completely new desk says what to do first', async ({ page }) => {
+    const today = await open(page, '2026-09-24T08:10:00', { cos_custom_timetable: {} });
+    await expect(line(today)).toHaveText('Add your timetable and Today plans the day for you.');
+  });
+  test('two lines at most at 390 px', async ({ page }) => {
+    const today = await open(page, '2026-09-24T11:20:00');
+    const lines = await line(today).evaluate((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)));
+    expect(lines).toBeLessThanOrEqual(2);
+  });
 });

@@ -9709,6 +9709,48 @@ function c2IsNight() {
 const c2Mode = () => c2IsNight() ? 'night' : currentTimeMinutes() >= C2_EVENING_MIN ? 'evening' : 'day';
 let c2RenderedMode = null;
 
+// The one line under the title (display only): a fact plus a suggestion from today's classes.
+// Returns plain text, or '' when the day has nothing class-based to say (holiday, no classes, no timetable):
+// the older context line covers those.
+function c2SmartLine({ mode = 'day', dayClasses = [], tomorrowClasses = [], activeClass = null, nextClass = null, currentMin = 0, unmarkedCount = 0, dueTomorrowTitle = '' } = {}) {
+  const from = (c) => timeToMinutes(c.time || '00:00');
+  const to = (c) => (c.end ? timeToMinutes(c.end) : from(c) + 60);
+  const label = (c) => c.code || c.subject || 'Class';
+  const byTime = (list) => list.slice().sort((x, y) => from(x) - from(y));
+  if (mode === 'night') {
+    const first = byTime(tomorrowClasses)[0];
+    if (!first) return '';
+    return `Tomorrow starts at ${formatDisplayTime(first.time)} with ${label(first)}.${dueTomorrowTitle ? ` ${dueTomorrowTitle} is due.` : ''}`;
+  }
+  if (!dayClasses.length) return '';
+  if (mode === 'evening') {
+    if (unmarkedCount <= 0) return "Today's classes are marked. The evening is yours.";
+    const n = dayClasses.length;
+    return unmarkedCount === n ? `${n} class${n !== 1 ? 'es' : ''} today. Mark them in one tap.` : `${unmarkedCount} class${unmarkedCount !== 1 ? 'es' : ''} left to mark.`;
+  }
+  const sorted = byTime(dayClasses);
+  if (activeClass) {
+    const left = Math.max(1, Math.round(to(activeClass) - currentMin));
+    const head = `${left} minute${left !== 1 ? 's' : ''} left.`;
+    // While a class runs, nextClass is empty: the one after it is the first that starts when this one ends.
+    const after = sorted.find(c => c !== activeClass && from(c) >= to(activeClass));
+    if (!after) return `${head} Then you are done for today.`;
+    const gap = from(after) - to(activeClass);
+    return `${head} Then ${gap >= 30 ? 'free until ' : ''}${label(after)} at ${formatDisplayTime(after.time)}.`;
+  }
+  if (!nextClass) return "That's all your classes for today.";
+  if (currentMin < from(sorted[0])) {
+    let best = null;
+    for (let i = 0; i + 1 < sorted.length; i++) {
+      const gap = from(sorted[i + 1]) - to(sorted[i]);
+      if (gap >= 90 && (!best || gap > best.gap)) best = { gap, a: to(sorted[i]), b: from(sorted[i + 1]) };
+    }
+    const at = (m) => formatDisplayTime(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+    return `${label(sorted[0])} at ${formatDisplayTime(sorted[0].time)}.${best ? ` Free from ${at(best.a)} to ${at(best.b)}.` : ''}`;
+  }
+  return `Next: ${label(nextClass)} at ${formatDisplayTime(nextClass.time)}.`;
+}
+
 function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine, tomorrow = false, evening = false }) {
   try {
     const marks = attendanceData[dateStr] || {};
@@ -12663,13 +12705,23 @@ function renderDashboard() {
     : contextLine;
   const subHTML = `${greetingParts.quip ? `<span class="desk-quip">${escHtml_cd(greetingParts.quip)}</span> ` : ''}${greetingSub || ''}`.trim();
 
+  // One line under the title. Work that needs attention (slipped tasks, risk, exams, holiday, an aim, no timetable)
+  // keeps its own wording; otherwise the day's classes say it. Names and quips no longer sit above it.
+  const ctxFirst = recentOverdue > 0 || examSoon || onHoliday || selfStudy || isEmptyDesk || !hasCustomTT || (isAttendanceAtRisk && banner !== 'risk') || !!ctxOpts.rhythm || !!finishAimLine(ctxOpts.finish);
+  const unmarkedNow = (dayClasses.length && !night) ? endedUnmarkedClassKeys(dateStr).length : 0;
+  const dueTom = night ? dueShown.find(a => dueDaysLeft(a.dueDate) === 1) : null;
+  const smartText = c2SmartLine({ mode: night ? 'night' : evening ? 'evening' : 'day', dayClasses, tomorrowClasses, activeClass, nextClass, currentMin, unmarkedCount: unmarkedNow, dueTomorrowTitle: dueTom ? dueTom.title : '' });
+  const blankSmart = blankDesk ? 'Add your timetable and Today plans the day for you.' : '';
+  const smartHTML = askName ? '' : ctxFirst ? (greetingSub || blankSmart) : (smartText ? escHtml_cd(smartText) : (greetingSub || blankSmart));
+
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
           <div class="desk-date"><span class="desk-dnum" aria-hidden="true">${now.getDate()}</span><span class="desk-dday"><span class="sr-only">${now.getDate()} </span>${now.toLocaleDateString('en-GB', { weekday: 'long' })} · ${now.toLocaleDateString('en-GB', { month: 'long' })}</span></div>
-          <div class="desk-greeting">${askName ? `Hey there.` : greetingParts.title}</div>
+          <div class="c2-dtitle" aria-hidden="true">${night ? 'Tomorrow' : 'Today'}</div>
+          <div class="desk-greeting${smartHTML ? ' c2-smart' : ''}">${askName ? `Hey there.` : smartHTML || greetingParts.title}</div>
           ${askName ? `
           <div class="greet-ask">
             <label class="greet-ask-line" for="greet-name">Your week's all set. What should we call you?</label>
@@ -12680,7 +12732,7 @@ function renderDashboard() {
             </div>
             <button type="button" class="setup-first-alt greet-ask-skip" onclick="onbSaveGreetingName(true)">Not now</button>
           </div>` : ''}
-          ${subHTML ? `<div class="desk-greeting-sub">${subHTML}</div>` : ''}
+          ${subHTML && !smartHTML ? `<div class="desk-greeting-sub">${subHTML}</div>` : ''}
           ${deskNoteLinksHTML}
           ${holidaySoonHTML}
         </div>

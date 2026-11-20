@@ -63,9 +63,10 @@ for (const w of [320, 360, 412]) {
       expect((text.match(/below your|under your/g) || []).length).toBeLessThanOrEqual(1);
     });
 
-    test('the quip shows on a calm day and never above late work', async ({ page }) => {
+    test('a calm day says one line about the classes, with no name or quip above it', async ({ page }) => {
       const calm = await open(page, w, UPCOMING);
-      await expect(calm.locator('.desk-quip')).toHaveText('Chai first?');
+      await expect(calm.locator('.desk-quip')).toHaveCount(0);
+      await expect(calm.locator('.desk-greeting.c2-smart')).toContainText(/ at \d{1,2}:\d{2} (AM|PM)/);
       await expect(calm.locator('.desk-greeting')).not.toContainText('Chai');
       // Plain task rows are two lines: a long subject is cut, never a third line.
       await expect(calm.locator('.task-ledger-item')).toHaveCount(3);

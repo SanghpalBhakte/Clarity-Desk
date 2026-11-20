@@ -35,7 +35,7 @@ const statusOf = (page: Page, id: string) => page.evaluate((id) =>
 test('older tasks fold into one line; the day and recent tasks lead', async ({ page }) => {
   await seed(page, { cos_custom_tasks: TASKS });
   const today = page.locator('#page-dashboard');
-  await expect(today.locator('.desk-greeting-sub')).toHaveText('1 task slipped. Pick a new day or mark it done.');
+  await expect(today.locator('.desk-greeting')).toHaveText('1 task slipped. Pick a new day or mark it done.');
   await expect(today.locator('.task-ledger-item')).toHaveCount(2);
   await expect(today.locator('.task-ledger-item').first()).toContainText('OS quiz');
   await expect(today.locator('.stale-line')).toContainText('2 older tasks from August');
@@ -46,7 +46,7 @@ test('older tasks fold into one line; the day and recent tasks lead', async ({ p
 
 test('with only older tasks late, the headline talks about the day', async ({ page }) => {
   await seed(page, { cos_custom_tasks: TASKS.filter((t) => t.id !== 'late-1') });
-  await expect(page.locator('#page-dashboard .desk-greeting-sub')).toHaveText('2 classes today, first at 9:00 AM.');
+  await expect(page.locator('#page-dashboard .desk-greeting')).toHaveText(/^(Next: .+ at \d{1,2}:\d{2} (AM|PM)\.|.+ at 9:00 AM\.)/);
 });
 
 test('"Look through" lists older tasks; Done closes one, and "Mark these N done" only appears inside the open list, with Undo', async ({ page }) => {
