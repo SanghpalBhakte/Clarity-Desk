@@ -9785,7 +9785,7 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
 
     // The longest free gap still ahead shows as a row, where it falls between classes.
     const gapInfo = layoutStrip(stripEntries, { width: 300 }).gap;
-    const gapRow = gapInfo && gapInfo.to * 60 > currentMin
+    const gapRow = !tomorrow && gapInfo && gapInfo.to * 60 > currentMin   // tomorrow's list has no "free until" row: the strip shows the gap
       ? `<li class="c2-gaprow"><div class="c2-face-static"><time>${formatDisplayTime(c2Hhmm(gapInfo.from))}</time><span class="c2-nm"><b>Free until ${formatDisplayTime(c2Hhmm(gapInfo.to))}</b>${gapTask ? `<small>${escHtml_cd(gapTask)} fits here</small>` : ''}</span><span></span></div></li>`
       : '';
     let gapDone = !gapRow;
@@ -9810,8 +9810,9 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
         <div class="c2-strip" aria-hidden="true"><div class="c2-track"></div></div>
         ${live ? c2NowHTML(live, currentMin) : ''}
         ${attLine ? `<p class="c2-att"><span>${attLine}</span></p>` : ''}
-        ${evening && unmarked >= 1 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">Mark all present</button>` : ''}
+        ${evening && unmarked >= 1 ? `<button type="button" class="c2-markall rail-all" onclick="markEndedPresent('${dateStr}')">${icons.check()}Mark all present</button>` : ''}
         <ol class="c2-rows" aria-label="${tomorrow ? 'Your classes tomorrow' : 'Your classes today'}">${earlierHTML}${rowsHTML}</ol>
+        ${evening && unmarked >= 1 ? `<p class="c2-tip">Missed one? Swipe its row left, then mark the rest.</p>` : ''}
         ${!evening && unmarked >= 2 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
         ${more > 0 ? `<button type="button" class="dash-more-link c2-more" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${more} more class${more !== 1 ? 'es' : ''} →</button>` : ''}
         ${over && allMarked ? `<p class="rail-then">${icons.check()} Day marked. Books down, feet up.</p>` : ''}
@@ -12527,7 +12528,7 @@ function renderDashboard() {
     ? c2DayHTML({ dayClasses: tomorrowClasses, attendanceData, dateStr: tomorrowKey, currentMin: -1, activeClass: null, nextClass: tomorrowClasses[0] || null, lookAhead: null, dayIdx: tomorrowDate.getDay(), attLine: c2AttLine, tomorrow: true })
     : c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine: c2AttLine, evening, gapTask: c2GapTask });
   const markTodayHTML = night && endedUnmarkedClassKeys(dateStr).length
-    ? `<button type="button" class="dash-more-link c2-marktoday" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">Mark today</button>` : '';
+    ? `<p class="c2-tip">${endedUnmarkedClassKeys(dateStr).length === 1 ? "1 class from today isn't marked." : `${endedUnmarkedClassKeys(dateStr).length} classes from today aren't marked.`}</p><button type="button" class="dash-more-link c2-marktoday" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">Mark today</button>` : '';
   const classesOver = !onHoliday && dayClasses.length > 0 && !activeClass && !nextClass;
 
   // Setup card: one ask at a time. No timetable yet = one big button (photo
@@ -12786,7 +12787,7 @@ function renderDashboard() {
         <!-- TASKS & DEADLINES -->
         <div class="dashboard-panel panel-due">
           <div class="panel-header">
-            <div class="panel-title is-label" role="heading" aria-level="2">Due</div>
+            <div class="panel-title is-label" role="heading" aria-level="2">${night ? 'Due tomorrow' : 'Due'}</div>
             <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
           </div>
 

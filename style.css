@@ -9136,6 +9136,14 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
   #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting.c2-smart { font-size: 22px; }
 }
 
+/* ── Evening and night (C2): the one-tap button, and the quiet tip lines ── */
+.c2-markall { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; margin: 14px 0 4px; padding: 0 18px; border: 0; border-radius: 99px; background: var(--c2-acc); color: var(--c2-acc-ink); font: inherit; font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease; }
+.c2-markall svg { width: 18px; height: 18px; stroke-width: 2.6; }
+.c2-markall:active { transform: scale(0.985); filter: brightness(0.94); }
+.c2-markall:focus-visible { outline: 2.5px solid var(--c2-ink); outline-offset: 2px; }
+.c2-tip { margin: 10px 0 0; font-size: 14px; color: var(--c2-mut); }
+@media (prefers-reduced-motion: reduce) { .c2-markall { transition: none; } }
+
 /* ── Calm Today details (C2): sentence-case section titles, the quiet holiday line ── */
 #page-dashboard .panel-title.is-label { font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-ink); }
 #page-dashboard .panel-title .panel-count { font-size: 13px; font-weight: 400; color: var(--c2-mut); letter-spacing: 0; text-transform: none; }
