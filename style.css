@@ -9100,6 +9100,11 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 .c2-tface .c2-st { font-size: 13px; }
 .c2-pick { position: relative; }
 .c2-pick .today-focus-date.is-shown { margin: 0 0 8px; width: 100%; }
+.c2-namerow b { font-weight: 600; }
+.c2-namefield:not([hidden]) { display: flex; align-items: center; gap: 14px; padding: 0 0 6px; }
+.c2-namefield input { flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--c2-line); border-radius: 12px; background: var(--c2-bg); color: var(--c2-ink); font: inherit; font-size: 16px; }
+.c2-namefield input:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 0; }
+.c2-namefield .c2-all { margin-top: 0; }
 .c2-tface .c2-tname b { -webkit-line-clamp: 1; }
 .c2-empty { margin: 8px 0 16px; }
 .c2-empty-strip { height: 44px; border-radius: 10px; border: 1.5px dashed var(--c2-line); }

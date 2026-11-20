@@ -16,7 +16,7 @@ globalThis.setTimeout = () => 0;
 globalThis.requestAnimationFrame = () => 0;
 globalThis.cancelAnimationFrame = () => {};
 globalThis.window = globalThis;
-const stub = () => ({ style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild() {}, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null, addEventListener() {} });
+const stub = () => ({ click() {}, dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {} }, appendChild() {}, remove() {}, focus() {}, value: '', textContent: '', innerHTML: '', querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, getAttribute: () => null, addEventListener() {} });
 globalThis.document = {
   getElementById: () => stub(), querySelector: () => null, querySelectorAll: () => [],
   activeElement: null, hidden: false, addEventListener() {}, removeEventListener() {},
@@ -127,6 +127,40 @@ check('reversed, NaN and null entries are dropped', bad.blocks.length === 1 && e
 const tiny = app.layoutStrip([E('a', 'A', 9, 9.01), E('b', 'B', 9.01, 15)], { width: 340, measure, own: {} });
 check('a sliver never gets a negative width', tiny.blocks.every(b => b.width >= 0));
 check('not an array', eq(app.layoutStrip(null, { width: 340, measure }).blocks, []));
+
+// ── Own strip names: cos_strip_labels (Task 8) ──
+const own = new Function(`${code}\n showToast = () => {}; // toasts need a real DOM; this file checks storage only\n return { loadStripLabels, saveStripLabel, KEY_STRIP_LABELS, SIGNIN_BACKUP_KEYS, exportData, importData };`)();
+localStorage.clear();
+check('key is cos_strip_labels', own.KEY_STRIP_LABELS === 'cos_strip_labels');
+check('nothing saved: loadStripLabels is {}', eq(own.loadStripLabels(), {}));
+own.saveStripLabel('Environmental Studies', 'EVS');
+check('saved name reads back', own.loadStripLabels()['Environmental Studies'] === 'EVS');
+own.saveStripLabel('Environmental Studies', 'Environmental');
+check('capped at 10 characters', own.loadStripLabels()['Environmental Studies'] === 'Environmen');
+own.saveStripLabel('Environmental Studies', '   ');
+check('blank clears it (back to automatic)', !('Environmental Studies' in own.loadStripLabels()));
+localStorage.setItem('cos_strip_labels', '["junk"]');
+check('garbage store reads as {}', eq(own.loadStripLabels(), {}));
+localStorage.setItem('cos_strip_labels', JSON.stringify({ A: 'ok', B: 42, C: '' }));
+check('only non-empty strings survive a read', eq(own.loadStripLabels(), { A: 'ok' }));
+check('SIGNIN_BACKUP_KEYS includes it', own.SIGNIN_BACKUP_KEYS.includes('cos_strip_labels'));
+
+// Backup file: exportData writes stripLabels; a restore with or without them never throws.
+localStorage.clear();
+own.saveStripLabel('Database Management Systems', 'DB');
+let blobText = '';
+globalThis.Blob = class { constructor(parts) { blobText = parts.join(''); } };
+globalThis.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
+try { own.exportData(); } catch (e) { /* the toast after the download has no DOM here; the file is already written */ }
+check('exportData has stripLabels', (() => { try { return eq(JSON.parse(blobText).stripLabels, { 'Database Management Systems': 'DB' }); } catch (e) { return false; } })());
+let fileText = '';
+globalThis.FileReader = class { readAsText() { this.onload({ target: { result: fileText } }); } };
+const restore = (text) => { fileText = text; let threw = false; try { own.importData({ target: { files: [{}] } }); } catch (e) { threw = true; } return !threw; };
+localStorage.clear();
+check('old backup without stripLabels restores without throwing', restore(JSON.stringify({ customTasks: [] })));
+check('...and leaves loadStripLabels() as {}', eq(own.loadStripLabels(), {}));
+restore(JSON.stringify({ customTasks: [], stripLabels: { 'Environmental Studies': 'EVS', Bad: 7, Long: 'ABCDEFGHIJKLMNOP' } }));
+check('backup with stripLabels restores them (cleaned and capped)', eq(own.loadStripLabels(), { 'Environmental Studies': 'EVS', Long: 'ABCDEFGHIJ' }));
 
 if (fails) { console.error(`${fails} strip check(s) failed`); process.exit(1); }
 console.log('All strip label checks passed.');

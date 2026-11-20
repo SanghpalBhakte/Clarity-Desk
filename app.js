@@ -68,6 +68,9 @@ const KEY_INSTALL_PROMPT      = 'cos_install_prompt';
 const KEY_SYLLABUS            = 'cos_syllabus';
 // Holiday mode: { on, since, until|null }. Hides classes on screen only.
 const KEY_HOLIDAY             = 'cos_holiday';
+// The student's own names for the Today strip: { [canonical subject name]: "EVS" }, up to 10 characters.
+// Display only, never a subject code. In backups and the sign-in Undo; not synced.
+const KEY_STRIP_LABELS        = 'cos_strip_labels';
 // Email-link sign-in: { email, sentAt } for the link this browser asked
 // for, so it can finish without asking again. Device-only, so it is left
 // out of backups.
@@ -5039,7 +5042,8 @@ const SIGNIN_UNDO_MS = 7500;  // a little longer than the Undo toast (7 s)
 const SIGNIN_BACKUP_KEYS = [KEY_CUSTOM_TASKS, KEY_CUSTOM_LINKS, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE,
   KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_PROFILE, KEY_ASSIGNMENTS, KEY_TOMBSTONES,
   // Everything else applying the cloud copy may overwrite, so Undo is exact.
-  KEY_SYLLABUS, KEY_NOTIF_PREFS, KEY_NOTICE_CHANNELS, KEY_ATT_TARGET, KEY_AIMS, KEY_HOLIDAY, KEY_THEME, KEY_ACCENT];
+  KEY_SYLLABUS, KEY_NOTIF_PREFS, KEY_NOTICE_CHANNELS, KEY_ATT_TARGET, KEY_AIMS, KEY_HOLIDAY, KEY_THEME, KEY_ACCENT,
+  KEY_STRIP_LABELS];
 
 function signinDataIn(src) {
   const nonEmptyObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
@@ -9480,6 +9484,26 @@ function stripSubjectKey(entry) {
   return (typeof name === 'string' && name.trim()) || raw.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// The student's own strip names (cos_strip_labels). Anything that isn't a non-empty string is dropped; 10 characters max.
+const STRIP_LABEL_MAX = 10;
+function cleanStripLabels(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  Object.keys(raw).forEach(k => {
+    const v = typeof raw[k] === 'string' ? raw[k].trim().slice(0, STRIP_LABEL_MAX).trim() : '';
+    if (k && v) out[k] = v;
+  });
+  return out;
+}
+function loadStripLabels() { return cleanStripLabels(safeGetStorage(KEY_STRIP_LABELS, {})); }
+// An empty label goes back to the automatic one.
+function saveStripLabel(subjectName, label) {
+  const all = loadStripLabels();
+  const v = String(label || '').trim().slice(0, STRIP_LABEL_MAX).trim();
+  if (v) all[subjectName] = v; else delete all[subjectName];
+  safeSetStorage(KEY_STRIP_LABELS, all);
+}
+
 // Labels to try for one class, best first. A student's own strip name is the only candidate when set.
 function stripLabelCandidates(entry, own) {
   const ownName = String(own || '').trim();
@@ -9757,9 +9781,11 @@ function c2PaintStrip() {
   if (!width) return;
   if (!c2MeasureCtx) { const cv = document.createElement('canvas'); c2MeasureCtx = cv.getContext('2d'); }
   c2MeasureCtx.font = `600 12px ${getComputedStyle(strip).fontFamily}`;
-  const own = safeGetStorage('cos_strip_labels', {}) || {};
-  const lay = layoutStrip(c2Day.strip, { width, measure: (t) => c2MeasureCtx.measureText(t).width, own: typeof own === 'object' ? own : {} });
+  const lay = layoutStrip(c2Day.strip, { width, measure: (t) => c2MeasureCtx.measureText(t).width, own: loadStripLabels() });
   if (!lay.blocks.length) return;
+  // What each single class shows, so the sheet's "Name on the strip" row names the same thing.
+  c2Day.labels = {};
+  lay.blocks.forEach(b => { if (b.kind === 'one' && b.label) c2Day.labels[b.ids[0]] = b.label; });
   const byKey = new Map(c2Day.all.map(x => [x.key, x]));
   const x = (h) => ((h - lay.start) / (lay.end - lay.start)) * width;
   const blocks = lay.blocks.map(b => {
@@ -9811,7 +9837,26 @@ function c2SheetEls() {
     const tk = e.target.closest('[data-c2-task]');
     if (tk) { c2TaskAct(tk); return; }
     const sub = e.target.closest('[data-c2-subject]');
-    if (sub) { const name = sub.dataset.c2Subject; closeSheet(true); openSubjectHub(name); }
+    if (sub) { const name = sub.dataset.c2Subject; closeSheet(true); openSubjectHub(name); return; }
+    const nm = e.target.closest('[data-c2-name]');
+    if (nm) {
+      const field = sheet.querySelector('.c2-namefield');
+      const open = !!field && field.hidden;
+      if (field) field.hidden = !open;
+      nm.setAttribute('aria-expanded', String(open));
+      const inp = field && field.querySelector('input');
+      c2NameEdit = open && inp ? { key: nm.dataset.key, value: inp.value } : null;
+      if (open && inp) { inp.focus(); inp.select(); }
+      return;
+    }
+    const sv = e.target.closest('[data-c2-name-save]');
+    if (sv) c2SaveName(sv.dataset.key);
+  });
+  sheet.addEventListener('input', (e) => {
+    if (c2NameEdit && e.target.closest('.c2-namefield input')) c2NameEdit.value = e.target.value;
+  });
+  sheet.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.closest('.c2-namefield input') && c2NameEdit) { e.preventDefault(); c2SaveName(c2NameEdit.key); }
   });
   sheet.addEventListener('change', (e) => {
     const inp = e.target.closest('input[type="date"]');
@@ -9862,7 +9907,40 @@ function c2SheetHTML(x) {
       ${opt('attended', 'Present')}${opt('skipped', 'Absent')}${opt('cancelled', "Didn't happen", 'Not counted, as if it was never held')}${opt('od_pending', 'On duty (OD)', 'Excused by college; counts as present once approved')}
       ${x.status !== 'unset' ? `<button type="button" class="c2-opt" data-c2-mark="${x.status}" data-key="${key}">${icons.x()}Clear mark</button>` : ''}`;
   }
-  return h;
+  return h + c2NameRowHTML(x);
+}
+
+// "Name on the strip": the label the strip shows for this subject, where it came from, and a field to choose one.
+let c2NameEdit = null;   // { key, value } while the field is open (kept through the minute re-render)
+function c2NameRowHTML(x) {
+  const c = x.c, key = c2Attr(x.key);
+  const own = loadStripLabels()[stripSubjectKey(c)] || '';
+  const cands = stripLabelCandidates(c, own);
+  const shown = own || (c2Day && c2Day.labels && c2Day.labels[x.key]) || cands[1] || cands[0] || '';
+  // The timetable's own code or full name (with or without " Lab") came from the timetable; anything else was made.
+  const base = shown.replace(/ Lab$/, '').toUpperCase();
+  const given = [c.code, c.subject, stripSubjectKey(c)].map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
+  const from = own ? 'Your choice' : given.includes(base) || given.includes(shown.toUpperCase()) ? 'From your timetable' : 'Made from the name';
+  const open = !!c2NameEdit && c2NameEdit.key === x.key;
+  return `<p class="c2-sl">On your day strip</p>
+    <button type="button" class="c2-opt c2-namerow" data-c2-name data-key="${key}" aria-expanded="${open}" aria-controls="c2-namefield"><span>Name on the strip · <b>${escHtml_cd(shown)}</b><small>${from}</small></span></button>
+    <div class="c2-namefield" id="c2-namefield"${open ? '' : ' hidden'}>
+      <input type="text" maxlength="${STRIP_LABEL_MAX}" autocomplete="off" spellcheck="false" aria-label="Name on the strip for ${c2Attr(c.subject)}, up to ${STRIP_LABEL_MAX} characters. Leave empty for the automatic name." value="${c2Attr(open ? c2NameEdit.value : own)}" placeholder="${c2Attr(cands[1] || cands[0] || '')}">
+      <button type="button" class="c2-all" data-c2-name-save data-key="${key}">Save</button>
+    </div>`;
+}
+
+function c2SaveName(key) {
+  const x = c2Day && c2Day.all.find(e => e.key === key);
+  const inp = document.querySelector('#c2-sheet .c2-namefield input');
+  if (!x || !inp) return;
+  saveStripLabel(stripSubjectKey(x.c), inp.value);
+  c2NameEdit = null;
+  c2PaintStrip();
+  c2PaintSheet();
+  const row = document.querySelector('#c2-sheet [data-c2-name]');
+  if (row) row.focus();
+  showToast(inp.value.trim() ? 'Strip name saved' : 'Back to the automatic name', 'done');
 }
 
 // A task row's key is "task:<id>" so rows, open state and the sheet share one set of helpers with classes.
@@ -9907,8 +9985,12 @@ function c2PaintSheet() {
   const x = c2Day && c2Day.all.find(e => e.key === c2SheetKey);
   if (!x) { closeSheet(true); return; }
   const had = sheet.contains(document.activeElement) ? (document.activeElement.getAttribute('data-c2-mark') || '') : '';
+  // Typing a strip name survives the minute re-render: same text, focus and caret.
+  const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#c2-sheet .c2-namefield input');
+  const caret = typing ? typing.selectionStart : null;
   sheet.innerHTML = c2SheetHTML(x);
   if (had) { const again = sheet.querySelector(`[data-c2-mark="${had}"]`); if (again) again.focus(); }
+  if (typing) { const inp = sheet.querySelector('.c2-namefield input'); if (inp) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch (_) {} } }
 }
 
 window.openClassSheet = function(key) {
@@ -9933,6 +10015,7 @@ window.closeSheet = function(quiet) {
   const sheet = document.getElementById('c2-sheet');
   const key = c2SheetKey;
   c2SheetKey = null;
+  c2NameEdit = null;
   document.body.classList.remove('c2-sheeted');
   c2Inerted.splice(0).forEach(n => { n.inert = false; });
   if (sheet) sheet.setAttribute('aria-hidden', 'true');
@@ -20857,6 +20940,7 @@ function exportData() {
     attTarget:          getAttendanceTarget(),
     aims:               loadAims(),
     holiday:            safeGetStorage(KEY_HOLIDAY, null),
+    stripLabels:        loadStripLabels(),
     notificationPrefs:  loadNotifPrefs(),
     noticeChannels:     loadNoticeChannels(),
     theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
@@ -20919,6 +21003,8 @@ function importData(event) {
       if (data.attendanceBaseline) safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
       if (data.attendanceLive) safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
       if (Array.isArray(data.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, data.hiddenSubjects);
+      // Older backups have no strip names: the strip keeps its automatic ones.
+      if (data.stripLabels && typeof data.stripLabels === 'object' && !Array.isArray(data.stripLabels)) safeSetStorage(KEY_STRIP_LABELS, cleanStripLabels(data.stripLabels));
       if (Array.isArray(data.syllabus)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
       if (data.userBatch) safeSetStorage(KEY_USER_BATCH, data.userBatch);
       if (data.attTarget) safeSetStorage(KEY_ATT_TARGET, data.attTarget);
