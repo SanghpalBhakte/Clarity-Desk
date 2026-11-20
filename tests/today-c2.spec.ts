@@ -368,6 +368,58 @@ test.describe('tasks', () => {
   });
 });
 
+test.describe('name on the strip', () => {
+  const dbmsBlock = (today: ReturnType<Page['locator']>) => today.locator('.c2-strip .c2-blk:not(.gap)').nth(1);
+
+  test('tap a class, type a name, Save: the strip shows it; clearing goes back to the automatic name', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    const auto = await dbmsBlock(today).innerText();
+    expect(auto).not.toBe('DB');
+    await face(today, 'Database Management Systems').click();
+    const sheet = page.locator('#c2-sheet');
+    const row = sheet.getByRole('button', { name: /^Name on the strip/ });
+    await expect(row).toContainText('From your timetable');
+    await row.click();
+    const field = sheet.getByRole('textbox');
+    await expect(field).toBeFocused();
+    await field.fill('DB');
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    await expect(dbmsBlock(today)).toHaveText('DB');
+    await expect(row).toContainText('Your choice');
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem('cos_strip_labels') || '{}'))).toEqual({ 'Database Management Systems': 'DB' });
+
+    await row.click();
+    await field.fill('');
+    await page.keyboard.press('Enter');
+    await expect(dbmsBlock(today)).toHaveText(auto);
+    expect(await page.evaluate(() => localStorage.getItem('cos_strip_labels'))).toBe('{}');
+  });
+
+  test('the field holds 10 characters, and what you are typing survives the minute re-render', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
+    await face(today, 'Database Management Systems').click();
+    const sheet = page.locator('#c2-sheet');
+    await sheet.getByRole('button', { name: /^Name on the strip/ }).click();
+    const field = sheet.getByRole('textbox');
+    await field.pressSequentially('ABCDEFGHIJKL');
+    await expect(field).toHaveValue('ABCDEFGHIJ');
+    await page.clock.runFor(61000);
+    await expect(sheet.getByRole('textbox')).toHaveValue('ABCDEFGHIJ');
+    await expect(sheet.getByRole('textbox')).toBeFocused();
+  });
+
+  test('a name never touches attendance', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    const before = await marks(page);
+    await face(today, 'Database Management Systems').click();
+    const sheet = page.locator('#c2-sheet');
+    await sheet.getByRole('button', { name: /^Name on the strip/ }).click();
+    await sheet.getByRole('textbox').fill('DB');
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    expect(await marks(page)).toBe(before);
+  });
+});
+
 test.describe('modes', () => {
   test('evening: Mark all present sits above all the rows, and nothing folds away', async ({ page }) => {
     const today = await open(page, '2026-09-24T18:40:00', { cos_attendance_baseline: BASE });

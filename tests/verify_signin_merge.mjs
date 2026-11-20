@@ -407,6 +407,18 @@ await check("After 'both' and 'cloud' the syllabus and settings change; undoSign
   return res.every(r => r.changed && !r.back.length) ? true : JSON.stringify(res);
 });
 
+await check('Strip names (cos_strip_labels) are in the sign-in backup: Undo puts them back byte for byte', async () => {
+  accountWithData();
+  const D = phoneWithData();
+  D.store.cos_strip_labels = JSON.stringify({ 'Environmental Studies': 'EVS' });
+  const before = D.store.cos_strip_labels;
+  await signIn(D);
+  D.app.applySigninChoice('cloud', clone(cloud));
+  D.store.cos_strip_labels = JSON.stringify({ 'Environmental Studies': 'ENV' });   // changed after applying
+  D.app.undoSignin();
+  return D.store.cos_strip_labels === before ? true : String(D.store.cos_strip_labels);
+});
+
 await check("'device' keeps this phone's task statuses and pushes them, not the account's", async () => {
   accountWithData();
   const D = phoneWithData();
