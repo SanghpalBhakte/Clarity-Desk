@@ -9751,7 +9751,7 @@ function c2SmartLine({ mode = 'day', dayClasses = [], tomorrowClasses = [], acti
   return `Next: ${label(nextClass)} at ${formatDisplayTime(nextClass.time)}.`;
 }
 
-function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine, tomorrow = false, evening = false }) {
+function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine, tomorrow = false, evening = false, gapTask = '' }) {
   try {
     const marks = attendanceData[dateStr] || {};
     const all = dayClasses.map((c, i) => {
@@ -9786,7 +9786,7 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
     // The longest free gap still ahead shows as a row, where it falls between classes.
     const gapInfo = layoutStrip(stripEntries, { width: 300 }).gap;
     const gapRow = !tomorrow && gapInfo && gapInfo.to * 60 > currentMin   // tomorrow's list has no "free until" row: the strip shows the gap
-      ? `<li class="c2-gaprow"><div class="c2-face-static"><time>${formatDisplayTime(c2Hhmm(gapInfo.from))}</time><span class="c2-nm"><b>Free until ${formatDisplayTime(c2Hhmm(gapInfo.to))}</b></span><span></span></div></li>`
+      ? `<li class="c2-gaprow"><div class="c2-face-static"><time>${formatDisplayTime(c2Hhmm(gapInfo.from))}</time><span class="c2-nm"><b>Free until ${formatDisplayTime(c2Hhmm(gapInfo.to))}</b>${gapTask ? `<small>${escHtml_cd(gapTask)} fits here</small>` : ''}</span><span></span></div></li>`
       : '';
     let gapDone = !gapRow;
     const rowsHTML = shown.filter(x => x !== live).map(x => {
@@ -12500,15 +12500,11 @@ function renderDashboard() {
   let beaconHTML = '';
   if (onHoliday) {
     const daysLeft = holidayDaysLeft();
+    // One quiet line and one link, no card.
     beaconHTML = `
-      <div class="holiday-banner" role="region" aria-label="Holiday mode">
-        <span class="holiday-banner-art" aria-hidden="true"${holidaySwayStyle()}>🌴</span>
-        <div class="holiday-banner-body">
-          <div class="holiday-banner-kicker">${icons.sun()} Holiday mode · ${holidayLabel()}${daysLeft ? ` · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} to go` : ''}</div>
-          <div class="holiday-banner-title">${holidayMoodLine()}</div>
-          <div class="holiday-banner-meta">Classes, class reminders and ongoing tasks are resting. Real deadlines still show here.</div>
-        </div>
-        <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="endHolidayEarly()">End holiday early</button>
+      <div class="holiday-banner c2-hol" role="region" aria-label="Holiday mode">
+        <p class="c2-hol-t">Holiday mode · ${holidayLabel()}${daysLeft ? ` · ${daysLeft} day${daysLeft !== 1 ? 's' : ''} to go` : ''}</p>
+        <button type="button" class="c2-all holiday-banner-end" onclick="endHolidayEarly()">End holiday early</button>
       </div>`;
   }
   // Classes live on the day rail (Your day); the card above is only for a holiday.
@@ -12522,9 +12518,15 @@ function renderDashboard() {
   // One line, in words: the overall number and what it allows (every figure is already computed above).
   const c2AttLine = (!hasAttendanceData || attendancePct === null || hideAttendancePanel) ? ''
     : `Overall <b>${escHtml_cd(attendancePctLabel)}%</b>, ${!dashGuidance.isSafe ? `below the ${attTarget}% rule` : Number.isFinite(dashGuidance.safeSkips) && dashGuidance.safeSkips > 0 ? `you can miss ${dashGuidance.safeSkips} more` : 'right on the line'}`;
+  // The free row says which task could go there: the first own task that is late or due within 3 days (display only).
+  const c2GapTask = (() => {
+    const t = allTasks().filter(a => a.status === 'pending' && a.dueDate && !a.noDeadline && dueDaysLeft(a.dueDate) !== null && dueDaysLeft(a.dueDate) <= 3)
+      .sort((x, y) => String(x.dueDate).localeCompare(String(y.dueDate)))[0];
+    return t ? t.title : '';
+  })();
   const railHTML = onHoliday ? '' : night
     ? c2DayHTML({ dayClasses: tomorrowClasses, attendanceData, dateStr: tomorrowKey, currentMin: -1, activeClass: null, nextClass: tomorrowClasses[0] || null, lookAhead: null, dayIdx: tomorrowDate.getDay(), attLine: c2AttLine, tomorrow: true })
-    : c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine: c2AttLine, evening });
+    : c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine: c2AttLine, evening, gapTask: c2GapTask });
   const markTodayHTML = night && endedUnmarkedClassKeys(dateStr).length
     ? `<p class="c2-tip">${endedUnmarkedClassKeys(dateStr).length === 1 ? "1 class from today isn't marked." : `${endedUnmarkedClassKeys(dateStr).length} classes from today aren't marked.`}</p><button type="button" class="dash-more-link c2-marktoday" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">Mark today</button>` : '';
   const classesOver = !onHoliday && dayClasses.length > 0 && !activeClass && !nextClass;
@@ -12565,7 +12567,7 @@ function renderDashboard() {
         <li class="c2-row"><button type="button" class="c2-face" onclick="showBaselineModal(null, 'manual')"><span class="c2-nm"><b>Add attendance so far</b><small>Copy your counts from the college portal.</small></span><span class="c2-st">→</span></button></li>
         <li class="c2-row"><button type="button" class="c2-face" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}"><span class="c2-nm"><b>Add a deadline</b><small>Whatever is due next.</small></span><span class="c2-st">→</span></button></li>
       </ol>
-      <p class="c2-empty-alts"><button type="button" class="c2-all" onclick="onboardingSampleDay(this)">See an example day</button><button type="button" class="setup-first-alt" onclick="setupSelfStudy()">Study without a timetable</button></p>
+      <p class="c2-empty-alts"><button type="button" class="c2-all" onclick="onboardingSampleDay(this)">See an example day</button></p>
     </div>` : `
     <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
@@ -12713,7 +12715,8 @@ function renderDashboard() {
   const dueTom = night ? dueShown.find(a => dueDaysLeft(a.dueDate) === 1) : null;
   const smartText = c2SmartLine({ mode: night ? 'night' : evening ? 'evening' : 'day', dayClasses, tomorrowClasses, activeClass, nextClass, currentMin, unmarkedCount: unmarkedNow, dueTomorrowTitle: dueTom ? dueTom.title : '' });
   const blankSmart = blankDesk ? 'Add your timetable and Today plans the day for you.' : '';
-  const smartHTML = askName ? '' : ctxFirst ? (greetingSub || blankSmart) : (smartText ? escHtml_cd(smartText) : (greetingSub || blankSmart));
+  const holidaySmart = onHoliday && recentOverdue === 0 && !examSoon ? 'Holiday: classes and attendance are paused.' : '';
+  const smartHTML = askName ? '' : holidaySmart ? holidaySmart : ctxFirst ? (greetingSub || blankSmart) : (smartText ? escHtml_cd(smartText) : (greetingSub || blankSmart));
 
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
@@ -12807,7 +12810,7 @@ function renderDashboard() {
               const own = !done && state.customTasks.some(x => x.id === a.id);
               const tid = escAttr_cd(a.id);
               const when = daysLeft !== null && daysLeft < 0
-                ? `<span class="c2-st bad due-badge ${rel.cls}">${icons.x()}${rel.label}</span>`
+                ? `<span class="c2-st bad due-badge ${rel.cls}">${icons.alert()}${rel.label.replace(' overdue', ' late')}</span>`
                 : `<span class="c2-st due-badge ${rel.cls}">${rel.label}</span>`;
               return `
                 <li class="c2-row t task-ledger-item ${pCls}${todaySettling(a.id) ? ' is-settling' : ''}" data-row="task:${tid}" data-task="${tid}">
@@ -12820,7 +12823,7 @@ function renderDashboard() {
                     ${when}
                   </div>
                 </li>`;
-            }).join('') + `</ol>` : staleTasks.length ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
+            }).join('') + `</ol>` : staleTasks.length || blankDesk ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
             ${dueShown.length > 1 || moreTasks > 0 ? `<div class="due-foot">
               ${dueShown.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
@@ -12834,7 +12837,7 @@ function renderDashboard() {
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
             <input type="text" id="quick-add-input" class="form-input" aria-label="Add a task" enterkeyhint="done" placeholder="+ e.g. Lab report due Friday" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
-            <button class="btn btn-sm ${setupLast ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">${setupLast ? 'Add deadline' : 'Add'}</button>
+            <button class="btn btn-sm ${setupLast && !blankDesk ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">${setupLast && !blankDesk ? 'Add deadline' : 'Add'}</button>
           </div>
         </div>
 

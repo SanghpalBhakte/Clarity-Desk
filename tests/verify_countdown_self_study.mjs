@@ -168,11 +168,11 @@ check('Self-study with a date set: no setup card left', () => {
   return html.includes('days to GATE') ? true : 'countdown missing';
 });
 
-check('College path unchanged and offers "study without one"', () => {
+check('College path unchanged: add timetable and an example day (self-study is on the welcome screen and the Timetable page)', () => {
   seed(); const app = makeApp();
   const html = today(app);
   if (!html.includes("Add timetable") || !html.includes('showAddTimetableChoice()')) return 'college options missing';
-  return html.includes('Study without a timetable') && html.includes('setupSelfStudy()') ? true : 'self-study choice missing';
+  return html.includes('See an example day') && !html.includes('Study without a timetable') ? true : 'new-desk choices wrong';
 });
 
 check('Welcome is Show me around / Log in only; self-study is a Today setup choice', () => {

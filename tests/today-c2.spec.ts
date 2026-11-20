@@ -625,3 +625,37 @@ test.describe('evening and night details', () => {
     await expect(today.getByRole('heading', { name: 'Due', exact: true })).toBeVisible();
   });
 });
+
+test.describe('calm details', () => {
+  test('section titles are sentence case, and late work says "late", with a warning icon', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'OS quiz', '2026-09-22')] });
+    await expect(today.getByRole('heading', { name: /^Your day/ })).toBeVisible();
+    expect(await today.getByRole('heading', { name: 'Due', exact: true }).evaluate((e) => getComputedStyle(e).textTransform)).toBe('none');
+    const late = today.locator('.c2-row.t .due-badge').first();
+    await expect(late).toHaveText('2 days late');
+    await expect(late.locator('svg')).toHaveCount(1);
+  });
+  test('the free row names the task that could go there', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'OS quiz', '2026-09-26')] });
+    await expect(today.locator('.c2-gaprow')).toContainText('OS quiz fits here');
+  });
+  test('the free row has no second line when nothing is due soon', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'Far off', '2026-11-30')] });
+    await expect(today.locator('.c2-gaprow small')).toHaveCount(0);
+  });
+  test('holiday: one quiet line and a link, no gradient card', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_holiday: { on: true, since: '2026-09-20', until: '2026-10-05' } });
+    await expect(today.locator('.desk-greeting')).toHaveText('Holiday: classes and attendance are paused.');
+    const banner = today.locator('.holiday-banner');
+    await expect(banner).toContainText('Back on');
+    expect(await banner.evaluate((e) => getComputedStyle(e).backgroundImage)).toBe('none');
+    await expect(banner.getByRole('button', { name: 'End holiday early' })).toBeVisible();
+    await expect(today.locator('.holiday-banner-art')).toHaveCount(0);
+  });
+  test('a completely new desk: no self-study button, no "No tasks yet", a plain Add button', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_timetable: {} });
+    await expect(today.getByRole('button', { name: 'Study without a timetable' })).toHaveCount(0);
+    await expect(today).not.toContainText('No tasks yet.');
+    await expect(today.getByRole('button', { name: 'Add', exact: true })).toBeVisible();
+  });
+});
