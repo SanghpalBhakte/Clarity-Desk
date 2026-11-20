@@ -9574,6 +9574,7 @@ let c2Hold = null;         // a press that may become a hold
 let c2RerenderPending = false;
 let c2SuppressClick = false;
 let c2SheetReturnKey = null;
+const c2Inerted = [];      // page parts made inert while a sheet is open
 const c2Reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const c2Attr = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -9665,7 +9666,14 @@ function c2RowHTML(x, { currentMin, sameTime }) {
 // Today by time of day (spec section 3): evening is 6 to 9 PM, and from 9 PM Today shows tomorrow.
 const C2_EVENING_MIN = 18 * 60, C2_NIGHT_MIN = 21 * 60;
 function c2IsNight() {
-  return currentTimeMinutes() >= C2_NIGHT_MIN && !isHolidayActive() && hasAnyTimetable() && !isSelfStudyMode();
+  const now = currentTimeMinutes();
+  if (now < C2_NIGHT_MIN || isHolidayActive() || !hasAnyTimetable() || isSelfStudyMode()) return false;
+  // A class still running or still to start keeps Today on today (no end time: an hour, as on the strip).
+  const today = (loadTimetable()[new Date().getDay()] || []).filter(isTeachingClass);
+  return !today.some(c => {
+    const from = timeToMinutes(c.time || '00:00');
+    return now < (c.end ? timeToMinutes(c.end) : from + 60);
+  });
 }
 
 function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine, tomorrow = false, evening = false }) {
@@ -9688,7 +9696,7 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
     const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
     const earlier = evening ? [] : all.filter(x => x.state === 'ended' && x.status !== 'unset');
     const rest = all.filter(x => !earlier.includes(x));
-    const shown = rest.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, RAIL_MAX_ROWS)
+    const shown = rest.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, evening ? Infinity : RAIL_MAX_ROWS)
       .sort((a, b) => a.from - b.from || a.i - b.i);
     const more = rest.length - shown.length;
     const sameTime = (x) => shown.some(y => y !== x && y.from === x.from);
@@ -9833,13 +9841,16 @@ function c2SheetHTML(x) {
   if (st) h += `<div class="c2-fx c2-sheet-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(c.code || c.subject)}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>`;
   if (later) {
     if (st) {
-      const go = Math.round(((st.attended + 1) / (st.held + 1)) * 100), skip = Math.round((st.attended / (st.held + 1)) * 100);
+      // Decided from the exact counts (computeNowGuidance), never from a rounded figure: 74.7% is under 75%.
+      // The figures round down, so a number under the rule never shows as the rule itself.
+      const go = Math.floor(((st.attended + 1) / (st.held + 1)) * 100), skip = Math.floor((st.attended / (st.held + 1)) * 100);
       const g = computeNowGuidance(st.attended, st.held + 1, st.target);
-      const verdict = skip < st.target ? `Skipping puts you under the ${st.target}% rule. Go to this one.`
+      const under = g.isSafe === false;
+      const verdict = under ? `Skipping puts you under the ${st.target}% rule. Go to this one.`
         : g.safeSkips > 0 ? `Both keep you above ${st.target}%. After skipping you could still miss ${g.safeSkips} more.`
         : `Skipping leaves you right on ${st.target}%, with none left to miss.`;
       h += `<p class="c2-sl">Can I skip this?</p>
-        <div class="c2-cmp"><div><small>If you go</small><b>${go}%</b></div><div${skip < st.target ? ' class="low"' : ''}><small>If you skip</small><b>${skip}%</b></div></div>
+        <div class="c2-cmp"><div><small>If you go</small><b>${go}%</b></div><div${under ? ' class="low"' : ''}><small>If you skip</small><b>${skip}%</b></div></div>
         <p class="c2-verdict">${verdict}</p>`;
     } else {
       h += `<p class="c2-sl">Can I skip this?</p><p class="c2-verdict">Add your attendance counts and this tells you what skipping would do.</p>`;
@@ -9909,6 +9920,10 @@ window.openClassSheet = function(key) {
   c2PaintSheet();
   sheet.setAttribute('aria-hidden', 'false');
   document.body.classList.add('c2-sheeted');
+  // The page behind a modal sheet can't be reached by Tab or a screen reader until it closes.
+  [...document.body.children].forEach(n => {
+    if (n !== sheet && n.id !== 'c2-scrim' && !n.inert) { n.inert = true; c2Inerted.push(n); }
+  });
   const f = sheet.querySelector('button');
   if (f) f.focus({ preventScroll: true });
 };
@@ -9919,6 +9934,7 @@ window.closeSheet = function(quiet) {
   const key = c2SheetKey;
   c2SheetKey = null;
   document.body.classList.remove('c2-sheeted');
+  c2Inerted.splice(0).forEach(n => { n.inert = false; });
   if (sheet) sheet.setAttribute('aria-hidden', 'true');
   if (!sheet || !key || quiet === true) return;
   const back = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(key)}"] ${c2TaskId(key) ? '.c2-tname' : '.c2-face'}`) || document.querySelector(`#page-dashboard .c2-now [data-c2-open]`);
@@ -10039,6 +10055,20 @@ function c2PointerMove(e) {
   d.li.classList.toggle('left', x < 0);
 }
 
+// The system took the touch (notification shade, app switch): the row goes back, nothing is marked.
+function c2PointerCancel() {
+  if (c2Hold && !c2Hold.fired) { clearTimeout(c2Hold.t); c2Hold = null; }
+  const d = c2Drag;
+  if (!d) return;
+  if (d.moved) {
+    if (!c2Reduced()) d.face.classList.add('settle');
+    d.face.style.transform = d.base ? `translateX(${d.base}px)` : '';
+    d.li.classList.remove('dr', 'left');
+    if (!d.base) { d.li.classList.remove('dl'); c2OpenRowKey = null; }
+  }
+  c2EndDrag();
+}
+
 function c2PointerUp() {
   if (c2Hold && !c2Hold.fired) { clearTimeout(c2Hold.t); c2Hold = null; }
   const d = c2Drag;
@@ -10087,7 +10117,7 @@ function wireRowGestures(root) {
   root.addEventListener('pointerdown', c2PointerDown);
   root.addEventListener('pointermove', c2PointerMove);
   root.addEventListener('pointerup', c2PointerUp);
-  root.addEventListener('pointercancel', c2PointerUp);
+  root.addEventListener('pointercancel', c2PointerCancel);
   root.addEventListener('click', c2Click);
   root.addEventListener('contextmenu', (e) => {
     const face = e.target.closest('.c2-face');

@@ -133,6 +133,42 @@ test.describe('class sheet', () => {
     await expect(sheet.getByRole('button', { name: /^Present/ })).toHaveCount(0);
   });
 
+  test('skip check decides from exact counts: 56 of 75 is under 75%, never shown as 75%', async ({ page }) => {
+    // 56 of 74 now; skipping makes it 56 of 75 = 74.67%, which used to round to 75% and read as "right on".
+    const today = await open(page, '2026-09-24T12:40:00', { cos_attendance_baseline: { OS: { subjectName: 'Operating Systems', subjectCode: 'OS', present: 56, absent: 18, leave: 0, notEntered: 0 } } });
+    await face(today, 'Operating Systems Lab').click();
+    const sheet = page.locator('.c2-sheet');
+    await expect(sheet).toContainText('Skipping puts you under the 75% rule');
+    await expect(sheet.locator('.c2-cmp .low')).toContainText('74%');
+  });
+
+  test('while a sheet is open the page behind it is inert, and comes back when it closes', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    await face(today, 'Data Structures').click();
+    const inert = () => page.evaluate(() => (document.getElementById('page-dashboard')!.closest('[inert]') !== null));
+    expect(await inert()).toBe(true);
+    await page.keyboard.press('Escape');
+    expect(await inert()).toBe(false);
+    await expect(face(today, 'Data Structures')).toBeFocused();
+  });
+
+  test('a swipe the system cancels puts the row back and marks nothing', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00');
+    const before = await marks(page);
+    await face(today, 'Data Structures').scrollIntoViewIfNeeded();
+    await page.evaluate(() => {
+      const f = document.querySelector('.c2-row[data-row="DS_0900"] .c2-face') as HTMLElement;
+      const r = f.getBoundingClientRect(), y = r.top + r.height / 2;
+      const ev = (type: string, x: number) => f.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, button: 0 }));
+      ev('pointerdown', 60);
+      for (let i = 1; i <= 12; i++) ev('pointermove', 60 + i * 15);
+      ev('pointercancel', 240);
+    });
+    await page.waitForTimeout(500);
+    expect(await marks(page)).toBe(before);
+    expect(await face(today, 'Data Structures').evaluate((n) => (n as HTMLElement).style.transform)).toBe('');
+  });
+
   test('hold opens the same sheet and never marks; right-click does too', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00');
     const before = await marks(page);
@@ -351,6 +387,21 @@ test.describe('modes', () => {
     await expect(today.locator('.c2-rows .c2-row').first().locator('.c2-skipq')).toHaveText('Can I skip this?');
     await expect(today.locator('.c2-row.t')).toHaveCount(2);
     await expect(today.getByRole('button', { name: 'Mark today' })).toBeVisible();
+  });
+
+  test('after 9 PM a class still running keeps Today on today', async ({ page }) => {
+    const late = [...DAY, cls('Workshop', 'WS', '20:00', '22:00')];
+    const today = await open(page, '2026-09-24T21:10:00', { cos_custom_timetable: every(late) });
+    await expect(page.locator('#c2-lt-title')).toHaveText('Today');
+    await expect(today.locator('.c2-now')).toContainText('Workshop');
+    await expect(today.getByRole('button', { name: 'Mark today' })).toHaveCount(0);
+  });
+
+  test('evening lists every class, even more than six', async ({ page }) => {
+    const eight = ['08', '09', '10', '11', '12', '13', '14', '15'].map((h, i) => cls(`Subject ${String.fromCharCode(65 + i)}`, `S${i}`, `${h}:00`, `${h}:50`));
+    const today = await open(page, '2026-09-24T18:40:00', { cos_custom_timetable: every(eight) });
+    await expect(today.locator('.c2-rows .c2-row')).toHaveCount(8);
+    await expect(today.locator('.c2-more')).toHaveCount(0);
   });
 
   test('daytime keeps the title Today', async ({ page }) => {
