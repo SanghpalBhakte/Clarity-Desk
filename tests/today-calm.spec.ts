@@ -36,17 +36,17 @@ for (const w of [320, 360, 412]) {
       await expect(today.locator('.desk-greeting')).toBeVisible();
       const lines = await today.locator('.desk-greeting').evaluate((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)));
       expect(lines).toBeLessThanOrEqual(2);
-      for (const sel of ['.c2-row', '.task-ledger-item']) {
+      for (const sel of ['.c2-row:not(.t)', '.task-ledger-item']) {
         const box = await today.locator(sel).first().boundingBox();
         expect(box && box.y + box.height, sel + ' on the first screen').toBeLessThan(812);
       }
       // Every late task shows (never hidden by the cap); the rest says exactly how many.
       await expect(today.locator('.task-ledger-item')).toHaveCount(3);
-      await expect(today.locator('.dash-more-link', { hasText: 'more task' })).toContainText('+5 more tasks');
+      await expect(today.locator('.dash-more-link', { hasText: 'more' })).toContainText('+5 more in Tasks');
       // The long class title is shown whole (wrapping to two lines at most); the button's own text is its accessible name.
-      const name = today.locator('.c2-row .c2-nm b').first();
+      const name = today.locator('.c2-row:not(.t) .c2-nm b').first();
       await expect(name).toHaveText(/Web Development Lab Section/);
-      await expect(today.locator('.c2-row .c2-face').first()).toContainText('Web Development Lab Section');
+      await expect(today.locator('.c2-row:not(.t) .c2-face').first()).toContainText('Web Development Lab Section');
       // Quick add stays in flow and reachable.
       await expect(today.locator('#quick-add-input')).toBeAttached();
     });

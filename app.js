@@ -9402,24 +9402,6 @@ function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead
 // otherwise. The rail root carries data-beacon so tickBeacon updates the
 // countdown each minute and rebuilds Today at a class boundary.
 const RAIL_MAX_ROWS = 6;
-// Which late task's Move choices are open on Today (memory only, survives the minute re-render).
-let dueMoveOpenId = null;
-window.toggleDueMove = function(btn) {
-  const item = btn && btn.closest('.task-ledger-item');
-  const group = item && item.querySelector('.due-fix');
-  if (!group) return;
-  const open = group.hidden;
-  document.querySelectorAll('#page-dashboard .due-fix:not([hidden])').forEach((g) => {
-    g.hidden = true;
-    const b = g.closest('.task-ledger-item').querySelector('.due-move');
-    if (b) b.setAttribute('aria-expanded', 'false');
-  });
-  group.hidden = !open;
-  btn.setAttribute('aria-expanded', String(open));
-  dueMoveOpenId = open ? btn.dataset.id : null;
-  if (open) { const first = group.querySelector('button'); if (first) first.focus(); }
-  else btn.focus();
-};
 // Today's earlier-classes fold (memory only, survives re-renders) and the row that was just acted on.
 let railEarlierOpen = false;
 window.toggleRailEarlier = function() {
@@ -9694,7 +9676,7 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
     });
     c2Day = { dateStr, all, currentMin, strip: null };
     if (!all.length) return '';
-    if (c2OpenRowKey && !all.some(x => x.key === c2OpenRowKey && x.status === 'unset' && x.state !== 'later' && x.state !== 'next')) c2OpenRowKey = null;
+    if (c2OpenRowKey && !c2TaskId(c2OpenRowKey) && !all.some(x => x.key === c2OpenRowKey && x.status === 'unset' && x.state !== 'later' && x.state !== 'next')) c2OpenRowKey = null;
     // Up to six rows, most urgent first (ended but unmarked, now, next, later, then ended and marked), shown in
     // time order. Over-and-marked classes fold into one line and never count against the cap.
     const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
@@ -9811,8 +9793,14 @@ function c2SheetEls() {
   sheet.addEventListener('click', (e) => {
     const m = e.target.closest('[data-c2-mark]');
     if (m) { c2Mark(m.dataset.key, m.dataset.c2Mark); return; }
+    const tk = e.target.closest('[data-c2-task]');
+    if (tk) { c2TaskAct(tk); return; }
     const sub = e.target.closest('[data-c2-subject]');
     if (sub) { const name = sub.dataset.c2Subject; closeSheet(true); openSubjectHub(name); }
+  });
+  sheet.addEventListener('change', (e) => {
+    const inp = e.target.closest('input[type="date"]');
+    if (inp && inp.value) { const id = inp.dataset.id; closeSheet(true); resolveTask(id, { dueDate: inp.value }); }
   });
   sheet.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab') return;
@@ -9859,9 +9847,45 @@ function c2SheetHTML(x) {
   return h;
 }
 
+// A task row's key is "task:<id>" so rows, open state and the sheet share one set of helpers with classes.
+const c2TaskId = (key) => (typeof key === 'string' && key.startsWith('task:')) ? key.slice(5) : null;
+const c2OpenAt = (key) => (c2TaskId(key) ? -80 : C2_FEEL.open);
+
+function c2WeekendKey() {
+  const d = new Date();
+  do { d.setDate(d.getDate() + 1); } while (d.getDay() !== 6 && d.getDay() !== 0);
+  return localDateKey(d);
+}
+
+function c2MoveSheetHTML(t) {
+  const id = c2Attr(t.id), own = state.customTasks.some(x => x.id === t.id);
+  const real = t.subject && t.subject !== 'General' ? `${escHtml_cd(t.subject)} · ` : '';
+  const rel = (t.noDeadline || !t.dueDate) ? 'Ongoing' : formatRelativeDueDate(t.dueDate).label;
+  const opt = (act, label, note) => `<button type="button" class="c2-opt" data-c2-task="${act}" data-id="${id}"><span>${label}${note ? `<small>${note}</small>` : ''}</span></button>`;
+  let h = `<div class="c2-grab" aria-hidden="true"></div>
+    <h3 id="c2-sheet-title">${escHtml_cd(t.title)}</h3>
+    <p class="c2-sheet-m">${real}${rel}</p>`;
+  if (own) {
+    h += `<p class="c2-sl">Move to</p>
+      ${opt('tomorrow', 'Tomorrow')}${opt('weekend', 'This weekend')}
+      <div class="c2-pick"><button type="button" class="c2-opt" data-c2-task="pick" data-id="${id}"><span>Pick a day</span></button><input type="date" class="today-focus-date" tabindex="-1" data-id="${id}" min="${todayStr()}" aria-label="New due date for ${c2Attr(t.title)}"></div>`;
+  }
+  h += `<p class="c2-sl">Or</p>${opt('done', 'Mark done instead')}${opt('open', 'Open in Tasks')}`;
+  return h;
+}
+
 function c2PaintSheet() {
   const sheet = document.getElementById('c2-sheet');
   if (!sheet || !c2SheetKey) return;
+  const tid = c2TaskId(c2SheetKey);
+  if (tid) {
+    const t = allTasks().find(a => a.id === tid);
+    if (!t || t.status === 'submitted') { closeSheet(true); return; }
+    const had = sheet.contains(document.activeElement) ? (document.activeElement.getAttribute('data-c2-task') || '') : '';
+    sheet.innerHTML = c2MoveSheetHTML(t);
+    if (had) { const again = sheet.querySelector(`[data-c2-task="${had}"]`); if (again) again.focus(); }
+    return;
+  }
   const x = c2Day && c2Day.all.find(e => e.key === c2SheetKey);
   if (!x) { closeSheet(true); return; }
   const had = sheet.contains(document.activeElement) ? (document.activeElement.getAttribute('data-c2-mark') || '') : '';
@@ -9870,7 +9894,8 @@ function c2PaintSheet() {
 }
 
 window.openClassSheet = function(key) {
-  if (!c2Day || !c2Day.all.some(e => e.key === key)) return;
+  const tid = c2TaskId(key);
+  if (tid ? !allTasks().some(a => a.id === tid) : (!c2Day || !c2Day.all.some(e => e.key === key))) return;
   const sheet = c2SheetEls();
   c2SheetKey = key;
   c2SheetReturnKey = key;
@@ -9889,7 +9914,7 @@ window.closeSheet = function(quiet) {
   document.body.classList.remove('c2-sheeted');
   if (sheet) sheet.setAttribute('aria-hidden', 'true');
   if (!sheet || !key || quiet === true) return;
-  const back = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(key)}"] .c2-face`) || document.querySelector(`#page-dashboard .c2-now [data-c2-open]`);
+  const back = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(key)}"] ${c2TaskId(key) ? '.c2-tname' : '.c2-face'}`) || document.querySelector(`#page-dashboard .c2-now [data-c2-open]`);
   if (back) back.focus({ preventScroll: true });
 };
 
@@ -9901,6 +9926,30 @@ function c2Mark(key, status) {
   todaySettle(key);
   setAttendance(date, key, status);
 }
+
+// A swipe right on a task row is Done through the existing toggle (it saves, toasts with Undo and redraws).
+function c2TaskDone(key) {
+  const id = c2TaskId(key);
+  c2OpenRowKey = null;
+  closeSheet(true);
+  todaySettle(id);
+  try { haptic(8); } catch (_) {}
+  toggleAssignment(id);
+}
+
+// A choice in the Move sheet: every change goes through the existing resolveTask / toggleAssignment (with Undo).
+function c2TaskAct(btn) {
+  const id = btn.dataset.id, act = btn.dataset.c2Task;
+  if (act === 'pick') { pickTaskDay(btn); return; }
+  c2OpenRowKey = null;
+  closeSheet(true);
+  if (act === 'tomorrow') moveTaskTomorrow(id);
+  else if (act === 'weekend') resolveTask(id, { dueDate: c2WeekendKey() });
+  else if (act === 'done') { todaySettle(id); toggleAssignment(id); }
+  else if (act === 'open') openTaskFromToday(id);
+}
+
+window.openMoveSheet = function(taskId) { openClassSheet('task:' + taskId); };
 
 // ── Swipe, hold, right-click ──
 function c2CloseOpenRow() {
@@ -9920,7 +9969,7 @@ function c2RestoreUi() {
   if (c2OpenRowKey) {
     const li = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(c2OpenRowKey)}"]`);
     const f = li && li.querySelector('.c2-face[data-swipe]');
-    if (f) { f.style.transform = `translateX(${C2_FEEL.open}px)`; li.classList.add('dl'); }
+    if (f) { f.style.transform = `translateX(${c2OpenAt(c2OpenRowKey)}px)`; li.classList.add('dl'); }
     else c2OpenRowKey = null;
   }
   if (c2SheetKey) c2PaintSheet();
@@ -9940,9 +9989,10 @@ function c2PointerDown(e) {
   if (!face || !li || e.target.closest('.c2-acts button')) return;
   // A right swipe that starts at the screen edge is the browser's back gesture: leave it alone.
   if (e.clientX < C2_FEEL.edge) return;
+  if (e.target.closest('.task-checkbox')) return;
   const key = li.dataset.row;
   const swipe = !!face.dataset.swipe;
-  c2Drag = { li, face, key, kind: face.dataset.swipe || '', swipe, x0: e.clientX, y0: e.clientY, base: c2OpenRowKey === key ? C2_FEEL.open : 0, dx: 0, v: 0, lx: e.clientX, lt: performance.now(), axis: null, moved: false, pid: e.pointerId };
+  c2Drag = { li, face, key, kind: face.dataset.swipe || '', swipe, x0: e.clientX, y0: e.clientY, base: c2OpenRowKey === key ? c2OpenAt(key) : 0, dx: 0, v: 0, lx: e.clientX, lt: performance.now(), axis: null, moved: false, pid: e.pointerId };
   face.classList.remove('settle');
   clearTimeout(c2Hold && c2Hold.t);
   c2Hold = { face, x: e.clientX, y: e.clientY, fired: false, t: setTimeout(() => {
@@ -9971,7 +10021,7 @@ function c2PointerMove(e) {
   const now = performance.now();
   d.v = (e.clientX - d.lx) / Math.max(1, now - d.lt);
   d.lx = e.clientX; d.lt = now; d.moved = true;
-  const maxL = d.kind === 'now' ? -180 : C2_FEEL.open;
+  const maxL = d.kind === 'now' ? -180 : d.kind === 'taskro' ? 0 : c2OpenAt(d.key);
   let x = d.base + dx;
   if (x < maxL) x = maxL + (x - maxL) * 0.25;
   if (x > 160) x = 160 + (x - 160) * 0.25;
@@ -9996,12 +10046,12 @@ function c2PointerUp() {
   if (dx > C2_FEEL.commit || flickR) {
     face.style.transform = 'translateX(110%)';
     c2OpenRowKey = null;
-    setTimeout(() => c2Mark(key, 'attended'), c2Reduced() ? 0 : 180);
+    setTimeout(() => (c2TaskId(key) ? c2TaskDone(key) : c2Mark(key, 'attended')), c2Reduced() ? 0 : 180);
   } else if (kind === 'now' && (dx < -C2_FEEL.commit || flickL)) {
     face.style.transform = 'translateX(-110%)';
     setTimeout(() => c2Mark(key, 'skipped'), c2Reduced() ? 0 : 180);
-  } else if (kind !== 'now' && (dx < -60 || flickL)) {
-    face.style.transform = `translateX(${C2_FEEL.open}px)`;
+  } else if (kind !== 'now' && kind !== 'taskro' && (dx < -60 || flickL)) {
+    face.style.transform = `translateX(${c2OpenAt(key)}px)`;
     c2OpenRowKey = key;
   } else reset();
   c2EndDrag();
@@ -10016,6 +10066,9 @@ function c2Click(e) {
   if (mk) { c2Mark(mk.dataset.key, mk.dataset.c2Mark); return; }
   const op = t.closest('[data-c2-open]');
   if (op) { c2CloseOpenRow(); openClassSheet(op.dataset.key); return; }
+  if (t.closest('.task-checkbox')) return;
+  const mv = t.closest('[data-c2-move]');
+  if (mv) { c2CloseOpenRow(); openMoveSheet(mv.dataset.id); return; }
   const face = t.closest('.c2-face');
   if (face) openClassSheet(face.dataset.key);
 }
@@ -12350,7 +12403,6 @@ function renderDashboard() {
     });
   const dueRows = pickDueRows(urgentTasks);
   const dueShown = dueRows.rows;
-  if (dueMoveOpenId && !dueShown.some((r) => r.id === dueMoveOpenId)) dueMoveOpenId = null;
   const moreTasks = Math.max(0, pending - dueShown.length - staleTasks.length);
 
   // One calm line for tasks long past their date. "Look through" opens them
@@ -12529,8 +12581,8 @@ function renderDashboard() {
           </div>
 
           <!-- Open task rows -->
-          <div style="position:relative;padding-left:4px">
-            ${dueShown.length > 0 ? dueShown.map(a => {
+          <div style="position:relative">
+            ${dueShown.length > 0 ? `<ol class="c2-rows c2-trows" aria-label="Due soon">` + dueShown.map(a => {
               const isOngoing = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
               const rel = isOngoing ? { label: 'Ongoing', cls: 'ongoing' } : formatRelativeDueDate(a.dueDate);
               const done = a.status === 'submitted';
@@ -12543,37 +12595,28 @@ function renderDashboard() {
                 realSubject ? `<span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(realSubject)}</span>` : '',
                 step && daysLeft !== null && daysLeft <= 2 && daysLeft >= 0 ? `<span>Start: ${escHtml_cd(step)}</span>` : '',
               ].filter(Boolean);
-              // A recently slipped task of the student's own sorts out in its row:
-              // Done / Tomorrow / Pick a day, each with Undo (resolveTask).
-              const canFix = !done && daysLeft !== null && daysLeft < 0 && state.customTasks.some(x => x.id === a.id);
-              const moveOpen = canFix && dueMoveOpenId === a.id;
-              // The checkbox is Done; Move folds the other two choices in the row.
-              if (canFix) metaBits.push(`<button type="button" class="due-move" data-id="${escAttr_cd(a.id)}" aria-expanded="${moveOpen}" aria-controls="due-move-${escAttr_cd(a.id)}" aria-label="Move ${escAttr_cd(a.title)}" onclick="event.stopPropagation();toggleDueMove(this)">Move</button>`);
-              const fixHTML = canFix ? `
-                <div class="due-fix" id="due-move-${escAttr_cd(a.id)}"${moveOpen ? '' : ' hidden'} role="group" aria-label="Sort out ${escAttr_cd(a.title)}" onkeydown="if(event.key==='Escape'){event.stopPropagation();toggleDueMove(this.closest('.task-ledger-item').querySelector('.due-move'))}">
-                  <button type="button" class="btn btn-secondary btn-xs" data-id="${escAttr_cd(a.id)}" onclick="moveTaskTomorrow(this.dataset.id)">Tomorrow</button>
-                  <button type="button" class="btn btn-secondary btn-xs" onclick="pickTaskDay(this)">Pick a day</button>
-                  <input type="date" class="today-focus-date" tabindex="-1" data-id="${escAttr_cd(a.id)}" min="${todayStr()}" aria-label="New due date for ${escAttr_cd(a.title)}" onchange="if (this.value) resolveTask(this.dataset.id, { dueDate: this.value })">
-                </div>` : '';
+              // Own tasks swipe left for Move; the Move sheet (openMoveSheet) is also behind a tap or hold on the name.
+              const own = !done && state.customTasks.some(x => x.id === a.id);
+              const tid = escAttr_cd(a.id);
+              const when = daysLeft !== null && daysLeft < 0
+                ? `<span class="c2-st bad due-badge ${rel.cls}">${icons.x()}${rel.label}</span>`
+                : `<span class="c2-st due-badge ${rel.cls}">${rel.label}</span>`;
               return `
-                <div class="task-ledger-item ${pCls}${canFix ? ' has-fix' : ''}${todaySettling(a.id) ? ' is-settling' : ''}">
-                  <div class="task-checkbox ${done ? 'checked' : ''}" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="todaySettle('${a.id}');toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();todaySettle('${a.id}');toggleAssignment('${a.id}')}" title="Mark completed">
-                    ${done ? icons.check() : ''}
-                  </div>
-                  <div style="flex:1;min-width:0;cursor:pointer" data-task="${escAttr_cd(a.id)}" onclick="openTaskFromToday(this.dataset.task)" title="Open in Tasks &amp; Deadlines">
-                    <div style="font-weight:600;font-size:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${done?'text-decoration:line-through;opacity:0.45':''}">${escHtml_cd(a.title)}</div>
-                    <div class="task-ledger-meta" style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px">
-                      ${metaBits.join('<span aria-hidden="true">·</span>')}
+                <li class="c2-row t task-ledger-item ${pCls}${todaySettling(a.id) ? ' is-settling' : ''}" data-row="task:${tid}" data-task="${tid}">
+                  ${done ? '' : `<div class="c2-ul" aria-hidden="true"><span class="c2-ul-l">${icons.check()}Done</span>${own ? `<span class="c2-ul-r"><button type="button" class="mo" tabindex="-1" data-c2-move data-id="${tid}">Move</button></span>` : ''}</div>`}
+                  <div class="c2-face c2-tface"${done ? '' : ` data-swipe="${own ? 'task' : 'taskro'}"`} data-key="task:${tid}">
+                    <div class="task-checkbox ${done ? 'checked' : ''}" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="todaySettle('${tid}');toggleAssignment('${tid}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();todaySettle('${tid}');toggleAssignment('${tid}')}" title="Mark completed">
+                      ${done ? icons.check() : ''}
                     </div>
+                    <span class="c2-nm"><button type="button" class="c2-tname" data-c2-move data-id="${tid}" aria-haspopup="dialog"${done ? ' style="text-decoration:line-through;opacity:.45"' : ''}><b title="${escAttr_cd(a.title)}">${escHtml_cd(a.title)}</b></button>${metaBits.length ? `<small class="task-ledger-meta">${metaBits.join('<span aria-hidden="true"> · </span>')}</small>` : ''}</span>
+                    ${when}
                   </div>
-                  <span class="due-badge ${rel.cls}" style="font-size:var(--text-2xs);padding:2px 6px;flex-shrink:0">${rel.label}</span>
-                  ${fixHTML}
-                </div>`;
-            }).join('') : staleTasks.length ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
+                </li>`;
+            }).join('') + `</ol>` : staleTasks.length ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
             ${dueShown.length > 1 || moreTasks > 0 ? `<div class="due-foot">
               ${dueShown.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
-              ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more task${moreTasks !== 1 ? 's' : ''} →</button>` : ''}
+              ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more in Tasks</button>` : ''}
             </div>` : ''}
             ${dueShown.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}

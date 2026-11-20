@@ -7,7 +7,7 @@ import { seedBusyToday, tapTargetsOnFirstScreen, marked } from './helpers/today-
 test.describe('lighter rows', () => {
   test('unmarked class is one row with its status in words and no buttons on it', async ({ page }) => {
     const today = await seedBusyToday(page);
-    const rows = today.locator('.c2-row.needs-mark');
+    const rows = today.locator('.c2-row:not(.t).needs-mark');
     await expect(rows).toHaveCount(2);
     for (const row of await rows.all()) {
       await expect(row.locator('.c2-st')).toHaveText('Not marked');
@@ -22,53 +22,37 @@ test.describe('lighter rows', () => {
 
   test('one tap on a class and one on Present still marks it', async ({ page }) => {
     const today = await seedBusyToday(page);
-    await today.locator('.c2-row.needs-mark').first().locator('.c2-face').click();
+    await today.locator('.c2-row:not(.t).needs-mark').first().locator('.c2-face').click();
     await page.locator('.c2-sheet').getByRole('button', { name: /^Present/ }).click();
     // An ended class that is marked folds away; open the fold to see it.
     await today.locator('.rail-earlier-toggle').click();
-    await expect(today.locator('.c2-row').filter({ hasText: 'Present' }).first()).toBeVisible();
+    await expect(today.locator('.c2-row:not(.t)').filter({ hasText: 'Present' }).first()).toBeVisible();
   });
 
-  test('late task: checkbox is Done, Move opens the choices', async ({ page }) => {
+  test('late task: the tick is Done, the name opens the Move sheet', async ({ page }) => {
     const today = await seedBusyToday(page);
-    await expect(today.locator('.due-fix').first()).toBeHidden();
-    const late = today.locator('.task-ledger-item.has-fix').first();
+    const late = today.locator('.c2-row.t').first();
     await expect(late.getByRole('button', { name: 'Done', exact: true })).toHaveCount(0);
     await expect(late.getByRole('checkbox')).toBeVisible();
-    const move = late.locator('.due-move');
-    await expect(move).toHaveAttribute('aria-expanded', 'false');
-    await move.click();
-    await expect(move).toHaveAttribute('aria-expanded', 'true');
-    const tomorrow = late.getByRole('button', { name: 'Tomorrow' });
-    await expect(tomorrow).toBeVisible();
-    await expect(late.getByRole('button', { name: 'Pick a day' })).toBeVisible();
-    await expect(tomorrow).toBeFocused();
+    const name = late.locator('.c2-tname');
+    await name.click();
+    const sheet = page.locator('#c2-sheet');
+    await expect(sheet.getByRole('button', { name: 'Tomorrow' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Pick a day' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Tomorrow' })).toBeFocused();
     await page.keyboard.press('Escape');
-    await expect(move).toHaveAttribute('aria-expanded', 'false');
-    await expect(move).toBeFocused();
-    await move.click();
-    await tomorrow.click();
+    await expect(sheet).toHaveAttribute('aria-hidden', 'true');
+    await expect(name).toBeFocused();
+    await name.click();
+    await sheet.getByRole('button', { name: 'Tomorrow' }).click();
     await expect(page.locator('.toast, #toast-container').getByText('Undo').first()).toBeVisible();
-    await expect(today.locator('.task-ledger-item.has-fix')).toHaveCount(1);
   });
 
-  test('keyboard: Enter on Move opens the choices and focus lands on Tomorrow', async ({ page }) => {
+  test('keyboard: Enter on the name opens the sheet and focus lands on Tomorrow', async ({ page }) => {
     const today = await seedBusyToday(page);
-    const late = today.locator('.task-ledger-item.has-fix').first();
-    await late.locator('.due-move').focus();
+    await today.locator('.c2-row.t').first().locator('.c2-tname').focus();
     await page.keyboard.press('Enter');
-    await expect(late.getByRole('button', { name: 'Tomorrow' })).toBeFocused();
-  });
-
-  test('Move stays open across the minute re-render', async ({ page }) => {
-    const today = await seedBusyToday(page);
-    const move = today.locator('.task-ledger-item.has-fix .due-move').first();
-    await move.click();
-    // Marking a class re-renders Today the same way the minute tick does.
-    await today.locator('.c2-now').getByRole('button', { name: /^Present/ }).click();
-    await expect(today.locator('.c2-now')).toContainText('Present');
-    await expect(today.locator('.task-ledger-item.has-fix .due-move').first()).toHaveAttribute('aria-expanded', 'true');
-    await expect(today.locator('.due-fix:not([hidden])')).toHaveCount(1);
+    await expect(page.locator('#c2-sheet').getByRole('button', { name: 'Tomorrow' })).toBeFocused();
   });
 
   test('Why this order sits at the end of the list', async ({ page }) => {
@@ -76,7 +60,7 @@ test.describe('lighter rows', () => {
     await expect(today.locator('.panel-header .dash-why')).toHaveCount(0);
     const foot = today.locator('.due-foot');
     await expect(foot).toContainText('Why this order?');
-    await expect(foot).toContainText('+3 more tasks');
+    await expect(foot).toContainText('+3 more in Tasks');
   });
 
   test('busy phone day fits the guardrails', async ({ page }) => {
@@ -95,7 +79,7 @@ test.describe('lighter rows', () => {
 
   test('360px: the status words are never cut off', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 360, height: 780 });
-    for (const row of await today.locator('.c2-row').all()) {
+    for (const row of await today.locator('.c2-row:not(.t)').all()) {
       const cut = await row.locator('.c2-st').evaluateAll((els) => els.map((e) => e.scrollWidth - e.clientWidth));
       for (const c of cut) expect(c, 'a status is cut').toBeLessThanOrEqual(0);
     }
@@ -103,7 +87,7 @@ test.describe('lighter rows', () => {
 
   test('360px: a long lab name wraps whole and the status stays on screen', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 360, height: 780, at: '2026-09-24T16:10:00' });
-    const row = today.locator('.c2-row.needs-mark').filter({ hasText: 'Database Management Systems Laboratory' });
+    const row = today.locator('.c2-row:not(.t).needs-mark').filter({ hasText: 'Database Management Systems Laboratory' });
     await expect(row).toHaveCount(1);
     await expect(row.locator('.c2-nm b')).not.toContainText('…');
     const st = (await row.locator('.c2-st').boundingBox())!;
@@ -116,7 +100,7 @@ test.describe('lighter rows', () => {
 test.describe('come back', () => {
   const classAt = (i: number) => ({ subject: `Class ${i}`, code: `C${i}`, time: `${String(7 + i).padStart(2, '0')}:00`, end: `${String(8 + i).padStart(2, '0')}:00`, type: 'lecture', batches: [] });
   const many = (n: number) => Array.from({ length: n }, (_, i) => classAt(i));
-  const visibleRows = (today: any) => today.locator('.c2-row:visible');
+  const visibleRows = (today: any) => today.locator('.c2-row:not(.t):visible');
 
   test('ended and marked classes fold into one line', async ({ page }) => {
     const today = await seedBusyToday(page, { extra: marked('DS_0900', 'PBST_1000') });
@@ -139,9 +123,9 @@ test.describe('come back', () => {
 
   test('ended and unmarked classes never fold', async ({ page }) => {
     const today = await seedBusyToday(page, { extra: marked('DS_0900') });
-    await expect(today.locator('.c2-row.needs-mark')).toHaveCount(1);
-    await expect(today.locator('.c2-row.needs-mark')).toContainText('Probability and Statistics');
-    await expect(today.locator('.c2-row').filter({ hasText: 'Data Structures' })).toHaveCount(0);
+    await expect(today.locator('.c2-row:not(.t).needs-mark')).toHaveCount(1);
+    await expect(today.locator('.c2-row:not(.t).needs-mark')).toContainText('Probability and Statistics');
+    await expect(today.locator('.c2-row:not(.t)').filter({ hasText: 'Data Structures' })).toHaveCount(0);
   });
 
   test('fold stays open across the minute re-render', async ({ page }) => {
@@ -160,7 +144,7 @@ test.describe('come back', () => {
 
   test('no count before the first class starts', async ({ page }) => {
     const today = await seedBusyToday(page, { at: '2026-09-24T08:00:00' });
-    await expect(today.locator('.c2-row').first()).toBeVisible();
+    await expect(today.locator('.c2-row:not(.t)').first()).toBeVisible();
     await expect(today.locator('.panel-count')).toHaveCount(0);
   });
 
@@ -289,7 +273,7 @@ test.describe('fit', () => {
 
   test('tab order follows reading order on wide screens', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 1280, height: 720 });
-    await today.locator('.c2-row .c2-face').first().focus();
+    await today.locator('.c2-row:not(.t) .c2-face').first().focus();
     let reachedDue = false;
     for (let i = 0; i < 30 && !reachedDue; i++) {
       await page.keyboard.press('Tab');

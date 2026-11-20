@@ -28,12 +28,12 @@ async function open(page: Page, at: string, extra: Record<string, unknown> = {},
 
 test('morning: the next class says how long it is until it starts, and "Can I skip this?" sits under it', async ({ page }) => {
   const today = await open(page, '2026-09-24T07:06:00');
-  const next = today.locator('.c2-row.next');
+  const next = today.locator('.c2-row:not(.t).next');
   await expect(next).toHaveCount(1);
   await expect(next).toContainText('Data Structures');
   await expect(next).toContainText('In 1h 54m');
   await expect(next.getByRole('button', { name: 'Can I skip this?' })).toBeVisible();
-  await expect(today.locator('.c2-row')).toHaveCount(3);
+  await expect(today.locator('.c2-row:not(.t)')).toHaveCount(3);
   await expect(today.locator('.c2-rows')).toContainText('9:00 AM');
   await expect(today.locator('.c2-nowmark')).toHaveCount(1);
   await expect(today.locator('.desk-dnum')).toHaveText('24');
@@ -41,7 +41,7 @@ test('morning: the next class says how long it is until it starts, and "Can I sk
 
 test('after a class: Present from its sheet, the choice is in words, and Undo takes it back', async ({ page }) => {
   const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
-  const ds = today.locator('.c2-row', { hasText: 'Data Structures' });
+  const ds = today.locator('.c2-row:not(.t)', { hasText: 'Data Structures' });
   await expect(ds).toContainText('Not marked');
   await expect(today.getByRole('button', { name: 'I was at all 2, mark them present' })).toBeVisible();
   await ds.locator('.c2-face').click();
@@ -67,7 +67,7 @@ test('in class: the one card says "In class now" with the time left, and no row 
   const now = today.locator('.c2-now');
   await expect(now).toContainText('In class now');
   await expect(now).toContainText('24 min left');
-  await expect(today.locator('.c2-row.next')).toHaveCount(0);
+  await expect(today.locator('.c2-row:not(.t).next')).toHaveCount(0);
 });
 
 test('day over and all marked: the rail says so and points at the next class', async ({ page }) => {
@@ -100,14 +100,14 @@ test('no classes today: says so and names the next one', async ({ page }) => {
 test('eight classes: six rows and "+2 more classes"', async ({ page }) => {
   const eight = ['08', '09', '10', '11', '12', '13', '14', '15'].map((h, i) => cls(`Subject ${i + 1}`, `S${i + 1}`, `${h}:00`, `${h}:50`));
   const today = await open(page, '2026-09-24T07:00:00', { cos_custom_timetable: every(eight) });
-  await expect(today.locator('.c2-row')).toHaveCount(6);
+  await expect(today.locator('.c2-row:not(.t)')).toHaveCount(6);
   await expect(today.getByRole('button', { name: '+2 more classes →' })).toBeVisible();
 });
 
 test('classes at the same time say so', async ({ page }) => {
   const pair = [cls('DS Lab (A1)', 'DSL', '10:00', '12:00', 'lab'), cls('CN Lab (A2)', 'CNL', '10:00', '12:00', 'lab')];
   const today = await open(page, '2026-09-24T07:00:00', { cos_custom_timetable: every(pair) });
-  await expect(today.locator('.c2-row', { hasText: 'Same time' })).toHaveCount(2);
+  await expect(today.locator('.c2-row:not(.t)', { hasText: 'Same time' })).toHaveCount(2);
 });
 
 for (const width of [320, 375]) {
@@ -119,10 +119,10 @@ for (const width of [320, 375]) {
       cos_profile: { name: 'Venkatalakshmi Subramaniam' },
       cos_custom_tasks: [task('late-1', 'OS quiz', '2026-09-22')],
     });
-    const first = today.locator('.c2-row').first();
+    const first = today.locator('.c2-row:not(.t)').first();
     const box = (await first.boundingBox())!;
     expect(box.y + box.height, 'first class above the tab bar').toBeLessThan(812 - 64);
-    const wide = await page.evaluate(() => [...document.querySelectorAll('#page-dashboard .c2-row *, #page-dashboard .c2-strip *')]
+    const wide = await page.evaluate(() => [...document.querySelectorAll('#page-dashboard .c2-row:not(.t) *, #page-dashboard .c2-strip *')]
       .map((e) => e.getBoundingClientRect()).filter((r) => r.width && (r.left < 0 || r.right > innerWidth + 0.5)).length);
     expect(wide, 'day content past the screen edge').toBe(0);
     expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), 'no sideways scroll').toBe(true);
@@ -146,19 +146,16 @@ test('200% zoom (a 375px phone is 188 CSS px wide): no sideways scroll, rows and
 test('a recently late task sorts out in its own Due row; no "General" filler', async ({ page }) => {
   const today = await open(page, '2026-09-24T07:00:00', { cos_custom_tasks: [task('late-1', 'OS quiz', '2026-09-22'), task('soon-1', 'CN worksheet', '2026-09-26', 'CN')] });
   const row = today.locator('.task-ledger-item', { hasText: 'OS quiz' });
-  // The checkbox is Done; Tomorrow / Pick a day fold behind Move (the old Done button is gone on purpose).
+  // The tick is Done; Tomorrow / Pick a day sit in the Move sheet behind the name (the old Done button is gone on purpose).
   await expect(row.getByRole('button', { name: 'Done', exact: true })).toHaveCount(0);
-  const done = row.getByRole('checkbox');
-  await expect(done).toBeVisible();
-  const move = row.locator('.due-move');
-  // offsetHeight, not the box: the page's fade-up transform makes the box 43.99998 for a moment.
-  expect(await move.evaluate((e) => (e as HTMLElement).offsetHeight)).toBeGreaterThanOrEqual(44);
-  await move.click();
+  await expect(row.getByRole('checkbox')).toBeVisible();
+  await row.locator('.c2-tname').click();
   for (const name of ['Tomorrow', 'Pick a day']) {
-    const b = row.getByRole('button', { name, exact: true });
+    const b = page.locator('#c2-sheet').getByRole('button', { name, exact: true });
     await expect(b).toBeVisible();
     expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
+  await page.keyboard.press('Escape');
   await expect(row).not.toContainText('General');
   await expect(today.locator('.task-ledger-item', { hasText: 'CN worksheet' })).toContainText('CN');
   await expect(today.locator('.today-focus')).toHaveCount(0);
@@ -195,7 +192,7 @@ test('attendance from portal counts only says where the number comes from', asyn
 test('a plain lecture has no "Lecture" filler; a lab still says Lab', async ({ page }) => {
   const today = await open(page, '2026-09-24T07:06:00');
   await expect(today.locator('.c2-nm small').filter({ hasText: 'Lecture' })).toHaveCount(0);
-  await expect(today.locator('.c2-row', { hasText: 'Operating Systems Lab' }).locator('.c2-nm')).toContainText('Lab');
+  await expect(today.locator('.c2-row:not(.t)', { hasText: 'Operating Systems Lab' }).locator('.c2-nm')).toContainText('Lab');
 });
 
 const dsStatus = (page: Page) => page.evaluate(() => {
@@ -205,7 +202,7 @@ const dsStatus = (page: Page) => page.evaluate(() => {
 
 test("a class that did not happen: the sheet offers Didn't happen and OD, the mark is in words and Undo takes it back", async ({ page }) => {
   const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
-  const ds = today.locator('.c2-row', { hasText: 'Data Structures' });
+  const ds = today.locator('.c2-row:not(.t)', { hasText: 'Data Structures' });
   await ds.locator('.c2-face').click();
   const didnt = page.locator('.c2-sheet').getByRole('button', { name: /^Didn't happen/ });
   expect((await didnt.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -221,7 +218,7 @@ test("a class that did not happen: the sheet offers Didn't happen and OD, the ma
 
 test('OD from the sheet is stored as waiting for teacher and is not counted as unmarked', async ({ page }) => {
   const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
-  const ds = today.locator('.c2-row', { hasText: 'Data Structures' });
+  const ds = today.locator('.c2-row:not(.t)', { hasText: 'Data Structures' });
   await ds.locator('.c2-face').click();
   await page.locator('.c2-sheet').getByRole('button', { name: /^On duty \(OD\)/ }).click();
   await page.clock.runFor(300);
@@ -233,13 +230,13 @@ test('OD from the sheet is stored as waiting for teacher and is not counted as u
 
 test('Change on a "Didn\'t happen" class shows it ticked in the sheet', async ({ page }) => {
   const today = await open(page, '2026-09-24T12:40:00', { cos_attendance: { '2026-09-24': {} } });
-  await today.locator('.c2-row', { hasText: 'Data Structures' }).locator('.c2-face').click();
+  await today.locator('.c2-row:not(.t)', { hasText: 'Data Structures' }).locator('.c2-face').click();
   await page.locator('.c2-sheet').getByRole('button', { name: /^Didn't happen/ }).click();
   await expect.poll(() => dsStatus(page)).toBe('cancelled');
   await page.reload();
   await page.waitForFunction(() => typeof (window as any).navigate === 'function');
   await today.locator('.c2-fold-btn').click();
-  await today.locator('.c2-row', { hasText: 'Data Structures' }).locator('.c2-face').click();
+  await today.locator('.c2-row:not(.t)', { hasText: 'Data Structures' }).locator('.c2-face').click();
   await expect(page.locator('.c2-sheet .c2-opt', { hasText: /^Didn't happen/ }).locator('.chk')).toHaveCount(1);
 });
 
@@ -247,7 +244,7 @@ test('360x812 with the sheet open on a long name: no sideways scroll, every choi
   await page.setViewportSize({ width: 360, height: 812 });
   const long = [cls('Design and Analysis of Algorithms (Theory and Tutorial)', 'DAA', '09:00', '10:00')];
   const today = await open(page, '2026-09-24T12:40:00', { cos_custom_timetable: every(long) });
-  await today.locator('.c2-row').first().locator('.c2-face').click();
+  await today.locator('.c2-row:not(.t)').first().locator('.c2-face').click();
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), 'no sideways scroll').toBe(true);
   for (const b of await page.locator('.c2-sheet .c2-opt').all()) {
     const r = (await b.boundingBox())!;

@@ -9080,3 +9080,24 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 @media (prefers-reduced-motion: no-preference) {
   #page-dashboard .c2-row.is-settling .c2-face, #page-dashboard .c2-now.is-settling { animation: cd-settle 200ms ease-out; }
 }
+
+/* Today task rows: the same row, swipe underlay and sheet as the class rows (plan Task 6) */
+#page-dashboard .panel-due .c2-row.t.task-ledger-item { display: block; padding: 0; gap: 0; background: none; }
+.c2-trows { margin-top: 0; }
+.c2-face.c2-tface { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 6px; cursor: default; }
+.c2-tface .c2-tname { display: block; width: 100%; min-height: 24px; margin: 0; padding: 0; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.c2-tface .c2-tname:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
+.c2-tface .c2-nm { display: flex; flex-direction: column; justify-content: center; }
+.c2-tface .c2-tname b { margin-top: 0; }
+.c2-tface .task-ledger-meta { display: block; margin-top: 0; font-size: 13px; color: var(--c2-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c2-tface .task-checkbox { position: relative; width: 44px; height: 44px; border: 0; border-radius: 0; background: none; animation: none; }
+.c2-tface .task-checkbox::before { content: ""; position: absolute; width: 22px; height: 22px; left: 11px; top: 11px; box-sizing: border-box; border: 2px solid var(--c2-mut); border-radius: 50%; transition: background 0.15s ease, border-color 0.15s ease; }
+.c2-tface .task-checkbox:hover { background: none; }
+.c2-tface .task-checkbox:hover::before { border-color: var(--c2-ink); }
+.c2-tface .task-checkbox.checked::before { background: var(--c2-ok); border-color: var(--c2-ok); }
+.c2-tface .task-checkbox svg { position: relative; width: 14px; height: 14px; color: #fff; stroke-width: 3; }
+.c2-tface .task-checkbox:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: -2px; border-radius: 10px; }
+.c2-tface .c2-st { font-size: 13px; }
+.c2-pick { position: relative; }
+.c2-pick .today-focus-date.is-shown { margin: 0 0 8px; width: 100%; }
+.c2-tface .c2-tname b { -webkit-line-clamp: 1; }
