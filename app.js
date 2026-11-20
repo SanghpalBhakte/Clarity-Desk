@@ -9642,7 +9642,7 @@ function c2NowHTML(x, currentMin) {
   const done = x.status === 'unset' ? '' : `<span class="c2-done">${mk === 'p' ? `<span class="ok">${icons.check()}</span>` : mk === 'a' ? `<span class="no">${icons.x()}</span>` : ''}${x.status === 'attended' ? 'Present' : x.status === 'skipped' ? 'Absent' : C2_STATUS_WORDS[x.status] || ''}</span>`;
   const key = c2Attr(x.key);
   return `
-    <section class="c2-now" data-row="${key}" aria-label="In class now: ${c2Attr(c.subject)}" aria-current="time">
+    <section class="c2-now${todaySettling(x.key) ? ' is-settling' : ''}" data-row="${key}" aria-label="In class now: ${c2Attr(c.subject)}" aria-current="time">
       <div class="c2-now-ul" aria-hidden="true"><span class="y">Present</span><span class="n">Absent</span></div>
       <div class="c2-face"${x.status === 'unset' ? ' data-swipe="now"' : ''} data-key="${key}">
         <p class="c2-now-k">In class now</p>
@@ -9664,14 +9664,15 @@ function c2RowHTML(x, { currentMin, sameTime }) {
   const sub = c.room ? escHtml_cd(c.room)
     : (c.type && String(c.type).toLowerCase() !== 'lecture' ? escHtml_cd(String(c.type).charAt(0).toUpperCase() + String(c.type).slice(1)) : '');
   const status = c2StatusHTML(x, currentMin, sameTime);
-  const words = status.replace(/<[^>]+>/g, '');
+  // The next class says how long it is until it starts, so "same time" moves to its sub-line.
+  const subLine = [sub, x.state === 'next' && sameTime ? 'Same time' : ''].filter(Boolean).join(' · ');
   const next = x.state === 'next';
   return `
     <li class="c2-row${next ? ' next' : ''}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}${todaySettling(x.key) ? ' is-settling' : ''}" data-row="${key}"${x.state === 'live' ? ' aria-current="time"' : ''}>
       ${swipe ? `<div class="c2-ul" aria-hidden="true"><span class="c2-ul-l">${icons.check()}Present</span><span class="c2-ul-r"><button type="button" class="ab" tabindex="-1" data-c2-mark="skipped" data-key="${key}">Absent</button><button type="button" class="mo" tabindex="-1" data-c2-open data-key="${key}">More</button></span></div>` : ''}
-      <button type="button" class="c2-face"${swipe ? ' data-swipe="class"' : ''} data-key="${key}" aria-haspopup="dialog" aria-label="${c2Attr(c.subject)}, ${formatDisplayTime(c.time)}${words ? ', ' + c2Attr(words) : ''}">
+      <button type="button" class="c2-face"${swipe ? ' data-swipe="class"' : ''} data-key="${key}" aria-haspopup="dialog">
         <time>${formatDisplayTime(c.time)}</time>
-        <span class="c2-nm"><b>${escHtml_cd(c.subject)}</b>${sub ? `<small>${sub}</small>` : ''}</span>
+        <span class="c2-nm"><b>${escHtml_cd(c.subject)}</b>${subLine ? `<small>${subLine}</small>` : ''}</span>
         ${status}
       </button>
       ${next ? `<button type="button" class="c2-skipq" data-c2-open data-key="${key}">Can I skip this?</button>` : ''}
@@ -9777,7 +9778,7 @@ function c2PaintStrip() {
     gap = `<div class="c2-blk gap" style="left:${left}px;width:${w}px">${fits ? 'Free' : ''}</div>`;
   }
   const nowH = c2Day.currentMin / 60;
-  const mark = nowH >= lay.start && nowH <= lay.end ? `<span class="c2-nowmark" style="left:${Math.max(1, Math.min(width - 1, x(nowH)))}px"></span>` : '';
+  const mark = nowH <= lay.end ? `<span class="c2-nowmark" style="left:${Math.max(1, Math.min(width - 1, x(nowH)))}px"></span>` : '';
   const first = Math.min(...c2Day.strip.map(e => e.from)), last = Math.max(...c2Day.strip.map(e => e.to));
   strip.innerHTML = `<div class="c2-track"></div>${gap}${blocks}${mark}<div class="c2-ends"><span>${formatDisplayTime(c2Hhmm(first))}</span><span>${formatDisplayTime(c2Hhmm(last))}</span></div>`;
 }

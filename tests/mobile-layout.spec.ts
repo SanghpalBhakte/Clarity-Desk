@@ -106,12 +106,11 @@ for (const width of WIDTHS) {
     // v168: the 145px time column pushed Today's Missed button off the
     // screen, where the page's overflow clip hid it from the check above.
     // Register: live and ended classes are both marked on the day rail.
-    test("Today's day rail keeps Present / Absent fully on screen", async ({ page }) => {
+    test("Today's day keeps its rows and the now card's Present button fully on screen", async ({ page }) => {
       await openApp(page);
-      const slots = page.locator('#page-dashboard .rail-row');
-      expect(await slots.count(), 'rail rows on Today').toBeGreaterThan(0);
-      const markButtons = '#page-dashboard .rail-row button';
-      expect(await page.locator(markButtons, { hasText: 'Present' }).count(), 'a Present button on Today').toBeGreaterThan(0);
+      const slots = page.locator('#page-dashboard .c2-row');
+      expect(await slots.count(), 'class rows on Today').toBeGreaterThan(0);
+      const markButtons = '#page-dashboard .c2-face, #page-dashboard .c2-now button, #page-dashboard .c2-all';
       const offscreen = await page.evaluate((sel) => [...document.querySelectorAll(sel)]
         .map((b) => b.getBoundingClientRect()).filter((r) => r.left < 0 || r.right > innerWidth + 0.5)
         .map((r) => `${Math.round(r.left)}–${Math.round(r.right)}`), markButtons);
@@ -138,7 +137,10 @@ test.describe('Today on a phone', () => {
 
     const masthead = page.locator('#page-dashboard .desk-masthead');
     await expect(masthead, 'arriving on Today plays the settle-in').not.toHaveClass(/is-settled/);
-    await page.locator('#page-dashboard .rail-att', { hasText: 'Present' }).first().click();
+    const target = page.locator('#page-dashboard .c2-now [data-c2-mark="attended"], #page-dashboard .c2-row.needs-mark .c2-face').first();
+    const isCard = await target.evaluate((e) => e.hasAttribute('data-c2-mark'));
+    await target.click();
+    if (!isCard) await page.locator('.c2-sheet').getByRole('button', { name: /^Present/ }).click();
     await expect(masthead, 'in-place re-render keeps the greeting still').toHaveClass(/is-settled/);
     await page.evaluate(() => (window as any).navigate('timetable'));
     await page.evaluate(() => (window as any).navigate('dashboard'));
@@ -173,8 +175,8 @@ for (const width of WIDTHS) {
     test.use({ viewport: { width, height: 640 } });
 
     for (const [label, iso, count, row, words] of [
-      ['Next', '2026-09-29T08:40:00', '1h 20m', '.rail-row.is-next', 'until it starts'],
-      ['In class', '2026-09-29T10:25:00', '1h 35m', '.rail-row.is-live', 'In class']
+      ['Next', '2026-09-29T08:40:00', '1h 20m', '.c2-row.next', 'In 1h 20m'],
+      ['In class', '2026-09-29T10:25:00', '1h 35m', '.c2-now', 'In class now']
     ]) {
       test(`${label} row shows the countdown in words and stays inside the screen`, async ({ page }) => {
         await openAppAt(page, iso);
@@ -183,14 +185,14 @@ for (const width of WIDTHS) {
         await expect(r).toContainText(words);
         const bad = await page.evaluate((sel) => {
           const c = document.querySelector(`#page-dashboard ${sel}`) as HTMLElement;
-          return [...c.querySelectorAll('button, .rail-count, .rail-meta, .rail-time')]
+          return [...c.querySelectorAll('button, .c2-st, .c2-nm, time')]
             .map((e) => ({ n: e.className || e.tagName, r: e.getBoundingClientRect() }))
             .filter(({ r }) => r.left < 0 || r.right > innerWidth + 0.5)
             .map(({ n, r }) => `${n} ${Math.round(r.left)}–${Math.round(r.right)}`);
         }, row);
         expect(bad, `row contents outside the screen at ${width}px`).toEqual([]);
-        for (const b of await r.locator('.rail-att:visible').all()) {
-          expect((await b.boundingBox())!.height, 'Present / Absent height').toBeGreaterThanOrEqual(44);
+        for (const b of await r.locator('.c2-acts button:visible').all()) {
+          expect((await b.boundingBox())!.height, 'Present / More height').toBeGreaterThanOrEqual(44);
         }
       });
     }
@@ -206,7 +208,7 @@ test.describe('class countdown ticks', () => {
     const count = page.locator('#page-dashboard [data-beacon-count]');
     const masthead = page.locator('#page-dashboard .desk-masthead');
     await expect(count).toHaveText('2 min');
-    await expect(page.locator('#page-dashboard .day-rail')).toHaveAttribute('data-beacon', 'next');
+    await expect(page.locator('#page-dashboard .c2-day')).toHaveAttribute('data-beacon', 'next');
     await page.evaluate(() => { (document.querySelector('#page-dashboard .desk-masthead') as any).__probe = true; });
 
     await page.clock.runFor(31_000);                                   // 09:59:01 -> one minute tick has run
@@ -215,11 +217,11 @@ test.describe('class countdown ticks', () => {
       'a minute tick must edit the number in place, not rebuild Today').toBe(true);
 
     await page.clock.runFor(60_000);                                   // 10:00:01 -> class has started
-    const rail = page.locator('#page-dashboard .day-rail');
+    const rail = page.locator('#page-dashboard .c2-day');
     await expect(rail).toHaveAttribute('data-beacon', 'live');
     await expect(count).toHaveText('2h 00m');
-    await expect(rail.locator('.rail-row.is-live')).toContainText('In class');
-    await expect(rail.locator('.rail-row.is-later')).toContainText('Open Elective 2');
+    await expect(rail.locator('.c2-now')).toContainText('In class');
+    await expect(rail.locator('.c2-row')).toContainText('Open Elective 2');
     expect(await page.evaluate(() => !!(document.querySelector('#page-dashboard .desk-masthead') as any).__probe),
       'Today is rebuilt once when the class starts').toBe(false);
     await expect(masthead, 'the rebuild must not replay the greeting animation').toHaveClass(/is-settled/);

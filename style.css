@@ -9017,7 +9017,7 @@ html body .bottom-nav, html body .sidebar {
 .c2-now.left .c2-now-ul .n { opacity: 1; }
 .c2-now .c2-face { display: block; position: relative; background: var(--c2-now); color: var(--c2-now-ink); padding: 18px 18px 12px; cursor: grab; min-height: 0; }
 .c2-now .c2-face.c2-lift { background: var(--c2-now); }
-.c2-now-k { font-size: 14px; font-weight: 600; color: var(--c2-acc); margin: 0; }
+.c2-now-k { font-size: 14px; font-weight: 600; color: var(--c2-now-ink); margin: 0; } /* the accent is too light on the wine now card (3.1:1); ink passes */
 .c2-now h2 { font-size: 24px; line-height: 1.16; font-weight: 600; margin: 6px 0 2px; letter-spacing: -0.015em; color: inherit; }
 .c2-now-m { font-size: 15px; color: var(--c2-now-mut); margin: 0; }
 .c2-prog { height: 4px; border-radius: 4px; background: var(--c2-now-line); margin: 14px 0 12px; overflow: hidden; }
@@ -9075,4 +9075,8 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 @media (prefers-reduced-motion: reduce) {
   .c2-face, .c2-face.settle, .c2-face.c2-lift, .c2-blk, .c2-scrim, .c2-sheet, body.c2-sheeted .c2-sheet { transition: none !important; animation: none !important; }
   .c2-row.c2-flash .c2-face { animation: none !important; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #page-dashboard .c2-row.is-settling .c2-face, #page-dashboard .c2-now.is-settling { animation: cd-settle 200ms ease-out; }
 }

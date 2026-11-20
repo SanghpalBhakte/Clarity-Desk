@@ -36,18 +36,17 @@ for (const w of [320, 360, 412]) {
       await expect(today.locator('.desk-greeting')).toBeVisible();
       const lines = await today.locator('.desk-greeting').evaluate((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)));
       expect(lines).toBeLessThanOrEqual(2);
-      for (const sel of ['.rail-row', '.task-ledger-item']) {
+      for (const sel of ['.c2-row', '.task-ledger-item']) {
         const box = await today.locator(sel).first().boundingBox();
         expect(box && box.y + box.height, sel + ' on the first screen').toBeLessThan(812);
       }
       // Every late task shows (never hidden by the cap); the rest says exactly how many.
       await expect(today.locator('.task-ledger-item')).toHaveCount(3);
       await expect(today.locator('.dash-more-link', { hasText: 'more task' })).toContainText('+5 more tasks');
-      // The long class title is shortened on screen; the full name stays in the title and for screen readers.
-      const name = today.locator('.rail-name').first();
-      expect(((await name.evaluate((e) => e.firstChild?.textContent)) || '').length).toBeLessThan(40);
-      await expect(name).toHaveAttribute('title', /Web Development Lab Section/);
-      await expect(name.locator('.sr-only')).toHaveText(/Web Development Lab Section/);
+      // The long class title is shown whole (wrapping to two lines at most); the button's own text is its accessible name.
+      const name = today.locator('.c2-row .c2-nm b').first();
+      await expect(name).toHaveText(/Web Development Lab Section/);
+      await expect(today.locator('.c2-row .c2-face').first()).toContainText('Web Development Lab Section');
       // Quick add stays in flow and reachable.
       await expect(today.locator('#quick-add-input')).toBeAttached();
     });
@@ -57,7 +56,7 @@ for (const w of [320, 360, 412]) {
       const order = await page.evaluate(() => {
         const q = (s: string) => document.querySelector('#page-dashboard ' + s)!;
         const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-        return before(q('.desk-greeting'), q('.day-rail')) && before(q('.day-rail'), q('.task-ledger-item'));
+        return before(q('.desk-greeting'), q('.c2-rows')) && before(q('.c2-rows'), q('.task-ledger-item'));
       });
       expect(order).toBe(true);
       const text = await today.innerText();
