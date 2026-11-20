@@ -9670,6 +9670,60 @@ function c2NowHTML(x, currentMin) {
     </section>`;
 }
 
+// Study shortcuts on a class: the Vault resources saved for the class' subject, in saved order.
+// Matched the way the Subject Hub matches (name, or code); nothing is stored or changed here.
+function c2ClassResources(c) {
+  const subj = subjectItemForClass(c);
+  const name = String((subj && subj.name) || c.subject || '').toLowerCase();
+  const code = String((subj && subj.code) || c.code || '').toLowerCase();
+  const out = [];
+  loadCustomLinks().forEach((v, si) => {
+    if (!v || !Array.isArray(v.resources)) return;
+    if (!((v.subject || '').toLowerCase() === name || (code && (v.code || '').toLowerCase() === code))) return;
+    v.resources.forEach((r, ri) => {
+      if (!r) return;
+      const info = c2ResourceInfo(r);
+      if (info) out.push({ r, si, ri, ...info });
+    });
+  });
+  return out;
+}
+// What a saved resource is to a student, or null when Today cannot open it (blocked address, file on another device that cannot be fetched).
+function c2ResourceInfo(r) {
+  if (isVaultPlaceholder(r)) return vaultPlaceholderFetchable(r) ? { sub: vaultPlaceholderHere(r) ? 'Vault' : 'On another device, tap to download' } : null;
+  if (isVaultIdbFile(r) || isVaultDeviceFile(r) || r.isUpload) return { sub: 'Vault' };
+  const href = vaultSafeUrl(r.url);
+  if (!href) return null;
+  if (/^data:/i.test(href)) return { sub: 'Vault' };
+  let host = '';
+  try { host = new URL(href).hostname.replace(/^www\./, ''); } catch (e) { host = ''; }
+  const sub = /(^|\.)drive\.google\.com$/.test(host) ? 'Google Drive' : /(^|\.)docs\.google\.com$/.test(host) ? 'Google Docs' : /(^|\.)(youtube\.com|youtu\.be)$/.test(host) ? 'YouTube' : host;
+  return { sub: sub || 'Link' };
+}
+// Opens a resource exactly as the Vault does (same handlers, same branches).
+window.c2OpenResource = function (si, ri) {
+  const sec = loadCustomLinks()[si];
+  const r = sec && Array.isArray(sec.resources) ? sec.resources[ri] : null;
+  if (!r) return;
+  if (isVaultPlaceholder(r)) { if (vaultPlaceholderFetchable(r)) (vaultPlaceholderHere(r) ? vaultOpenFile : vaultGetCloudFile)(r.fileId); return; }
+  if (isVaultIdbFile(r)) { vaultOpenFile(r.fileId); return; }
+  const href = vaultSafeUrl(r.url);
+  if (!href) return;
+  const a = document.createElement('a');
+  a.href = href;
+  if (r.isUpload || /^data:/i.test(href)) {
+    a.setAttribute('download', r.label || 'file');
+    if (vaultViewKind(r.label) && vaultOpenDataUrl(a) === false) return;
+  } else { a.target = '_blank'; a.rel = 'noopener'; }
+  a.click();
+};
+const c2ResAttr = (x) => `data-c2-res="${x.si}:${x.ri}"`;
+function c2OpenSectionHTML(c) {
+  const list = c2ClassResources(c);
+  if (!list.length) return '';
+  return `<p class="c2-sl">Open</p>${list.map(x => `<button type="button" class="c2-opt c2-res" ${c2ResAttr(x)}><span>${escHtml_cd(x.r.label || 'Untitled')}<small>${escHtml_cd(x.sub)}</small></span><span class="chk" aria-hidden="true">↗</span></button>`).join('')}`;
+}
+
 function c2RowHTML(x, { currentMin, sameTime }) {
   const c = x.c;
   const swipe = (x.state === 'ended' || x.state === 'live') && x.status === 'unset';
@@ -9680,6 +9734,9 @@ function c2RowHTML(x, { currentMin, sameTime }) {
   // The next class says how long it is until it starts, so "same time" moves to its sub-line.
   const subLine = [sub, x.state === 'next' && sameTime ? 'Same time' : ''].filter(Boolean).join(' · ');
   const next = x.state === 'next';
+  // One quiet link to the subject's first saved resource (only the next class, only when there is one).
+  const top = next ? c2ClassResources(c)[0] : null;
+  const studyLink = top ? `<button type="button" class="c2-skipq c2-reslink" ${c2ResAttr(top)}>${icons.book()}<span>${escHtml_cd(top.r.label || 'Untitled')}</span></button>` : '';
   return `
     <li class="c2-row${next ? ' next' : ''}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}${todaySettling(x.key) ? ' is-settling' : ''}" data-row="${key}"${x.state === 'live' ? ' aria-current="time"' : ''}>
       ${swipe ? `<div class="c2-ul" aria-hidden="true"><span class="c2-ul-l">${icons.check()}Present</span><span class="c2-ul-r"><button type="button" class="ab" tabindex="-1" data-c2-mark="skipped" data-key="${key}">Absent</button><button type="button" class="mo" tabindex="-1" data-c2-open data-key="${key}">More</button></span></div>` : ''}
@@ -9688,7 +9745,7 @@ function c2RowHTML(x, { currentMin, sameTime }) {
         <span class="c2-nm"><b>${escHtml_cd(c.subject)}</b>${subLine ? `<small>${subLine}</small>` : ''}</span>
         ${status}
       </button>
-      ${next ? `<button type="button" class="c2-skipq" data-c2-open data-key="${key}">Can I skip this?</button>` : ''}
+      ${next ? `<div class="c2-rowlinks"><button type="button" class="c2-skipq" data-c2-open data-key="${key}">Can I skip this?</button>${studyLink}</div>` : ''}
     </li>
 `;
 }
@@ -9890,6 +9947,8 @@ function c2SheetEls() {
     if (e.target.closest('[data-c2-keep]')) { closeSheet(); return; }
     const tk = e.target.closest('[data-c2-task]');
     if (tk) { c2TaskAct(tk); return; }
+    const rs = e.target.closest('[data-c2-res]');
+    if (rs) { const [si, ri] = rs.dataset.c2Res.split(':').map(Number); c2OpenResource(si, ri); return; }
     const sub = e.target.closest('[data-c2-subject]');
     if (sub) { const name = sub.dataset.c2Subject; closeSheet(true); openSubjectHub(name); return; }
     const nm = e.target.closest('[data-c2-name]');
@@ -9954,13 +10013,14 @@ function c2SheetHTML(x) {
     } else {
       h += `<p class="c2-sl">Can I skip this?</p><p class="c2-verdict">Add your attendance counts and this tells you what skipping would do.</p>`;
     }
-    h += `<button type="button" class="c2-opt" data-c2-subject="${c2Attr(c.subject)}">Open in Subjects</button>`;
+    h += `${c2OpenSectionHTML(c)}<button type="button" class="c2-opt" data-c2-subject="${c2Attr(c.subject)}">Open in Subjects</button>`;
   } else {
     // The ticked choice keeps its mark and just closes the sheet; only "Clear mark" clears.
     const opt = (v, label, note) => `<button type="button" class="c2-opt" ${x.status === v ? 'data-c2-keep aria-current="true"' : `data-c2-mark="${v}"`} data-key="${key}"><span>${label}${note ? `<small>${note}</small>` : ''}</span>${x.status === v ? `<span class="chk">${icons.check()}</span>` : ''}</button>`;
     h += `<p class="c2-sl">Mark this class</p>
       ${opt('attended', 'Present')}${opt('skipped', 'Absent')}${opt('cancelled', "Didn't happen", 'Not counted, as if it was never held')}${opt('od_pending', 'On duty (OD)', 'Excused by college; counts as present once approved')}
-      ${x.status !== 'unset' ? `<button type="button" class="c2-opt" data-c2-mark="${x.status}" data-key="${key}">${icons.x()}Clear mark</button>` : ''}`;
+      ${x.status !== 'unset' ? `<button type="button" class="c2-opt" data-c2-mark="${x.status}" data-key="${key}">${icons.x()}Clear mark</button>` : ''}
+      ${c2OpenSectionHTML(c)}`;
   }
   return h + c2NameRowHTML(x);
 }
@@ -10239,6 +10299,8 @@ function c2Click(e) {
   if (go) { c2GoTo(go.dataset.go); return; }
   const mk = t.closest('[data-c2-mark]');
   if (mk) { c2Mark(mk.dataset.key, mk.dataset.c2Mark); return; }
+  const rs = t.closest('[data-c2-res]');
+  if (rs) { const [si, ri] = rs.dataset.c2Res.split(':').map(Number); c2OpenResource(si, ri); return; }
   const op = t.closest('[data-c2-open]');
   if (op) { c2CloseOpenRow(); openClassSheet(op.dataset.key); return; }
   if (t.closest('.task-checkbox')) return;
@@ -12690,24 +12752,6 @@ function renderDashboard() {
   const goalReached = hasAttendanceData && !isAttendanceAtRisk && recentOverdue === 0 && pending === 0 && !focusHTML;
   const greetingParts = getGreetingParts({ name: firstName, overdue: recentOverdue, holiday: onHoliday, calm: calmDay, goalReached });
 
-  // Shortcuts follow the day: the subject of the class now or next comes
-  // first, then the subject of the top task, then the rest in saved order.
-  // Display order only: the Vault is not changed.
-  const allQuickLinks = isEmptyDesk ? [] : loadCustomLinks();
-  const dayKeys = [heroClass && heroClass.subject, urgentTasks[0] && urgentTasks[0].subject]
-    .map(x => (x ? getCanonicalSubjectKey(x) : ''));
-  const linkRank = (s) => {
-    const keys = [s.subject, s.code].filter(Boolean).map(getCanonicalSubjectKey);
-    const i = dayKeys.findIndex(k => k && keys.includes(k));
-    return i === -1 ? dayKeys.length : i;
-  };
-  const quickLinksPreview = allQuickLinks
-    .map((s, i) => ({ s, i, r: linkRank(s) }))
-    .sort((a, b) => a.r - b.r || a.i - b.i)
-    .slice(0, 3)
-    .map(x => x.s);
-  const moreLinks = allQuickLinks.length - quickLinksPreview.length;
-
   // Once classes are over, the line under the greeting points at the
   // unmarked ones instead of saying "no tasks pending".
   const greetingSub = classesOver && endedUnmarkedClassKeys(dateStr).length
@@ -12895,24 +12939,6 @@ function renderDashboard() {
           </div>`}
         </div>
 
-        <!-- STUDY SHORTCUTS -->
-        ${quickLinksPreview.length > 0 ? `
-          <div class="dashboard-panel dash-shortcuts">
-            <div class="panel-header">
-              <div class="panel-title" role="heading" aria-level="2">Study Shortcuts</div>
-              <button class="panel-action" onclick="navigateTo('links')">Vault →</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              ${quickLinksPreview.map(s => `
-                <div class="filter-chip" style="font-size:var(--text-xs);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="openSubjectHub(${jsArg_cd(s.subject)})" title="Open ${escAttr_cd(s.subject)} Subject Hub (Study Vault links)">
-                  <span style="width:6px;height:6px;border-radius:50%;background:${s.color || 'var(--accent)'}"></span>
-                  <span>${escHtml_cd(s.subject)}</span>
-                </div>
-              `).join('')}
-              ${moreLinks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('links')">+${moreLinks} more →</button>` : ''}
-            </div>
-          </div>
-        ` : ''}
         ${examFootHTML}
       </div>
     </div>

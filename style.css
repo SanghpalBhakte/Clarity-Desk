@@ -6348,10 +6348,6 @@ html.more-sheet-open .more-sheet {
   color: var(--status-success, var(--green));
 }
 
-/* Phones: Study shortcuts live in the Study Vault, one tap away under More */
-@media (max-width: 767px) {
-  #page-dashboard .dash-shortcuts { display: none; }
-}
 
 /* ── Import from WhatsApp (Tasks) ─────────────────────────────── */
 .wa-modal-link {
@@ -6740,7 +6736,6 @@ body.holiday-mode .holiday-banner {
 }
 .dash-more-link:hover { color: var(--accent); }
 .dash-more-link:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }
-.dash-shortcuts .dash-more-link { margin-top: 0; min-height: 0; padding: 3px 4px; font-size: var(--text-xs); }
 /* "Why this order?" beside All tasks: one quiet line, nothing saved. */
 .dash-why { margin-top: 0; min-height: 32px; font-size: var(--text-xs); font-weight: 500; }
 .dash-why-line { margin: -4px 0 8px; font-size: var(--text-xs); color: var(--text-muted); }
@@ -8695,12 +8690,10 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .task-ledger-item:hover, #page-dashboard .rail-row:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
   #page-dashboard .quick-add input, #page-dashboard #quick-add-input { height: 44px !important; font-size: var(--text-md) !important; }
   #page-dashboard #quick-add-input + .btn { height: 44px; font-size: var(--text-base) !important; padding-inline: 18px !important; }
-  #page-dashboard .dash-shortcuts .filter-chip { transition: border-color .15s ease; }
-  #page-dashboard .dash-shortcuts .filter-chip:hover { border-color: var(--color-thread, var(--accent)); }
   #page-settings .st-nav-btn:hover { color: var(--text-primary); }
 }
 @media (hover: hover) and (min-width: 1024px) and (prefers-reduced-motion: reduce) {
-  #page-dashboard .task-ledger-item, #page-dashboard .rail-row, #page-dashboard .dash-shortcuts .filter-chip { transition: none; }
+  #page-dashboard .task-ledger-item, #page-dashboard .rail-row { transition: none; }
 }
 
 /* Settings: every option reads at a comfortable size on every screen. Re-pointing the tokens here
@@ -9164,3 +9157,13 @@ body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex
 .c2-foot-link b { color: var(--c2-ink); font-weight: 600; margin-right: 0.3em; }
 .c2-foot-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .c2-foot-link:focus-visible { outline: 2.5px solid var(--c2-ink); outline-offset: 2px; border-radius: 4px; }
+
+/* ── Study shortcuts on the class: a quiet link beside "Can I skip this?", and an Open list in the class sheet ── */
+.c2-rowlinks { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; margin: -4px 0 4px 86px; }
+.c2-rowlinks .c2-skipq { margin: 0; }
+.c2-reslink { max-width: 100%; text-decoration: none; }
+.c2-reslink svg { width: 16px; height: 16px; flex: none; margin-right: 6px; }
+.c2-reslink span { min-width: 0; overflow-wrap: anywhere; text-decoration: underline; text-decoration-color: var(--c2-acc); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.c2-reslink:focus-visible { outline: 2.5px solid var(--c2-ink); outline-offset: 2px; border-radius: 4px; }
+.c2-res > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.c2-res .chk { margin-left: auto; padding-left: 12px; color: var(--c2-mut); }

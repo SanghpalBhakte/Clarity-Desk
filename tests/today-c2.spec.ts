@@ -758,3 +758,114 @@ test.describe('End-Sem at the foot', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
+
+test.describe('study shortcuts on the class', () => {
+  const links = [
+    { subject: 'Database Management Systems', code: 'DBMS', color: '#c2410c', resources: [{ label: 'DBMS syllabus', url: 'https://drive.google.com/x' }, { label: 'Unit 2 notes', url: 'https://erp.college.edu/n' }] },
+    { subject: 'Data Structures', code: 'DS', color: '#0f766e', resources: [{ label: 'DS notebook', url: 'https://example.com/ds' }] },
+  ];
+  const AT = '2026-09-24T10:30:00';   // DS is over and unmarked, DBMS is next
+  async function offline(page: Page) {
+    await page.context().route('**/*', (r) => (r.request().url().startsWith('http://127.0.0.1') ? r.continue() : r.fulfill({ status: 200, contentType: 'text/html', body: 'ok' })));
+  }
+
+  test('the next class gets one link beside "Can I skip this?", other classes get none', async ({ page }) => {
+    const today = await open(page, AT, { cos_custom_links: links });
+    await expect(today.locator('.c2-reslink')).toHaveCount(1);
+    await expect(today.locator('.c2-row.next .c2-rowlinks .c2-reslink')).toHaveText('DBMS syllabus');
+    await expect(today.locator('.c2-row.next .c2-skipq').first()).toHaveText('Can I skip this?');
+    expect(Math.round((await today.locator('.c2-reslink').boundingBox())!.height)).toBeGreaterThanOrEqual(44);
+  });
+
+  test('no saved links: no link, and "Can I skip this?" is unchanged', async ({ page }) => {
+    const today = await open(page, AT, { cos_custom_links: [] });
+    await expect(today.locator('.c2-reslink')).toHaveCount(0);
+    await expect(today.locator('.c2-row.next .c2-skipq')).toHaveText('Can I skip this?');
+  });
+
+  test('the link opens the saved address in a new tab, and it works from the keyboard', async ({ page }) => {
+    await offline(page);
+    const today = await open(page, AT, { cos_custom_links: links });
+    const [pop] = await Promise.all([page.waitForEvent('popup'), today.locator('.c2-reslink').click()]);
+    await pop.waitForURL(/drive\.google\.com\/x/);
+    await pop.close();
+    await today.locator('.c2-reslink').focus();
+    const [pop2] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('Enter')]);
+    await pop2.waitForURL(/drive\.google\.com\/x/);
+  });
+
+  test('the sheet lists every resource in saved order, before "Open in Subjects", with where it lives', async ({ page }) => {
+    const today = await open(page, AT, { cos_custom_links: links });
+    await today.locator('.c2-row.next .c2-skipq').first().click();
+    const sheet = page.locator('#c2-sheet');
+    const rows = sheet.locator('.c2-res');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('DBMS syllabus');
+    await expect(rows.nth(0)).toContainText('Google Drive');
+    await expect(rows.nth(1)).toContainText('Unit 2 notes');
+    await expect(rows.nth(1)).toContainText('erp.college.edu');
+    const order = await sheet.evaluate((e) => {
+      const r = e.querySelector('.c2-res'), s = e.querySelector('[data-c2-subject]');
+      return !!r && !!s && !!(r.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(order).toBe(true);
+  });
+
+  test('a row in the sheet opens its address', async ({ page }) => {
+    await offline(page);
+    const today = await open(page, AT, { cos_custom_links: links });
+    await today.locator('.c2-row.next .c2-skipq').first().click();
+    const [pop] = await Promise.all([page.waitForEvent('popup'), page.locator('#c2-sheet .c2-res').nth(1).click()]);
+    await pop.waitForURL(/erp\.college\.edu\/n/);
+    await expect(page.locator('#c2-sheet')).toHaveAttribute('aria-hidden', 'false');   // the sheet stays so you can come back
+  });
+
+  test('a class that is already marked shows the Open list too', async ({ page }) => {
+    const today = await open(page, AT, { cos_custom_links: links });
+    await today.locator('.c2-row[data-row] .c2-face').first().click();
+    await expect(page.locator('#c2-sheet')).toContainText('Mark this class');
+    await expect(page.locator('#c2-sheet .c2-res')).toHaveCount(1);
+    await expect(page.locator('#c2-sheet .c2-res')).toContainText('DS notebook');
+  });
+
+  test('matched by subject code too, and never writes to storage', async ({ page }) => {
+    const odd = [{ subject: 'DB Systems (old name)', code: 'dbms', color: '#000', resources: [{ label: 'Old notes', url: 'https://example.com/o' }] }];
+    const today = await open(page, AT, { cos_custom_links: odd });
+    const before = await page.evaluate(() => localStorage.getItem('cos_custom_links'));
+    await expect(today.locator('.c2-reslink')).toHaveText('Old notes');
+    expect(await page.evaluate(() => localStorage.getItem('cos_custom_links'))).toBe(before);
+  });
+
+  test('blocked addresses and files that cannot be fetched are left out; a fetchable file says so', async ({ page }) => {
+    const mixed = [{ subject: 'Database Management Systems', code: 'DBMS', color: '#000', resources: [
+      { label: 'Bad link', url: 'javascript:alert(1)' },
+      { label: 'Lost file', onDevice: true, fileId: 'bad id!' },
+      { label: 'Phone file.pdf', onDevice: true, fileId: 'fabc-12' },
+      { label: 'Real <b>link</b>', url: 'https://example.com/r' },
+    ] }];
+    const today = await open(page, AT, { cos_custom_links: mixed });
+    await expect(today.locator('.c2-reslink')).toHaveText('Phone file.pdf');
+    await today.locator('.c2-row.next .c2-skipq').first().click();
+    const rows = page.locator('#c2-sheet .c2-res');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('On another device, tap to download');
+    await expect(rows.nth(1)).toContainText('Real <b>link</b>');
+    expect(await rows.nth(1).evaluate((e) => e.querySelector('b'))).toBeNull();
+  });
+
+  test('a long title wraps on a 320 px phone and the page does not scroll sideways', async ({ page }) => {
+    const long = [{ subject: 'Database Management Systems', code: 'DBMS', color: '#000', resources: [{ label: 'Unit 3 normalisation worked examples and previous year questions with solutions', url: 'https://example.com/long' }] }];
+    const today = await open(page, AT, { cos_custom_links: long });
+    await page.setViewportSize({ width: 320, height: 700 });
+    await today.locator('.c2-reslink').scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const r = await today.locator('.c2-rowlinks').boundingBox();
+    expect(r!.x + r!.width).toBeLessThanOrEqual(320);
+  });
+
+  test('the old Study Shortcuts chips are gone', async ({ page }) => {
+    const today = await open(page, AT, { cos_custom_links: links });
+    await expect(today.locator('.dash-shortcuts')).toHaveCount(0);
+    await expect(today).not.toContainText('Study Shortcuts');
+  });
+});
