@@ -9114,3 +9114,9 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 .c2-empty-alts .c2-all { margin-top: 0; }
 .c2-empty-alts .setup-first-alt { min-height: 44px; margin: 0; padding: 0; text-align: left; }
 .c2-marktoday { min-height: 44px; }
+
+/* ── Laptop Today (C2): two calm columns 1.15fr / 1fr, gap 64, capped at 980 and left-aligned beside the sidebar.
+   Same 1100 px switch as the grid above; below it Today stays one column. ── */
+@media (min-width: 1100px) {
+  #page-dashboard.active { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 64px; max-width: 980px; margin-right: auto; }
+}
