@@ -222,7 +222,7 @@ check('An ended, unmarked class is marked on the rail (Present / Absent), with n
   const { html } = today(DAY + 'T13:00:00');
   const h = html();
   if (focusOf(h) !== undefined) return 'kind ' + focusOf(h);
-  return /rail-row is-ended needs-mark[\s\S]*Data Structures Lab[\s\S]*Ended · not marked[\s\S]*setAttendance\('2026-09-29', this.dataset.key, 'attended'\)/.test(h) ? true : 'rail row missing';
+  return /c2-row needs-mark[\s\S]*data-swipe="class"[\s\S]*Data Structures Lab[\s\S]*Not marked/.test(h) ? true : 'rail row missing';
 });
 
 check('Marking the class clears the row; nothing shows when there is nothing to do', () => {
@@ -255,7 +255,7 @@ check('Bad data cannot blank Today: a broken task and a corrupt dismissal list s
   seed({ cos_custom_tasks: JSON.stringify([{ id: 'z', title: 'Odd', dueDate: 'not-a-date', status: 'pending', taskType: 'assignment', isCustom: true }]), cd_focus_dismissed: '{not json' });
   at(DAY + 'T13:00:00'); const app = makeApp(); app.state.currentPage = 'dashboard'; app.renderDashboard();
   const h = domCache['page-dashboard'].innerHTML;
-  return h.includes('day-rail') && h.includes('Your day') ? true : 'Today did not render';
+  return h.includes('c2-rows') && h.includes('Your day') ? true : 'Today did not render';
 });
 
 console.log('\n========================================');

@@ -75,7 +75,7 @@ function today(iso) {                       // render Today at a moment, return 
   app.renderDashboard();
   return { app, html: domCache['page-dashboard'].innerHTML };
 }
-const attr = (html, name) => (html.match(new RegExp(`class="day-rail"[^>]*\\b${name}="([^"]*)"`)) || [])[1];
+const attr = (html, name) => (html.match(new RegExp(`class="c2-day"[^>]*\\b${name}="([^"]*)"`)) || [])[1];
 const countText = (html) => (html.match(/data-beacon-count>([^<]*)</) || [])[1];
 
 let total = 0, passed = 0; const errors = [];
@@ -110,15 +110,15 @@ check('Before class: the Next row counts down to the start ("1h 20m until it sta
   if (attr(html, 'data-beacon') !== 'next') return `state ${attr(html, 'data-beacon')}`;
   if (attr(html, 'data-start') !== '600' || attr(html, 'data-end') !== '720') return `data ${attr(html, 'data-start')}-${attr(html, 'data-end')}`;
   if (countText(html) !== '1h 20m') return `count ${countText(html)}`;
-  return html.includes('until it starts') && html.includes('rail-row is-next') ? true : 'label/row wrong';
+  return html.includes('In <span data-beacon-count>') && html.includes('c2-row next') ? true : 'label/row wrong';
 });
 
 check('In class: the row says "In class" and counts down to the end; the next class follows as its own row', () => {
   const { html } = today('2026-09-29T10:25:00');
   if (attr(html, 'data-beacon') !== 'live') return `state ${attr(html, 'data-beacon')}`;
   if (countText(html) !== '1h 35m') return `count ${countText(html)}`;
-  if (!/rail-row is-live[\s\S]*In class · <span data-beacon-count>1h 35m<\/span> left/.test(html)) return 'In class line';
-  return /rail-row is-later[\s\S]*Open Elective 2/.test(html) ? true : 'next class row missing';
+  if (!/c2-now[\s\S]*<span data-beacon-count>1h 35m<\/span> left/.test(html)) return 'In class line';
+  return /c2-row[\s\S]*Open Elective 2/.test(html) ? true : 'next class row missing';
 });
 
 check('Boundary minutes: 09:59 = "1 min" until start, 10:00 = in class, 11:59 = "1 min" left, 12:00 = between classes', () => {
@@ -132,7 +132,7 @@ check('Boundary minutes: 09:59 = "1 min" until start, 10:00 = in class, 11:59 = 
 
 check('Last class has no Next row; finished day and rest day carry no countdown', () => {
   const last = today('2026-09-29T13:00:00').html;
-  if (attr(last, 'data-beacon') !== 'live' || last.includes('rail-row is-next')) return 'last class shows a Next row';
+  if (attr(last, 'data-beacon') !== 'live' || last.includes('c2-row next')) return 'last class shows a Next row';
   const done = today('2026-09-29T15:30:00').html, free = today('2026-09-27T11:00:00').html;   // Sunday
   return !done.includes('data-beacon') && !free.includes('data-beacon') && !done.includes('data-beacon-count') ? true : 'countdown on a finished/free card';
 });
@@ -142,7 +142,7 @@ check('A class with no end time gets no countdown or progress (nothing to count 
   store.cos_custom_timetable = JSON.stringify({ 0: [], 1: [], 2: [{ subject: 'Seminar', code: 'SEM', time: '10:00', type: 'lecture' }], 3: [], 4: [], 5: [], 6: [] });
   const app = makeApp(); app.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  return html.includes('>In class<') && !html.includes('data-beacon') ? true : 'countdown shown without an end time';
+  return html.includes('In class now') && !html.includes('data-beacon') ? true : 'countdown shown without an end time';
 });
 
 // ── Look-ahead: what the card says when today has nothing left ─────────

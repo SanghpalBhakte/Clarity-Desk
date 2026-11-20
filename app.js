@@ -8497,6 +8497,7 @@ function flushDeferredRender() {
 
 function renderPage(page) {
   if (isDatePromptOpen(page)) { __renderDeferred = page; return; }
+  if (page !== 'dashboard' && c2SheetKey) closeSheet(true);   // a class sheet never stays up over another page
   // Coalesce accidental duplicate calls: two calls for the SAME page
   // within a few tens of milliseconds of each other are treated as one
   // and the second is skipped, instead of tearing the page's DOM down
@@ -9430,28 +9431,6 @@ window.toggleRailEarlier = function() {
 let todaySettleState = { key: '', at: 0 };
 window.todaySettle = function(key) { todaySettleState = { key: String(key), at: Date.now() }; };
 const todaySettling = (key) => todaySettleState.key === String(key) && Date.now() - todaySettleState.at < 600;
-window.railShowMarks = function(btn) {
-  const row = btn.closest('.rail-row');
-  if (!row) return;
-  row.classList.add('show-marks');
-  btn.hidden = true;
-  const on = row.querySelector('.rail-att.is-on') || row.querySelector('.rail-att');
-  if (on) on.focus();
-};
-// Which rail row's "More" marks (Didn't happen / OD) are open (memory only, survives the minute re-render).
-let railMoreOpenKey = null;
-window.railMoreClear = function() { railMoreOpenKey = null; };
-window.toggleRailMore = function(btn) {
-  const group = btn && btn.parentElement && btn.parentElement.querySelector('.rail-more-marks');
-  if (!group) return;
-  const open = group.hidden;
-  group.hidden = !open;
-  btn.setAttribute('aria-expanded', String(open));
-  const first = group.querySelector('.rail-att');
-  railMoreOpenKey = open && first ? first.dataset.key : null;
-  if (open) { if (first) first.focus(); }
-  else btn.focus();
-};
 // The class name as Today's rail shows it: display only, never stored. Short names
 // stay as they are; a long (often combined lab) title keeps the course code and is
 // cut at a word boundary. Nothing is abbreviated into an acronym. The full name stays
@@ -9599,11 +9578,110 @@ function layoutStrip(entries, opts) {
   return { start, end, blocks, gap };
 }
 
-function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx }) {
+// ── C2 day: strip, rows, now card, class sheet, gestures ──────────────────
+// Today's classes as a strip, simple rows and (in class) one card. Marks go only through
+// setAttendance / markEndedPresent, so counting, Undo, backups and sync are the old ones.
+// The root carries data-beacon so tickBeacon updates the countdown each minute and rebuilds
+// Today at a class boundary. Spec: docs/superpowers/specs/2026-11-20-today-c2-design.md §3-§6.
+const C2_FEEL = { lock: 8, commit: 110, flick: 0.5, open: -160, hold: 450, lift: 160, edge: 20, settle: 380 };
+let c2OpenRowKey = null;   // row held open at -160 px (survives the minute re-render)
+let c2SheetKey = null;     // class whose sheet is open (survives it too)
+let c2Day = null;          // what the latest render drew: { dateStr, all, currentMin, strip }
+let c2Drag = null;         // a swipe in progress; Today is not rebuilt underneath it
+let c2Hold = null;         // a press that may become a hold
+let c2RerenderPending = false;
+let c2SuppressClick = false;
+let c2SheetReturnKey = null;
+const c2Reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const c2Attr = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+// 'p' present / on duty, 'a' absent, 'c' didn't happen, '' not marked. Status is never a block fill.
+function c2MarkKind(status) {
+  if (status === 'attended' || status === 'od_pending' || status === 'od_accepted') return 'p';
+  if (status === 'skipped' || status === 'od_rejected') return 'a';
+  if (status === 'cancelled') return 'c';
+  return '';
+}
+const C2_STATUS_WORDS = { od_pending: 'On duty, waiting', od_accepted: 'On duty, accepted', od_rejected: 'On duty, rejected', cancelled: "Didn't happen" };
+
+function c2StatusHTML(x, currentMin, sameTime) {
+  if (x.status === 'attended') return `<span class="c2-st ok">${icons.check()}Present</span>`;
+  if (x.status === 'skipped') return `<span class="c2-st bad">${icons.x()}Absent</span>`;
+  if (C2_STATUS_WORDS[x.status]) return `<span class="c2-st">${C2_STATUS_WORDS[x.status]}</span>`;
+  if (x.state === 'ended') return '<span class="c2-st">Not marked</span>';
+  if (x.state === 'live') return `<span class="c2-st">${sameTime ? 'Same time' : 'In class'}</span>`;
+  if (x.state === 'next') return `<span class="c2-st">In <span data-beacon-count>${formatCountdown(x.from - currentMin)}</span></span>`;
+  return sameTime ? '<span class="c2-st">Same time</span>' : '';
+}
+
+// A subject's standing as numbers for the ring and the skip check; null when there are no counts.
+function c2Standing(c) {
+  if (isHolidayActive()) return null;
+  const subj = subjectItemForClass(c);
+  const a = subj ? getSubjectAttendance(subj) : null;
+  if (!a || a.pct === null || a.pct === undefined) return null;
+  const held = Number(a.total ?? a.held), attended = Number(a.attended);
+  if (!Number.isFinite(held) || !Number.isFinite(attended) || held <= 0) return null;
+  const target = Number(a.targetPct) || getAttendanceTarget();
+  const raw = Number(a.pctLabel ?? a.exactPct ?? a.pct);
+  return { pct: Math.round(Number.isFinite(raw) ? raw : (attended / held) * 100), attended, held, target };
+}
+
+const C2_RING_LEN = 2 * Math.PI * 21.5;
+function c2RingHTML(st) {
+  const dash = (C2_RING_LEN * Math.max(0, Math.min(100, st.pct))) / 100;
+  return `<div class="c2-ring${st.pct < st.target ? ' low' : ''}" aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="bgc" cx="26" cy="26" r="21.5"/><circle class="fg" cx="26" cy="26" r="21.5" style="stroke-dasharray:${dash} ${C2_RING_LEN}"/></svg><b>${st.pct}%</b></div>`;
+}
+
+function c2NowHTML(x, currentMin) {
+  const c = x.c;
+  const name = escHtml_cd(c.subject);
+  const st = c2Standing(c);
+  const pct = x.to !== null ? beaconProgressPct(x.from, x.to, currentMin) : 0;
+  const mk = c2MarkKind(x.status);
+  const done = x.status === 'unset' ? '' : `<span class="c2-done">${mk === 'p' ? `<span class="ok">${icons.check()}</span>` : mk === 'a' ? `<span class="no">${icons.x()}</span>` : ''}${x.status === 'attended' ? 'Present' : x.status === 'skipped' ? 'Absent' : C2_STATUS_WORDS[x.status] || ''}</span>`;
+  const key = c2Attr(x.key);
+  return `
+    <section class="c2-now" data-row="${key}" aria-label="In class now: ${c2Attr(c.subject)}" aria-current="time">
+      <div class="c2-now-ul" aria-hidden="true"><span class="y">Present</span><span class="n">Absent</span></div>
+      <div class="c2-face"${x.status === 'unset' ? ' data-swipe="now"' : ''} data-key="${key}">
+        <p class="c2-now-k">In class now</p>
+        <h2>${name}</h2>
+        <p class="c2-now-m">${formatDisplayTime(c.time)}${c.end ? ` to ${formatDisplayTime(c.end)}` : ''}${c.room ? `, ${escHtml_cd(c.room)}` : ''}${x.to !== null ? ` · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : ''}</p>
+        ${x.to !== null ? `<div class="c2-prog" role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" data-beacon-bar><i style="width:${pct}%"></i></div>` : ''}
+        ${st ? `<div class="c2-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(c.code || c.subject)}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>` : ''}
+        <div class="c2-acts">${x.status === 'unset'
+          ? `<span class="c2-hint">Swipe right to mark</span><button type="button" data-c2-mark="attended" data-key="${key}" aria-label="Present, mark ${c2Attr(c.subject)} as attended">Present</button><button type="button" data-c2-open data-key="${key}" aria-label="More choices for ${c2Attr(c.subject)}">More</button>`
+          : `${done}<button type="button" data-c2-open data-key="${key}" aria-label="Change the mark for ${c2Attr(c.subject)}">Change</button>`}</div>
+      </div>
+    </section>`;
+}
+
+function c2RowHTML(x, { currentMin, sameTime }) {
+  const c = x.c;
+  const swipe = (x.state === 'ended' || x.state === 'live') && x.status === 'unset';
+  const key = c2Attr(x.key);
+  const sub = c.room ? escHtml_cd(c.room)
+    : (c.type && String(c.type).toLowerCase() !== 'lecture' ? escHtml_cd(String(c.type).charAt(0).toUpperCase() + String(c.type).slice(1)) : '');
+  const status = c2StatusHTML(x, currentMin, sameTime);
+  const words = status.replace(/<[^>]+>/g, '');
+  const next = x.state === 'next';
+  return `
+    <li class="c2-row${next ? ' next' : ''}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}${todaySettling(x.key) ? ' is-settling' : ''}" data-row="${key}"${x.state === 'live' ? ' aria-current="time"' : ''}>
+      ${swipe ? `<div class="c2-ul" aria-hidden="true"><span class="c2-ul-l">${icons.check()}Present</span><span class="c2-ul-r"><button type="button" class="ab" tabindex="-1" data-c2-mark="skipped" data-key="${key}">Absent</button><button type="button" class="mo" tabindex="-1" data-c2-open data-key="${key}">More</button></span></div>` : ''}
+      <button type="button" class="c2-face"${swipe ? ' data-swipe="class"' : ''} data-key="${key}" aria-haspopup="dialog" aria-label="${c2Attr(c.subject)}, ${formatDisplayTime(c.time)}${words ? ', ' + c2Attr(words) : ''}">
+        <time>${formatDisplayTime(c.time)}</time>
+        <span class="c2-nm"><b>${escHtml_cd(c.subject)}</b>${sub ? `<small>${sub}</small>` : ''}</span>
+        ${status}
+      </button>
+      ${next ? `<button type="button" class="c2-skipq" data-c2-open data-key="${key}">Can I skip this?</button>` : ''}
+    </li>
+`;
+}
+
+function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine }) {
   try {
-    const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const marks = attendanceData[dateStr] || {};
-    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const all = dayClasses.map((c, i) => {
       const from = timeToMinutes(c.time || '00:00');
       const to = c.end ? timeToMinutes(c.end) : null;
@@ -9613,63 +9691,41 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
       const state = c === activeClass ? 'live' : c === nextClass ? 'next' : ended ? 'ended' : 'later';
       return { c, i, from, to, key, status, state };
     });
+    c2Day = { dateStr, all, currentMin, strip: null };
     if (!all.length) return '';
-    if (railMoreOpenKey && !all.some(x => x.key === railMoreOpenKey)) railMoreOpenKey = null;
-    // Up to six rows, most urgent first (ended but unmarked, now, next,
-    // later, then ended and marked), shown in time order.
+    if (c2OpenRowKey && !all.some(x => x.key === c2OpenRowKey && x.status === 'unset' && x.state !== 'later' && x.state !== 'next')) c2OpenRowKey = null;
+    // Up to six rows, most urgent first (ended but unmarked, now, next, later, then ended and marked), shown in
+    // time order. Over-and-marked classes fold into one line and never count against the cap.
     const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
-    // Classes that are over and marked fold into one line; they never count against the cap,
-    // so opening the fold can't hide a class that still needs marking.
     const earlier = all.filter(x => x.state === 'ended' && x.status !== 'unset');
     const rest = all.filter(x => !earlier.includes(x));
     const shown = rest.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, RAIL_MAX_ROWS)
       .sort((a, b) => a.from - b.from || a.i - b.i);
     const more = rest.length - shown.length;
     const sameTime = (x) => shown.some(y => y !== x && y.from === x.from);
-
-    const markButtons = (x) => {
-      const name = attrSafe(x.c.subject);
-      const moreOpen = railMoreOpenKey === x.key || x.status === 'cancelled' || x.status === 'od_pending';
-      const btn = (val, word) => `<button type="button" class="rail-att${x.status === val ? ' is-on' : ''}" aria-pressed="${x.status === val}" aria-label="${word}, mark ${name} as ${ATT_STATUS_LABEL[val] || (val === 'attended' ? 'attended' : 'skipped')}" data-key="${attrSafe(x.key)}" onclick="railMoreClear();todaySettle(this.dataset.key);setAttendance('${dateStr}', this.dataset.key, '${val}')">${word}</button>`;
-      const group = `<div class="rail-marks${x.status === 'unset' ? '' : ' is-folded'}" role="group" aria-label="Attendance for ${name}">${btn('attended', 'Present')}${btn('skipped', 'Absent')}<button type="button" class="rail-more" aria-expanded="${moreOpen}" aria-controls="rail-more-${x.i}" aria-label="More marks for ${name}" onclick="toggleRailMore(this)">More</button><span class="rail-more-marks" id="rail-more-${x.i}" role="group" aria-label="Other marks for ${name}" onkeydown="if(event.key==='Escape'){event.stopPropagation();toggleRailMore(this.parentElement.querySelector('.rail-more'))}"${moreOpen ? '' : ' hidden'}>${btn('cancelled', "Didn't happen")}${btn('od_pending', 'On duty (OD)')}</span>${attStatusChipHTML(x.status)}</div>`;
-      // Once marked, the mark is in words on the row; "Change" brings the buttons back.
-      return x.status === 'unset' ? group
-        : `<button type="button" class="rail-change" aria-label="Change the mark for ${name}" onclick="railShowMarks(this)">Change</button>${group}`;
-    };
-    const metaOf = (x) => {
-      const bits = [];
-      if (x.state === 'live') bits.push(x.to !== null ? `In class · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : 'In class');
-      else if (x.state === 'next') bits.push('Next');
-      const markWord = x.status === 'attended' ? 'Marked present' : x.status === 'skipped' ? 'Marked absent' : ATT_STATUS_LABEL[x.status] ? `Marked · ${ATT_STATUS_LABEL[x.status]}` : '';
-      if (x.state === 'live' && markWord) bits.push(markWord);
-      else if (x.state === 'ended') bits.push(markWord || 'Ended · not marked');
-      if (x.c.room) bits.push(escHtml_cd(x.c.room));
-      // "Lecture" is the default, so it says nothing; Lab or Tutorial does.
-      else if (x.c.type && x.state !== 'live' && String(x.c.type).toLowerCase() !== 'lecture') bits.push(escHtml_cd(String(x.c.type).charAt(0).toUpperCase() + String(x.c.type).slice(1)));
-      if (sameTime(x)) bits.push('same time');
-      return bits.join(' · ');
-    };
-    const rowHTML = (x) => `
-      <li class="rail-row is-${x.state}${x.state === 'ended' && x.status === 'unset' ? ' needs-mark' : ''}${todaySettling(x.key) ? ' is-settling' : ''}"${x.state === 'live' ? ' aria-current="time"' : ''}>
-        <span class="rail-time">${formatDisplayTime(x.c.time)}${x.c.end ? `<small>${formatDisplayTime(x.c.end)}</small>` : ''}</span>
-        <span class="rail-body">
-          <button type="button" class="rail-name" onclick="openSubjectHub(${jsArg_cd(x.c.subject)})" title="${attrSafe(x.c.subject)}">${escHtml_cd(railClassLabel(x.c))}${railClassLabel(x.c) !== x.c.subject ? `<span class="sr-only"> (${escHtml_cd(x.c.subject)})</span>` : ''}</button>
-          <span class="rail-line"><span class="rail-meta">${metaOf(x)}</span>${x.state === 'ended' || x.state === 'live' ? markButtons(x) : ''}</span>
-        </span>
-        ${x.state === 'next' ? `<span class="rail-count"><b data-beacon-count>${formatCountdown(x.from - currentMin)}</b><span>until it starts</span></span>` : ''}
-      </li>`;
-    // The "now" line sits before the first class still to start. During a
-    // class the row itself says "In class", so no line is drawn.
     const live = shown.find(x => x.state === 'live');
-    const nowAt = live ? -1 : shown.findIndex(x => x.from > currentMin);
-    // The line says "Now" in words, so the time is not told by colour alone.
-    const nowLine = `<li class="rail-now"><span>${formatDisplayTime(hhmm(Math.min(currentMin, 1439)))}</span><i aria-hidden="true"></i><b>Now</b></li>`;
+    const rowOpts = (x) => ({ currentMin, sameTime: sameTime(x) });
     if (!earlier.length) railEarlierOpen = false;
-    const earlierHTML = earlier.length
-      ? `<li class="rail-earlier"><button type="button" class="rail-earlier-toggle" aria-expanded="${railEarlierOpen}" onclick="toggleRailEarlier()">${earlier.length} earlier class${earlier.length === 1 ? '' : 'es'} · marked</button></li>`
-        + (railEarlierOpen ? earlier.slice().sort((a, b) => a.from - b.from || a.i - b.i).map(rowHTML).join('') : '')
+
+    // The strip keeps its data here; c2PaintStrip lays it out once the width is known.
+    const stripEntries = all.map(x => ({ id: x.key, subject: x.c.subject, code: x.c.code, type: x.c.type, from: x.from / 60, to: (x.to !== null ? x.to : x.from + 60) / 60 }));
+    c2Day.strip = stripEntries;
+
+    // The longest free gap still ahead shows as a row, where it falls between classes.
+    const gapInfo = layoutStrip(stripEntries, { width: 300 }).gap;
+    const gapRow = gapInfo && gapInfo.to * 60 > currentMin
+      ? `<li class="c2-gaprow"><div class="c2-face-static"><time>${formatDisplayTime(c2Hhmm(gapInfo.from))}</time><span class="c2-nm"><b>Free until ${formatDisplayTime(c2Hhmm(gapInfo.to))}</b></span><span></span></div></li>`
       : '';
-    const rows = earlierHTML + shown.map((x, k) => (k === nowAt ? nowLine : '') + rowHTML(x)).join('') + (!live && nowAt === -1 ? nowLine : '');
+    let gapDone = !gapRow;
+    const rowsHTML = shown.filter(x => x !== live).map(x => {
+      let out = '';
+      if (!gapDone && x.from >= gapInfo.to * 60) { out += gapRow; gapDone = true; }
+      return out + c2RowHTML(x, rowOpts(x));
+    }).join('') + (gapDone ? '' : gapRow);
+    const earlierHTML = earlier.length
+      ? `<li class="c2-fold"><button type="button" class="c2-fold-btn rail-earlier-toggle" aria-expanded="${railEarlierOpen}" onclick="toggleRailEarlier()">${earlier.length} earlier class${earlier.length === 1 ? '' : 'es'}, marked</button></li>`
+        + (railEarlierOpen ? earlier.slice().sort((a, b) => a.from - b.from || a.i - b.i).map(x => c2RowHTML(x, rowOpts(x))).join('') : '')
+      : '';
 
     const beaconAttrs = activeClass && activeClass.end
       ? ` data-beacon="live" data-start="${timeToMinutes(activeClass.time || '00:00')}" data-end="${timeToMinutes(activeClass.end)}"`
@@ -9678,14 +9734,309 @@ function dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeCl
     const over = !activeClass && !nextClass;
     const allMarked = over && all.every(x => x.state !== 'ended' || x.status !== 'unset');
     return `
-      <ol class="day-rail" aria-label="Your classes today"${beaconAttrs}>${rows}</ol>
-      ${unmarked >= 2 ? `<button type="button" class="rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
-      ${more > 0 ? `<button type="button" class="dash-more-link" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${more} more class${more !== 1 ? 'es' : ''} →</button>` : ''}
-      ${over && allMarked ? `<p class="rail-then">${icons.check()} Day marked. Books down, feet up.</p>` : ''}
-      ${over && lookAhead ? `<p class="rail-then"><span>Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</span></p>` : ''}`;
+      <div class="c2-day" data-date="${dateStr}"${beaconAttrs}>
+        <div class="c2-strip" aria-hidden="true"><div class="c2-track"></div></div>
+        ${live ? c2NowHTML(live, currentMin) : ''}
+        ${attLine ? `<p class="c2-att">${attLine}</p>` : ''}
+        <ol class="c2-rows" aria-label="Your classes today">${earlierHTML}${rowsHTML}</ol>
+        ${unmarked >= 2 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
+        ${more > 0 ? `<button type="button" class="dash-more-link c2-more" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${more} more class${more !== 1 ? 'es' : ''} →</button>` : ''}
+        ${over && allMarked ? `<p class="rail-then">${icons.check()} Day marked. Books down, feet up.</p>` : ''}
+        ${over && lookAhead ? `<p class="rail-then"><span>Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</span></p>` : ''}
+      </div>`;
   } catch (e) {
     return '';
   }
+}
+const c2Hhmm = (h) => { const m = Math.round(h * 60); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+
+// Lays the strip out at its real width. Blocks are to scale; a label shows only if the whole word fits.
+let c2MeasureCtx = null;
+function c2PaintStrip() {
+  const strip = document.querySelector('#page-dashboard .c2-strip');
+  if (!strip || !c2Day || !c2Day.strip) return;
+  const width = strip.clientWidth;
+  if (!width) return;
+  if (!c2MeasureCtx) { const cv = document.createElement('canvas'); c2MeasureCtx = cv.getContext('2d'); }
+  c2MeasureCtx.font = `600 12px ${getComputedStyle(strip).fontFamily}`;
+  const own = safeGetStorage('cos_strip_labels', {}) || {};
+  const lay = layoutStrip(c2Day.strip, { width, measure: (t) => c2MeasureCtx.measureText(t).width, own: typeof own === 'object' ? own : {} });
+  if (!lay.blocks.length) return;
+  const byKey = new Map(c2Day.all.map(x => [x.key, x]));
+  const x = (h) => ((h - lay.start) / (lay.end - lay.start)) * width;
+  const blocks = lay.blocks.map(b => {
+    const e = byKey.get(b.ids[0]);
+    const kind = c2MarkKind(e.status);
+    const cls = ['c2-blk', e.state === 'ended' ? 'ended' : '', e.state === 'live' ? 'live' : '', e.state === 'next' ? 'next' : '', kind, b.kind === 'group' ? 'two' : ''].filter(Boolean).join(' ');
+    return `<div class="${cls}" style="left:${b.left}px;width:${b.width}px" data-go="${c2Attr(b.ids[0])}">${escHtml_cd(b.label)}</div>`;
+  }).join('');
+  let gap = '';
+  if (lay.gap && lay.gap.to * 60 > c2Day.currentMin) {
+    const left = x(lay.gap.from) + 1, w = x(lay.gap.to) - x(lay.gap.from) - 2;
+    const fits = c2MeasureCtx.measureText('Free').width + 14 <= w;
+    gap = `<div class="c2-blk gap" style="left:${left}px;width:${w}px">${fits ? 'Free' : ''}</div>`;
+  }
+  const nowH = c2Day.currentMin / 60;
+  const mark = nowH >= lay.start && nowH <= lay.end ? `<span class="c2-nowmark" style="left:${Math.max(1, Math.min(width - 1, x(nowH)))}px"></span>` : '';
+  const first = Math.min(...c2Day.strip.map(e => e.from)), last = Math.max(...c2Day.strip.map(e => e.to));
+  strip.innerHTML = `<div class="c2-track"></div>${gap}${blocks}${mark}<div class="c2-ends"><span>${formatDisplayTime(c2Hhmm(first))}</span><span>${formatDisplayTime(c2Hhmm(last))}</span></div>`;
+}
+
+// Tapping a block takes you to its row and flashes it once; a class with no row (the live one) opens its sheet.
+function c2GoTo(key) {
+  const row = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(key)}"]`);
+  if (!row) { openClassSheet(key); return; }
+  row.scrollIntoView({ block: 'center', behavior: c2Reduced() ? 'auto' : 'smooth' });
+  row.classList.remove('c2-flash');
+  void row.offsetWidth;
+  row.classList.add('c2-flash');
+}
+
+// ── Class sheet ──
+function c2SheetEls() {
+  let sheet = document.getElementById('c2-sheet');
+  if (sheet) return sheet;
+  const scrim = document.createElement('div');
+  scrim.className = 'c2-scrim';
+  scrim.id = 'c2-scrim';
+  scrim.addEventListener('click', () => closeSheet());
+  sheet = document.createElement('div');
+  sheet.className = 'c2-sheet';
+  sheet.id = 'c2-sheet';
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-labelledby', 'c2-sheet-title');
+  sheet.setAttribute('aria-hidden', 'true');
+  sheet.addEventListener('click', (e) => {
+    const m = e.target.closest('[data-c2-mark]');
+    if (m) { c2Mark(m.dataset.key, m.dataset.c2Mark); return; }
+    const sub = e.target.closest('[data-c2-subject]');
+    if (sub) { const name = sub.dataset.c2Subject; closeSheet(true); openSubjectHub(name); }
+  });
+  sheet.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const f = [...sheet.querySelectorAll('button, [href], input')].filter(n => !n.disabled && n.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  document.body.appendChild(scrim);
+  document.body.appendChild(sheet);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && c2SheetKey) { e.preventDefault(); closeSheet(); } });
+  return sheet;
+}
+
+function c2SheetHTML(x) {
+  const c = x.c, key = c2Attr(x.key);
+  const st = c2Standing(c);
+  const later = x.state === 'later' || x.state === 'next';
+  let h = `<div class="c2-grab" aria-hidden="true"></div>
+    <h3 id="c2-sheet-title">${escHtml_cd(c.subject)}</h3>
+    <p class="c2-sheet-m">${formatDisplayTime(c.time)}${c.end ? ` to ${formatDisplayTime(c.end)}` : ''}${c.room ? `, ${escHtml_cd(c.room)}` : ''}</p>`;
+  if (st) h += `<div class="c2-fx c2-sheet-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(c.code || c.subject)}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>`;
+  if (later) {
+    if (st) {
+      const go = Math.round(((st.attended + 1) / (st.held + 1)) * 100), skip = Math.round((st.attended / (st.held + 1)) * 100);
+      const g = computeNowGuidance(st.attended, st.held + 1, st.target);
+      const verdict = skip < st.target ? `Skipping puts you under the ${st.target}% rule. Go to this one.`
+        : g.safeSkips > 0 ? `Both keep you above ${st.target}%. After skipping you could still miss ${g.safeSkips} more.`
+        : `Skipping leaves you right on ${st.target}%, with none left to miss.`;
+      h += `<p class="c2-sl">Can I skip this?</p>
+        <div class="c2-cmp"><div><small>If you go</small><b>${go}%</b></div><div${skip < st.target ? ' class="low"' : ''}><small>If you skip</small><b>${skip}%</b></div></div>
+        <p class="c2-verdict">${verdict}</p>`;
+    } else {
+      h += `<p class="c2-sl">Can I skip this?</p><p class="c2-verdict">Add your attendance counts and this tells you what skipping would do.</p>`;
+    }
+    h += `<button type="button" class="c2-opt" data-c2-subject="${c2Attr(c.subject)}">Open in Subjects</button>`;
+  } else {
+    const opt = (v, label, note) => `<button type="button" class="c2-opt" data-c2-mark="${v}" data-key="${key}"><span>${label}${note ? `<small>${note}</small>` : ''}</span>${x.status === v ? `<span class="chk">${icons.check()}</span>` : ''}</button>`;
+    h += `<p class="c2-sl">Mark this class</p>
+      ${opt('attended', 'Present')}${opt('skipped', 'Absent')}${opt('cancelled', "Didn't happen", 'Not counted, as if it was never held')}${opt('od_pending', 'On duty (OD)', 'Excused by college; counts as present once approved')}
+      ${x.status !== 'unset' ? `<button type="button" class="c2-opt" data-c2-mark="${x.status}" data-key="${key}">${icons.x()}Clear mark</button>` : ''}`;
+  }
+  return h;
+}
+
+function c2PaintSheet() {
+  const sheet = document.getElementById('c2-sheet');
+  if (!sheet || !c2SheetKey) return;
+  const x = c2Day && c2Day.all.find(e => e.key === c2SheetKey);
+  if (!x) { closeSheet(true); return; }
+  const had = sheet.contains(document.activeElement) ? (document.activeElement.getAttribute('data-c2-mark') || '') : '';
+  sheet.innerHTML = c2SheetHTML(x);
+  if (had) { const again = sheet.querySelector(`[data-c2-mark="${had}"]`); if (again) again.focus(); }
+}
+
+window.openClassSheet = function(key) {
+  if (!c2Day || !c2Day.all.some(e => e.key === key)) return;
+  const sheet = c2SheetEls();
+  c2SheetKey = key;
+  c2SheetReturnKey = key;
+  c2PaintSheet();
+  sheet.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('c2-sheeted');
+  const f = sheet.querySelector('button');
+  if (f) f.focus({ preventScroll: true });
+};
+
+// quiet === true: closing because the student acted, so focus is not sent back (the row is rebuilt anyway).
+window.closeSheet = function(quiet) {
+  const sheet = document.getElementById('c2-sheet');
+  const key = c2SheetKey;
+  c2SheetKey = null;
+  document.body.classList.remove('c2-sheeted');
+  if (sheet) sheet.setAttribute('aria-hidden', 'true');
+  if (!sheet || !key || quiet === true) return;
+  const back = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(key)}"] .c2-face`) || document.querySelector(`#page-dashboard .c2-now [data-c2-open]`);
+  if (back) back.focus({ preventScroll: true });
+};
+
+// One mark = one call to the old setAttendance (it saves, toasts with Undo and redraws Today).
+function c2Mark(key, status) {
+  const date = (c2Day && c2Day.dateStr) || todayStr();
+  c2OpenRowKey = null;
+  closeSheet(true);
+  todaySettle(key);
+  setAttendance(date, key, status);
+}
+
+// ── Swipe, hold, right-click ──
+function c2CloseOpenRow() {
+  const key = c2OpenRowKey;
+  c2OpenRowKey = null;
+  if (!key) return;
+  const li = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(key)}"]`);
+  const f = li && li.querySelector('.c2-face');
+  if (!f) return;
+  if (!c2Reduced()) f.classList.add('settle');
+  f.style.transform = '';
+  li.classList.remove('dl', 'dr');
+}
+
+// The minute re-render rebuilds the rows: put the open row back where it was.
+function c2RestoreUi() {
+  if (c2OpenRowKey) {
+    const li = document.querySelector(`#page-dashboard .c2-row[data-row="${CSS.escape(c2OpenRowKey)}"]`);
+    const f = li && li.querySelector('.c2-face[data-swipe]');
+    if (f) { f.style.transform = `translateX(${C2_FEEL.open}px)`; li.classList.add('dl'); }
+    else c2OpenRowKey = null;
+  }
+  if (c2SheetKey) c2PaintSheet();
+}
+
+function c2EndDrag() {
+  c2Drag = null;
+  if (c2RerenderPending) { c2RerenderPending = false; if (state.currentPage === 'dashboard') renderDashboard(); }
+}
+
+function c2PointerDown(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  c2SuppressClick = false;
+  const face = e.target.closest('.c2-face');
+  const li = face && face.closest('.c2-row, .c2-now');
+  if (c2OpenRowKey && !e.target.closest('.c2-ul') && !(li && li.dataset.row === c2OpenRowKey)) c2CloseOpenRow();
+  if (!face || !li || e.target.closest('.c2-acts button')) return;
+  // A right swipe that starts at the screen edge is the browser's back gesture: leave it alone.
+  if (e.clientX < C2_FEEL.edge) return;
+  const key = li.dataset.row;
+  const swipe = !!face.dataset.swipe;
+  c2Drag = { li, face, key, kind: face.dataset.swipe || '', swipe, x0: e.clientX, y0: e.clientY, base: c2OpenRowKey === key ? C2_FEEL.open : 0, dx: 0, v: 0, lx: e.clientX, lt: performance.now(), axis: null, moved: false, pid: e.pointerId };
+  face.classList.remove('settle');
+  clearTimeout(c2Hold && c2Hold.t);
+  c2Hold = { face, x: e.clientX, y: e.clientY, fired: false, t: setTimeout(() => {
+    if (!c2Hold || (c2Drag && c2Drag.moved)) return;
+    c2Hold.fired = true;
+    c2SuppressClick = true;
+    c2Drag = null;
+    face.classList.add('c2-lift');
+    try { if (!c2Reduced()) haptic(8); } catch (_) {}
+    setTimeout(() => { face.classList.remove('c2-lift'); openClassSheet(key); }, c2Reduced() ? 0 : C2_FEEL.lift);
+  }, C2_FEEL.hold) };
+}
+
+function c2PointerMove(e) {
+  if (c2Hold && !c2Hold.fired && Math.hypot(e.clientX - c2Hold.x, e.clientY - c2Hold.y) > C2_FEEL.lock) { clearTimeout(c2Hold.t); c2Hold = null; }
+  const d = c2Drag;
+  if (!d || e.pointerId !== d.pid) return;
+  const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+  if (!d.axis) {
+    if (Math.abs(dx) > C2_FEEL.lock) d.axis = 'x';
+    else if (Math.abs(dy) > C2_FEEL.lock) { c2EndDrag(); return; }
+    else return;
+    if (!d.swipe) { c2Drag = null; return; }
+    try { d.face.setPointerCapture(d.pid); } catch (_) {}
+  }
+  const now = performance.now();
+  d.v = (e.clientX - d.lx) / Math.max(1, now - d.lt);
+  d.lx = e.clientX; d.lt = now; d.moved = true;
+  const maxL = d.kind === 'now' ? -180 : C2_FEEL.open;
+  let x = d.base + dx;
+  if (x < maxL) x = maxL + (x - maxL) * 0.25;
+  if (x > 160) x = 160 + (x - 160) * 0.25;
+  d.dx = x;
+  d.face.style.transform = `translateX(${x}px)`;
+  d.li.classList.toggle('dl', x < 0);
+  d.li.classList.toggle('dr', x > 0);
+  d.li.classList.toggle('left', x < 0);
+}
+
+function c2PointerUp() {
+  if (c2Hold && !c2Hold.fired) { clearTimeout(c2Hold.t); c2Hold = null; }
+  const d = c2Drag;
+  if (!d) { if (c2SuppressClick) setTimeout(() => { c2SuppressClick = false; }, 60); return; }
+  if (!d.moved) { c2Drag = null; return; }
+  c2SuppressClick = true;
+  setTimeout(() => { c2SuppressClick = false; }, 60);
+  const { face, li, key, kind, dx, v } = d;
+  if (!c2Reduced()) face.classList.add('settle');
+  const flickR = v > C2_FEEL.flick && dx > 30, flickL = v < -C2_FEEL.flick && dx < -30;
+  const reset = () => { face.style.transform = ''; li.classList.remove('dl', 'dr', 'left'); c2OpenRowKey = null; };
+  if (dx > C2_FEEL.commit || flickR) {
+    face.style.transform = 'translateX(110%)';
+    c2OpenRowKey = null;
+    setTimeout(() => c2Mark(key, 'attended'), c2Reduced() ? 0 : 180);
+  } else if (kind === 'now' && (dx < -C2_FEEL.commit || flickL)) {
+    face.style.transform = 'translateX(-110%)';
+    setTimeout(() => c2Mark(key, 'skipped'), c2Reduced() ? 0 : 180);
+  } else if (kind !== 'now' && (dx < -60 || flickL)) {
+    face.style.transform = `translateX(${C2_FEEL.open}px)`;
+    c2OpenRowKey = key;
+  } else reset();
+  c2EndDrag();
+}
+
+function c2Click(e) {
+  if (c2SuppressClick) { c2SuppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
+  const t = e.target;
+  const go = t.closest('.c2-blk[data-go]');
+  if (go) { c2GoTo(go.dataset.go); return; }
+  const mk = t.closest('[data-c2-mark]');
+  if (mk) { c2Mark(mk.dataset.key, mk.dataset.c2Mark); return; }
+  const op = t.closest('[data-c2-open]');
+  if (op) { c2CloseOpenRow(); openClassSheet(op.dataset.key); return; }
+  const face = t.closest('.c2-face');
+  if (face) openClassSheet(face.dataset.key);
+}
+
+// One set of listeners on Today's root; the rows inside are rebuilt freely.
+function wireRowGestures(root) {
+  if (!root || root.__c2Wired || typeof root.addEventListener !== 'function') return;
+  root.__c2Wired = true;
+  root.addEventListener('pointerdown', c2PointerDown);
+  root.addEventListener('pointermove', c2PointerMove);
+  root.addEventListener('pointerup', c2PointerUp);
+  root.addEventListener('pointercancel', c2PointerUp);
+  root.addEventListener('click', c2Click);
+  root.addEventListener('contextmenu', (e) => {
+    const face = e.target.closest('.c2-face');
+    if (!face) return;
+    e.preventDefault();
+    clearTimeout(c2Hold && c2Hold.t);
+    openClassSheet(face.dataset.key);
+  });
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => { clearTimeout(wireRowGestures.t); wireRowGestures.t = setTimeout(c2PaintStrip, 120); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(c2PaintStrip).catch(() => {});
 }
 
 function allTasks() {
@@ -11694,6 +12045,8 @@ let dashboardSettled = false;
 function renderDashboard() {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
+  // Never rebuild Today under a swipe in progress; it redraws when the finger lifts.
+  if (c2Drag && c2Drag.moved) { c2RerenderPending = true; return; }
   liveProfile    = loadProfile();
   if (usageActive() && hasAnyTimetable()) trackUsageOnce('firstClass', 'first_class_saved');
   maybeShowCountdownCelebration();
@@ -11930,7 +12283,10 @@ function renderDashboard() {
     const done = dayClasses.filter(c => (dayMarks[attendanceKeyFor(c)] || 'unset') !== 'unset').length;
     return ` <span class="panel-count">${done} of ${dayClasses.length} marked</span>`;
   })();
-  const railHTML = onHoliday ? '' : dayRailHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx });
+  // One line, in words: the overall number and what it allows (every figure is already computed above).
+  const c2AttLine = (!hasAttendanceData || attendancePct === null || hideAttendancePanel) ? ''
+    : `Overall <b>${escHtml_cd(attendancePctLabel)}%</b>, ${!dashGuidance.isSafe ? `below the ${attTarget}% rule` : Number.isFinite(dashGuidance.safeSkips) && dashGuidance.safeSkips > 0 ? `you can miss ${dashGuidance.safeSkips} more` : 'right on the line'}`;
+  const railHTML = onHoliday ? '' : c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine: c2AttLine });
   const classesOver = !onHoliday && dayClasses.length > 0 && !activeClass && !nextClass;
 
   // Setup card: one ask at a time. No timetable yet = one big button (photo
@@ -12295,6 +12651,9 @@ function renderDashboard() {
     ${setupLast ? setupBanner : ''}
   `;
   dashboardSettled = true;
+  wireRowGestures(el);
+  c2PaintStrip();
+  c2RestoreUi();
 }
 
 // ── Calendar ──────────────────────────────────────────────────
@@ -18067,7 +18426,7 @@ function waSaveLinks() {
 // A short tick under the finger when a mark or tick lands (phones that
 // support it; silently nothing elsewhere).
 function haptic(ms = 10) {
-  try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
+  try { if (navigator.vibrate && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) navigator.vibrate(ms); } catch (_) {}
 }
 
 // Welcome only: tiny synthesized blips on a student's own taps (no audio files).
