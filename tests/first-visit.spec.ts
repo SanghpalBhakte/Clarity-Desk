@@ -46,7 +46,7 @@ test.describe('Add Task', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(seedReturning);
     await page.goto('/');
-    await page.getByRole('button', { name: 'Tasks & Deadlines' }).first().click();
+    await page.getByRole('button', { name: 'Tasks', exact: true }).first().click();
   });
 
   test('a task with no readable date says the date is a default', async ({ page }) => {

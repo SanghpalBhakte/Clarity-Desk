@@ -9167,3 +9167,44 @@ body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex
 .c2-reslink:focus-visible { outline: 2.5px solid var(--c2-ink); outline-offset: 2px; border-radius: 4px; }
 .c2-res > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .c2-res .chk { margin-left: auto; padding-left: 12px; color: var(--c2-mut); }
+
+/* ── Sidebar (laptop): four places, a hairline, three quiet rows, then you ──
+   Expanded it is words only: the open page is marked by a short ink bar, not a filled pill.
+   The icon rail (collapsed, and 768-1023 px) keeps the icons, which are all it has. */
+.side-rule, .side-spacer, .side-me { display: none; }
+@media (min-width: 768px) {
+  .side-rule { display: block; flex: none; height: 1px; margin: 14px 12px; background: var(--c2-line); }
+  .side-spacer { display: block; flex: 1 1 auto; }
+  html body .sidebar.sidebar { gap: 4px; }
+  html body .sidebar .nav-item { color: var(--c2-ink); }
+  html body .sidebar .nav-item.nav-quiet { color: var(--c2-mut); font-weight: 400; }
+  html body .sidebar .nav-item.nav-quiet:hover { color: var(--c2-ink); }
+  html:not(.sidebar-collapsed) body .sidebar .nav-item svg { display: none; }
+  html:not(.sidebar-collapsed) body .sidebar .nav-item { border-radius: 10px; padding: 0 12px 0 18px; }
+  html:not(.sidebar-collapsed) body .sidebar .nav-item.active { background: transparent; color: var(--c2-ink); font-weight: 650; }
+  html:not(.sidebar-collapsed) body .sidebar .nav-item.active::before { content: ''; position: absolute; left: 4px; top: 50%; width: 3px; height: 18px; margin-top: -9px; border-radius: 3px; background: var(--c2-ink); }
+  html:not(.sidebar-collapsed) body .sidebar .nav-item.nav-quiet.active { color: var(--c2-ink); }
+
+  html body .sidebar .side-me { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; font: inherit; color: var(--c2-ink); text-align: left; cursor: pointer; }
+  html body .sidebar .side-me:hover { background: var(--c2-blk-end); }
+  html body .sidebar .side-me:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
+  .side-av { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--c2-blk-end); border: 1px solid var(--c2-line); font-size: 0.75rem; font-weight: 600; }
+  .side-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .side-who b { font-weight: 500; font-size: 0.9375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-who small { font-size: 0.75rem; color: var(--c2-mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-who small:empty { display: none; }
+  .side-sync { flex: none; margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--c2-ok); }
+  html.sidebar-collapsed .sidebar .side-who, html.sidebar-collapsed .sidebar .side-sync { display: none; }
+  html.sidebar-collapsed body .sidebar .side-me { justify-content: center; padding: 6px 0; }
+  html.sidebar-collapsed .side-rule { margin: 10px 8px; }
+
+  /* The footer only holds the collapse button now: quiet until you point at the sidebar or tab to it. */
+  html body .sidebar .sidebar-footer { margin-top: 0; padding: 0 4px; border-top: 0; justify-content: flex-end; }
+  html body .sidebar .sidebar-collapse-btn { opacity: 0; transition: opacity 0.16s ease, background 0.14s ease; }
+  html body .sidebar:hover .sidebar-collapse-btn, html body .sidebar:focus-within .sidebar-collapse-btn { opacity: 1; }
+  html.sidebar-collapsed body .sidebar .sidebar-footer { justify-content: center; padding: 0; }
+}
+@media (hover: none) { html body .sidebar .sidebar-collapse-btn { opacity: 1; } }
+
+/* Today: two quiet links in the header of "Your day" (or of Due when there is no day to show). */
+.c2-hlinks { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 14px; }
