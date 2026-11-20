@@ -8857,7 +8857,8 @@ function getDynamicGreeting(firstName, opts = {}) {
   const seed = new Date().getDate() + h;
   const [withName, withoutName] = pool[seed % pool.length];
 
-  const nameHtml = has ? `<span class="desk-greeting-name">${escHtml_cd(firstName)}</span>` : '';
+  // plain: the name as typed, for places that set text (textContent), never HTML.
+  const nameHtml = has ? (opts.plain ? firstName : `<span class="desk-greeting-name">${escHtml_cd(firstName)}</span>`) : '';
   const entry = has ? withName.replace('{n}', nameHtml) : withoutName;
   if (!opts.parts) return entry;
   // Structured form: the first sentence is the title, anything after it is the quip.
@@ -12716,6 +12717,9 @@ function renderDashboard() {
   const unmarkedNow = (dayClasses.length && !night) ? endedUnmarkedClassKeys(dateStr).length : 0;
   const dueTom = night ? dueShown.find(a => dueDaysLeft(a.dueDate) === 1) : null;
   const smartText = c2SmartLine({ mode: night ? 'night' : evening ? 'evening' : 'day', dayClasses, tomorrowClasses, activeClass, nextClass, currentMin, unmarkedCount: unmarkedNow, dueTomorrowTitle: dueTom ? dueTom.title : '' });
+  // The greeting is the large title by day and in the evening; at night the title stays "Tomorrow" and the greeting takes the date's place.
+  const headGreeting = askName ? '' : getDynamicGreeting(firstName, { overdue: recentOverdue, holiday: onHoliday, parts: true, plain: true }).title;
+  if (typeof window !== 'undefined') window.c2Head = headGreeting ? { greeting: headGreeting, night } : null;
   const blankSmart = blankDesk ? 'Add your timetable and Today plans the day for you.' : '';
   const holidaySmart = onHoliday && recentOverdue === 0 && !examSoon ? 'Holiday: classes and attendance are paused.' : '';
   const smartHTML = askName ? '' : holidaySmart ? holidaySmart : ctxFirst ? (greetingSub || blankSmart) : (smartText ? escHtml_cd(smartText) : (greetingSub || blankSmart));
@@ -12725,9 +12729,10 @@ function renderDashboard() {
     <div class="desk-masthead${dashboardSettled ? ' is-settled' : ''}">
       <div class="desk-masthead-top">
         <div>
-          <div class="desk-date"><span class="desk-dnum" aria-hidden="true">${now.getDate()}</span><span class="desk-dday"><span class="sr-only">${now.getDate()} </span>${now.toLocaleDateString('en-GB', { weekday: 'long' })} · ${now.toLocaleDateString('en-GB', { month: 'long' })}</span></div>
-          <div class="c2-dtitle" aria-hidden="true">${night ? 'Tomorrow' : 'Today'}</div>
+          <div class="desk-date">${headGreeting && night ? `<span class="desk-dday">${escHtml_cd(headGreeting)}</span>` : `<span class="desk-dnum" aria-hidden="true">${now.getDate()}</span><span class="desk-dday"><span class="sr-only">${now.getDate()} </span>${now.toLocaleDateString('en-GB', { weekday: 'long' })} · ${now.toLocaleDateString('en-GB', { month: 'long' })}</span>`}</div>
+          <div class="c2-dtitle" aria-hidden="true">${night ? 'Tomorrow' : headGreeting ? escHtml_cd(headGreeting) : 'Today'}</div>
           <div class="desk-greeting${smartHTML ? ' c2-smart' : ''}">${askName ? `Hey there.` : smartHTML || greetingParts.title}</div>
+          ${greetingParts.quip && !askName && smartHTML ? `<p class="c2-quip">${escHtml_cd(greetingParts.quip)}</p>` : ''}
           ${askName ? `
           <div class="greet-ask">
             <label class="greet-ask-line" for="greet-name">Your week's all set. What should we call you?</label>
@@ -22268,17 +22273,20 @@ function setupFABDrag() {
       var b = document.getElementById('nav-back-btn');
       return !!b && b.style.display !== 'none' && !b.disabled;
     })();
-    var title = onToday ? dayLabel() : (PAGE_NAMES[page] || 'Clarity Desk');
+    // Today's big title is the greeting (set by renderDashboard) by day; the compact bar always says Today or Tomorrow.
+    var head = onToday ? window.c2Head : null;
+    var title = onToday ? (head && !head.night ? head.greeting : dayLabel()) : (PAGE_NAMES[page] || 'Clarity Desk');
+    var barTitle = onToday ? dayLabel() : title;
     var t = document.getElementById('c2-lt-title');
     var d = document.getElementById('c2-lt-date');
     var ct = document.getElementById('c2-compact-title');
     var back = document.getElementById('c2-back-btn');
     if (t && t.textContent !== title) t.textContent = title;
-    if (ct && ct.textContent !== title) ct.textContent = title;
+    if (ct && ct.textContent !== barTitle) ct.textContent = barTitle;
     if (d) {
       var now = new Date();
       if (onToday && dayLabel() === 'Tomorrow') now.setDate(now.getDate() + 1);
-      var txt = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      var txt = head && head.night ? head.greeting : now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
       if (d.textContent !== txt) d.textContent = txt;
     }
     if (back) back.hidden = !hasBack;

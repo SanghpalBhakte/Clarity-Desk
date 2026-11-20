@@ -460,6 +460,7 @@ test.describe('modes', () => {
     const many = ['a', 'b', 'c', 'd'].map((k, i) => T(k, `Task ${k}`, `2026-09-2${6 + i}`));
     const today = await open(page, '2026-09-24T22:50:00', { cos_custom_tasks: many, cos_attendance_baseline: BASE });
     await expect(page.locator('#c2-lt-title')).toHaveText('Tomorrow');
+    await expect(page.locator('#c2-lt-date')).toHaveText('Late study session, Riya?');  // the greeting takes the date's place at night
     await expect(today.locator('.c2-rows .c2-row').first().locator('.c2-skipq')).toHaveText('Can I skip this?');
     await expect(today.locator('.c2-row.t')).toHaveCount(2);
     await expect(today.getByRole('button', { name: 'Mark today' })).toBeVisible();
@@ -468,7 +469,8 @@ test.describe('modes', () => {
   test('after 9 PM a class still running keeps Today on today', async ({ page }) => {
     const late = [...DAY, cls('Workshop', 'WS', '20:00', '22:00')];
     const today = await open(page, '2026-09-24T21:10:00', { cos_custom_timetable: every(late) });
-    await expect(page.locator('#c2-lt-title')).toHaveText('Today');
+    await expect(page.locator('#c2-lt-title')).toContainText('Riya');   // still today, so the greeting stays the title
+    await expect(page.locator('#c2-lt-title')).not.toHaveText('Tomorrow');
     await expect(today.locator('.c2-now')).toContainText('Workshop');
     await expect(today.getByRole('button', { name: 'Mark today' })).toHaveCount(0);
   });
@@ -490,9 +492,48 @@ test.describe('modes', () => {
     await expect(today.getByRole('button', { name: 'Mark today' })).toBeVisible();
   });
 
-  test('daytime keeps the title Today', async ({ page }) => {
+  test('daytime: the greeting is the title, the date stays above it, the bar still says Today', async ({ page }) => {
     await open(page, '2026-09-24T12:40:00');
-    await expect(page.locator('#c2-lt-title')).toHaveText('Today');
+    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon, Riya.');
+    await expect(page.locator('#c2-lt-date')).toHaveText('Thursday 24 September');
+    await expect(page.locator('#c2-compact-title')).toHaveText('Today');
+    await expect(page.locator('.c2-dtitle')).toHaveText('Good afternoon, Riya.');
+  });
+
+  test('the title leaves Today when you go to another page, and comes back', async ({ page }) => {
+    await open(page, '2026-09-24T12:40:00');
+    await page.evaluate(() => (window as any).navigateTo('timetable'));
+    await expect(page.locator('#c2-lt-title')).toHaveText('Timetable');
+    await page.evaluate(() => (window as any).navigateTo('dashboard'));
+    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon, Riya.');
+  });
+
+  test('no name saved: the title is the greeting without a name', async ({ page }) => {
+    await open(page, '2026-09-24T12:40:00', { cos_profile: { name: '', batch: '' }, cos_notified_history: { onb_tt_day: '2026-09-20', onb_name_skip: true } });
+    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon.');
+  });
+
+  test('a name with markup is shown as typed, never as HTML', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: '<b>Riya</b>' } });
+    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon, <b>Riya</b>.');
+    expect(await today.locator('.c2-dtitle').evaluate((e) => e.querySelector('b'))).toBeNull();
+  });
+
+  test('a 40 letter name wraps on a 320 px phone and never clips', async ({ page }) => {
+    await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'A'.repeat(40) } });
+    await page.setViewportSize({ width: 320, height: 700 });
+    const r = await page.locator('#c2-lt-title').evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth }));
+    expect(r.sw).toBeLessThanOrEqual(r.cw + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  test('the quip shows after the line on a calm day, and not above late work', async ({ page }) => {
+    const calm = await open(page, '2026-09-24T09:30:00');
+    await expect(calm.locator('.c2-quip')).toHaveText('Chai first?');
+  });
+  test('no quip when a task is late', async ({ page }) => {
+    const today = await open(page, '2026-09-24T09:30:00', { cos_custom_tasks: [T('t1', 'OS quiz', '2026-09-22')] });
+    await expect(today.locator('.c2-quip')).toHaveCount(0);
   });
 
   test('holiday: no strip, and End holiday early', async ({ page }) => {
@@ -565,10 +606,11 @@ test.describe('laptop', () => {
 
 test.describe('smart line', () => {
   const line = (today: ReturnType<Page['locator']>) => today.locator('.desk-greeting');
-  test('morning: next class and the free stretch; no name above it', async ({ page }) => {
+  test('morning: next class and the free stretch; the name is in the title, not in the line', async ({ page }) => {
     const today = await open(page, '2026-09-24T08:10:00');
     await expect(line(today)).toHaveText('DS at 9:00 AM. Free from 12:00 PM to 2:00 PM.');
-    await expect(today).not.toContainText('Riya');
+    await expect(line(today)).not.toContainText('Riya');
+    await expect(page.locator('#c2-lt-title')).toContainText('Riya');
   });
   test('in class: minutes left, then what is next', async ({ page }) => {
     const today = await open(page, '2026-09-24T11:20:00');

@@ -9153,3 +9153,7 @@ body.holiday-mode .desk-masthead::after { content: none; }
 body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; margin: 6px 0 14px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
 .c2-hol-t { margin: 0; font-size: 14px; color: var(--c2-mut); }
 .holiday-banner.c2-hol .c2-all { margin-top: 0; }
+
+/* ── Greeting as the Today title: a long greeting or name wraps, never clips ── */
+.c2-lt-title, .c2-dtitle { overflow-wrap: anywhere; text-wrap: balance; }
+.c2-quip { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--c2-mut); }
