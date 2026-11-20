@@ -514,4 +514,13 @@ test.describe('modes', () => {
     }
     await expect(today.locator('.desk-setup-guide')).toHaveCount(0);
   });
+
+  test('no timetable but a task already: no start rows, one quiet timetable line under the work', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_timetable: {}, cos_custom_tasks: [T('t1', 'DBMS record', '2026-09-26')] });
+    await expect(today.locator('.c2-empty')).toHaveCount(0);
+    const line = today.locator('.desk-setup-guide.setup-first');
+    await expect(line).toContainText('Have a timetable?');
+    const tasksBox = (await today.locator('.c2-row.t').first().boundingBox())!;
+    expect((await line.boundingBox())!.y).toBeGreaterThan(tasksBox.y);
+  });
 });

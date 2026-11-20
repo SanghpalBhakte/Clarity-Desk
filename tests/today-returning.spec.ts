@@ -53,8 +53,8 @@ test('"Look through" lists older tasks; Done closes one, and "Mark these N done"
   const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   await seed(page, { cos_custom_tasks: [task('old-1', 'DBMS assignment', inDays(-40)), task('old-2', 'Revise trees', inDays(-39)), task('old-3', 'Read chapter 4', inDays(-38)), task('soon-1', 'CN worksheet', inDays(2))] }, true);
   const today = page.locator('#page-dashboard');
-  // Collapsed: no bulk action next to the summary.
-  await expect(today.getByRole('button', { name: /^Mark (all|these)/ })).toHaveCount(0);
+  // Collapsed: no bulk action next to the summary. (Tasks only: after 6 PM Today also has the classes' "Mark all present".)
+  await expect(today.getByRole('button', { name: /^Mark (all|these)\b.*\bdone/ })).toHaveCount(0);
   await today.getByRole('button', { name: 'Look through' }).click();
   const list = today.locator('#stale-list');
   await expect(list).toBeVisible();
