@@ -714,3 +714,47 @@ test.describe('smart line in the evening and at night with late work', () => {
     await expect(today.locator('.desk-greeting')).toHaveText('Tomorrow starts at 9:00 AM with DS.');
   });
 });
+
+test.describe('End-Sem at the foot', () => {
+  test('one quiet line after Due: label, days, start date without the year', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2026-10-12' } });
+    const foot = today.locator('.c2-foot');
+    await expect(foot).toHaveText('End-Sem exams in 18 days. Starts 12 October.');
+    await expect(today.locator('.desk-greeting-note')).toHaveCount(0);
+    // It comes after the Due panel in the page.
+    const after = await today.evaluate((e) => {
+      const due = e.querySelector('.dashboard-panel.panel-due, #quick-add-input');
+      const foot = e.querySelector('.c2-foot');
+      return !!due && !!foot && !!(due.compareDocumentPosition(foot) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(after).toBe(true);
+  });
+  test('a next-year exam keeps its year', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2027-01-12' } });
+    await expect(today.locator('.c2-foot')).toContainText('Starts 12 January 2027.');
+  });
+  test('in the last 7 days the foot goes quiet (the line under the title says it)', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2026-09-30' } });
+    await expect(today.locator('.c2-foot')).toHaveCount(0);
+  });
+  test('no foot on holiday, and none without a date', async ({ page }) => {
+    const hol = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2026-10-12' }, cos_holiday: { on: true, since: '2026-09-20', until: '2026-10-05' } });
+    await expect(hol.locator('.c2-foot')).toHaveCount(0);
+  });
+  test('a label with markup stays text', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2026-10-12', examLabel: '<b>x</b>' } });
+    await expect(today.locator('.c2-foot')).toContainText('<b>x</b> in 18 days.');
+    expect(await today.locator('.c2-foot-link b').count()).toBe(1);
+  });
+  test('the link opens the countdown in Settings', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2026-10-12' } });
+    await today.locator('.c2-foot-link').click();
+    await expect(page.locator('#s-exam-label')).toBeVisible();
+  });
+  test('at 390 px the line wraps and the page never scrolls sideways', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'Riya', examDate: '2026-10-12', examLabel: 'Semester examinations and practicals' } });
+    await page.setViewportSize({ width: 320, height: 700 });
+    await today.locator('.c2-foot').scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});

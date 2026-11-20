@@ -344,9 +344,9 @@ check('Today during a break: no countdown line, syllabus line or weekly review; 
   seed({ cos_profile: { name: 'Test', batch: 'A2', examDate: '2026-12-15' } });
   a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const normal = domCache['page-dashboard'].innerHTML;
-  const ok = !during.includes('days to End-Sem') && !during.includes('Weekly Review')
-    && normal.includes('days to End-Sem') && normal.includes('Weekly Review');
-  return ok ? true : `during:${during.includes('days to End-Sem')}/${during.includes('Weekly Review')} normal:${normal.includes('days to End-Sem')}`;
+  const ok = !during.includes('End-Sem exams in') && !during.includes('Weekly Review')
+    && normal.includes('End-Sem exams in') && normal.includes('Weekly Review');
+  return ok ? true : `during:${during.includes('End-Sem exams in')}/${during.includes('Weekly Review')} normal:${normal.includes('End-Sem exams in')}`;
 });
 
 check('Today during a break: an exam in the final week still shows', () => {

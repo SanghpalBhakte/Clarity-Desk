@@ -16,13 +16,16 @@ async function seed(page: Page, extra: Record<string, unknown> = {}) {
   await page.waitForFunction(() => typeof (window as any).navigate === 'function');
 }
 
-test('Today folds the exam countdown and syllabus into one line of links', async ({ page }) => {
+test('Today puts the exam countdown at the foot, as one link to Settings', async ({ page }) => {
   const d = new Date(); d.setDate(d.getDate() + 30);
   const exam = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   await seed(page, { cos_profile: { name: 'Test', studyMode: 'self', examDate: exam, examLabel: 'Finals' }, cos_custom_tasks: [] });
-  const line = page.locator('#page-dashboard .desk-note-links');
-  await expect(line).toHaveCount(1);
-  const examLink = line.getByRole('button', { name: /days to Finals/ });
+  const foot = page.locator('#page-dashboard .c2-foot');
+  await expect(foot).toHaveCount(1);
+  await expect(foot).toContainText('Finals in 30 days.');
+  await expect(foot).toContainText('Starts ');
+  await expect(page.locator('#page-dashboard')).not.toContainText('days to Finals');
+  const examLink = foot.getByRole('button', { name: /Finals in 30 days/ });
   await expect(examLink).toBeVisible();
   expect(Math.round((await examLink.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
   await examLink.click();

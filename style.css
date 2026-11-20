@@ -9157,3 +9157,10 @@ body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex
 /* ── Greeting as the Today title: a long greeting or name wraps, never clips ── */
 .c2-lt-title, .c2-dtitle { overflow-wrap: anywhere; text-wrap: balance; }
 .c2-quip { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--c2-mut); }
+
+/* ── End-Sem at the foot of Today: one quiet line ── */
+.c2-foot { margin: 28px 0 0; font-size: 15px; line-height: 1.45; color: var(--c2-mut); }
+.c2-foot-link { display: inline-flex; flex-wrap: wrap; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.c2-foot-link b { color: var(--c2-ink); font-weight: 600; margin-right: 0.3em; }
+.c2-foot-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.c2-foot-link:focus-visible { outline: 2.5px solid var(--c2-ink); outline-offset: 2px; border-radius: 4px; }

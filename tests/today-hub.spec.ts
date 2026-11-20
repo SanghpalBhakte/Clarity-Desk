@@ -98,7 +98,7 @@ test('a quiet day offers one calm next step, and the exam line links to Settings
   await expect(dash.locator('.desk-greeting')).toHaveText('Nothing on your plan right now.');
   await dash.getByRole('button', { name: "Add the next thing that's due" }).click();
   await expect(page.locator('#quick-add-input')).toBeFocused();
-  await dash.locator('.desk-greeting-note').getByRole('button', { name: /days to/ }).click();
+  await dash.locator('.c2-foot').getByRole('button', { name: /Finals in 30 days/ }).click();
   await expect(page.locator('#s-exam-label')).toBeVisible();
 });
 

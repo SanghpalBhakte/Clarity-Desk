@@ -12456,11 +12456,17 @@ function renderDashboard() {
   const hideAttendancePanel = !hasCustomTT || selfStudy || onHoliday;
 
   // No stat-tile strip on Today: classes, tasks and attendance each already
-  // have their own section below, so the tiles only repeated them. The exam
-  // countdown is the one figure with no other home, so it gets a quiet line
-  // under the greeting (the context line already covers the final week).
-  const examNoteHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7 && !onHoliday)
-    ? `<button type="button" class="desk-note-link" onclick="openCountdownSettings()" title="${escAttr_cd(formatDate(liveProfile.examDate))}. Change the exam countdown in Settings">${examDaysLeftNum} days to ${escHtml_cd(getCountdownLabel())}</button>`
+  // have their own section below. The exam countdown is the one figure with no
+  // other home, so it is one quiet line at the foot of Today (the context line
+  // already covers the final week).
+  // "12 October", with the year only when the exam is in a later year.
+  const examStartText = (() => {
+    const d = new Date((liveProfile.examDate || '') + 'T00:00:00');
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', d.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+  })();
+  const examFootHTML = (countdownText && examDaysLeftNum !== null && examDaysLeftNum > 7 && !onHoliday)
+    ? `<p class="c2-foot"><button type="button" class="c2-foot-link" onclick="openCountdownSettings()" title="Change the exam countdown in Settings"><b>${escHtml_cd(getCountdownLabel())} in ${examDaysLeftNum} days.</b> Starts ${examStartText}.</button></p>`
     : '';
 
   const holidaySoon = isHolidayScheduled() ? loadHoliday() : null;
@@ -12471,8 +12477,8 @@ function renderDashboard() {
   // Exams and syllabus share one line, so the Now focus stays near the top.
   const sylTodayPct = onHoliday ? null : syllabusTodayPct();
   const sylTodayHTML = sylTodayPct !== null ? `<button type="button" class="desk-note-link syl-today-note" onclick="navigateTo('subjects')" title="${syllabusTodayLine()}. Open Subject Hubs to tick off topics">Syllabus ${sylTodayPct}%</button>` : '';
-  const deskNoteLinksHTML = (examNoteHTML || sylTodayHTML)
-    ? `<div class="desk-greeting-note desk-note-links">${[examNoteHTML, sylTodayHTML].filter(Boolean).join('<span aria-hidden="true">·</span>')}</div>`
+  const deskNoteLinksHTML = sylTodayHTML
+    ? `<div class="desk-greeting-note desk-note-links">${sylTodayHTML}</div>`
     : '';
 
   // Self-contained icon+text pairing for containers that aren't already flex-aligned
@@ -12907,7 +12913,7 @@ function renderDashboard() {
             </div>
           </div>
         ` : ''}
-
+        ${examFootHTML}
       </div>
     </div>
     ${setupLast && !blankDesk ? setupBanner : ''}
