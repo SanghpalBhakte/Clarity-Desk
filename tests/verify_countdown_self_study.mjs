@@ -88,13 +88,13 @@ console.log('=================================================================='
 check('No label set: Today keeps the End-Sem wording', () => {
   seed(profile({ name: 'Asha', examDate: '2026-12-13' })); const app = makeApp();
   const html = today(app);
-  return html.includes('60 days to End-Sem exams') ? true : 'End-Sem countdown missing';
+  return html.includes('End-Sem exams in 60 days.') ? true : 'End-Sem countdown missing';
 });
 
 check('Custom label shows on Today as a plain fact, with no cheer line', () => {
   seed(profile({ name: 'Asha', examDate: '2026-11-03', examLabel: 'GATE' })); const app = makeApp();
   const html = today(app);
-  if (!html.includes('20 days to GATE')) return 'GATE countdown missing';
+  if (!html.includes('GATE in 20 days.')) return 'GATE countdown missing';
   return !html.includes('One topic at a time. You can do this.') ? true : 'cheer still on Today';
 });
 
@@ -165,7 +165,7 @@ check('Self-study with a date set: no setup card left', () => {
   seed(profile({ name: 'Ravi', studyMode: 'self', examDate: '2027-02-01', examLabel: 'GATE' })); const app = makeApp();
   const html = today(app);
   if (html.includes('desk-setup-guide')) return 'setup card still shown';
-  return html.includes('days to GATE') ? true : 'countdown missing';
+  return html.includes('GATE in ') && html.includes(' days.') ? true : 'countdown missing';
 });
 
 check('College path unchanged: add timetable and an example day (self-study is on the welcome screen and the Timetable page)', () => {
