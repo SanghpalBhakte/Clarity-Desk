@@ -220,11 +220,15 @@ function updateTopbarProfile() {
       av.title     = 'Set up your profile';
     }
   }
+  // Sidebar profile row: initial, first name, course line.
+  const sAv = document.getElementById('sidebar-avatar'), sName = document.getElementById('sidebar-name');
+  if (sAv) sAv.textContent = nameToDisplay ? getInitials(nameToDisplay) : '?';
+  if (sName) sName.textContent = nameToDisplay ? nameToDisplay.split(/\s+/)[0] : 'Your profile';
   // Sidebar semester label
   const semLabel = document.getElementById('sidebar-semester-label');
   if (semLabel) {
     const parts = [liveProfile.branch, liveProfile.year].filter(Boolean);
-    semLabel.textContent = parts.length ? parts.join(' · ') : 'Clarity Desk';
+    semLabel.textContent = parts.join(' · ');
     semLabel.title = semLabel.textContent;
   }
 }
@@ -1220,6 +1224,9 @@ function updateSyncUI(status = null) {
     if (text) text.textContent = label;
     if (dot) dot.style.background = colour;
     if (btn) { btn.title = title; btn.setAttribute('aria-label', `${aria}. Opens Settings`); }
+    const sDot = document.getElementById('sidebar-sync-dot'), sMe = document.getElementById('sidebar-profile');
+    if (sDot) sDot.style.background = colour;
+    if (sMe) { sMe.title = `Your profile and settings. ${title}`; sMe.setAttribute('aria-label', `Your profile and settings. ${aria}`); }
   };
 
   if (status === 'denied') {
@@ -8293,6 +8300,7 @@ function navigate(page, isBack = false, keepActiveSubject = false) {
     el.toggleAttribute('aria-current', el.classList.contains('active'));
     if (el.hasAttribute('aria-current')) el.setAttribute('aria-current', 'page');
   });
+  markBriefingUnderToday();
 
   updateBackButtonUI();
   if (typeof window.c2SyncShell === 'function') window.c2SyncShell();
@@ -12822,7 +12830,7 @@ function renderDashboard() {
         <div class="dashboard-panel panel-day"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
             <div class="panel-title is-label" role="heading" aria-level="2">${night ? 'Tomorrow' : 'Your day'}${railCountHTML}</div>
-            <button class="panel-action" onclick="navigateTo('timetable')">Timetable →</button>
+            <span class="c2-hlinks"><button class="panel-action" onclick="navigateTo('summary')">This week →</button><button class="panel-action" onclick="navigateTo('timetable')">Timetable →</button></span>
           </div>
           ${railHTML || `
             <div class="rail-empty">
@@ -12845,7 +12853,7 @@ function renderDashboard() {
         <div class="dashboard-panel panel-due">
           <div class="panel-header">
             <div class="panel-title is-label" role="heading" aria-level="2">${night ? 'Due tomorrow' : 'Due'}</div>
-            <button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button>
+            <span class="c2-hlinks">${hideSchedulePanel ? `<button class="panel-action" onclick="navigateTo('summary')">This week →</button>` : ''}<button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button></span>
           </div>
 
           <!-- Open task rows -->
@@ -18793,11 +18801,19 @@ function switchResourcesTab(tab) {
     el.toggleAttribute('aria-current', el.classList.contains('active'));
     if (el.hasAttribute('aria-current')) el.setAttribute('aria-current', 'page');
   });
+  markBriefingUnderToday();
   renderResources();
 }
 
 // Study Vault and Daily Briefing share one page but are separate places to
 // the student: light up only the one that is open, never both.
+// The Daily Briefing has no sidebar row (it is reached from Today), so Today stays marked in the sidebar while it is open.
+function markBriefingUnderToday() {
+  if (state.currentPage !== 'resources' || state.resourcesTab !== 'summary') return;
+  const t = document.getElementById('sidebar-dashboard');
+  if (t) { t.classList.add('active'); t.setAttribute('aria-current', 'page'); }
+}
+
 function isResourcesNavActive(navVal, tab) {
   if (tab === 'summary') return navVal === 'summary';
   return navVal === 'resources' || navVal === 'links';

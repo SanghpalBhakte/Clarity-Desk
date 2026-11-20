@@ -106,3 +106,98 @@ test.describe('laptop 1280x800', () => {
     await expect(page.locator('.c2-compact')).toBeHidden();
   });
 });
+
+test.describe('laptop sidebar: four places, a hairline, three quiet rows, then you', () => {
+  async function seeded(page: Page, extra: Record<string, unknown> = {}) {
+    await open(page, 1280, 800);
+    await page.evaluate((x) => {
+      localStorage.setItem('cos_profile', JSON.stringify({ name: 'Riya Sharma', branch: 'AI & Data Science', year: 'SY' }));
+      for (const [k, v] of Object.entries(x)) localStorage.setItem(k, JSON.stringify(v));
+    }, extra);
+    await page.reload();
+    await page.waitForFunction(() => typeof (window as any).navigate === 'function');
+  }
+
+  test('plain names in the phone tab bar order, no section labels, no Briefing row', async ({ page }) => {
+    await seeded(page);
+    expect(await page.locator('.sidebar .nav-item .nav-label').allInnerTexts()).toEqual(['Today', 'Timetable', 'Subjects', 'Tasks', 'Calendar', 'Vault', 'College portal ↗', 'Settings']);
+    await expect(page.locator('.sidebar-section-label')).toHaveCount(0);
+    await expect(page.locator('#sidebar-summary')).toHaveCount(0);
+    await expect(page.locator('.sidebar .side-rule')).toBeVisible();
+  });
+
+  test('every place is still one click away, with the same routes', async ({ page }) => {
+    await seeded(page);
+    const go: [string, string][] = [['#sidebar-timetable', '#timetable'], ['#sidebar-subjects', '#subjects'], ['#sidebar-assignments', '#assignments'], ['#sidebar-calendar', '#calendar'], ['#sidebar-links', '#links'], ['#sidebar-settings', '#settings'], ['#sidebar-dashboard', '#dashboard']];
+    for (const [sel, hash] of go) {
+      await page.click(sel);
+      await expect.poll(() => page.evaluate(() => location.hash)).toBe(hash);
+    }
+    await expect(page.locator('#sidebar-portal')).toHaveAttribute('data-testid', 'sidebar-college-portal');
+  });
+
+  test('expanded it is words only, the open page has an ink bar, rows are 48 px apart', async ({ page }) => {
+    await seeded(page);
+    await expect(page.locator('#sidebar-timetable svg')).toBeHidden();
+    expect(await page.locator('#sidebar-dashboard').evaluate((e) => getComputedStyle(e, '::before').content)).toBe('""');
+    expect(await page.locator('#sidebar-timetable').evaluate((e) => getComputedStyle(e, '::before').content)).not.toBe('""');
+    const a = (await page.locator('#sidebar-dashboard').boundingBox())!, b = (await page.locator('#sidebar-timetable').boundingBox())!;
+    expect(Math.round(b.y - a.y)).toBe(48);
+  });
+
+  test('the icon rail keeps the icons', async ({ page }) => {
+    await seeded(page);
+    await page.keyboard.press('[');
+    await expect(page.locator('#sidebar-timetable svg')).toBeVisible();
+    await expect(page.locator('#sidebar-timetable .nav-label')).toBeHidden();
+    await expect(page.locator('.side-who')).toBeHidden();
+  });
+
+  test('your row: first name, course line, opens Settings, the dot carries the saving state', async ({ page }) => {
+    await seeded(page);
+    await expect(page.locator('#sidebar-name')).toHaveText('Riya');
+    await expect(page.locator('#sidebar-semester-label')).toHaveText('AI & Data Science · SY');
+    await expect(page.locator('#sidebar-avatar')).toHaveText('RS');
+    await expect(page.locator('#sidebar-profile')).toHaveAttribute('aria-label', /^Your profile and settings/);
+    // Going offline turns the dot amber and says so in the row's name.
+    await page.context().setOffline(true);
+    await expect(page.locator('#sidebar-profile')).toHaveAttribute('aria-label', /Offline/);
+    expect(await page.locator('#sidebar-sync-dot').evaluate((e) => (e as HTMLElement).style.background)).toContain('var(--yellow)');
+    await page.context().setOffline(false);
+    await page.click('#sidebar-profile');
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settings');
+  });
+
+  test('no name saved: the row says Your profile, never "?"', async ({ page }) => {
+    await open(page, 1280, 800);
+    await expect(page.locator('#sidebar-name')).toHaveText('Your profile');
+    await expect(page.locator('#sidebar-avatar')).toHaveText('?');   // aria-hidden; the button has its own name
+  });
+
+  test('the collapse button is quiet until you point at the sidebar or tab to it', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a touch screen has no hover, so the button stays visible there');
+    await seeded(page);
+    const btn = page.locator('#sidebar-collapse-btn');
+    await page.mouse.move(700, 400);
+    expect(await btn.evaluate((e) => getComputedStyle(e).opacity)).toBe('0');
+    await page.mouse.move(100, 300);
+    await expect.poll(() => btn.evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
+    await page.mouse.move(700, 400);
+    await btn.focus();
+    await expect.poll(() => btn.evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
+  });
+
+  test('Daily Briefing: reached from Today with "This week", and Today stays marked while it is open', async ({ page }) => {
+    await seeded(page);
+    await page.locator('#page-dashboard').getByRole('button', { name: 'This week →' }).click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#summary');
+    await expect(page.locator('#page-resources')).toContainText('Daily Briefing');
+    await expect(page.locator('#sidebar-dashboard')).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('#sidebar-links')).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  test('on a holiday there is no day to show, so "This week" sits in the Due header', async ({ page }) => {
+    await seeded(page, { cos_holiday: { on: true, since: '2020-01-01', until: '2099-01-01' } });
+    await expect(page.locator('#page-dashboard .panel-due').getByRole('button', { name: 'This week →' })).toBeVisible();
+  });
+});
