@@ -444,10 +444,10 @@ const foot=()=>`<p class="foot"><b>End-Sem in 18 days.</b> First paper on 7 Dece
 /* smart line */
 function smartLine(){
   const list=day().slice().sort((a,b)=>a.f-b.f),n=nowH(),g=gapOf(list);
-  if(S.mode==='morning'){const f=list[0];return `${f.c} at ${fmt(f.f)}. `+(g?`Free from ${fmtS(g[0])} to ${fmtS(g[1])}, enough for the OS quiz.`:`${list.length} classes today, the OS quiz is late.`)}
-  if(S.mode==='inclass'){const L=liveK(),mins=Math.round((L.t-n)*60),nx=list.find(k=>k.f>=L.t);return `${mins} minutes left. `+(nx?(nx.f-L.t>=1?`Then free until ${nx.c} at ${fmt(nx.f)}.`:`Then ${nx.c} at ${fmt(nx.f)}.`):'Then you are done for the day.')}
+  if(S.mode==='morning'){const f=list[0];return `${f.c||f.n} at ${fmt(f.f)}. `+(g?`Free from ${fmtS(g[0])} to ${fmtS(g[1])}, enough for the OS quiz.`:`${list.length} classes today, the OS quiz is late.`)}
+  if(S.mode==='inclass'){const L=liveK(),mins=Math.round((L.t-n)*60),nx=list.find(k=>k.f>=L.t);return `${mins} minutes left. `+(nx?(nx.f-L.t>=1?`Then free until ${nx.c||nx.n} at ${fmt(nx.f)}.`:`Then ${nx.c||nx.n} at ${fmt(nx.f)}.`):'Then you are done for the day.')}
   if(S.mode==='evening'){const left=list.filter(k=>!S.marks[k.id]).length;return left===0?`Today is marked. Tomorrow starts at ${fmt(list[0].f)}.`:left===list.length?`${list.length} classes today. Mark them in one tap.`:`${left} of today's classes still need a mark.`}
-  if(isNight())return `Tomorrow starts at ${fmt(list[0].f)} with ${list[0].c}. DBMS assignment 2 is due.`;
+  if(isNight())return `Tomorrow starts at ${fmt(list[0].f)} with ${list[0].c||list[0].n}. DBMS assignment 2 is due.`;
 }
 
 /* screens */
@@ -457,7 +457,7 @@ function nowCard(){const L=liveK(),c=counts(L),m=S.marks[L.id],n=nowH(),done=Mat
   return `<section class="now" data-row="${L.id}"><div class="ul" aria-hidden="true"><span class="y">Present</span><span class="n">Absent</span></div>
   <div class="face" ${m?'':`data-swipe="${L.id}" data-kind="now"`}><p class="k">In class now</p><h2>${L.n}</h2><p class="m">${fmt(L.f)} to ${fmt(L.t)}, ${L.room}${L.b?`, batch ${L.b}`:''}</p>
   <div class="prog" role="img" aria-label="${done}% of the class done"><i style="width:${done}%"></i></div>
-  <div class="fx">${ring(L)}<div class="t"><b>${cur(L)}% in ${L.c}</b><span>${c.a} of ${c.h} classes so far</span></div></div>
+  <div class="fx">${ring(L)}<div class="t"><b>${cur(L)}% in ${L.c||L.n}</b><span>${c.a} of ${c.h} classes so far</span></div></div>
   <div class="acts">${m?`<span class="done">${m==='p'?`<span class="ok">${I.check}</span>`:m==='a'?`<span class="no">${I.x}</span>`:''}${MARKS[m]}</span><button data-open="${L.id}">Change</button>`:`<span class="hint">Swipe right to mark</span><button data-mark="${L.id}" data-v="p">Present</button><button data-open="${L.id}">More</button>`}</div></div></section>`}
 
 function colDay(){
@@ -502,13 +502,13 @@ const NOTES={
 function classSheet(id,skip){
   const k=day().find(x=>x.id===id),st=stateOf(k),m=isNight()?null:S.marks[id],c=counts(k);
   let h=`<div class="grab"></div><h3>${k.n}</h3><p class="m">${isNight()?'Tomorrow, ':''}${fmt(k.f)} to ${fmt(k.t)}, ${k.room}${k.b?`, batch ${k.b}`:''}</p>
-    <div class="fx">${ring(k)}<div class="t"><b>${cur(k)}% in ${k.c}</b><span>${c.a} of ${c.h} classes so far</span></div></div>`;
+    <div class="fx">${ring(k)}<div class="t"><b>${cur(k)}% in ${k.c||k.n}</b><span>${c.a} of ${c.h} classes so far</span></div></div>`;
   const lab=labelCands(k).find(x=>x!==k.n)||k.n;
   h+=S.sheet&&S.sheet.editLabel?`<form class="lblf" data-labelform="${id}"><input id="lbl-in" maxlength="10" value="${S.labels[id]||lab}" aria-label="Name on the strip"><button>Save</button></form>`:`<button class="opt" data-label="${id}">${I.subjects}<span>Name on the strip<small>${S.labels[id]?'Your choice':k.c?'From your timetable':'Made from the name'}</small></span><span class="lv">${lab}</span></button>`;
   if(st==='later'){const go=pct(c.a+1,c.h+1),sk=pct(c.a,c.h+1),spare=Math.floor(c.a/(TARGET/100)-(c.h+1)+1e-9);
     h+=`<p class="sl">Can I skip this?</p><div class="cmp"><div><small>If you go</small><b class="num">${go}%</b></div><div class="${sk<TARGET?'low':''}"><small>If you skip</small><b class="num">${sk}%</b></div></div>
     <p class="verdict">${sk<TARGET?`Skipping puts you under the ${TARGET}% rule. Go to this one.`:spare>0?`Both keep you above ${TARGET}%. After skipping you could still miss ${spare} more.`:`Skipping leaves you right on ${TARGET}%, with none left to miss.`}</p>`;
-    h+=`<button class="opt" data-toast="Opens ${k.c} in Subjects">${I.subjects}Open in Subjects<span class="chk">${I.chev}</span></button>`;}
+    h+=`<button class="opt" data-toast="Opens ${k.c||k.n} in Subjects">${I.subjects}Open in Subjects<span class="chk">${I.chev}</span></button>`;}
   else{h+=`<p class="sl">Mark this class</p>`+[['p',I.check,'Present',''],['a',I.x,'Absent',''],['c',I.cancel,"Didn't happen",'Not counted, as if it was never held'],['o',I.od,'On duty (OD)','Excused by college; counts as present once approved']].map(o=>`<button class="opt" data-mark="${id}" data-v="${o[0]}">${o[1]}<span>${o[2]}${o[3]?`<small>${o[3]}</small>`:''}</span>${m===o[0]?`<span class="chk">${I.check}</span>`:''}</button>`).join('')+(m?`<button class="opt" data-clear="${id}">${I.x}Clear mark</button>`:'')}
   return h;
 }
@@ -550,7 +550,7 @@ let undoFn=null;
 function toast(msg,undo){const t=app.querySelector('.toast');t.querySelector('span').textContent=msg;const b=t.querySelector('button');b.hidden=!undo;undoFn=undo||null;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),undo?4000:1900)}
 function haptic(){try{if(!matchMedia('(prefers-reduced-motion: reduce)').matches)navigator.vibrate&&navigator.vibrate(8)}catch(e){}}
 function mark(id,v){const k=day().find(x=>x.id===id),prev=S.marks[id]||null,before=cur(k);S.marks[id]=v;S.anim={id,from:before};haptic();render(true);
-  toast(`${k.c}: ${MARKS[v].split(',')[0]}${v==='p'||v==='a'?`, ${before}% to ${cur(k)}%`:''}`,()=>{const b=cur(k);S.marks[id]=prev;S.anim={id,from:b};render(true)})}
+  toast(`${k.c||k.n}: ${MARKS[v].split(',')[0]}${v==='p'||v==='a'?`, ${before}% to ${cur(k)}%`:''}`,()=>{const b=cur(k);S.marks[id]=prev;S.anim={id,from:b};render(true)})}
 
 /* events */
 document.getElementById('ctl').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
@@ -568,7 +568,7 @@ app.addEventListener('click',e=>{
   const go=t.closest('[data-go]');if(go){const row=app.querySelector(`.rows [data-row="${go.dataset.go}"]`);if(row){row.scrollIntoView({block:'center',behavior:'smooth'});row.classList.remove('flash');void row.offsetWidth;row.classList.add('flash')}else openSheet('class',go.dataset.go);return}
   if(t.closest('[data-fold]')){S.earlier=!S.earlier;render(true);return}
   const mk=t.closest('[data-mark]');if(mk){closeSheet();mark(mk.dataset.mark,mk.dataset.v);return}
-  const cl=t.closest('[data-clear]');if(cl){const id=cl.dataset.clear,k=day().find(x=>x.id===id),b=cur(k);delete S.marks[id];S.anim={id,from:b};closeSheet();render(true);toast(`${k.c}: mark cleared`);return}
+  const cl=t.closest('[data-clear]');if(cl){const id=cl.dataset.clear,k=day().find(x=>x.id===id),b=cur(k);delete S.marks[id];S.anim={id,from:b};closeSheet();render(true);toast(`${k.c||k.n}: mark cleared`);return}
   if(t.closest('[data-all]')){const ids=day().filter(k=>!S.marks[k.id]).map(k=>k.id);ids.forEach(i=>S.marks[i]='p');haptic();render(true);toast(`Marked ${ids.length} present`,()=>{ids.forEach(i=>delete S.marks[i]);render(true)});return}
   const dn=t.closest('[data-done]');if(dn){const task=S.tasks.find(x=>x.id===dn.dataset.done);task.done=!task.done;closeSheet();haptic();render(true);if(task.done)toast(`${task.n}: done`,()=>{task.done=false;render(true)});return}
   const mt=t.closest('[data-moveto]');if(mt){const task=S.tasks.find(x=>x.id===mt.dataset.moveto),old={w:task.w,late:task.late};task.w=mt.dataset.v;task.late=0;closeSheet();render(true);toast(`${task.n} moved to ${task.w}`,()=>{Object.assign(task,old);render(true)});return}
