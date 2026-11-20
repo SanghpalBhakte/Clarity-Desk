@@ -34,7 +34,7 @@ test.describe('phone 390x844', () => {
     await expect(page.locator('.bottom-nav-item.active')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('no topbar on a phone; the large title says Today with the date', async ({ page }) => {
+  test('no topbar on a phone; the large title says Today (no name saved yet, so no greeting) with the date', async ({ page }) => {
     await expect(page.locator('.topbar')).toBeHidden();
     await expect(page.locator('.c2-lt-title')).toHaveText('Today');
     await expect(page.locator('.c2-lt-date')).not.toBeEmpty();

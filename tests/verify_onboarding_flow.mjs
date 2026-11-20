@@ -185,8 +185,8 @@ check('Saving a name stores it as typed (trimmed) and Today escapes it', () => {
   if (prof().name !== '<b>Riya</b> "x"') return `stored ${prof().name}`;
   const fresh = makeApp(); fresh.state.currentPage = 'dashboard'; fresh.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  // The name no longer sits in the Today greeting (the smart line replaced it), so it must never appear raw anywhere on Today.
-  return !html.includes('<b>Riya') && globalThis.__EV__.includes('name_given') ? true : 'name not escaped or no event';
+  // The greeting is the Today title again, so the name is on Today, but only escaped.
+  return !html.includes('<b>Riya') && html.includes('&lt;b&gt;Riya') && globalThis.__EV__.includes('name_given') ? true : 'name not escaped, not in the greeting, or no event';
 });
 
 check('A 40 character name is kept whole', () => {
