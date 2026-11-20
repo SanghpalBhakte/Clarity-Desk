@@ -201,3 +201,58 @@ test.describe('laptop sidebar: four places, a hairline, three quiet rows, then y
     await expect(page.locator('#page-dashboard .panel-due').getByRole('button', { name: 'This week →' })).toBeVisible();
   });
 });
+
+test.describe('laptop: no top bar', () => {
+  test.beforeEach(async ({ page }) => { await open(page, 1280, 800); });
+
+  test('no strip, no border; Ask Desk is a round button at the top right of the content', async ({ page }) => {
+    const bar = (await page.locator('.topbar').boundingBox())!;
+    expect(bar.height).toBe(0);
+    const ask = (await page.locator('#assistant-toggle-btn').boundingBox())!;
+    expect(Math.round(ask.width)).toBe(38); expect(Math.round(ask.height)).toBe(38);
+    expect(ask.y).toBeLessThan(24);
+    expect(ask.x + ask.width).toBeGreaterThan(1280 - 40);
+    await expect(page.locator('#assistant-toggle-btn span')).toBeHidden();   // icon only; the name is the aria-label
+    await expect(page.locator('#assistant-toggle-btn')).toHaveAttribute('aria-label', 'Open Desk Assistant');
+  });
+
+  test('theme switch, saving status, avatar and clock are not drawn (they live in Settings and the sidebar)', async ({ page }) => {
+    for (const sel of ['#theme-toggle-btn', '#sync-status-btn', '#topbar-avatar', '#topbar-clock-text']) await expect(page.locator(sel)).toBeHidden();
+  });
+
+  test('Ask Desk still opens, and the theme is chosen in Settings', async ({ page }) => {
+    await page.click('#assistant-toggle-btn');
+    await expect(page.locator('#assistant-toggle-btn')).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#assistant-toggle-btn')).toHaveAttribute('aria-expanded', 'false');
+    await page.click('#sidebar-settings');
+    const before = await page.locator('html').getAttribute('data-theme');
+    await page.locator('.theme-swatch', { hasText: before === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' }).click();
+    await expect.poll(() => page.locator('html').getAttribute('data-theme')).not.toBe(before);
+  });
+
+  test('Back is a matching round button at the top left, only when there is somewhere to go back to', async ({ page }) => {
+    await expect(page.locator('#nav-back-btn')).toBeHidden();
+    await page.click('#sidebar-timetable');
+    await page.click('#sidebar-subjects');
+    const back = page.locator('#nav-back-btn');
+    await expect(back).toBeVisible();
+    const b = (await back.boundingBox())!;
+    expect(Math.round(b.width)).toBe(38);
+    expect(b.x).toBeGreaterThan(250); expect(b.y).toBeLessThan(24);
+    await back.click();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#timetable');
+  });
+
+  test('the first line of every page clears the round buttons', async ({ page }) => {
+    for (const sel of ['#sidebar-dashboard', '#sidebar-timetable', '#sidebar-assignments', '#sidebar-subjects', '#sidebar-settings']) {
+      await page.click(sel);
+      const top = await page.evaluate(() => {
+        const pg = document.querySelector('.section-page.active') as HTMLElement | null;
+        const shown = pg ? Array.from(pg.querySelectorAll('.page-title, .desk-date, h2')).map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0) : [];
+        return shown.length ? Math.min(...shown.map((r) => r.top)) : null;
+      });
+      if (top !== null) expect(top).toBeGreaterThanOrEqual(54);
+    }
+  });
+});

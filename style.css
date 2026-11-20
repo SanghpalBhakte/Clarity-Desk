@@ -9208,3 +9208,21 @@ body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex
 
 /* Today: two quiet links in the header of "Your day" (or of Due when there is no day to show). */
 .c2-hlinks { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 14px; }
+
+/* ── Laptop: no top bar ──
+   The strip is gone. Ask Desk is a round button at the top right of the content, Back a matching one at the top left
+   (only when there is somewhere to go back to). The theme switch lives in Settings, who you are and the saving state
+   in the sidebar. The elements are the same ones, so ids and handlers do not change; they are just not drawn here. */
+@media (min-width: 768px) {
+  :root:root { --topbar-h: 0px; }
+  html body .topbar { height: 0; min-height: 0; padding: 0; border-bottom: 0; background: transparent; box-shadow: none; overflow: visible; }
+  html body .topbar .topbar-left { position: absolute; left: 24px; top: 16px; }
+  html body .topbar .topbar-actions { position: absolute; right: 28px; top: 16px; gap: 0; }
+  html body .topbar .topbar-clock, html body .topbar .topbar-theme-toggle, html body .topbar .storage-status-badge, html body .topbar #topbar-avatar { display: none; }
+  html body .topbar .btn-assistant-toggle { width: 38px; height: 38px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--c2-s1); border: 1px solid var(--c2-line); color: var(--c2-ink); box-shadow: none; }
+  html body .topbar .btn-assistant-toggle span { display: none; }
+  html body .topbar .btn-assistant-toggle svg { width: 18px; height: 18px; }
+  html body .topbar .btn-assistant-toggle:focus-visible, html body .topbar .btn-back:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
+  html body .topbar .btn-back { width: 38px; height: 38px; background: var(--c2-s1); border-color: var(--c2-line); color: var(--c2-ink); }
+  html body .content-area { padding-top: 64px; }
+}

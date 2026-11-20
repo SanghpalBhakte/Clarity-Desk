@@ -262,32 +262,30 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     await clearRuntime(page);
   });
 
-  // On a phone the topbar is gone and the theme switch lives in the More sheet.
-  async function themeToggle(page: Page) {
-    const found = await firstVisible(page, SEL.themeToggle);
-    if (found) return found;
-    if (await page.locator('#bnav-more').isVisible().catch(() => false)) {
-      await page.locator('#bnav-more').click();
-      await page.locator('#theme-toggle-btn').waitFor({ state: 'visible' });   // the sheet slides in
-      return firstVisible(page, SEL.themeToggle);
+  // The theme switch lives in the More sheet on a phone and in Settings (Appearance) on a laptop: neither has a top bar switch.
+  async function themeControl(page: Page) {
+    if ((page.viewportSize()?.width ?? 1440) >= 768) {
+      await page.locator('#sidebar-settings').click();
+      const now = await page.locator(SEL.rootHtml).getAttribute('data-theme');
+      const swatch = page.locator('.theme-swatch', { hasText: now === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' });
+      await swatch.waitFor({ state: 'visible' });
+      return swatch;
     }
-    return null;
+    await page.locator('#bnav-more').click();
+    await page.locator('#theme-toggle-btn').waitFor({ state: 'visible' });   // the sheet slides in
+    return page.locator('#theme-toggle-btn');
   }
 
-  test('topbar theme switch is visible', async ({ page }) => {
-    if ((page.viewportSize()?.width ?? 1440) >= 768) await expect(page.locator(SEL.topbar).first()).toBeVisible();
-
-    const toggle = await themeToggle(page);
-    expect(toggle, 'No visible topbar theme toggle found').not.toBeNull();
-    await expect(toggle!).toBeVisible();
+  test('theme switch is reachable', async ({ page }) => {
+    const control = await themeControl(page);
+    await expect(control).toBeVisible();
   });
 
-  test('topbar theme switch toggles only between canonical themes', async ({ page }) => {
-    const toggle = await themeToggle(page);
-    expect(toggle, 'No visible theme toggle found').not.toBeNull();
+  test('theme switch toggles only between canonical themes', async ({ page }) => {
+    const control = await themeControl(page);
 
     const before = await page.locator(SEL.rootHtml).getAttribute('data-theme');
-    await toggle!.click();
+    await control.click();
     await page.waitForTimeout(200);
     const after = await page.locator(SEL.rootHtml).getAttribute('data-theme');
 
