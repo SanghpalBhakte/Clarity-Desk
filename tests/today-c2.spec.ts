@@ -236,3 +236,98 @@ test.describe('now card', () => {
     await ctx.close();
   });
 });
+
+// Task tools on Today (plan Task 6): swipe to finish or move, the Move sheet, 3 rows plus "+N more", quick-add.
+const T = (id: string, title: string, dueDate: string, subject = 'DBMS', extra: Record<string, unknown> = {}) =>
+  ({ id, subject, title, taskType: 'assignment', dueDate, priority: 'medium', status: 'pending', ...extra });
+const taskStore = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]'));
+const byId = async (page: Page, id: string) => (await taskStore(page)).find((t: any) => t.id === id);
+const trow = (today: ReturnType<Page['locator']>, id: string) => today.locator(`.c2-row.t[data-task="${id}"]`);
+const SEED = { cos_custom_tasks: [T('t1', 'DBMS record', '2026-09-26'), T('t2', 'OS quiz prep', '2026-09-25', 'OS')] };
+
+test.describe('tasks', () => {
+  test('swipe right finishes the task and Undo brings it back', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    await drag(page, '.c2-row.t[data-task="t1"] .c2-face', 170);
+    expect((await byId(page, 't1')).status).toBe('submitted');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    expect((await byId(page, 't1')).status).toBe('pending');
+    await expect(trow(today, 't1')).toHaveCount(1);
+  });
+
+  test('swipe left holds Move open, Move opens the sheet, Tomorrow sets the date to today + 1', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    await drag(page, '.c2-row.t[data-task="t1"] .c2-face', -90);
+    const tx = await trow(today, 't1').locator('.c2-face').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).m41);
+    expect(tx).toBe(-80);
+    await trow(today, 't1').locator('.c2-ul [data-c2-move]').click({ force: true });
+    expect(await sheetOpen(page)).toBe(true);
+    await page.locator('#c2-sheet').getByRole('button', { name: 'Tomorrow' }).click();
+    expect((await byId(page, 't1')).dueDate).toBe('2026-09-25');
+    expect(await sheetOpen(page)).toBe(false);
+  });
+
+  test('hold opens the Move sheet and changes nothing; This weekend and Mark done instead work', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    const before = await taskStore(page);
+    await hold(page, '.c2-row.t[data-task="t1"] .c2-face');
+    expect(await sheetOpen(page)).toBe(true);
+    expect(await taskStore(page)).toEqual(before);
+    await page.locator('#c2-sheet').getByRole('button', { name: 'This weekend' }).click();
+    expect((await byId(page, 't1')).dueDate).toBe('2026-09-26');   // Thursday -> Saturday
+    await hold(page, '.c2-row.t[data-task="t2"] .c2-face');
+    await page.locator('#c2-sheet').getByRole('button', { name: 'Mark done instead' }).click();
+    expect((await byId(page, 't2')).status).toBe('submitted');
+    await expect(today.locator('.c2-row.t[data-task="t2"]')).toHaveCount(0);
+  });
+
+  test('tapping the name opens the Move sheet; Esc closes it and focus returns to the row', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    await trow(today, 't1').locator('.c2-tname').focus();
+    await page.keyboard.press('Enter');
+    expect(await sheetOpen(page)).toBe(true);
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#c2-sheet'))).toBe(true);
+    await page.keyboard.press('Escape');
+    expect(await sheetOpen(page)).toBe(false);
+    expect(await page.evaluate(() => !!document.activeElement?.closest('.c2-row.t[data-task="t1"]'))).toBe(true);
+  });
+
+  test('the open row and the sheet survive the minute re-render', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED, { install: true });
+    await drag(page, '.c2-row.t[data-task="t1"] .c2-face', -90);
+    await page.clock.runFor(61000);
+    const tx = await trow(today, 't1').locator('.c2-face').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).m41);
+    expect(tx).toBe(-80);
+    await hold(page, '.c2-row.t[data-task="t2"] .c2-face');
+    await page.clock.runFor(61000);
+    expect(await sheetOpen(page)).toBe(true);
+    await expect(page.locator('#c2-sheet')).toContainText('OS quiz prep');
+  });
+
+  test('5 pending tasks show 3 rows and "+2 more in Tasks"', async ({ page }) => {
+    const many = ['a', 'b', 'c', 'd', 'e'].map((k, i) => T(k, `Task ${k}`, `2026-10-0${i + 1}`));
+    const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: many });
+    await expect(today.locator('.c2-row.t')).toHaveCount(3);
+    await expect(today.locator('.dash-more-link', { hasText: 'more' })).toHaveText(/\+2 more in Tasks/);
+  });
+
+  test('typing in the quick-add line and pressing Enter adds a task', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    await today.locator('#quick-add-input').fill('Lab report due tomorrow');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await taskStore(page)).some((t: any) => /Lab report/i.test(t.title) && t.dueDate === '2026-09-25')).toBe(true);
+  });
+
+  test('the tick has a 44 x 44 box', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    const b = (await trow(today, 't1').locator('.task-checkbox').boundingBox())!;
+    expect(b.width).toBeGreaterThanOrEqual(44);
+    expect(b.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test('tapping the tick finishes the task', async ({ page }) => {
+    const today = await open(page, '2026-09-24T12:40:00', SEED);
+    await trow(today, 't1').locator('.task-checkbox').click();
+    expect((await byId(page, 't1')).status).toBe('submitted');
+  });
+});

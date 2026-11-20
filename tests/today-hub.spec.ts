@@ -30,9 +30,11 @@ test('a Today task opens that task on Tasks, past a filter and a fold', async ({
   await open(page);
   // A filter that hides the far task.
   await page.evaluate(() => { (window as any).state.assignFilter = 'today'; });
-  const row = page.locator('#page-dashboard [data-task="c-far"]');
+  const row = page.locator('#page-dashboard .c2-row.t[data-task="c-far"] .c2-tname');
   await expect(row).toBeVisible();
+  // Tapping the name opens the Move sheet; "Open in Tasks" is in it.
   await row.click();
+  await page.locator('#c2-sheet').getByRole('button', { name: 'Open in Tasks' }).click();
   const card = page.locator('#ac-c-far');
   await expect(card).toBeVisible();
   await expect(card.locator('.assignment-body')).toHaveAttribute('aria-expanded', 'true');

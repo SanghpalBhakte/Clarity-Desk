@@ -98,7 +98,7 @@ test('attendance shows once, in its own section, with no empty bar', async ({ pa
 test('phone: the first class and its time are on the first screen', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await seed(page, { cos_custom_tasks: TASKS });
-  const first = page.locator('#page-dashboard .c2-row').first();
+  const first = page.locator('#page-dashboard .c2-row:not(.t)').first();
   await expect(first).toBeVisible();
   const box = (await first.boundingBox())!;
   expect(box.y + box.height).toBeLessThan(812 - 64);   // above the tab bar
