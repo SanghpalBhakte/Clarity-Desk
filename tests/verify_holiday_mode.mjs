@@ -202,11 +202,11 @@ check('Calendar: after resume, classes and the General + own-group filter are ex
 });
 
 // ── Today ────────────────────────────────────────────────────────
-check('Today: holiday banner with End early, quiet empty state, no class names or countdown', () => {
+check('Today: holiday banner with End holiday early, quiet empty state, no class names or countdown', () => {
   seed(H('2026-10-19', '2026-11-03')); at('2026-10-19T09:50:00');
   const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  const ok = html.includes('holiday-banner') && html.includes('Holiday mode') && html.includes('Back on 3 Nov') && html.includes('15 days to go') && html.includes('endHolidayEarly()') && html.includes('End early')
+  const ok = html.includes('holiday-banner') && html.includes('Holiday mode') && html.includes('Back on 3 Nov') && html.includes('15 days to go') && html.includes('endHolidayEarly()') && html.includes('End holiday early')
     && /<div class="dashboard-panel(?: panel-day)?" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title[^"]*"[^>]*>Your day/.test(html)
     && !html.includes('Data Structures') && !html.includes('data-beacon=') && !html.includes('classes remaining')
     && !html.includes('today-focus is-unmarked') && !html.includes('today-focus is-risk');

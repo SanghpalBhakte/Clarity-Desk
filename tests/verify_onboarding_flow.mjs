@@ -214,10 +214,10 @@ check('After the name step the welcome never comes back, even mid tour', () => {
 const todayHtml = (app) => { app.state.currentPage = 'dashboard'; app.renderDashboard(); return domCache['page-dashboard'].innerHTML; };
 check('A new Today shows one quiet timetable line under the tasks and a quiet self-study link', () => {
   seed(); const html = todayHtml(makeApp());
-  const cards = (html.match(/class="desk-setup-guide/g) || []).length;
+  const cards = (html.match(/class="c2-empty"/g) || []).length;
   const t = visibleText(html).replace(/\s+/g, ' ');
-  const ok = cards === 1 && t.includes('Have a timetable?') && html.indexOf('desk-setup-guide') > html.indexOf('quick-add-input')
-    && html.includes('onclick="showAddTimetableChoice()"') && html.includes('onclick="setupSelfStudy()"') && t.includes('study without one');
+  const ok = cards === 1 && t.includes('Add timetable') && !html.includes('desk-setup-guide') && html.indexOf('c2-empty') < html.indexOf('quick-add-input')
+    && html.includes('onclick="showAddTimetableChoice()"') && html.includes('onclick="setupSelfStudy()"') && t.includes('Study without a timetable');
   return ok ? true : `cards=${cards} ${t.slice(0, 160)}`;
 });
 

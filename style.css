@@ -9101,3 +9101,11 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 .c2-pick { position: relative; }
 .c2-pick .today-focus-date.is-shown { margin: 0 0 8px; width: 100%; }
 .c2-tface .c2-tname b { -webkit-line-clamp: 1; }
+.c2-empty { margin: 8px 0 16px; }
+.c2-empty-strip { height: 44px; border-radius: 10px; border: 1.5px dashed var(--c2-line); }
+.c2-empty .c2-rows { margin-top: 8px; }
+.c2-empty .c2-face { grid-template-columns: minmax(0, 1fr) auto; }
+.c2-empty-alts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; margin: 4px 0 0; color: var(--c2-mut); font-size: 14px; }
+.c2-empty-alts .c2-all { margin-top: 0; }
+.c2-empty-alts .setup-first-alt { min-height: 44px; margin: 0; padding: 0; text-align: left; }
+.c2-marktoday { min-height: 44px; }

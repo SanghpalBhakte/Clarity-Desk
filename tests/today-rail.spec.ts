@@ -72,7 +72,7 @@ test('in class: the one card says "In class now" with the time left, and no row 
 
 test('day over and all marked: the rail says so and points at the next class', async ({ page }) => {
   const today = await open(page, '2026-09-24T18:00:00', {}, { install: true });
-  await today.getByRole('button', { name: 'I was at all 3, mark them present' }).click();
+  await today.getByRole('button', { name: 'Mark all present' }).click();
   await page.clock.runFor(300);
   await expect(today.locator('.rail-then', { hasText: 'Day marked' })).toBeVisible();
   await expect(today.locator('.rail-then', { hasText: 'Next class:' })).toContainText('Tomorrow');
@@ -82,7 +82,7 @@ test('no timetable: no day, the Your day section rests and the timetable ask sho
   const today = await open(page, '2026-09-24T09:00:00', { cos_custom_timetable: every([]) });
   await expect(today.locator('.c2-day')).toHaveCount(0);
   await expect(today.getByRole('heading', { name: 'Your day' })).toBeHidden();
-  await expect(today.getByText('Have a timetable?')).toBeVisible();
+  await expect(today.getByRole('button', { name: /Add timetable/ })).toBeVisible();
 });
 
 test('self-study: no day and no Your day section', async ({ page }) => {

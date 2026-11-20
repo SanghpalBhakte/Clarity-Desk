@@ -9592,7 +9592,7 @@ function c2StatusHTML(x, currentMin, sameTime) {
   if (C2_STATUS_WORDS[x.status]) return `<span class="c2-st">${C2_STATUS_WORDS[x.status]}</span>`;
   if (x.state === 'ended') return '<span class="c2-st">Not marked</span>';
   if (x.state === 'live') return `<span class="c2-st">${sameTime ? 'Same time' : 'In class'}</span>`;
-  if (x.state === 'next') return `<span class="c2-st">In <span data-beacon-count>${formatCountdown(x.from - currentMin)}</span></span>`;
+  if (x.state === 'next') return x.tomorrow ? '' : `<span class="c2-st">In <span data-beacon-count>${formatCountdown(x.from - currentMin)}</span></span>`;
   return sameTime ? '<span class="c2-st">Same time</span>' : '';
 }
 
@@ -9662,7 +9662,13 @@ function c2RowHTML(x, { currentMin, sameTime }) {
 `;
 }
 
-function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine }) {
+// Today by time of day (spec section 3): evening is 6 to 9 PM, and from 9 PM Today shows tomorrow.
+const C2_EVENING_MIN = 18 * 60, C2_NIGHT_MIN = 21 * 60;
+function c2IsNight() {
+  return currentTimeMinutes() >= C2_NIGHT_MIN && !isHolidayActive() && hasAnyTimetable() && !isSelfStudyMode();
+}
+
+function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine, tomorrow = false, evening = false }) {
   try {
     const marks = attendanceData[dateStr] || {};
     const all = dayClasses.map((c, i) => {
@@ -9672,15 +9678,15 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
       const status = marks[key] || 'unset';
       const ended = to !== null && currentMin >= to;
       const state = c === activeClass ? 'live' : c === nextClass ? 'next' : ended ? 'ended' : 'later';
-      return { c, i, from, to, key, status, state };
+      return { c, i, from, to, key, status, state, tomorrow };
     });
-    c2Day = { dateStr, all, currentMin, strip: null };
+    c2Day = { dateStr, all, currentMin, strip: null, tomorrow };
     if (!all.length) return '';
     if (c2OpenRowKey && !c2TaskId(c2OpenRowKey) && !all.some(x => x.key === c2OpenRowKey && x.status === 'unset' && x.state !== 'later' && x.state !== 'next')) c2OpenRowKey = null;
     // Up to six rows, most urgent first (ended but unmarked, now, next, later, then ended and marked), shown in
     // time order. Over-and-marked classes fold into one line and never count against the cap.
     const rank = (x) => x.state === 'ended' ? (x.status === 'unset' ? 0 : 4) : x.state === 'live' ? 1 : x.state === 'next' ? 2 : 3;
-    const earlier = all.filter(x => x.state === 'ended' && x.status !== 'unset');
+    const earlier = evening ? [] : all.filter(x => x.state === 'ended' && x.status !== 'unset');
     const rest = all.filter(x => !earlier.includes(x));
     const shown = rest.slice().sort((a, b) => rank(a) - rank(b) || a.i - b.i).slice(0, RAIL_MAX_ROWS)
       .sort((a, b) => a.from - b.from || a.i - b.i);
@@ -9710,7 +9716,7 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
         + (railEarlierOpen ? earlier.slice().sort((a, b) => a.from - b.from || a.i - b.i).map(x => c2RowHTML(x, rowOpts(x))).join('') : '')
       : '';
 
-    const beaconAttrs = activeClass && activeClass.end
+    const beaconAttrs = tomorrow ? '' : activeClass && activeClass.end
       ? ` data-beacon="live" data-start="${timeToMinutes(activeClass.time || '00:00')}" data-end="${timeToMinutes(activeClass.end)}"`
       : nextClass ? ` data-beacon="next" data-start="${timeToMinutes(nextClass.time || '00:00')}" data-end="${timeToMinutes(nextClass.end || '23:59')}"` : '';
     const unmarked = [...new Set(all.filter(x => x.state === 'ended' && x.status === 'unset').map(x => x.key))].length;
@@ -9721,8 +9727,9 @@ function c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClas
         <div class="c2-strip" aria-hidden="true"><div class="c2-track"></div></div>
         ${live ? c2NowHTML(live, currentMin) : ''}
         ${attLine ? `<p class="c2-att">${attLine}</p>` : ''}
-        <ol class="c2-rows" aria-label="Your classes today">${earlierHTML}${rowsHTML}</ol>
-        ${unmarked >= 2 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
+        ${evening && unmarked >= 1 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">Mark all present</button>` : ''}
+        <ol class="c2-rows" aria-label="${tomorrow ? 'Your classes tomorrow' : 'Your classes today'}">${earlierHTML}${rowsHTML}</ol>
+        ${!evening && unmarked >= 2 ? `<button type="button" class="c2-all rail-all" onclick="markEndedPresent('${dateStr}')">I was at all ${unmarked}, mark them present</button>` : ''}
         ${more > 0 ? `<button type="button" class="dash-more-link c2-more" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">+${more} more class${more !== 1 ? 'es' : ''} →</button>` : ''}
         ${over && allMarked ? `<p class="rail-then">${icons.check()} Day marked. Books down, feet up.</p>` : ''}
         ${over && lookAhead ? `<p class="rail-then"><span>Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</span></p>` : ''}
@@ -9760,7 +9767,7 @@ function c2PaintStrip() {
     gap = `<div class="c2-blk gap" style="left:${left}px;width:${w}px">${fits ? 'Free' : ''}</div>`;
   }
   const nowH = c2Day.currentMin / 60;
-  const mark = nowH <= lay.end ? `<span class="c2-nowmark" style="left:${Math.max(1, Math.min(width - 1, x(nowH)))}px"></span>` : '';
+  const mark = !c2Day.tomorrow && nowH <= lay.end ? `<span class="c2-nowmark" style="left:${Math.max(1, Math.min(width - 1, x(nowH)))}px"></span>` : '';
   const first = Math.min(...c2Day.strip.map(e => e.from)), last = Math.max(...c2Day.strip.map(e => e.to));
   strip.innerHTML = `<div class="c2-track"></div>${gap}${blocks}${mark}<div class="c2-ends"><span>${formatDisplayTime(c2Hhmm(first))}</span><span>${formatDisplayTime(c2Hhmm(last))}</span></div>`;
 }
@@ -12169,6 +12176,13 @@ function renderDashboard() {
     }
   }
 
+  // Evening (6 to 9 PM, no class running) lists every row; from 9 PM Today shows tomorrow's classes.
+  const night = c2IsNight();
+  const evening = !night && !onHoliday && !activeClass && currentMin >= C2_EVENING_MIN;
+  const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowKey = localDateKey(tomorrowDate);
+  const tomorrowClasses = night && !isHolidayActive(tomorrowKey) ? (loadTimetable()[tomorrowDate.getDay()] || []).filter(isTeachingClass) : [];
+
   const displayName = getDisplayName();
   const firstName = displayName ? displayName.split(' ')[0] : '';
   const needsSetup = !displayName;
@@ -12326,13 +12340,13 @@ function renderDashboard() {
           <div class="holiday-banner-title">${holidayMoodLine()}</div>
           <div class="holiday-banner-meta">Classes, class reminders and ongoing tasks are resting. Real deadlines still show here.</div>
         </div>
-        <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="endHolidayEarly()">End early</button>
+        <button class="btn btn-sm btn-secondary holiday-banner-end" onclick="endHolidayEarly()">End holiday early</button>
       </div>`;
   }
   // Classes live on the day rail (Your day); the card above is only for a holiday.
   // "1 of 4 marked" in words, once a class has started (display only).
   const railCountHTML = (() => {
-    if (onHoliday || !dayClasses.length || !dayClasses.some(c => timeToMinutes(c.time || '00:00') <= currentMin)) return '';
+    if (onHoliday || night || !dayClasses.length || !dayClasses.some(c => timeToMinutes(c.time || '00:00') <= currentMin)) return '';
     const dayMarks = attendanceData[dateStr] || {};
     const done = dayClasses.filter(c => (dayMarks[attendanceKeyFor(c)] || 'unset') !== 'unset').length;
     return ` <span class="panel-count">${done} of ${dayClasses.length} marked</span>`;
@@ -12340,7 +12354,11 @@ function renderDashboard() {
   // One line, in words: the overall number and what it allows (every figure is already computed above).
   const c2AttLine = (!hasAttendanceData || attendancePct === null || hideAttendancePanel) ? ''
     : `Overall <b>${escHtml_cd(attendancePctLabel)}%</b>, ${!dashGuidance.isSafe ? `below the ${attTarget}% rule` : Number.isFinite(dashGuidance.safeSkips) && dashGuidance.safeSkips > 0 ? `you can miss ${dashGuidance.safeSkips} more` : 'right on the line'}`;
-  const railHTML = onHoliday ? '' : c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine: c2AttLine });
+  const railHTML = onHoliday ? '' : night
+    ? c2DayHTML({ dayClasses: tomorrowClasses, attendanceData, dateStr: tomorrowKey, currentMin: -1, activeClass: null, nextClass: tomorrowClasses[0] || null, lookAhead: null, dayIdx: tomorrowDate.getDay(), attLine: c2AttLine, tomorrow: true })
+    : c2DayHTML({ dayClasses, attendanceData, dateStr, currentMin, activeClass, nextClass, lookAhead, dayIdx, attLine: c2AttLine, evening });
+  const markTodayHTML = night && endedUnmarkedClassKeys(dateStr).length
+    ? `<button type="button" class="dash-more-link c2-marktoday" onclick="setTTDay(${dayIdx}); navigateTo('timetable')">Mark today</button>` : '';
   const classesOver = !onHoliday && dayClasses.length > 0 && !activeClass && !nextClass;
 
   // Setup card: one ask at a time. No timetable yet = one big button (photo
@@ -12367,9 +12385,14 @@ function renderDashboard() {
         <button class="btn btn-sm btn-secondary setup-ask-quiet" onclick="onbAttLater()">Later</button>
       </div>
       ${_onbBunkOpen ? bunkCalcHtml('today') : `<button type="button" class="setup-first-alt setup-ask-link" onclick="onbShowBunk()">Just check how many I can miss</button>`}`) : firstStep.id === 'tt' ? `
-    <div class="desk-setup-guide setup-first" role="complementary" aria-label="Add your timetable">
-      <p class="setup-first-line">Have a timetable? <button type="button" class="setup-first-btn" onclick="${firstStep.action}">Add it when you're ready →</button></p>
-      <p class="setup-first-alts">or <button type="button" class="setup-first-alt" onclick="setupSelfStudy()">study without one</button><span aria-hidden="true"> · </span><button type="button" class="setup-first-alt" onclick="onboardingSampleDay(this)">see an example day</button></p>
+    <div class="c2-empty" role="complementary" aria-label="Start your desk">
+      <div class="c2-empty-strip" aria-hidden="true"></div>
+      <ol class="c2-rows">
+        <li class="c2-row"><button type="button" class="c2-face" onclick="${firstStep.action}"><span class="c2-nm"><b>Add timetable</b><small>A photo or typing. Takes about a minute.</small></span><span class="c2-st">→</span></button></li>
+        <li class="c2-row"><button type="button" class="c2-face" onclick="showBaselineModal(null, 'manual')"><span class="c2-nm"><b>Add attendance so far</b><small>Copy your counts from the college portal.</small></span><span class="c2-st">→</span></button></li>
+        <li class="c2-row"><button type="button" class="c2-face" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}"><span class="c2-nm"><b>Add a deadline</b><small>Whatever is due next.</small></span><span class="c2-st">→</span></button></li>
+      </ol>
+      <p class="c2-empty-alts"><button type="button" class="c2-all" onclick="onboardingSampleDay(this)">See an example day</button><button type="button" class="setup-first-alt" onclick="setupSelfStudy()">Study without a timetable</button></p>
     </div>` : `
     <div class="desk-setup-guide" role="complementary" aria-label="Next setup step">
       <div class="setup-guide-steps">
@@ -12402,7 +12425,7 @@ function renderDashboard() {
       return (a.dueDate || '').localeCompare(b.dueDate || '');
     });
   const dueRows = pickDueRows(urgentTasks);
-  const dueShown = dueRows.rows;
+  const dueShown = night ? dueRows.rows.slice(0, 2) : dueRows.rows;
   const moreTasks = Math.max(0, pending - dueShown.length - staleTasks.length);
 
   // One calm line for tasks long past their date. "Look through" opens them
@@ -12545,6 +12568,7 @@ function renderDashboard() {
     ${banner === 'safety' ? beaconHTML : ''}
     ${banner === 'risk' ? focusHTML : ''}
     ${banner === 'setup' ? setupBanner : ''}
+    ${setupLast ? setupBanner : ''}
 
     <!-- 3. WORKBENCH & AMBIENT PANEL -->
     <div class="dashboard-layout">
@@ -12554,7 +12578,7 @@ function renderDashboard() {
         <!-- SCHEDULE LEDGER -->
         <div class="dashboard-panel panel-day"${hideSchedulePanel ? ' style="display:none"' : ''}>
           <div class="panel-header">
-            <div class="panel-title is-label" role="heading" aria-level="2">Your day${railCountHTML}</div>
+            <div class="panel-title is-label" role="heading" aria-level="2">${night ? 'Tomorrow' : 'Your day'}${railCountHTML}</div>
             <button class="panel-action" onclick="navigateTo('timetable')">Timetable →</button>
           </div>
           ${railHTML || `
@@ -12566,11 +12590,12 @@ function renderDashboard() {
                 <strong>Your classes will line up here.</strong>
                 <span>They show once your timetable is added.</span>
               ` : `
-                <strong>No classes today.</strong>
+                <strong>No classes ${night ? 'tomorrow' : 'today'}.</strong>
                 ${lookAhead ? `<span>Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</span>` : ''}
               `}
             </div>
           `}
+          ${markTodayHTML}
         </div>
 
         <!-- TASKS & DEADLINES -->
@@ -12692,12 +12717,12 @@ function renderDashboard() {
 
       </div>
     </div>
-    ${setupLast ? setupBanner : ''}
   `;
   dashboardSettled = true;
   wireRowGestures(el);
   c2PaintStrip();
   c2RestoreUi();
+  if (typeof window.c2SyncShell === 'function') window.c2SyncShell();
 }
 
 // ── Calendar ──────────────────────────────────────────────────
@@ -22039,8 +22064,8 @@ function setupFABDrag() {
     }
   }
 
-  // "Tomorrow" after 9 PM only once Today shows tomorrow's classes (Task 7); until then the title must match the page.
-  function dayLabel() { return 'Today'; }
+  // After 9 PM Today shows tomorrow's classes (c2IsNight), so the title and the date follow.
+  function dayLabel() { return typeof c2IsNight === 'function' && c2IsNight() ? 'Tomorrow' : 'Today'; }
 
   window.c2SyncShell = function () {
     var body = document.body;
@@ -22060,6 +22085,7 @@ function setupFABDrag() {
     if (ct && ct.textContent !== title) ct.textContent = title;
     if (d) {
       var now = new Date();
+      if (onToday && dayLabel() === 'Tomorrow') now.setDate(now.getDate() + 1);
       var txt = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
       if (d.textContent !== txt) d.textContent = txt;
     }

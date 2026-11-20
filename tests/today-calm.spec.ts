@@ -89,7 +89,7 @@ test('desktop first run: setup guide and due panel do not overlap', async ({ pag
   });
   await page.goto('/');
   await page.waitForFunction(() => typeof (window as any).navigate === 'function');
-  const guide = page.locator('#page-dashboard .desk-setup-guide.setup-first');
+  const guide = page.locator('#page-dashboard .c2-empty');
   const due = page.locator('#page-dashboard .panel-due');
   await expect(guide).toBeVisible();
   await expect(due).toBeVisible();

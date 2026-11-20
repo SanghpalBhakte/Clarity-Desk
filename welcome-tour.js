@@ -22,7 +22,7 @@ const STOPS = [
     text: (onSidebar) => (onSidebar
       ? 'Calendar, study vault and settings are all in this sidebar.'
       : 'Calendar, study vault, settings and backups live in here.') },
-  { targets: ['.desk-setup-guide'], last: true,
+  { targets: ['.c2-empty'], last: true,
     title: (n) => (n ? `That's the tour, ${n}!` : "That's the tour!"),
     text: 'Last thing. Add your timetable and Today fills up with your real classes.' }
 ];
@@ -88,7 +88,7 @@ export function startTour({ name = '', track = () => {}, onDone = () => {} } = {
     document.removeEventListener('keydown', onKey, true);
     root.remove();
     // Hand focus back to where it was, or to the page, never to nothing.
-    const back = before && before.isConnected && before !== document.body ? before : document.querySelector('.setup-first-btn, main, #app');
+    const back = before && before.isConnected && before !== document.body ? before : document.querySelector('.c2-empty .c2-face, main, #app');
     if (back) { if (!back.hasAttribute('tabindex') && !/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(back.tagName)) back.setAttribute('tabindex', '-1'); back.focus(); }
     track(how === 'skip' ? 'tour_skipped' : 'tour_done');
     onDone(how);
