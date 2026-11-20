@@ -185,7 +185,8 @@ check('Saving a name stores it as typed (trimmed) and Today escapes it', () => {
   if (prof().name !== '<b>Riya</b> "x"') return `stored ${prof().name}`;
   const fresh = makeApp(); fresh.state.currentPage = 'dashboard'; fresh.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  return !html.includes('<b>Riya') && html.includes('&lt;b&gt;Riya') && globalThis.__EV__.includes('name_given') ? true : 'name not escaped or no event';
+  // The name no longer sits in the Today greeting (the smart line replaced it), so it must never appear raw anywhere on Today.
+  return !html.includes('<b>Riya') && globalThis.__EV__.includes('name_given') ? true : 'name not escaped or no event';
 });
 
 check('A 40 character name is kept whole', () => {
@@ -252,7 +253,7 @@ const lec = { subject: 'Maths', code: 'M3', time: '15:00', end: '16:00', type: '
 const week = (cls) => { const t = {}; for (let i = 0; i < 7; i++) t[i] = cls; return JSON.stringify(t); };
 const WITH_GROUPS = week([lab(['A1']), lab(['A2']), lec]);
 const NO_GROUPS = week([lec]);
-const greetingOf = (html) => { const i = html.indexOf('class="desk-greeting"'); if (i < 0) return ''; const j = html.indexOf('<!-- 2. PRIMARY', i); return html.slice(i, j < 0 ? i + 900 : j); };
+const greetingOf = (html) => { const i = html.search(/class="desk-greeting[ "]/); if (i < 0) return ''; const j = html.indexOf('<!-- 2. PRIMARY', i); return html.slice(i, j < 0 ? i + 900 : j); };
 const cardOf = (html) => { const i = html.indexOf('class="desk-setup-guide'); if (i < 0) return ''; const j = html.indexOf('class="dashboard-layout"', i); return html.slice(i, j < 0 ? i + 2500 : j); };
 
 check('Timetable with lab groups and no group saved: group card with chips and Skip', () => {
@@ -312,9 +313,9 @@ check('Saving an empty name keeps the box and points at it', () => {
   return focused === 1 && attrs['aria-invalid'] === 'true' && /name/i.test(box.placeholder || '') && !hist().onb_name_skip && !prof().name ? true : `focused=${focused} attrs=${JSON.stringify(attrs)} ph=${box.placeholder}`;
 });
 
-check('With a name saved, no name ask and the greeting uses it', () => {
+check('With a name saved, there is no name ask and the greeting is the smart line, not the name', () => {
   seed({ cos_custom_timetable: NO_GROUPS, cos_profile: JSON.stringify({ name: 'Riya Shah' }) }); const html = todayHtml(makeApp());
-  return !html.includes('greet-name') && greetingOf(html).includes('Riya') ? true : greetingOf(html).slice(0, 200);
+  return !html.includes('greet-name') && greetingOf(html).length > 0 && !greetingOf(html).includes('Riya') ? true : greetingOf(html).slice(0, 200);
 });
 
 check('Name in the greeting: Save stores it, Not now remembers the skip', () => {
