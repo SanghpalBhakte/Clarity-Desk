@@ -27,7 +27,7 @@ Assumptions (correct me if wrong):
 1. On a 390 px phone with a timetable of 8 periods, a split batch or a 5:30 PM class, no strip label is cut and no class is missing from the rows.
 2. Every action reachable by swipe or hold is also reachable by one tap and by keyboard.
 3. Each PR's phone (390×844) and laptop (1280×800) screenshots match the mock's layout, spacing and type. Any differences are listed in the PR.
-4. Gesture tests (section 9) pass in CI, and the manual device checklist is done on an iPhone (installed PWA) and an Android phone before the slice merges.
+4. Gesture tests (section 9) pass in CI, and the manual device checklist passes on an Android phone before shipping. iPhone is not required (decided 2026-11-21: no device available); an iPhone report is fixed as an urgent ship. Risk: swipe-vs-scroll feel on iOS is untested; the WebKit run covers layout only.
 5. Attendance numbers, backups and existing saved settings behave exactly as before.
 
 ## 3. Today, by time of day
@@ -36,19 +36,19 @@ One column on phone. Two columns on laptop (section 7). From top to bottom:
 
 | Part | Rule |
 |---|---|
-| Large title | "Today" (after 9 PM, "Tomorrow"), with the date above it. Ask Desk is the only button. On scroll, the title tucks into a slim frosted bar |
+| Large title | The greeting with the name ("Good morning, Riya."); after 9 PM "Tomorrow", with the greeting above it in place of the date (#389). The compact bar says "Today". Ask Desk is the only button. On scroll, the title tucks into a slim frosted bar |
 | Smart line | One fact plus one suggestion, at most 2 lines at 390 px. It comes from the existing `chooseTodayBanner` priority, so risk, holiday and welcome-back still win |
 | Strip | Section 4 |
 | Attendance line | "Overall 84%, you can miss 12 more". Below 75% it says "below the 75% rule", and the smart line explains the risk |
 | Now card | **In class only.** It is the only card on the screen: name, time, room, progress, subject ring, and Present / More. Swipe right marks Present, swipe left marks Absent |
 | Your day / Rest of today | Class rows (section 5) |
 | Due | Task rows, "+N more in Tasks", quick-add line |
-| Study | One row of 3 shortcuts (existing Today hub logic). Hidden in class |
+| Study links | Not a section: the next class row has one quiet link to its subject's top resource, and the class sheet lists all of them (#391) |
 | Foot | Exam countdown line |
 
 Mode differences:
 - **Morning:** the next class row is bold, with "In 50 min" and "Can I skip this?" under it. The free gap shows as a row.
-- **In class:** the now card replaces that class's row. Study is hidden.
+- **In class:** the now card replaces that class's row.
 - **Evening:** a "Mark all present" button (marigold-type accent) above the rows, which then list all of today's classes. Earlier rows do not fold away.
 - **Night:** shows tomorrow's strip and rows, with the first class opened up. Due shows tomorrow's items and late ones (max 2), plus a "Mark today" link if today has unmarked classes.
 - **Holiday:** one sentence and "End holiday early". No strip and no attendance.
@@ -263,4 +263,18 @@ Each is its own PR, with its own tests and screenshots.
 ## 12. Open
 
 - None blocking. Palette names and lilac were chosen on 2026-11-20 (https://claude.ai/artifact/9U5rjGoCWoczzjyNyjuxLK).
-- Label cascade note: a student who never typed a code and whose subject is not in `CODE_MAP` gets made-up initials (Environmental Studies → ES). The fix is to add common subjects to `CODE_MAP` (EVS, OOP, COA, M3 style) in plan Task 4. "Name on the strip" covers the rest.
+- Label cascade note: `CODE_MAP` was not extended (its output keys attendance). Common short forms (EVS, OOP, COA) live in the display-only `STRIP_SHORT_FORMS`; "Name on the strip" covers the rest.
+
+## 13. Grill decisions (2026-11-21)
+
+- **Purpose:** Today tells a student what's happening now and next, lets them mark it in one gesture, and shows what's due, then gets out of the way. Class links and the End-Sem foot stay only because they are quiet.
+- **Ship timing:** ship once the grill and the PR walk find nothing blocking.
+- **Device bar:** Android only before ship; see success criterion 4.
+- **Late work:** the student-facing word is "Late" (see `GLOSSARY.md`). Renaming existing "overdue" copy is its own small PR.
+- **Quip:** dropped from Today; the greeting title carries the warmth (small PR after the grill).
+- **Section titles:** stay 15 px; closed.
+- **Icon set:** its own design task after this ship (sidebar, tab bar and rail together).
+- **"overdue" → "Late" copy:** after ship, with the UI/UX PRs.
+- **Mark-ended label:** one wording with the count everywhere: "Mark all N present", "Mark the other N present" when some are marked, "I was there" for one (copy PR after ship, with "Late").
+- Grill closed 2026-11-21; next is the PR walk (#368-#393).
+- **Dev Notes:** this ship shows one combined Dev Note, not the 25 per-PR notes (some contradicted each other). `.devnotes-state.json` was moved past them and one commit carries the student note.
