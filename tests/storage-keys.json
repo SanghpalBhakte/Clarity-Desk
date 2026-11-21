@@ -93,7 +93,7 @@
       "why": "a damaged saved value kept once by safeGetStorage, for repair"
     },
     "cos_weekly_review_dismissed_": {
-      "why": "one key per dismissed week; never pruned (known: grows by one key a week)"
+      "why": "one key per dismissed week (this device only); dismissing removes the older weeks' keys"
     }
   }
 }
