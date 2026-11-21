@@ -39,8 +39,10 @@ check('every key left out of backups says why',
 
 // The backup file and restore are built from DESK_DATASETS (one row per
 // backed-up key); the rows must match the keys listed with a backup field.
-const { DESK_DATASETS: rows, DESK_RESTORE_ORDER: restoreOrder, deskBackupSnapshot, restoreDeskFromBackup, store, writes } =
-  loadApp(['DESK_DATASETS', 'DESK_RESTORE_ORDER', 'deskBackupSnapshot', 'restoreDeskFromBackup']);
+const { DESK_DATASETS: allRows, DESK_RESTORE_ORDER: restoreOrder, DESK_CLOUD_ORDER: cloudOrder, DESK_APPLY_ORDER: applyOrder,
+  deskBackupSnapshot, deskCloudCopy, restoreDeskFromBackup, store, writes } =
+  loadApp(['DESK_DATASETS', 'DESK_RESTORE_ORDER', 'DESK_CLOUD_ORDER', 'DESK_APPLY_ORDER', 'deskBackupSnapshot', 'deskCloudCopy', 'restoreDeskFromBackup']);
+const rows = allRows.filter((d) => d.backup);   // backed-up rows
 const fields = Object.entries(reg.keys).filter(([, v]) => v.backup).map(([k, v]) => [k, v.backup]);
 const rowOf = new Map(rows.map((d) => [d.key, d]));
 
@@ -74,6 +76,32 @@ check('DESK_RESTORE_ORDER names every row exactly once',
   check('a restore writes the datasets in restore order, the vault last',
     [...missing.map((k) => `${k} never written`), ...outOfOrder.map((k) => `${k} written before the dataset listed ahead of it`),
      ...(writes.lastIndexOf('cos_custom_links') < Math.max(...want.slice(0, -1).map((k) => writes.lastIndexOf(k))) ? ['the vault is not written last'] : [])]);
+}
+
+// The cloud copy and applying it come from the same rows.
+const synced = allRows.filter((d) => d.cloud);
+check('every stored synced row is a listed key; rows that are never stored are cloud-only',
+  allRows.filter((d) => (d.key ? !(d.key in reg.keys) : (d.backup || !d.cloud))).map((d) => `${d.key} / ${d.cloud}`));
+check('DESK_CLOUD_ORDER names every synced row exactly once, and the cloud copy has exactly those fields',
+  (() => { const want = synced.map((d) => d.cloud).sort(); const got = Object.keys(deskCloudCopy());
+    return J([...cloudOrder].sort()) === J(want) && J(got) === J(cloudOrder) ? [] : [`order ${J(cloudOrder)}, copy ${J(got)}, rows ${J(want)}`]; })());
+check('DESK_APPLY_ORDER names every row with an apply exactly once',
+  (() => { const want = synced.filter((d) => typeof d.apply === 'function').map((d) => d.cloud).sort();
+    return J([...applyOrder].sort()) === J(want) ? [] : [`apply order ${J(applyOrder)} vs rows ${J(want)}`]; })());
+check('a synced, stored row with no apply of its own is one the task merge covers (vault, delete markers)',
+  synced.filter((d) => d.key && typeof d.apply !== 'function' && !['customLinks', 'tombstones'].includes(d.cloud)).map((d) => `${d.cloud}: nothing applies it`));
+
+// Applying a cloud copy writes in apply order: the timetable before attendance
+// (the date repair reads it), and the synced base only after all three
+// attendance maps are in.
+{
+  const app = loadApp(['applyDeskFromCloud']);
+  app.eval('state.customTasks = []');
+  app.applyDeskFromCloud({ customTimetable: { 1: [] }, attendance: { '2026-11-09': {} }, attendanceBaseline: { DS: { present: 1, absent: 0 } }, attendanceLive: { DS: { present: 1 } } });
+  const at = (k) => app.writes.indexOf(k);
+  const order = ['cos_custom_timetable', 'cos_attendance', 'cos_attendance_baseline', 'cos_attendance_live', 'cos_sync_last_pushed'];
+  check('applying a cloud copy writes the timetable, then attendance, then the synced base',
+    order.filter((k, i) => at(k) < 0 || (i && at(k) < at(order[i - 1]))).map((k) => `${k} out of order: ${app.writes.join()}`));
 }
 
 check('the backup file has exactly the listed fields',

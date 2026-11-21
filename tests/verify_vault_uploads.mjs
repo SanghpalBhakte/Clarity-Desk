@@ -226,8 +226,13 @@ check('Restore writes the vault after everything else, through the storage-fitti
   const row = fresh.DESK_DATASETS.find(d => d.key === 'cos_custom_links');
   if (String(row.restore).includes('safeSetStorage(KEY_CUSTOM_LINKS')) return 'restore still writes the vault directly';
   if (!String(row.restore).includes('saveLinksFittingStorage')) return 'restore no longer fits the vault to this phone';
+  // The push sends the cloud copy (deskCloudCopy): the file is a placeholder there.
+  const withFile = loadApp(['deskCloudCopy'], { store: { cos_custom_links: JSON.stringify(VAULT_WITH_FILE) } });
+  withFile.eval('state.customTasks = []');
+  const sent = withFile.deskCloudCopy().customLinks[0].resources[1];
   const push = (() => { const i = appSrc.indexOf('function pushLocalDataToCloud('); return appSrc.slice(i, appSrc.indexOf('\n}\n', i)); })();
-  return push.includes('linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS') ? true : 'push does not use linksForCloud';
+  if (!push.includes('deskCloudCopy()')) return 'push does not send deskCloudCopy';
+  return !String(sent.url || '').startsWith('data:') && app.isVaultPlaceholder(sent) ? true : `push sends ${JSON.stringify(sent)}`;
 });
 
 check('Backups still include the files', () => {

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadApp } from './app-loader.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -50,8 +51,14 @@ check('app.js: KEY_PUSH_REGISTERED constant defined', () => {
 });
 
 check('app.js: attendance target is synced to and restored from Firestore', () => {
-  if (!appSrc.includes('attTarget:          getAttendanceTarget(),')) return 'pushLocalDataToCloud() does not send attTarget';
-  if (!appSrc.includes("safeSetStorage(KEY_ATT_TARGET, data.attTarget);")) return 'applyCloudDataToLocalState() does not restore attTarget';
+  // The push sends deskCloudCopy(); a snapshot is applied by applyDeskFromCloud (DESK_DATASETS).
+  const sender = loadApp(['deskCloudCopy'], { store: { cos_att_target: '82' } });
+  sender.eval('state.customTasks = []');
+  if (sender.deskCloudCopy().attTarget !== 82) return 'the cloud copy does not carry attTarget';
+  const receiver = loadApp(['applyDeskFromCloud']);
+  receiver.eval('state.customTasks = []');
+  receiver.applyDeskFromCloud({ attTarget: 70 });
+  if (receiver.store.cos_att_target !== '70') return 'applying a cloud copy does not restore attTarget';
   return true;
 });
 
