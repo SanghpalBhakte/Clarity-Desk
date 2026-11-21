@@ -126,15 +126,35 @@ if (typeof window !== 'undefined') {
   window.formatDisplayTimeRange = formatDisplayTimeRange;
 }
 
+// A list ([]) or record ({}) fallback also sets the type the caller expects.
+// A saved value of another type (cut-off JSON, a stray string) would crash
+// the screen that reads it, so the fallback is returned instead and the raw
+// value is kept once under cos_corrupt_<key> (never overwritten) for repair.
+function storageShapeOk(val, fallback) {
+  if (Array.isArray(fallback)) return Array.isArray(val);
+  if (fallback && typeof fallback === 'object') return !!val && typeof val === 'object' && !Array.isArray(val);
+  return true;
+}
+
 function safeGetStorage(key, fallback = null) {
   try {
     const v = localStorage.getItem(key);
     if (v === null || v === undefined) return fallback;
+    let val;
     try {
-      return JSON.parse(v);
+      val = JSON.parse(v);
     } catch (_) {
-      return v;
+      val = v;
     }
+    // Strings are saved as-is, so a saved "2" must not come back as the number 2.
+    if (typeof fallback === 'string') return typeof val === 'string' ? val : v;
+    if (storageShapeOk(val, fallback)) return val;
+    console.warn(`localStorage value for [${key}] is not the expected shape; using the default`);
+    try {
+      // eslint-disable-next-line no-restricted-syntax -- the storage helper itself
+      if (localStorage.getItem('cos_corrupt_' + key) === null) localStorage.setItem('cos_corrupt_' + key, v);
+    } catch (_) {}
+    return fallback;
   } catch (err) {
     console.warn(`localStorage read error for key [${key}]:`, err);
     return fallback;
