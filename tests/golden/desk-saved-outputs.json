@@ -25,7 +25,7 @@
         "status": "pending",
         "marks": 0,
         "isCustom": true,
-        "updatedAt": 1762750000000,
+        "updatedAt": 1794200000000,
         "firstStep": "Print the first two programs"
       },
       {
@@ -41,7 +41,7 @@
         "status": "pending",
         "marks": 0,
         "isCustom": true,
-        "updatedAt": 1762750000000
+        "updatedAt": 1794200000000
       },
       {
         "id": "t-read",
@@ -56,14 +56,19 @@
         "status": "pending",
         "marks": 0,
         "isCustom": true,
-        "updatedAt": 1762750000000,
+        "updatedAt": 1794200000000,
         "checkins": [
           "2026-11-08",
           "2026-11-09"
         ]
       }
     ],
-    "tombstones": [],
+    "tombstones": [
+      {
+        "id": "t-gone",
+        "deletedAt": 1794000000000
+      }
+    ],
     "customTimetable": {
       "0": [],
       "1": [
@@ -194,20 +199,29 @@
       {
         "subjectKey": "datastructures",
         "subjectName": "Data Structures",
-        "examDate": "",
+        "examDate": "2026-12-01",
         "updatedAt": "",
         "topics": [
           {
             "id": "tp1",
             "title": "Stacks",
-            "status": "todo",
-            "importance": 2
+            "status": "done",
+            "importance": 3,
+            "marks": 10,
+            "doneAt": "2026-11-02"
           },
           {
             "id": "tp2",
             "title": "Queues",
+            "status": "revised",
+            "importance": 2,
+            "doneAt": "2026-11-05"
+          },
+          {
+            "id": "tp3",
+            "title": "Trees",
             "status": "todo",
-            "importance": 2
+            "importance": 1
           }
         ]
       }
@@ -228,10 +242,10 @@
       }
     },
     "holiday": {
-      "on": false,
-      "since": "",
-      "until": "",
-      "changedAt": 1762500000000
+      "on": true,
+      "since": "2026-12-20",
+      "until": "2027-01-04",
+      "changedAt": 1794100000000
     },
     "stripLabels": {
       "Data Structures": "DSA"
@@ -283,7 +297,7 @@
         "status": "pending",
         "marks": 0,
         "isCustom": true,
-        "updatedAt": 1762750000000,
+        "updatedAt": 1794200000000,
         "firstStep": "Print the first two programs"
       },
       {
@@ -299,7 +313,7 @@
         "status": "pending",
         "marks": 0,
         "isCustom": true,
-        "updatedAt": 1762750000000
+        "updatedAt": 1794200000000
       },
       {
         "id": "t-read",
@@ -314,7 +328,7 @@
         "status": "pending",
         "marks": 0,
         "isCustom": true,
-        "updatedAt": 1762750000000,
+        "updatedAt": 1794200000000,
         "checkins": [
           "2026-11-08",
           "2026-11-09"
@@ -448,20 +462,29 @@
       {
         "subjectKey": "datastructures",
         "subjectName": "Data Structures",
-        "examDate": "",
+        "examDate": "2026-12-01",
         "updatedAt": "",
         "topics": [
           {
             "id": "tp1",
             "title": "Stacks",
-            "status": "todo",
-            "importance": 2
+            "status": "done",
+            "importance": 3,
+            "marks": 10,
+            "doneAt": "2026-11-02"
           },
           {
             "id": "tp2",
             "title": "Queues",
+            "status": "revised",
+            "importance": 2,
+            "doneAt": "2026-11-05"
+          },
+          {
+            "id": "tp3",
+            "title": "Trees",
             "status": "todo",
-            "importance": 2
+            "importance": 1
           }
         ]
       }
@@ -496,20 +519,25 @@
     },
     "attSummary": null,
     "holiday": {
-      "on": false,
-      "since": "",
-      "until": "",
-      "changedAt": 1762500000000
+      "on": true,
+      "since": "2026-12-20",
+      "until": "2027-01-04",
+      "changedAt": 1794100000000
     },
-    "tombstones": [],
+    "tombstones": [
+      {
+        "id": "t-gone",
+        "deletedAt": 1794000000000
+      }
+    ],
     "updatedAt": "server-time"
   },
-  "changeCheck": "{\"a\":{\"t-old\":\"submitted\"},\"am\":{\"b\":\"2026-11-30\",\"g\":\"\",\"k\":\"finish\",\"n\":10,\"s\":{\"DS\":80},\"sc\":\"\",\"t\":1},\"att\":{\"2026-11-09\":{\"DSL_1330\":\"skipped\",\"DS_1000\":\"attended\"},\"2026-11-10\":{\"DS_1000\":\"attended\"}},\"attB\":{\"DS\":{\"absent\":4,\"present\":18,\"subjectName\":\"Data Structures\"},\"OS\":{\"absent\":6,\"present\":12,\"subjectName\":\"Operating Systems\"}},\"attL\":{\"DS\":{\"present\":2},\"OS\":{\"present\":1}},\"hol\":{\"changedAt\":1762500000000,\"on\":false,\"since\":\"\",\"until\":\"\"},\"l\":[{\"code\":\"DS\",\"color\":\"#394B63\",\"resources\":[{\"icon\":\"link\",\"label\":\"Course page\",\"url\":\"https://example.edu/ds\"},{\"fileId\":\"f-unit1\",\"fileSize\":\"9 B\",\"icon\":\"book-open\",\"isUpload\":true,\"label\":\"unit1.pdf\",\"onDevice\":true,\"url\":\"\"}],\"subject\":\"Data Structures\"}],\"nc\":{\"whatsappTitle\":\"College portal\",\"whatsappUrl\":\"https://portal.example.edu\"},\"np\":{\"attendanceAlerts\":\"on\",\"classReminders\":\"10\",\"ongoingNudgeTime\":\"18:00\",\"ongoingNudges\":\"off\",\"taskOverdue\":\"daily\",\"taskUpcoming\":\"day_before\"},\"p\":{\"batch\":\"A2\",\"branch\":\"CSE\",\"college\":\"Sample College\",\"examDate\":\"2026-12-01\",\"examLabel\":\"End-Sem\",\"name\":\"Riya\",\"rollNo\":\"42\",\"studyMode\":\"\",\"year\":\"SE\"},\"syl\":[{\"examDate\":\"\",\"subjectKey\":\"datastructures\",\"subjectName\":\"Data Structures\",\"topics\":[{\"id\":\"tp1\",\"importance\":2,\"status\":\"todo\",\"title\":\"Stacks\"},{\"id\":\"tp2\",\"importance\":2,\"status\":\"todo\",\"title\":\"Queues\"}],\"updatedAt\":\"\"}],\"t\":[{\"code\":\"DS\",\"description\":\"—\",\"dueDate\":\"2026-11-14\",\"firstStep\":\"Print the first two programs\",\"id\":\"t-lab\",\"isCustom\":true,\"marks\":0,\"noDeadline\":false,\"priority\":\"medium\",\"status\":\"pending\",\"subject\":\"Data Structures\",\"taskType\":\"assignment\",\"title\":\"DS lab record\",\"updatedAt\":1762750000000},{\"code\":\"OS\",\"description\":\"—\",\"dueDate\":\"2026-11-08\",\"id\":\"t-quiz\",\"isCustom\":true,\"marks\":0,\"noDeadline\":false,\"priority\":\"high\",\"status\":\"pending\",\"subject\":\"Operating Systems\",\"taskType\":\"quiz\",\"title\":\"OS quiz\",\"updatedAt\":1762750000000},{\"checkins\":[\"2026-11-08\",\"2026-11-09\"],\"code\":\"DS\",\"description\":\"—\",\"dueDate\":\"\",\"id\":\"t-read\",\"isCustom\":true,\"marks\":0,\"noDeadline\":true,\"priority\":\"medium\",\"status\":\"pending\",\"subject\":\"Data Structures\",\"taskType\":\"assignment\",\"title\":\"Read chapter 4\",\"updatedAt\":1762750000000}],\"tc\":\"custom\",\"tg\":75,\"ts\":null,\"tt\":{\"0\":[],\"1\":[{\"batches\":[],\"code\":\"DS\",\"end\":\"11:00\",\"room\":\"B-204\",\"subject\":\"Data Structures\",\"teacher\":\"Prof. Rao\",\"time\":\"10:00\",\"type\":\"lecture\"},{\"batches\":[\"A2\"],\"code\":\"DSL\",\"end\":\"15:30\",\"subject\":\"DS Lab\",\"time\":\"13:30\",\"type\":\"lab\"}],\"2\":[{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"3\":[{\"batches\":[],\"code\":\"DS\",\"end\":\"11:00\",\"room\":\"B-204\",\"subject\":\"Data Structures\",\"teacher\":\"Prof. Rao\",\"time\":\"10:00\",\"type\":\"lecture\"},{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"4\":[],\"5\":[{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"6\":[]}}",
+  "changeCheck": "{\"a\":{\"t-old\":\"submitted\"},\"am\":{\"b\":\"2026-11-30\",\"g\":\"\",\"k\":\"finish\",\"n\":10,\"s\":{\"DS\":80},\"sc\":\"\",\"t\":1},\"att\":{\"2026-11-09\":{\"DSL_1330\":\"skipped\",\"DS_1000\":\"attended\"},\"2026-11-10\":{\"DS_1000\":\"attended\"}},\"attB\":{\"DS\":{\"absent\":4,\"present\":18,\"subjectName\":\"Data Structures\"},\"OS\":{\"absent\":6,\"present\":12,\"subjectName\":\"Operating Systems\"}},\"attL\":{\"DS\":{\"present\":2},\"OS\":{\"present\":1}},\"hol\":{\"changedAt\":1794100000000,\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\"},\"l\":[{\"code\":\"DS\",\"color\":\"#394B63\",\"resources\":[{\"icon\":\"link\",\"label\":\"Course page\",\"url\":\"https://example.edu/ds\"},{\"fileId\":\"f-unit1\",\"fileSize\":\"9 B\",\"icon\":\"book-open\",\"isUpload\":true,\"label\":\"unit1.pdf\",\"onDevice\":true,\"url\":\"\"}],\"subject\":\"Data Structures\"}],\"nc\":{\"whatsappTitle\":\"College portal\",\"whatsappUrl\":\"https://portal.example.edu\"},\"np\":{\"attendanceAlerts\":\"on\",\"classReminders\":\"10\",\"ongoingNudgeTime\":\"18:00\",\"ongoingNudges\":\"off\",\"taskOverdue\":\"daily\",\"taskUpcoming\":\"day_before\"},\"p\":{\"batch\":\"A2\",\"branch\":\"CSE\",\"college\":\"Sample College\",\"examDate\":\"2026-12-01\",\"examLabel\":\"End-Sem\",\"name\":\"Riya\",\"rollNo\":\"42\",\"studyMode\":\"\",\"year\":\"SE\"},\"syl\":[{\"examDate\":\"2026-12-01\",\"subjectKey\":\"datastructures\",\"subjectName\":\"Data Structures\",\"topics\":[{\"doneAt\":\"2026-11-02\",\"id\":\"tp1\",\"importance\":3,\"marks\":10,\"status\":\"done\",\"title\":\"Stacks\"},{\"doneAt\":\"2026-11-05\",\"id\":\"tp2\",\"importance\":2,\"status\":\"revised\",\"title\":\"Queues\"},{\"id\":\"tp3\",\"importance\":1,\"status\":\"todo\",\"title\":\"Trees\"}],\"updatedAt\":\"\"}],\"t\":[{\"code\":\"DS\",\"description\":\"—\",\"dueDate\":\"2026-11-14\",\"firstStep\":\"Print the first two programs\",\"id\":\"t-lab\",\"isCustom\":true,\"marks\":0,\"noDeadline\":false,\"priority\":\"medium\",\"status\":\"pending\",\"subject\":\"Data Structures\",\"taskType\":\"assignment\",\"title\":\"DS lab record\",\"updatedAt\":1794200000000},{\"code\":\"OS\",\"description\":\"—\",\"dueDate\":\"2026-11-08\",\"id\":\"t-quiz\",\"isCustom\":true,\"marks\":0,\"noDeadline\":false,\"priority\":\"high\",\"status\":\"pending\",\"subject\":\"Operating Systems\",\"taskType\":\"quiz\",\"title\":\"OS quiz\",\"updatedAt\":1794200000000},{\"checkins\":[\"2026-11-08\",\"2026-11-09\"],\"code\":\"DS\",\"description\":\"—\",\"dueDate\":\"\",\"id\":\"t-read\",\"isCustom\":true,\"marks\":0,\"noDeadline\":true,\"priority\":\"medium\",\"status\":\"pending\",\"subject\":\"Data Structures\",\"taskType\":\"assignment\",\"title\":\"Read chapter 4\",\"updatedAt\":1794200000000}],\"tc\":\"custom\",\"tg\":75,\"ts\":[{\"deletedAt\":1794000000000,\"id\":\"t-gone\"}],\"tt\":{\"0\":[],\"1\":[{\"batches\":[],\"code\":\"DS\",\"end\":\"11:00\",\"room\":\"B-204\",\"subject\":\"Data Structures\",\"teacher\":\"Prof. Rao\",\"time\":\"10:00\",\"type\":\"lecture\"},{\"batches\":[\"A2\"],\"code\":\"DSL\",\"end\":\"15:30\",\"subject\":\"DS Lab\",\"time\":\"13:30\",\"type\":\"lab\"}],\"2\":[{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"3\":[{\"batches\":[],\"code\":\"DS\",\"end\":\"11:00\",\"room\":\"B-204\",\"subject\":\"Data Structures\",\"teacher\":\"Prof. Rao\",\"time\":\"10:00\",\"type\":\"lecture\"},{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"4\":[],\"5\":[{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"6\":[]}}",
   "signinCopy": {
     "at": 1794285000000,
     "uid": "u1",
     "keys": {
-      "cos_custom_tasks": "[{\"id\":\"t-lab\",\"subject\":\"Data Structures\",\"code\":\"DS\",\"title\":\"DS lab record\",\"taskType\":\"assignment\",\"noDeadline\":false,\"description\":\"—\",\"dueDate\":\"2026-11-14\",\"priority\":\"medium\",\"status\":\"pending\",\"marks\":0,\"isCustom\":true,\"updatedAt\":1762750000000,\"firstStep\":\"Print the first two programs\"},{\"id\":\"t-quiz\",\"subject\":\"Operating Systems\",\"code\":\"OS\",\"title\":\"OS quiz\",\"taskType\":\"quiz\",\"noDeadline\":false,\"description\":\"—\",\"dueDate\":\"2026-11-08\",\"priority\":\"high\",\"status\":\"pending\",\"marks\":0,\"isCustom\":true,\"updatedAt\":1762750000000},{\"id\":\"t-read\",\"subject\":\"Data Structures\",\"code\":\"DS\",\"title\":\"Read chapter 4\",\"taskType\":\"assignment\",\"noDeadline\":true,\"description\":\"—\",\"dueDate\":\"\",\"priority\":\"medium\",\"status\":\"pending\",\"marks\":0,\"isCustom\":true,\"updatedAt\":1762750000000,\"checkins\":[\"2026-11-08\",\"2026-11-09\"]}]",
+      "cos_custom_tasks": "[{\"id\":\"t-lab\",\"subject\":\"Data Structures\",\"code\":\"DS\",\"title\":\"DS lab record\",\"taskType\":\"assignment\",\"noDeadline\":false,\"description\":\"—\",\"dueDate\":\"2026-11-14\",\"priority\":\"medium\",\"status\":\"pending\",\"marks\":0,\"isCustom\":true,\"updatedAt\":1794200000000,\"firstStep\":\"Print the first two programs\"},{\"id\":\"t-quiz\",\"subject\":\"Operating Systems\",\"code\":\"OS\",\"title\":\"OS quiz\",\"taskType\":\"quiz\",\"noDeadline\":false,\"description\":\"—\",\"dueDate\":\"2026-11-08\",\"priority\":\"high\",\"status\":\"pending\",\"marks\":0,\"isCustom\":true,\"updatedAt\":1794200000000},{\"id\":\"t-read\",\"subject\":\"Data Structures\",\"code\":\"DS\",\"title\":\"Read chapter 4\",\"taskType\":\"assignment\",\"noDeadline\":true,\"description\":\"—\",\"dueDate\":\"\",\"priority\":\"medium\",\"status\":\"pending\",\"marks\":0,\"isCustom\":true,\"updatedAt\":1794200000000,\"checkins\":[\"2026-11-08\",\"2026-11-09\"]}]",
       "cos_custom_links": "[{\"subject\":\"Data Structures\",\"code\":\"DS\",\"color\":\"#394B63\",\"resources\":[{\"label\":\"Course page\",\"url\":\"https://example.edu/ds\",\"icon\":\"link\"},{\"label\":\"unit1.pdf\",\"icon\":\"book-open\",\"isUpload\":true,\"fileSize\":\"9 B\",\"url\":\"\",\"onDevice\":true,\"fileId\":\"f-unit1\"}]}]",
       "cos_custom_timetable": "{\"0\":[],\"1\":[{\"subject\":\"Data Structures\",\"code\":\"DS\",\"time\":\"10:00\",\"end\":\"11:00\",\"type\":\"lecture\",\"batches\":[],\"room\":\"B-204\",\"teacher\":\"Prof. Rao\"},{\"subject\":\"DS Lab\",\"code\":\"DSL\",\"time\":\"13:30\",\"end\":\"15:30\",\"type\":\"lab\",\"batches\":[\"A2\"]}],\"2\":[{\"subject\":\"Operating Systems\",\"code\":\"OS\",\"time\":\"11:15\",\"end\":\"12:15\",\"type\":\"lecture\",\"batches\":[]}],\"3\":[{\"subject\":\"Data Structures\",\"code\":\"DS\",\"time\":\"10:00\",\"end\":\"11:00\",\"type\":\"lecture\",\"batches\":[],\"room\":\"B-204\",\"teacher\":\"Prof. Rao\"},{\"subject\":\"Operating Systems\",\"code\":\"OS\",\"time\":\"11:15\",\"end\":\"12:15\",\"type\":\"lecture\",\"batches\":[]}],\"4\":[],\"5\":[{\"subject\":\"Operating Systems\",\"code\":\"OS\",\"time\":\"11:15\",\"end\":\"12:15\",\"type\":\"lecture\",\"batches\":[]}],\"6\":[]}",
       "cos_timetable_choice": "custom",
@@ -518,16 +546,169 @@
       "cos_attendance_live": "{\"DS\":{\"present\":2},\"OS\":{\"present\":1}}",
       "cos_profile": "{\"name\":\"Riya\",\"college\":\"Sample College\",\"branch\":\"CSE\",\"year\":\"SE\",\"rollNo\":\"42\",\"batch\":\"A2\",\"examDate\":\"2026-12-01\",\"examLabel\":\"End-Sem\",\"studyMode\":\"\"}",
       "cos_assignments": "{\"t-old\":\"submitted\"}",
-      "cos_tombstones": "[{\"id\":\"t-gone\",\"deletedAt\":1762600000000}]",
-      "cos_syllabus": "[{\"subjectName\":\"Data Structures\",\"topics\":[{\"id\":\"tp1\",\"title\":\"Stacks\",\"done\":true},{\"id\":\"tp2\",\"title\":\"Queues\",\"done\":false}]}]",
+      "cos_tombstones": "[{\"id\":\"t-gone\",\"deletedAt\":1794000000000},{\"id\":\"t-long-gone\",\"deletedAt\":1790829000000}]",
+      "cos_syllabus": "[{\"subjectName\":\"Data Structures\",\"examDate\":\"2026-12-01\",\"topics\":[{\"id\":\"tp1\",\"title\":\"Stacks\",\"status\":\"done\",\"doneAt\":\"2026-11-02\",\"importance\":3,\"marks\":10},{\"id\":\"tp2\",\"title\":\"Queues\",\"status\":\"revised\",\"doneAt\":\"2026-11-05\"},{\"id\":\"tp3\",\"title\":\"Trees\",\"status\":\"todo\",\"importance\":1}]}]",
       "cos_notif_prefs": "{\"taskUpcoming\":\"day_before\",\"taskOverdue\":\"daily\",\"classReminders\":\"10\",\"attendanceAlerts\":\"on\",\"ongoingNudges\":\"off\",\"ongoingNudgeTime\":\"18:00\"}",
       "cos_notice_channels": "{\"whatsappTitle\":\"College portal\",\"whatsappUrl\":\"https://portal.example.edu\"}",
       "cos_att_target": "75",
       "cos_aims": "{\"v\":1,\"kind\":\"finish\",\"line\":75,\"by\":\"2026-11-30\",\"scope\":\"\",\"subjects\":{\"DS\":80}}",
-      "cos_holiday": "{\"on\":false,\"since\":\"\",\"until\":\"\",\"changedAt\":1762500000000}",
+      "cos_holiday": "{\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\",\"changedAt\":1794100000000}",
       "cos_theme": "midnight-ink",
       "cos_accent": "lavender",
       "cos_strip_labels": "{\"Data Structures\":\"DSA\"}"
+    }
+  },
+  "aimsByKind": {
+    "line": {
+      "backup": {
+        "v": 1,
+        "kind": "line",
+        "line": 80,
+        "count": 10,
+        "goal": "",
+        "times": 1,
+        "by": "",
+        "scope": "",
+        "subjects": {
+          "DS": 85,
+          "OS": 70
+        }
+      },
+      "cloud": {
+        "v": 1,
+        "kind": "line",
+        "line": 80,
+        "count": 10,
+        "goal": "",
+        "times": 1,
+        "by": "",
+        "scope": "",
+        "subjects": {
+          "DS": 85,
+          "OS": 70
+        }
+      },
+      "attTarget": 80,
+      "changeCheck": {
+        "b": "",
+        "g": "",
+        "k": "line",
+        "n": 10,
+        "s": {
+          "DS": 85,
+          "OS": 70
+        },
+        "sc": "",
+        "t": 1
+      }
+    },
+    "count": {
+      "backup": {
+        "v": 1,
+        "kind": "count",
+        "line": 75,
+        "count": 4,
+        "goal": "",
+        "times": 1,
+        "by": "",
+        "scope": "",
+        "subjects": {}
+      },
+      "cloud": {
+        "v": 1,
+        "kind": "count",
+        "line": 75,
+        "count": 4,
+        "goal": "",
+        "times": 1,
+        "by": "",
+        "scope": "",
+        "subjects": {}
+      },
+      "attTarget": 75,
+      "changeCheck": {
+        "b": "",
+        "g": "",
+        "k": "count",
+        "n": 4,
+        "s": {},
+        "sc": "",
+        "t": 1
+      }
+    },
+    "rhythm": {
+      "backup": {
+        "v": 1,
+        "kind": "rhythm",
+        "line": 75,
+        "count": 10,
+        "goal": "t-read",
+        "times": 3,
+        "by": "",
+        "scope": "",
+        "subjects": {}
+      },
+      "cloud": {
+        "v": 1,
+        "kind": "rhythm",
+        "line": 75,
+        "count": 10,
+        "goal": "t-read",
+        "times": 3,
+        "by": "",
+        "scope": "",
+        "subjects": {}
+      },
+      "attTarget": 75,
+      "changeCheck": {
+        "b": "",
+        "g": "t-read",
+        "k": "rhythm",
+        "n": 10,
+        "s": {},
+        "sc": "",
+        "t": 3
+      }
+    },
+    "finish": {
+      "backup": {
+        "v": 1,
+        "kind": "finish",
+        "line": 75,
+        "count": 10,
+        "goal": "",
+        "times": 1,
+        "by": "2026-11-30",
+        "scope": "datastructures",
+        "subjects": {
+          "DS": 80
+        }
+      },
+      "cloud": {
+        "v": 1,
+        "kind": "finish",
+        "line": 75,
+        "count": 10,
+        "goal": "",
+        "times": 1,
+        "by": "2026-11-30",
+        "scope": "datastructures",
+        "subjects": {
+          "DS": 80
+        }
+      },
+      "attTarget": 75,
+      "changeCheck": {
+        "b": "2026-11-30",
+        "g": "",
+        "k": "finish",
+        "n": 10,
+        "s": {
+          "DS": 80
+        },
+        "sc": "datastructures",
+        "t": 1
+      }
     }
   }
 }

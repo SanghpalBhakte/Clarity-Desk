@@ -2,20 +2,23 @@
 // Clarity Desk: one way for Node tests to load app.js
 // ==================================================================
 // loadApp(names, opts) runs the real app.js (plus the lazy files, as after
-// their first use) as one script and hands back the functions named in
-// `names`. A test asks for what it needs by name; it never cuts a function
-// out of the file by text, so moving or renaming code elsewhere in app.js
-// does not break it.
+// their first use) as one script, with the real data.js, and hands back the
+// functions named in `names`. A test asks for what it needs by name; it
+// never cuts a function out of the file by text, so moving code inside
+// app.js does not break it (renaming a function a test names still does).
 //
-// Each call is its own app: its own storage, timers and clock.
+// Each call is its own app: its own storage, fake page, timers and clock.
 //   opts.store   initial localStorage contents ({ key: raw string })
 //   opts.now     fixed clock (anything Date accepts); default 2026-11-10 10:00 India time
-//   opts.data    replaces the data.js datasets (source text); default the real data.js
 // Returned besides the named functions:
 //   store        the raw localStorage map (read it, or set keys before a call)
-//   timers       queued setTimeout/setInterval callbacks; nothing runs on its own
+//   timers       pending setTimeout/setInterval callbacks as { fn, ms, repeat };
+//                nothing runs on its own, a cleared one is removed
 //   eval(js)     run code inside the app's scope: read or set a `let`, swap a
 //                function the test must not run (e.g. the file download)
+// The fake page is small: classList.contains is false and querySelector
+// finds nothing, so code that depends on what is on screen takes its empty
+// path. Use Playwright for anything about the page itself.
 // Time zone is India (Asia/Kolkata) for the whole test process.
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
@@ -43,9 +46,9 @@ function stubElement(id) {
     setAttribute() {}, getAttribute: () => null, addEventListener() {}, removeEventListener() {}
   };
 }
-if (!globalThis.document) {
+function makeDocument() {
   const els = {};
-  globalThis.document = {
+  return {
     // Still loading: start-up code that waits for DOMContentLoaded never runs,
     // so a test starts from the stored data alone, not a booted page.
     readyState: 'loading',
@@ -54,7 +57,7 @@ if (!globalThis.document) {
     addEventListener() {}, removeEventListener() {},
     createElement: (tag) => Object.assign(stubElement(''), { tagName: tag }),
     body: stubElement('body'),
-    documentElement: { setAttribute() {}, getAttribute: () => null, style: {}, classList: { add() {}, remove() {}, toggle() {} } }
+    documentElement: { setAttribute() {}, getAttribute: () => null, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false } }
   };
 }
 globalThis.window ??= globalThis;
@@ -88,12 +91,19 @@ export function loadApp(names = [], opts = {}) {
   const { store, api } = makeStorage(opts.store);
   const session = makeStorage().api;
   const timers = [];
-  const queue = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
-  const code = withLazyModules(APP_SRC.replace(DATA_IMPORT, opts.data ?? DATA_SRC));
+  let nextId = 0;
+  const queue = (repeat) => (fn, ms) => { const id = ++nextId; timers.push({ id, fn, ms, repeat }); return id; };
+  const clear = (id) => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); };
+  // Assigned through globalThis so the toast shim fills in its DOM methods.
+  globalThis.document = makeDocument();
+  const doc = globalThis.document;
+  const code = withLazyModules(APP_SRC.replace(DATA_IMPORT, DATA_SRC));
   const out = names.map(n => `${JSON.stringify(n)}: typeof ${n} === 'undefined' ? undefined : ${n}`).join(',\n');
-  const run = new Function('localStorage', 'sessionStorage', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date',
+  // Test-only: app.js and data.js are this repo's own files; `names` and the
+  // eval'd snippets are written by the tests themselves.
+  const run = new Function('localStorage', 'sessionStorage', 'document', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date',
     `${code}\n;return { ${out}${out ? ',' : ''} eval: (__js) => eval(__js) };`);
-  const app = run(api, session, queue, () => {}, queue, () => {}, fixedDate(opts.now ?? DEFAULT_NOW));
+  const app = run(api, session, doc, queue(false), clear, queue(true), clear, fixedDate(opts.now ?? DEFAULT_NOW));
   app.store = store;
   app.timers = timers;
   return app;

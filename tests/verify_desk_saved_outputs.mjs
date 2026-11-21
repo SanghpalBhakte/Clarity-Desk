@@ -23,7 +23,7 @@ const J = JSON.stringify;
 const DS = { subject: 'Data Structures', code: 'DS', time: '10:00', end: '11:00', type: 'lecture', batches: [], room: 'B-204', teacher: 'Prof. Rao' };
 const LAB = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
 const OS = { subject: 'Operating Systems', code: 'OS', time: '11:15', end: '12:15', type: 'lecture', batches: [] };
-const task = (id, over) => ({ id, subject: 'Data Structures', code: 'DS', title: `Task ${id}`, taskType: 'assignment', noDeadline: false, description: '—', dueDate: '2026-11-14', priority: 'medium', status: 'pending', marks: 0, isCustom: true, updatedAt: 1762750000000, ...over });
+const task = (id, over) => ({ id, subject: 'Data Structures', code: 'DS', title: `Task ${id}`, taskType: 'assignment', noDeadline: false, description: '—', dueDate: '2026-11-14', priority: 'medium', status: 'pending', marks: 0, isCustom: true, updatedAt: 1794200000000, ...over });
 
 export const SAMPLE_DESK = {
   cos_profile: J({ name: 'Riya', college: 'Sample College', branch: 'CSE', year: 'SE', rollNo: '42', batch: 'A2', examDate: '2026-12-01', examLabel: 'End-Sem', studyMode: '' }),
@@ -33,7 +33,8 @@ export const SAMPLE_DESK = {
     task('t-read', { title: 'Read chapter 4', noDeadline: true, dueDate: '', checkins: ['2026-11-08', '2026-11-09'] })
   ]),
   cos_assignments: J({ 't-old': 'submitted' }),
-  cos_tombstones: J([{ id: 't-gone', deletedAt: 1762600000000 }]),
+  // One deleted 3 days ago (kept), one 40 days ago (past the 30-day limit: dropped from backup and cloud).
+  cos_tombstones: J([{ id: 't-gone', deletedAt: 1794000000000 }, { id: 't-long-gone', deletedAt: 1790829000000 }]),
   cos_custom_timetable: J({ 1: [DS, LAB], 2: [OS], 3: [DS, OS], 4: [], 5: [OS], 6: [], 0: [] }),
   cos_timetable_choice: 'custom',
   cos_user_batch: 'A2',
@@ -47,10 +48,15 @@ export const SAMPLE_DESK = {
       { label: 'unit1.pdf', url: 'data:application/pdf;base64,JVBERi0xLjQK', icon: 'book-open', isUpload: true, fileSize: '9 B', fileId: 'f-unit1', mime: 'application/pdf' }
     ] }
   ]),
-  cos_syllabus: J([{ subjectName: 'Data Structures', topics: [{ id: 'tp1', title: 'Stacks', done: true }, { id: 'tp2', title: 'Queues', done: false }] }]),
+  cos_syllabus: J([{ subjectName: 'Data Structures', examDate: '2026-12-01', topics: [
+    { id: 'tp1', title: 'Stacks', status: 'done', doneAt: '2026-11-02', importance: 3, marks: 10 },
+    { id: 'tp2', title: 'Queues', status: 'revised', doneAt: '2026-11-05' },
+    { id: 'tp3', title: 'Trees', status: 'todo', importance: 1 }
+  ] }]),
   cos_att_target: '75',
   cos_aims: J({ v: 1, kind: 'finish', line: 75, by: '2026-11-30', scope: '', subjects: { DS: 80 } }),
-  cos_holiday: J({ on: false, since: '', until: '', changedAt: 1762500000000 }),
+  // A planned break (starts later), switched on 2 days ago.
+  cos_holiday: J({ on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1794100000000 }),
   cos_strip_labels: J({ 'Data Structures': 'DSA' }),
   cos_notif_prefs: J({ taskUpcoming: 'day_before', taskOverdue: 'daily', classReminders: '10', attendanceAlerts: 'on', ongoingNudges: 'off', ongoingNudgeTime: '18:00' }),
   cos_notice_channels: J({ whatsappTitle: 'College portal', whatsappUrl: 'https://portal.example.edu' }),
@@ -91,13 +97,28 @@ function check(name, fn) {
 }
 
 const out = deskOutputs();
-const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy };
+// cos_aims holds one aim at a time, so each kind gets its own run of the same desk.
+const AIMS = {
+  line: { v: 1, kind: 'line', line: 80, subjects: { DS: 85, OS: 70 } },
+  count: { v: 1, kind: 'count', line: 75, count: 4, subjects: {} },
+  rhythm: { v: 1, kind: 'rhythm', line: 75, goal: 't-read', times: 3, subjects: {} },
+  finish: { v: 1, kind: 'finish', line: 75, by: '2026-11-30', scope: 'datastructures', subjects: { DS: 80 } }
+};
+const aimsByKind = Object.fromEntries(Object.entries(AIMS).map(([kind, aim]) => {
+  const o = deskOutputs({ ...SAMPLE_DESK, cos_aims: J(aim), cos_att_target: String(aim.line) });
+  return [kind, { backup: o.backup.aims, cloud: o.cloud.aims, attTarget: o.cloud.attTarget, changeCheck: JSON.parse(o.changeCheck).am }];
+}));
+const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind };
 const text = J(saved, null, 2) + '\n';
 
 if (process.env.UPDATE_GOLDEN) {
   fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
   fs.writeFileSync(GOLDEN, text);
   console.log(`Saved outputs written to ${path.relative(ROOT, GOLDEN)}`);
+}
+if (!fs.existsSync(GOLDEN)) {
+  console.error(`✗ ${path.relative(ROOT, GOLDEN)} is missing: run UPDATE_GOLDEN=1 node tests/verify_desk_saved_outputs.mjs once and commit it`);
+  process.exit(1);
 }
 const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
 
@@ -135,8 +156,19 @@ check('the sign-in safety copy holds the stored strings, the vault without file 
     && !('cos_user_batch' in k) ? true : J(Object.keys(k));
 });
 
+check('a recent delete marker reaches the backup and the cloud; one past 30 days does not', () => {
+  const ids = (l) => J((l || []).map(t => t.id));
+  return ids(out.backup.tombstones) === '["t-gone"]' && ids(out.cloud.tombstones) === '["t-gone"]' || J([out.backup.tombstones, out.cloud.tombstones]);
+});
+check('syllabus progress survives: done, revised and not started', () => {
+  const st = (o) => o.syllabus[0].topics.map(t => t.status).join();
+  return st(out.backup) === 'done,revised,todo' && st(out.cloud) === 'done,revised,todo' || J([st(out.backup), st(out.cloud)]);
+});
+check('every aim kind is kept as its own kind', () =>
+  Object.entries(aimsByKind).every(([k, v]) => v.backup.kind === k && v.cloud.kind === k) || J(aimsByKind));
+
 // Exactly as saved.
-for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy']) {
+for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind']) {
   check(`the ${name} matches the saved output exactly`, () => {
     const a = J(saved[name], null, 2), b = J(golden[name], null, 2);
     if (a === b) return true;

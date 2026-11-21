@@ -54,5 +54,23 @@ check('eval reads and sets app state without a getter', () => {
   return app.eval('currentUser.uid') === 'u9' || String(app.eval('currentUser && currentUser.uid'));
 });
 
+check('two loaded apps get separate fake pages', () => {
+  const a = loadApp([]);
+  a.eval('document.getElementById("x").textContent = "from a"');
+  const b = loadApp([]);
+  const inB = b.eval('document.getElementById("x").textContent');
+  return inB === '' || `b sees "${inB}"`;
+});
+
+check('a cleared timer is gone; an interval is marked as repeating', () => {
+  const app = loadApp([]);
+  const before = app.timers.length;
+  app.eval('globalThis.__t = setTimeout(() => {}, 500); setInterval(() => {}, 1000)');
+  const added = app.timers.slice(before);
+  app.eval('clearTimeout(globalThis.__t)');
+  const left = app.timers.slice(before);
+  return added.length === 2 && left.length === 1 && left[0].repeat === true && left[0].ms === 1000 ? true : JSON.stringify({ added, left });
+});
+
 console.log(`\nPASSED: ${passed}/${total}`);
 if (passed !== total) process.exit(1);
