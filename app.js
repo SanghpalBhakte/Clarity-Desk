@@ -5491,7 +5491,6 @@ function pushLocalDataToCloud(uid) {
   if (signinHeld(uid)) return;
   if (!signinSeen(uid)) { signinPushWaiting = true; return; }
   const payload = deskCloudCopy();
-
   const guard = pushGuard(payload);
   lastCloudBytes = guard.bytes;
   if (!guard.ok) { onCloudPushError({ code: 'cloud-full' }); return; }
@@ -20974,8 +20973,8 @@ const DESK_DATASETS = [
     apply: (v) => {
       if (!v || typeof v !== 'object') return;
       const cleanProfile = { ...loadProfile() };
-      [['name', 80], ['college', 100], ['branch', 100], ['year', 50], ['rollNo', 50], ['batch', 30],
-        ['examDate', 20], ['examLabel', 30], ['studyMode', 10]].forEach(([field, maxLen]) => {
+      const caps = { name: 80, college: 100, branch: 100, year: 50, rollNo: 50, batch: 30, examDate: 20, examLabel: 30, studyMode: 10 };
+      Object.entries(caps).forEach(([field, maxLen]) => {
         const val = v[field];
         if (val !== undefined && val !== null && String(val).trim()) cleanProfile[field] = String(val).slice(0, maxLen);
       });

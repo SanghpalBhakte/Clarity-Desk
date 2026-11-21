@@ -91,6 +91,19 @@ check('DESK_APPLY_ORDER names every row with an apply exactly once',
 check('a synced, stored row with no apply of its own is one the task merge covers (vault, delete markers)',
   synced.filter((d) => d.key && typeof d.apply !== 'function' && !['customLinks', 'tombstones'].includes(d.cloud)).map((d) => `${d.cloud}: nothing applies it`));
 
+// Applying a cloud copy writes in apply order: the timetable before attendance
+// (the date repair reads it), and the synced base only after all three
+// attendance maps are in.
+{
+  const app = loadApp(['applyDeskFromCloud']);
+  app.eval('state.customTasks = []');
+  app.applyDeskFromCloud({ customTimetable: { 1: [] }, attendance: { '2026-11-09': {} }, attendanceBaseline: { DS: { present: 1, absent: 0 } }, attendanceLive: { DS: { present: 1 } } });
+  const at = (k) => app.writes.indexOf(k);
+  const order = ['cos_custom_timetable', 'cos_attendance', 'cos_attendance_baseline', 'cos_attendance_live', 'cos_sync_last_pushed'];
+  check('applying a cloud copy writes the timetable, then attendance, then the synced base',
+    order.filter((k, i) => at(k) < 0 || (i && at(k) < at(order[i - 1]))).map((k) => `${k} out of order: ${app.writes.join()}`));
+}
+
 check('the backup file has exactly the listed fields',
   (() => { const got = Object.keys(deskBackupSnapshot()).sort(), want = fields.map(([, f]) => f).sort(); return J(got) === J(want) ? [] : [`got ${J(got)}, want ${J(want)}`]; })());
 

@@ -866,5 +866,49 @@
       },
       "pushAsked": false
     }
+  },
+  "rules": {
+    "profile": {
+      "store": {
+        "cos_profile": "{\"name\":\"RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR\",\"college\":\"Sample College\",\"branch\":\"\",\"year\":\"\",\"rollNo\":\"99999999999999999999999999999999999999999999999999\",\"batch\":\"A2\",\"examDate\":\"\",\"examLabel\":\"\",\"studyMode\":\"\"}",
+        "cos_sync_last_pushed": "{\"attendance\":{},\"attendanceBaseline\":{},\"attendanceLive\":{}}"
+      },
+      "pushAsked": false
+    },
+    "lineTooHigh": {
+      "store": {
+        "cos_att_target": "80",
+        "cos_sync_last_pushed": "{\"attendance\":{},\"attendanceBaseline\":{},\"attendanceLive\":{}}"
+      },
+      "pushAsked": false
+    },
+    "lineTooLow": {
+      "store": {
+        "cos_att_target": "80",
+        "cos_sync_last_pushed": "{\"attendance\":{},\"attendanceBaseline\":{},\"attendanceLive\":{}}"
+      },
+      "pushAsked": false
+    },
+    "lineInRange": {
+      "store": {
+        "cos_att_target": "70",
+        "cos_sync_last_pushed": "{\"attendance\":{},\"attendanceBaseline\":{},\"attendanceLive\":{}}"
+      },
+      "pushAsked": false
+    },
+    "holidayNewerInCloud": {
+      "store": {
+        "cos_holiday": "{\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\",\"changedAt\":1794200000000}",
+        "cos_sync_last_pushed": "{\"attendance\":{},\"attendanceBaseline\":{},\"attendanceLive\":{}}"
+      },
+      "pushAsked": false
+    },
+    "holidayNewerHere": {
+      "store": {
+        "cos_holiday": "{\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\",\"changedAt\":1794200000000}",
+        "cos_sync_last_pushed": "{\"attendance\":{},\"attendanceBaseline\":{},\"attendanceLive\":{}}"
+      },
+      "pushAsked": true
+    }
   }
 }

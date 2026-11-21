@@ -158,7 +158,24 @@ const applied = {
   // An aim line outside 50-100 and a theme name from an old version.
   oddValues: appliedDesk({ ...out.cloud, attTarget: 120, theme: 'dark' })
 };
-const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld, applied };
+// Rule cases on a small cloud copy, each with one thing to look at.
+const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
+const rules = {
+  // Over-long fields are cut; a field the cloud lacks keeps this phone's value.
+  profile: appliedDesk({ profile: { name: 'R'.repeat(120), rollNo: '9'.repeat(70), college: '' } },
+    { cos_profile: J({ name: 'Riya', college: 'Sample College', batch: 'A2' }) }),
+  // No aim in the copy, so only the aim line rule decides.
+  lineTooHigh: appliedDesk({ attTarget: 120 }, { cos_att_target: '80' }),
+  lineTooLow: appliedDesk({ attTarget: 40 }, { cos_att_target: '80' }),
+  lineInRange: appliedDesk({ attTarget: 70 }, { cos_att_target: '80' }),
+  // The cloud's holiday is newer than this phone's: it replaces it, no push.
+  holidayNewerInCloud: appliedDesk({ holiday: { on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1794200000000 } },
+    { cos_holiday: J({ on: false, since: '', until: '', changedAt: 1794100000000 }) }),
+  // This phone's holiday is newer and nothing else differs: kept, and one push.
+  holidayNewerHere: appliedDesk({ holiday: { on: false, since: '', until: '', changedAt: 1794100000000 } },
+    { cos_holiday: J({ on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1794200000000 }) })
+};
+const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld, applied, rules };
 const text = J(saved, null, 2) + '\n';
 
 if (process.env.UPDATE_GOLDEN) {
@@ -256,15 +273,28 @@ check('a cloud copy keeps this phone\'s theme, palette and newer holiday, and me
 check('keep-this-phone mode leaves whole fields alone and still merges tasks and vault', () => {
   const st = applied.livedInKeepLocal.store;
   const ids = JSON.parse(st.cos_custom_tasks).map(t => t.id).sort().join();
+  const vault = JSON.parse(st.cos_custom_links).map(s => s.code).sort().join();
   return st.cos_custom_timetable === LIVED_IN.cos_custom_timetable && st.cos_attendance === LIVED_IN.cos_attendance && st.cos_att_target === '80'
-    && JSON.parse(st.cos_profile).name === 'Riya S' && ids === 't-lab,t-local,t-quiz,t-read' ? true
-    : J({ tt: st.cos_custom_timetable, att: st.cos_attendance, tg: st.cos_att_target, p: st.cos_profile, ids });
+    && JSON.parse(st.cos_profile).name === 'Riya S' && ids === 't-lab,t-local,t-quiz,t-read' && vault === 'DS,OS' ? true
+    : J({ tt: st.cos_custom_timetable, att: st.cos_attendance, tg: st.cos_att_target, p: st.cos_profile, ids, vault });
 });
-check('an aim line outside 50-100 from the cloud is ignored (the aim keeps its own line)', () =>
-  applied.oddValues.store.cos_att_target === '75' || `att target ${applied.oddValues.store.cos_att_target}`);
+check('profile from the cloud: long fields are cut (name 80, roll number 50); a blank or missing field keeps this phone\'s', () => {
+  const p = JSON.parse(rules.profile.store.cos_profile);
+  return p.name === 'R'.repeat(80) && p.rollNo === '9'.repeat(50) && p.college === 'Sample College' && p.batch === 'A2' ? true : J(p);
+});
+check('an aim line from the cloud is taken only within 50-100', () => {
+  const tg = (r) => rules[r].store.cos_att_target;
+  return tg('lineTooHigh') === '80' && tg('lineTooLow') === '80' && tg('lineInRange') === '70' ? true : J([tg('lineTooHigh'), tg('lineTooLow'), tg('lineInRange')]);
+});
+check('holiday: a newer cloud copy replaces this phone\'s; an older one is ignored and this phone pushes its own once', () => {
+  const inCloud = JSON.parse(rules.holidayNewerInCloud.store.cos_holiday), here = JSON.parse(rules.holidayNewerHere.store.cos_holiday);
+  return inCloud.on === true && inCloud.changedAt === 1794200000000 && !rules.holidayNewerInCloud.pushAsked
+    && here.on === true && here.changedAt === 1794200000000 && rules.holidayNewerHere.pushAsked ? true
+    : J({ inCloud, pushA: rules.holidayNewerInCloud.pushAsked, here, pushB: rules.holidayNewerHere.pushAsked });
+});
 
 // Exactly as saved.
-for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld', 'applied']) {
+for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld', 'applied', 'rules']) {
   check(`the ${name} matches the saved output exactly`, () => {
     const a = J(saved[name], null, 2), b = J(golden[name], null, 2);
     if (a === b) return true;

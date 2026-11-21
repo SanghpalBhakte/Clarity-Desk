@@ -1,7 +1,7 @@
 import fs from 'fs';
-import { loadApp } from './app-loader.mjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadApp } from './app-loader.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
