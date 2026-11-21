@@ -56,6 +56,11 @@ Open the PR's preview on your iPhone (Add to Home Screen) and on an Android phon
 
 Reply in the session with "device check passed", or list what felt wrong.
 
+Rules (decided 2026-11-21):
+- Android is required; iPhone is not (no device). An iPhone report after ship is fixed as an urgent ship.
+- Blocking: a wrong mark (wrong class, or a mark on hold, scroll or hold + move) or Undo failing. Feel issues are noted and fixed after ship.
+- Preview: a Firebase channel deployed from a `git archive` copy of the commit with the jsDelivr links stripped. A plain channel deploy serves the pinned, shipped code, not the branch.
+
 ## Shipping
 
 After all 9 are merged, say "ship" in any session.
