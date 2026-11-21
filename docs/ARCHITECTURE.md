@@ -107,4 +107,4 @@ Deeper history and bug-fix intent: `PROJECT_MEMORY.md`. Known issues: `docs/AUDI
 - Closed app: device registers with `push-worker`; reminders are sent from D1 by a Cloudflare cron. The old Firebase (FCM) push path (client, `sw.js` handler, GitHub job) was removed on 2026-10-28; `sw.js` loads no third-party scripts.
 
 ## Quality gates
-`npm test` (logic) · `test:sync-flows` (includes `tests/toasts.spec.ts`: toasts, sync line, placement, field errors, voice guard) · `test:pwa-smoke` (SW/manifest/offline) · `test:visual` (UI; screenshots are platform-specific) · `release:check` · `ship` / `ship:check`.
+`npm run lint` (strict ESLint on the root app files; old violations are counted in `eslint-suppressions.json` and only new ones fail; after fixing old ones run `npx eslint --prune-suppressions`) · `npm test` (logic) · `test:sync-flows` (includes `tests/toasts.spec.ts`: toasts, sync line, placement, field errors, voice guard) · `test:pwa-smoke` (SW/manifest/offline) · `test:visual` (UI; screenshots are platform-specific) · `release:check` · `ship` / `ship:check`.
