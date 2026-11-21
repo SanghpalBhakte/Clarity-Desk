@@ -2135,7 +2135,7 @@ async function confirmScanPhotoQuality(dataUrl, onRetake) {
 // ── Robust Time Normalizer ──────────────────────────────────────
 function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
   if (!timeRaw || typeof timeRaw !== 'string') return { time: '', end: '', isValid: false };
-  let str = timeRaw.trim()
+  const str = timeRaw.trim()
     // Only an O touching a digit or colon is a misread zero ("1O:OO").
     // The old rule also fired on an O before a space, which turned the
     // "to" in "9.00 to 10.55" into "t0" and broke every "X to Y" range.
@@ -2148,12 +2148,12 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
   const rangeMatch = str.match(/(\d{1,2})[:.]?(\d{2})?\s*(am|pm)?\s*(?:-|to|~|–|—)\s*(\d{1,2})[:.]?(\d{2})?\s*(am|pm)?/i);
   if (rangeMatch) {
     let h1 = parseInt(rangeMatch[1], 10);
-    let m1 = parseInt(rangeMatch[2] || '00', 10);
-    let mer1 = rangeMatch[3] ? rangeMatch[3].toLowerCase() : '';
+    const m1 = parseInt(rangeMatch[2] || '00', 10);
+    const mer1 = rangeMatch[3] ? rangeMatch[3].toLowerCase() : '';
 
     let h2 = parseInt(rangeMatch[4], 10);
-    let m2 = parseInt(rangeMatch[5] || '00', 10);
-    let mer2 = rangeMatch[6] ? rangeMatch[6].toLowerCase() : '';
+    const m2 = parseInt(rangeMatch[5] || '00', 10);
+    const mer2 = rangeMatch[6] ? rangeMatch[6].toLowerCase() : '';
 
     if (mer2 === 'pm' && !mer1 && h1 < 12 && h2 <= 12) {
       if (h1 < h2) h1 += 12;
@@ -2191,8 +2191,8 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
   const singleMatch = str.match(/(\d{1,2})[:.](\d{2})\s*(am|pm)?/i);
   if (singleMatch) {
     let h1 = parseInt(singleMatch[1], 10);
-    let m1 = parseInt(singleMatch[2], 10);
-    let mer = singleMatch[3] ? singleMatch[3].toLowerCase() : '';
+    const m1 = parseInt(singleMatch[2], 10);
+    const mer = singleMatch[3] ? singleMatch[3].toLowerCase() : '';
 
     if (mer === 'pm' && h1 < 12) h1 += 12;
     if (mer === 'am' && h1 === 12) h1 = 0;
@@ -2200,7 +2200,7 @@ function normalizeTimetableTime(timeRaw, defaultEndHours = 1) {
 
     if (h1 >= 0 && h1 <= 23 && m1 >= 0 && m1 <= 59) {
       const t1 = `${String(h1).padStart(2, '0')}:${String(m1).padStart(2, '0')}`;
-      let endH = (h1 + defaultEndHours) % 24;
+      const endH = (h1 + defaultEndHours) % 24;
       const t2 = `${String(endH).padStart(2, '0')}:${String(m1).padStart(2, '0')}`;
       // isRangeMatch: false -- this end time is a SYNTHESIZED default (start
       // + defaultEndHours), not read from the image. Callers that can spot
@@ -6542,7 +6542,7 @@ async function requestNotificationPermission() {
 // Without push (unsupported, blocked, offline) the in-app check above
 // keeps working exactly as before.
 // var, not let: syncToCloud() can run during start-up, before this line.
-var pushSyncTimer = null;
+let pushSyncTimer = null;
 
 function loadPushDevice() {
   const d = safeGetStorage(KEY_PUSH_DEVICE, null);
@@ -10755,7 +10755,7 @@ window.handleQuickAdd = function() {
     console.log("[Quick Add] Assigned general category for text:", text);
   }
 
-  let dueDate = new Date();
+  const dueDate = new Date();
   let dateFound = false;
   
   if (lowerText.includes('today')) {
@@ -11045,7 +11045,7 @@ function renderReview() {
     const day = next7Days[dateStr];
     if (day.items.length === 0) return;
     
-    let itemsHTML = day.items.map(it => {
+    const itemsHTML = day.items.map(it => {
       if (it.type === 'task') {
         const a = it.data;
         const done = a.status === 'submitted';
@@ -11422,7 +11422,7 @@ function renderWeeklyAttendanceTracker() {
     const dayName = DAY_NAMES[dayIdx];
     const isToday = dateStr === todayStr();
 
-    let classListHTML = dayClasses.map(c => {
+    const classListHTML = dayClasses.map(c => {
       const classKey = attendanceKeyFor(c);
       const status = attendanceData[dateStr]?.[classKey] || 'unset';
       const isLab = c.type === 'lab';
@@ -17172,7 +17172,7 @@ window.handleTaskNoDeadlineToggle = function(checked) {
 let taskSelectMode = false;
 const taskSelection = new Set();
 let taskDoneOpen = false;      // "Completed (N)" section; closed by default
-let taskOpenFolds = { later: false, goals: false, older: false }; // the other folded sections
+const taskOpenFolds = { later: false, goals: false, older: false }; // the other folded sections
 let taskOpenId = null;         // the row showing Edit · Open page · Delete
 let taskVisible = [];          // tasks on screen after filters; delete only touches these
 let _taskLongPressFired = false;
@@ -22331,20 +22331,20 @@ function setupFABDrag() {
 (function () {
   if (typeof document === 'undefined' || typeof window === 'undefined' || !window.matchMedia
       || typeof document.getElementById !== 'function' || !document.body || !document.body.classList) return; // headless test harness
-  var mq = window.matchMedia('(max-width: 767px)');
-  var PAGE_NAMES = { timetable: 'Timetable', subjects: 'Subjects', assignments: 'Tasks', calendar: 'Calendar',
+  const mq = window.matchMedia('(max-width: 767px)');
+  const PAGE_NAMES = { timetable: 'Timetable', subjects: 'Subjects', assignments: 'Tasks', calendar: 'Calendar',
     links: 'Study Vault', resources: 'Study Vault', summary: 'Daily Briefing', review: 'Weekly Review', settings: 'Settings' };
 
   function place() {
-    var phone = mq.matches;
-    var actions = document.querySelector('.topbar-actions');
-    var titleSlot = document.getElementById('c2-title-actions');
-    var sheetSlot = document.getElementById('more-sheet-slots');
+    const phone = mq.matches;
+    const actions = document.querySelector('.topbar-actions');
+    const titleSlot = document.getElementById('c2-title-actions');
+    const sheetSlot = document.getElementById('more-sheet-slots');
     if (!actions || !titleSlot || !sheetSlot) return;
-    var ask = document.getElementById('assistant-toggle-btn');
-    var theme = document.getElementById('theme-toggle-btn');
-    var sync = document.getElementById('sync-status-btn');
-    var avatar = document.getElementById('topbar-avatar');
+    const ask = document.getElementById('assistant-toggle-btn');
+    const theme = document.getElementById('theme-toggle-btn');
+    const sync = document.getElementById('sync-status-btn');
+    const avatar = document.getElementById('topbar-avatar');
     if (phone) {
       if (ask) titleSlot.appendChild(ask);
       [avatar, theme, sync].forEach(function (el) { if (el) sheetSlot.appendChild(el); });
@@ -22357,28 +22357,28 @@ function setupFABDrag() {
   function dayLabel() { return typeof c2IsNight === 'function' && c2IsNight() ? 'Tomorrow' : 'Today'; }
 
   window.c2SyncShell = function () {
-    var body = document.body;
+    const body = document.body;
     if (!body) return;
-    var page = (typeof state !== 'undefined' && state && state.currentPage) || 'dashboard';
-    var onToday = page === 'dashboard';
-    var hasBack = (function () {
-      var b = document.getElementById('nav-back-btn');
+    const page = (typeof state !== 'undefined' && state && state.currentPage) || 'dashboard';
+    const onToday = page === 'dashboard';
+    const hasBack = (function () {
+      const b = document.getElementById('nav-back-btn');
       return !!b && b.style.display !== 'none' && !b.disabled;
     })();
     // Today's big title is the greeting (set by renderDashboard) by day; the compact bar always says Today or Tomorrow.
-    var head = onToday ? window.c2Head : null;
-    var title = onToday ? (head && !head.night ? head.greeting : dayLabel()) : (PAGE_NAMES[page] || 'Clarity Desk');
-    var barTitle = onToday ? dayLabel() : title;
-    var t = document.getElementById('c2-lt-title');
-    var d = document.getElementById('c2-lt-date');
-    var ct = document.getElementById('c2-compact-title');
-    var back = document.getElementById('c2-back-btn');
+    const head = onToday ? window.c2Head : null;
+    const title = onToday ? (head && !head.night ? head.greeting : dayLabel()) : (PAGE_NAMES[page] || 'Clarity Desk');
+    const barTitle = onToday ? dayLabel() : title;
+    const t = document.getElementById('c2-lt-title');
+    const d = document.getElementById('c2-lt-date');
+    const ct = document.getElementById('c2-compact-title');
+    const back = document.getElementById('c2-back-btn');
     if (t && t.textContent !== title) t.textContent = title;
     if (ct && ct.textContent !== barTitle) ct.textContent = barTitle;
     if (d) {
-      var now = new Date();
+      const now = new Date();
       if (onToday && dayLabel() === 'Tomorrow') now.setDate(now.getDate() + 1);
-      var txt = head && head.night ? head.greeting : now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      const txt = head && head.night ? head.greeting : now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
       if (d.textContent !== txt) d.textContent = txt;
     }
     if (back) back.hidden = !hasBack;
@@ -22399,20 +22399,20 @@ function setupFABDrag() {
 // The rail state is a UI-only preference under its own key (cd_sidebar_collapsed),
 // read early in index.html's head script so there is no layout flash on load.
 (function () {
-  var root = (typeof document !== 'undefined') && document.documentElement;
+  const root = (typeof document !== 'undefined') && document.documentElement;
   if (!root || !root.classList) return; // headless test harness: nothing to wire
 
   function syncSidebarBtn() {
-    var btn = document.getElementById('sidebar-collapse-btn');
+    const btn = document.getElementById('sidebar-collapse-btn');
     if (!btn) return;
-    var collapsed = root.classList.contains('sidebar-collapsed');
+    const collapsed = root.classList.contains('sidebar-collapsed');
     btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     btn.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
     btn.title = (collapsed ? 'Expand' : 'Collapse') + ' sidebar ( [ )';
   }
 
   window.toggleSidebar = function () {
-    var collapsed = root.classList.toggle('sidebar-collapsed');
+    const collapsed = root.classList.toggle('sidebar-collapsed');
     try { localStorage.setItem('cd_sidebar_collapsed', collapsed ? '1' : '0'); } catch (e) {}
     syncSidebarBtn();
   };
@@ -22436,7 +22436,7 @@ function setupFABDrag() {
     }
     if (e.key === 'Escape' && root.classList.contains('more-sheet-open')) {
       window.closeMoreSheet();
-      var moreBtn = document.getElementById('bnav-more');
+      const moreBtn = document.getElementById('bnav-more');
       if (moreBtn) moreBtn.focus();
     }
   });
@@ -22452,19 +22452,19 @@ function setupFABDrag() {
   window.openMoreSheet = function () {
     setPageBehindMoreSheetInert(true);
     root.classList.add('more-sheet-open');
-    var sheet = document.getElementById('more-sheet');
-    var btn = document.getElementById('bnav-more');
+    const sheet = document.getElementById('more-sheet');
+    const btn = document.getElementById('bnav-more');
     if (sheet) sheet.setAttribute('aria-hidden', 'false');
     if (btn) btn.setAttribute('aria-expanded', 'true');
-    var first = sheet && sheet.querySelector('.more-sheet-item');
+    const first = sheet && sheet.querySelector('.more-sheet-item');
     if (first) first.focus({ preventScroll: true });
   };
   window.closeMoreSheet = function () {
     if (!root.classList.contains('more-sheet-open')) return;
     root.classList.remove('more-sheet-open');
     setPageBehindMoreSheetInert(false);
-    var sheet = document.getElementById('more-sheet');
-    var btn = document.getElementById('bnav-more');
+    const sheet = document.getElementById('more-sheet');
+    const btn = document.getElementById('bnav-more');
     if (sheet) sheet.setAttribute('aria-hidden', 'true');
     if (btn) btn.setAttribute('aria-expanded', 'false');
   };
@@ -22476,33 +22476,33 @@ function setupFABDrag() {
   // already toggles .active on every [data-nav] element (sheet items included),
   // so this just mirrors that instead of hooking into navigation.
   function syncMoreActive() {
-    var btn = document.getElementById('bnav-more');
+    const btn = document.getElementById('bnav-more');
     if (btn) btn.classList.toggle('active', !!document.querySelector('#more-sheet .more-sheet-item.active'));
   }
 
   // Ask Desk chips scroll sideways: the fade and arrow show while more
   // chips sit to the right, and the arrow nudges the row along.
   function syncChipEnd() {
-    var row = document.getElementById('cd-chip-row');
-    var wrap = row && row.parentElement;
+    const row = document.getElementById('cd-chip-row');
+    const wrap = row && row.parentElement;
     if (wrap) wrap.classList.toggle('at-end', row.scrollLeft + row.clientWidth >= row.scrollWidth - 4);
   }
   window.nudgeChips = function () {
-    var row = document.getElementById('cd-chip-row');
+    const row = document.getElementById('cd-chip-row');
     if (row) row.scrollBy({ left: row.clientWidth * 0.7, behavior: 'smooth' });
   };
 
   function init() {
     syncSidebarBtn();
     syncMoreActive();
-    var chipRow = document.getElementById('cd-chip-row');
+    const chipRow = document.getElementById('cd-chip-row');
     if (chipRow) {
       chipRow.addEventListener('scroll', syncChipEnd, { passive: true });
       window.addEventListener('resize', syncChipEnd);
-      var panel = document.getElementById('cd-assistant-panel');
+      const panel = document.getElementById('cd-assistant-panel');
       if (panel && 'MutationObserver' in window) new MutationObserver(syncChipEnd).observe(panel, { attributes: true, attributeFilter: ['class'] });
     }
-    var sheet = document.getElementById('more-sheet');
+    const sheet = document.getElementById('more-sheet');
     if (sheet && 'MutationObserver' in window) {
       new MutationObserver(syncMoreActive).observe(sheet, { subtree: true, attributes: true, attributeFilter: ['class'] });
     }

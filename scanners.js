@@ -789,7 +789,7 @@ function parseColumnNumberToken(arr) {
   if (!arr || !arr.length) return 0;
   for (const token of arr) {
     if (!token) continue;
-    let cleaned = String(token).trim()
+    const cleaned = String(token).trim()
       .replace(/[%₹$]/g, '')
       .replace(/(?<=\d)[OoQD](?=\d|$)/g, '0')
       .replace(/(?<=\d)[lI|i](?=\d|$)/g, '1')

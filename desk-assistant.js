@@ -978,7 +978,7 @@ export function createClarityAssistant(deps) {
 
   function buildCreateTask(query) {
     const subjects = (typeof getSubjectList === 'function') ? getSubjectList() : [];
-    let q = query.replace(/\b(add a task|add task|create task|new task|make a task|remind me to)\b/i, '').trim();
+    const q = query.replace(/\b(add a task|add task|create task|new task|make a task|remind me to)\b/i, '').trim();
     const cleanQ = q.replace(/^(for|in|about)\s+/i, '').trim().toLowerCase();
 
     // Check matching subjects

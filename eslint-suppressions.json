@@ -20,12 +20,6 @@
     },
     "no-useless-escape": {
       "count": 5
-    },
-    "no-var": {
-      "count": 42
-    },
-    "prefer-const": {
-      "count": 12
     }
   },
   "deadline-import.js": {
@@ -36,9 +30,6 @@
   "desk-assistant.js": {
     "no-unused-vars": {
       "count": 1
-    },
-    "prefer-const": {
-      "count": 1
     }
   },
   "scanners.js": {
@@ -47,19 +38,11 @@
     },
     "no-useless-escape": {
       "count": 2
-    },
-    "prefer-const": {
-      "count": 1
     }
   },
   "sw.js": {
     "no-implicit-globals": {
       "count": 2
-    }
-  },
-  "timetable-ocr.js": {
-    "prefer-const": {
-      "count": 1
     }
   }
 }

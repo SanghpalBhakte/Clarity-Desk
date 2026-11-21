@@ -217,7 +217,7 @@ function preprocessImageForOCR(base64Data, mimeType) {
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
 
-      let grayValues = new Uint8ClampedArray(data.length / 4);
+      const grayValues = new Uint8ClampedArray(data.length / 4);
       for (let i = 0, j = 0; i < data.length; i += 4, j++) {
         grayValues[j] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
       }
