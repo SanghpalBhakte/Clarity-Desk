@@ -28,10 +28,14 @@ for (const f of sources) {
     if (!used.has(m[1])) used.set(m[1], f);
   }
 }
-const { DESK_DATASETS: allRows, DESK_RESTORE_ORDER: restoreOrder, DESK_CLOUD_ORDER: cloudOrder, DESK_APPLY_ORDER: applyOrder,
-  DESK_SIGNIN_ORDER: signinOrder, deskBackupSnapshot, deskCloudCopy, restoreDeskFromBackup, signinBackupKeys, store, writes } =
-  loadApp(['DESK_DATASETS', 'DESK_RESTORE_ORDER', 'DESK_CLOUD_ORDER', 'DESK_APPLY_ORDER', 'DESK_SIGNIN_ORDER', 'deskBackupSnapshot', 'deskCloudCopy',
-    'restoreDeskFromBackup', 'signinBackupKeys']);
+const { DESK_DATASETS: allRows, deskRowsIn, deskBackupSnapshot, deskCloudCopy, restoreDeskFromBackup, signinBackupKeys, store, writes } =
+  loadApp(['DESK_DATASETS', 'deskRowsIn', 'deskBackupSnapshot', 'deskCloudCopy', 'restoreDeskFromBackup', 'signinBackupKeys']);
+// A row's places (`at`): each list it is in gets a whole number no other row
+// in that list has.
+const placesIn = (list) => allRows.filter((d) => d.at && d.at[list] != null);
+check('every place in a row\'s `at` is a known list and a whole number, used once per list',
+  allRows.flatMap((d) => Object.entries(d.at || {}).filter(([list, n]) => !['restore', 'cloud', 'apply', 'signin'].includes(list) || !Number.isInteger(n) || n < 1
+    || placesIn(list).filter((o) => o.at[list] === n).length > 1).map(([list, n]) => `${d.backup || d.cloud}: at.${list} = ${n}`)));
 const rowKeys = new Set(allRows.map((d) => d.key).filter(Boolean));
 const prefixes = Object.keys(reg.prefixes || {});
 const deviceOnly = (k) => k in reg.keys || prefixes.some((p) => k.startsWith(p));
@@ -55,8 +59,8 @@ check('every row has its own key and backup field (only the cloud-only summary h
       ...(new Set(k).size !== k.length || new Set(f).size !== f.length || k.some((x) => !x) ? [`keys ${J(k)} or fields ${J(f)} repeat or are missing`] : [])]; })());
 check('every row can be read for a backup and restored from one',
   rows.filter((d) => typeof d.read !== 'function' || typeof d.restore !== 'function').map((d) => `${d.key}: needs read() and restore()`));
-check('DESK_RESTORE_ORDER names every row exactly once',
-  (() => { const got = [...restoreOrder].sort(), want = rows.map((d) => d.backup).sort(); return J(got) === J(want) ? [] : [`order ${J(restoreOrder)} vs rows ${J(want)}`]; })());
+check('every backed-up row, and only those, has a restore place',
+  allRows.filter((d) => !!d.backup !== !!(d.at && d.at.restore)).map((d) => `${d.backup || d.cloud}: backup ${d.backup}, restore place ${d.at && d.at.restore}`));
 
 // A restore writes in that order: delete markers before tasks, the vault last
 // (the order restore had before the table, kept on purpose).
@@ -83,12 +87,11 @@ check('DESK_RESTORE_ORDER names every row exactly once',
 
 // The cloud copy and applying it come from the same rows.
 const synced = allRows.filter((d) => d.cloud);
-check('DESK_CLOUD_ORDER names every synced row exactly once, and the cloud copy has exactly those fields',
-  (() => { const want = synced.map((d) => d.cloud).sort(); const got = Object.keys(deskCloudCopy());
-    return J([...cloudOrder].sort()) === J(want) && J(got) === J(cloudOrder) ? [] : [`order ${J(cloudOrder)}, copy ${J(got)}, rows ${J(want)}`]; })());
-check('DESK_APPLY_ORDER names every row with an apply exactly once',
-  (() => { const want = synced.filter((d) => typeof d.apply === 'function').map((d) => d.cloud).sort();
-    return J([...applyOrder].sort()) === J(want) ? [] : [`apply order ${J(applyOrder)} vs rows ${J(want)}`]; })());
+check('every synced row, and only those, has a cloud place, and the cloud copy has exactly those fields in that order',
+  [...allRows.filter((d) => !!d.cloud !== !!(d.at && d.at.cloud)).map((d) => `${d.backup || d.cloud}: cloud ${d.cloud}, cloud place ${d.at && d.at.cloud}`),
+   ...(J(Object.keys(deskCloudCopy())) === J(deskRowsIn('cloud').map((d) => d.cloud)) ? [] : [`copy ${J(Object.keys(deskCloudCopy()))}`])]);
+check('every row with an apply, and only those, has an apply place',
+  allRows.filter((d) => (typeof d.apply === 'function') !== !!(d.at && d.at.apply)).map((d) => `${d.cloud || d.backup}: apply place ${d.at && d.at.apply}`));
 check('a synced, stored row with no apply of its own is one the task merge covers (vault, delete markers)',
   synced.filter((d) => d.key && typeof d.apply !== 'function' && !['customLinks', 'tombstones'].includes(d.cloud)).map((d) => `${d.cloud}: nothing applies it`));
 
@@ -110,8 +113,8 @@ check('the backup file has exactly the rows\' backup fields, in row order',
 
 // The sign-in safety copy: every backed-up row named once, and everything
 // applying a cloud copy writes is in it (so Undo is exact).
-check('DESK_SIGNIN_ORDER names backed-up rows, each at most once',
-  (() => { const bad = signinOrder.filter((f, i) => !rows.some((d) => d.backup === f) || signinOrder.indexOf(f) !== i); return bad.map((f) => `${f}: not a row, or named twice`); })());
+check('only backed-up rows have a sign-in place',
+  placesIn('signin').filter((d) => !d.backup).map((d) => `${d.cloud}: has a sign-in place but no backup field`));
 {
   const app = loadApp(['applyDeskFromCloud', 'deskCloudCopy']);
   app.eval('state.customTasks = []');
@@ -126,7 +129,7 @@ check('DESK_SIGNIN_ORDER names backed-up rows, each at most once',
   // Every synced, stored row gets a value here, so a new one cannot slip past.
   check('applying a cloud copy only writes rows the sign-in safety copy holds',
     [...allRows.filter((d) => d.cloud && d.key && !(d.cloud in full)).map((d) => `${d.cloud}: add a value to this check's cloud copy`),
-     ...[...new Set(app.writes)].filter((k) => rowKeys.has(k) && !safe.has(k)).map((k) => `${k} is written by applying but not in DESK_SIGNIN_ORDER`)]);
+     ...[...new Set(app.writes)].filter((k) => rowKeys.has(k) && !safe.has(k)).map((k) => `${k} is written by applying but has no sign-in place (at.signin)`)]);
 }
 
 // The change check: every synced row except theme and palette counts.
