@@ -10973,14 +10973,26 @@ function getWeekId(d = new Date()) {
   return `${year}-W${String(weekNum).padStart(2, '0')}`;
 }
 
+// One key per dismissed week ('true'); only this week's is ever read.
+const WEEKLY_REVIEW_DISMISSED = 'cos_weekly_review_dismissed_';
+
 function isWeeklyReviewDismissed() {
-  const currentWeek = getWeekId();
-  return localStorage.getItem(`cos_weekly_review_dismissed_${currentWeek}`) === 'true';
+  return safeGetStorage(WEEKLY_REVIEW_DISMISSED + getWeekId(), false) === true;
 }
 
 window.dismissWeeklyReview = function() {
-  const currentWeek = getWeekId();
-  localStorage.setItem(`cos_weekly_review_dismissed_${currentWeek}`, 'true');
+  const thisWeek = WEEKLY_REVIEW_DISMISSED + getWeekId();
+  safeSetStorage(thisWeek, 'true');
+  // Older weeks' keys are removed here (they used to pile up, one a week).
+  try {
+    const old = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(WEEKLY_REVIEW_DISMISSED) && k !== thisWeek) old.push(k);
+    }
+    // eslint-disable-next-line no-restricted-syntax -- no safe remove helper yet
+    old.forEach(k => localStorage.removeItem(k));
+  } catch (_) { /* storage blocked: the old keys stay, nothing else changes */ }
   renderPage(state.currentPage);
 };
 
