@@ -24,7 +24,7 @@ const banned = [
 const strict = {
   ...js.configs.recommended.rules,
   'no-undef': 'error',
-  'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
+  'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true }],
   eqeqeq: ['error', 'always', { null: 'ignore' }],
   'no-shadow': 'error',
   'no-var': 'error',

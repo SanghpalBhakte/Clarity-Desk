@@ -1380,7 +1380,6 @@ function onReviewRowInputChange(idx) {
   const p = Math.max(0, parseInt(document.getElementById(`row-present-${idx}`)?.value) || 0);
   const a = Math.max(0, parseInt(document.getElementById(`row-absent-${idx}`)?.value) || 0);
   const l = Math.max(0, parseInt(document.getElementById(`row-leave-${idx}`)?.value) || 0);
-  const n = Math.max(0, parseInt(document.getElementById(`row-not-entered-${idx}`)?.value) || 0);
 
   const targetPct = getAttendanceTarget();
   const total = p + a + l;   // Not Entered left out of the percentage, as on the ERP

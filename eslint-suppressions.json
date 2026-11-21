@@ -15,9 +15,6 @@
     "no-shadow": {
       "count": 15
     },
-    "no-unused-vars": {
-      "count": 34
-    },
     "no-useless-escape": {
       "count": 5
     }
@@ -27,15 +24,7 @@
       "count": 2
     }
   },
-  "desk-assistant.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "scanners.js": {
-    "no-unused-vars": {
-      "count": 1
-    },
     "no-useless-escape": {
       "count": 2
     }
