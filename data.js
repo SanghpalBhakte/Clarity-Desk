@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u344",
+    date: "2026-11-21",
+    title: "Choosing a wrong file or a too-big photo for an attendance scan now shows a message in the app instead of a pop-up box",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Choosing a wrong file or a too-big photo for an attendance scan now shows a message in the app instead of a pop-up box",
+    points: [
+
+    ]
+  },
+  {
     id: "u343",
     date: "2026-11-21",
     title: "Damaged saved data is kept aside instead of being lost, and a lab group saved as a number reads back correctly",
