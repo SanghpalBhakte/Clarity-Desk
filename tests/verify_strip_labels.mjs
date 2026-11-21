@@ -129,7 +129,7 @@ check('a sliver never gets a negative width', tiny.blocks.every(b => b.width >= 
 check('not an array', eq(app.layoutStrip(null, { width: 340, measure }).blocks, []));
 
 // ── Own strip names: cos_strip_labels (Task 8) ──
-const own = new Function(`${code}\n showToast = () => {}; // toasts need a real DOM; this file checks storage only\n return { loadStripLabels, saveStripLabel, KEY_STRIP_LABELS, SIGNIN_BACKUP_KEYS, exportData, importData };`)();
+const own = new Function(`${code}\n showToast = () => {}; // toasts need a real DOM; this file checks storage only\n return { loadStripLabels, saveStripLabel, KEY_STRIP_LABELS, signinBackupKeys, exportData, importData };`)();
 localStorage.clear();
 check('key is cos_strip_labels', own.KEY_STRIP_LABELS === 'cos_strip_labels');
 check('nothing saved: loadStripLabels is {}', eq(own.loadStripLabels(), {}));
@@ -143,7 +143,7 @@ localStorage.setItem('cos_strip_labels', '["junk"]');
 check('garbage store reads as {}', eq(own.loadStripLabels(), {}));
 localStorage.setItem('cos_strip_labels', JSON.stringify({ A: 'ok', B: 42, C: '' }));
 check('only non-empty strings survive a read', eq(own.loadStripLabels(), { A: 'ok' }));
-check('SIGNIN_BACKUP_KEYS includes it', own.SIGNIN_BACKUP_KEYS.includes('cos_strip_labels'));
+check('the sign-in safety copy includes it', own.signinBackupKeys().includes('cos_strip_labels'));
 
 // Backup file: exportData writes stripLabels; a restore with or without them never throws.
 localStorage.clear();

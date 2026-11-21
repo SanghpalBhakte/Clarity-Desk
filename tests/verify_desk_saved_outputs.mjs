@@ -69,7 +69,7 @@ function deskOutputs(store = SAMPLE_DESK) {
   const sets = [];
   globalThis.firebase = { firestore: { FieldValue: { delete: () => ({ __delete: true }), serverTimestamp: () => 'server-time' }, FieldPath: class {} } };
   const ref = { set: (p) => { sets.push(JSON.parse(J(p))); return Promise.resolve(); }, update: () => Promise.resolve() };
-  const app = loadApp(['exportData', 'pushLocalDataToCloud', 'calculatePayloadHash', 'saveSigninBackup', 'safeGetStorage'], { store });
+  const app = loadApp(['exportData', 'pushLocalDataToCloud', 'calculatePayloadHash', 'saveSigninBackup', 'safeGetStorage', 'localDeskHash', 'localHasData'], { store });
   app.eval('state.customTasks = loadCustomTasks()');
 
   let backup = null;
@@ -83,7 +83,8 @@ function deskOutputs(store = SAMPLE_DESK) {
   const cloud = sets[0];
 
   app.saveSigninBackup('u1');
-  return { app, backup, cloud, changeCheck: app.calculatePayloadHash(cloud), signinCopy: app.safeGetStorage('cos_signin_backup', null) };
+  return { app, backup, cloud, changeCheck: app.calculatePayloadHash(cloud), signinCopy: app.safeGetStorage('cos_signin_backup', null),
+    localChangeCheck: app.localDeskHash(), localHasData: app.localHasData() };
 }
 
 let total = 0, passed = 0;
@@ -175,7 +176,29 @@ const rules = {
   holidayNewerHere: appliedDesk({ holiday: { on: false, since: '', until: '', changedAt: 1794100000000 } },
     { cos_holiday: J({ on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1794200000000 }) })
 };
-const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld, applied, rules };
+// "Does this desk hold the student's own data?" (the first sign-in question
+// is asked only when both this phone and the account say yes).
+const hasDataCases = {
+  empty: {},
+  onlyProfileAndTheme: { profile: { name: 'Riya' }, theme: 'midnight-ink', syllabus: [{ subjectName: 'DS', topics: [] }] },
+  emptyVaultSection: { customLinks: [{ subject: 'DS', code: 'DS', resources: [] }] },
+  vaultLink: { customLinks: [{ subject: 'DS', code: 'DS', resources: [{ label: 'x', url: 'https://example.edu' }] }] },
+  emptyTimetableDays: { customTimetable: { 1: [], 2: [] } },
+  timetableClass: { customTimetable: { 1: [DS] } },
+  oneTask: { customTasks: [task('t1')] },
+  emptyAttendanceMaps: { attendance: {}, attendanceBaseline: {}, attendanceLive: {} },
+  baselineOnly: { attendanceBaseline: { DS: { present: 1, absent: 0 } } },
+  liveOnly: { attendanceLive: { DS: { present: 1 } } },
+  markOnly: { attendance: { '2026-11-09': { DS_1000: 'attended' } } },
+  wrongShapes: { customTasks: {}, customLinks: 'x', attendance: [] }
+};
+const hasData = (() => {
+  const app = loadApp(['cloudHasData']);
+  return { cloud: Object.fromEntries(Object.entries(hasDataCases).map(([k, v]) => [k, app.cloudHasData(v)])), sampleDeskPhone: out.localHasData,
+    emptyPhone: loadApp(['localHasData']).localHasData() };
+})();
+const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld, applied, rules,
+  localChangeCheck: out.localChangeCheck, hasData };
 const text = J(saved, null, 2) + '\n';
 
 if (process.env.UPDATE_GOLDEN) {
@@ -293,8 +316,16 @@ check('holiday: a newer cloud copy replaces this phone\'s; an older one is ignor
     : J({ inCloud, pushA: rules.holidayNewerInCloud.pushAsked, here, pushB: rules.holidayNewerHere.pushAsked });
 });
 
+check('the first sign-in question counts tasks, vault items, classes and attendance as the student\'s data, nothing else', () => {
+  const want = { empty: false, onlyProfileAndTheme: false, emptyVaultSection: false, vaultLink: true, emptyTimetableDays: false, timetableClass: true,
+    oneTask: true, emptyAttendanceMaps: false, baselineOnly: true, liveOnly: true, markOnly: true, wrongShapes: false };
+  return J(hasData.cloud) === J(want) && hasData.sampleDeskPhone === true && hasData.emptyPhone === false ? true : J(hasData);
+});
+check('this phone\'s change check equals the check of the copy it would send', () =>
+  out.localChangeCheck === out.changeCheck || 'local and sent copies check differently');
+
 // Exactly as saved.
-for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld', 'applied', 'rules']) {
+for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld', 'applied', 'rules', 'localChangeCheck', 'hasData']) {
   check(`the ${name} matches the saved output exactly`, () => {
     const a = J(saved[name], null, 2), b = J(golden[name], null, 2);
     if (a === b) return true;

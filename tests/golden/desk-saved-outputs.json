@@ -910,5 +910,24 @@
       },
       "pushAsked": true
     }
+  },
+  "localChangeCheck": "{\"a\":{\"t-old\":\"submitted\"},\"am\":{\"b\":\"2026-11-30\",\"g\":\"\",\"k\":\"finish\",\"n\":10,\"s\":{\"DS\":80},\"sc\":\"\",\"t\":1},\"att\":{\"2026-11-09\":{\"DSL_1330\":\"skipped\",\"DS_1000\":\"attended\"},\"2026-11-10\":{\"DS_1000\":\"attended\"}},\"attB\":{\"DS\":{\"absent\":4,\"present\":18,\"subjectName\":\"Data Structures\"},\"OS\":{\"absent\":6,\"present\":12,\"subjectName\":\"Operating Systems\"}},\"attL\":{\"DS\":{\"present\":2},\"OS\":{\"present\":1}},\"hol\":{\"changedAt\":1794100000000,\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\"},\"l\":[{\"code\":\"DS\",\"color\":\"#394B63\",\"resources\":[{\"icon\":\"link\",\"label\":\"Course page\",\"url\":\"https://example.edu/ds\"},{\"fileId\":\"f-unit1\",\"fileSize\":\"9 B\",\"icon\":\"book-open\",\"isUpload\":true,\"label\":\"unit1.pdf\",\"onDevice\":true,\"url\":\"\"}],\"subject\":\"Data Structures\"}],\"nc\":{\"whatsappTitle\":\"College portal\",\"whatsappUrl\":\"https://portal.example.edu\"},\"np\":{\"attendanceAlerts\":\"on\",\"classReminders\":\"10\",\"ongoingNudgeTime\":\"18:00\",\"ongoingNudges\":\"off\",\"taskOverdue\":\"daily\",\"taskUpcoming\":\"day_before\"},\"p\":{\"batch\":\"A2\",\"branch\":\"CSE\",\"college\":\"Sample College\",\"examDate\":\"2026-12-01\",\"examLabel\":\"End-Sem\",\"name\":\"Riya\",\"rollNo\":\"42\",\"studyMode\":\"\",\"year\":\"SE\"},\"syl\":[{\"examDate\":\"2026-12-01\",\"subjectKey\":\"datastructures\",\"subjectName\":\"Data Structures\",\"topics\":[{\"doneAt\":\"2026-11-02\",\"id\":\"tp1\",\"importance\":3,\"marks\":10,\"status\":\"done\",\"title\":\"Stacks\"},{\"doneAt\":\"2026-11-05\",\"id\":\"tp2\",\"importance\":2,\"status\":\"revised\",\"title\":\"Queues\"},{\"id\":\"tp3\",\"importance\":1,\"status\":\"todo\",\"title\":\"Trees\"}],\"updatedAt\":\"\"}],\"t\":[{\"code\":\"DS\",\"description\":\"—\",\"dueDate\":\"2026-11-14\",\"firstStep\":\"Print the first two programs\",\"id\":\"t-lab\",\"isCustom\":true,\"marks\":0,\"noDeadline\":false,\"priority\":\"medium\",\"status\":\"pending\",\"subject\":\"Data Structures\",\"taskType\":\"assignment\",\"title\":\"DS lab record\",\"updatedAt\":1794200000000},{\"code\":\"OS\",\"description\":\"—\",\"dueDate\":\"2026-11-08\",\"id\":\"t-quiz\",\"isCustom\":true,\"marks\":0,\"noDeadline\":false,\"priority\":\"high\",\"status\":\"pending\",\"subject\":\"Operating Systems\",\"taskType\":\"quiz\",\"title\":\"OS quiz\",\"updatedAt\":1794200000000},{\"checkins\":[\"2026-11-08\",\"2026-11-09\"],\"code\":\"DS\",\"description\":\"—\",\"dueDate\":\"\",\"id\":\"t-read\",\"isCustom\":true,\"marks\":0,\"noDeadline\":true,\"priority\":\"medium\",\"status\":\"pending\",\"subject\":\"Data Structures\",\"taskType\":\"assignment\",\"title\":\"Read chapter 4\",\"updatedAt\":1794200000000}],\"tc\":\"custom\",\"tg\":75,\"ts\":[{\"deletedAt\":1794000000000,\"id\":\"t-gone\"}],\"tt\":{\"0\":[],\"1\":[{\"batches\":[],\"code\":\"DS\",\"end\":\"11:00\",\"room\":\"B-204\",\"subject\":\"Data Structures\",\"teacher\":\"Prof. Rao\",\"time\":\"10:00\",\"type\":\"lecture\"},{\"batches\":[\"A2\"],\"code\":\"DSL\",\"end\":\"15:30\",\"subject\":\"DS Lab\",\"time\":\"13:30\",\"type\":\"lab\"}],\"2\":[{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"3\":[{\"batches\":[],\"code\":\"DS\",\"end\":\"11:00\",\"room\":\"B-204\",\"subject\":\"Data Structures\",\"teacher\":\"Prof. Rao\",\"time\":\"10:00\",\"type\":\"lecture\"},{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"4\":[],\"5\":[{\"batches\":[],\"code\":\"OS\",\"end\":\"12:15\",\"subject\":\"Operating Systems\",\"time\":\"11:15\",\"type\":\"lecture\"}],\"6\":[]}}",
+  "hasData": {
+    "cloud": {
+      "empty": false,
+      "onlyProfileAndTheme": false,
+      "emptyVaultSection": false,
+      "vaultLink": true,
+      "emptyTimetableDays": false,
+      "timetableClass": true,
+      "oneTask": true,
+      "emptyAttendanceMaps": false,
+      "baselineOnly": true,
+      "liveOnly": true,
+      "markOnly": true,
+      "wrongShapes": false
+    },
+    "sampleDeskPhone": true,
+    "emptyPhone": false
   }
 }
