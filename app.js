@@ -2,7 +2,7 @@
 // Clarity Desk — App Logic & Interactive Functions
 // ============================================================
 
-import { STUDENT, TIMETABLE, EMPTY_TIMETABLE, ASSIGNMENTS, QUICK_LINKS, DEV_UPDATES } from './data.js';
+import { STUDENT, TIMETABLE, ASSIGNMENTS, QUICK_LINKS, DEV_UPDATES } from './data.js';
 
 // ── localStorage Keys ─────────────────────────────────────────
 const KEY_PROFILE          = 'cos_profile';
@@ -2256,6 +2256,7 @@ const TIMETABLE_JUNK_TOKENS = new Set([
 ]);
 
 const BATCH_PATTERN = /\b(?:Batch(?:es)?|Sec(?:tion)?|Grp|Group)\s*[:\-\s]*\b([A-D][1-4]|[A-D](?![a-zA-Z])|[1-4](?![0-9]))\b|\b([A-D][1-4])\b/gi;
+// eslint-disable-next-line no-unused-vars -- the bracketed batch shape the hyphen rule below mirrors
 const BRACKETED_BATCH_PATTERN = /\((?:AI-)?([A-D][1-4](?:[\s,/-]+(?:AI-)?[A-D][1-4])*)\)/i;
 const SUBJECT_CODE_PATTERN = /\b([A-Z]{2,8}[0-9]{1,4}[A-Z]{1,4}[0-9]{1,4}[A-Z]?|[A-Z]{2,6}[-\s]?[0-9]{2,5}[A-Z]?|[0-9]{2}[A-Z]{2,6}[0-9]{2,4})\b/i;
 const FACULTY_TITLE_PATTERN = /\b(?:Prof\.?|Dr\.?|Mr\.?|Mrs\.?|Ms\.?|Adv\.?|Shri|Smt\.?)\s+[A-Za-z]+(?:\s+(?!LH|LT|CR|Room|Lab|Cabin|Hall|Batch|Sec)[A-Za-z]+)?/gi;
@@ -3112,6 +3113,7 @@ function buildSampleTimetableSchedule() {
 // timetable" button, then keeps only the rows relevant to userBatch
 // (shouldKeepClassForUserBatch already keeps batch-less rows -- lectures,
 // recess -- for everyone).
+// eslint-disable-next-line no-unused-vars -- kept for verify_desk_pollution
 function buildFilteredAidsTimetable(userBatch) {
   const existingSubjects = getSubjectList();
   const grouped = getEmptyTimetable();
@@ -8934,7 +8936,7 @@ function maybeShowCountdownCelebration() {
 }
 
 function buildDashboardContextLine(opts = {}) {
-  const { attendancePct, attendancePctLabel, attendanceAtRisk, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, firstName, dayClasses } = opts;
+  const { attendancePct, attendanceAtRisk, attTarget, overdue, pending, classesLeft, totalClasses, examDaysLeft, dayClasses } = opts;
   const isWeekend = dayClasses !== undefined && dayClasses.length === 0;
 
   // Holiday mode: talk about the break and tasks, never about classes.
@@ -9182,73 +9184,6 @@ function dayBarShortName(c) {
   return initials.slice(0, 5) || subject;
 }
 
-function dayBarHTML({ dayClasses, attendanceData, dateStr, currentMin, lookAhead }) {
-  try {
-    const attrSafe = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    const marks = attendanceData[dateStr] || {};
-    const items = dayClasses
-      .map(c => ({ c, from: timeToMinutes(c.time || '00:00'), to: timeToMinutes(c.end || c.time || '00:00') }))
-      .filter(x => x.to > x.from)
-      .sort((a, b) => a.from - b.from);
-    if (!items.length) return '';
-    const start = Math.floor(items[0].from / 60) * 60;
-    const lastEnd = Math.max(...items.map(x => x.to));
-    const end = Math.ceil(lastEnd / 60) * 60 + 30;
-    const pos = (m) => ((Math.min(Math.max(m, start), end) - start) / (end - start)) * 100;
-    // Classes that overlap (parallel labs) go on a second lane.
-    const lanes = [];
-    items.forEach(x => {
-      let lane = lanes.findIndex(lastTo => lastTo <= x.from);
-      if (lane === -1) { lane = lanes.length; lanes.push(0); }
-      lanes[lane] = x.to;
-      x.lane = lane;
-    });
-    const label = { attended: 'present', skipped: 'absent' };
-    const blocks = items.map(({ c, from, to, lane }) => {
-      const key = attendanceKeyFor(c);
-      const status = marks[key] || 'unset';
-      const next = status === 'unset' ? 'attended' : status === 'attended' ? 'skipped' : status === 'skipped' ? 'skipped' : 'attended';
-      const said = label[status] || (ATT_STATUS_LABEL[status] ? ATT_STATUS_LABEL[status].toLowerCase() : 'not marked');
-      // The spoken name starts with the short name shown on the block, so
-      // voice control ("tap OS") finds it.
-      const short = dayBarShortName(c);
-      const named = short === c.subject ? short : `${short}, ${c.subject}`;
-      return `<button type="button" class="day-bar-block is-${status === 'attended' ? 'present' : status === 'skipped' ? 'absent' : status === 'unset' ? 'unset' : 'other'}"
-        style="left:${pos(from).toFixed(2)}%;width:calc(${(pos(to) - pos(from)).toFixed(2)}% - 3px);top:${lane * 50}px"
-        data-key="${attrSafe(key)}" aria-label="${attrSafe(`${named}, ${formatDisplayTime(c.time)}: ${said}. Tap to change.`)}"
-        onclick="setAttendance('${dateStr}', this.dataset.key, '${next}')">${escHtml_cd(short)}</button>`;
-    }).join('');
-    const ticks = [];
-    for (let m = start; m <= end; m += 60) {
-      const h = Math.round(m / 60) % 12 || 12;
-      ticks.push(`<span class="day-bar-tick" style="left:${pos(m).toFixed(2)}%"></span>${(m - start) % 120 === 0 ? `<span class="day-bar-hour" style="left:${pos(m).toFixed(2)}%">${h}</span>` : ''}`);
-    }
-    const keys = [...new Set(items.map(x => attendanceKeyFor(x.c)))];
-    const left = keys.filter(k => !marks[k]).length;
-    const word = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][left] || String(left);
-    const title = left === 0 ? `All ${keys.length === 1 ? 'marked' : `${keys.length} marked`}` : left === keys.length ? `${word} class${left !== 1 ? 'es' : ''} to mark` : `${left} left to mark`;
-    const lanesH = lanes.length * 50;
-    return `
-      <div class="chrono-beacon is-finished day-bar" role="region" aria-label="Your day">
-        <div class="day-bar-head">
-          <span class="day-bar-title">${title}</span>
-          ${left ? '<span class="day-bar-hint">tap a class to mark it</span>' : ''}
-        </div>
-        <div class="day-bar-ruler" style="height:${lanesH + 30}px">
-          <span class="day-bar-line" style="top:${lanesH + 2}px"></span>
-          <div class="day-bar-ticks" style="top:${lanesH + 2}px">${ticks.join('')}</div>
-          ${blocks}
-          <span class="day-bar-now" style="left:${pos(currentMin).toFixed(2)}%;height:${lanesH + 10}px" aria-hidden="true"></span>
-        </div>
-        ${left ? `<button type="button" class="btn btn-primary day-bar-all" onclick="markEndedPresent('${dateStr}')">${left !== keys.length ? `Mark the other ${left} present` : left === 1 ? 'I was there' : `I was at all ${left}`}</button>`
-          : `<div class="day-bar-done">${icons.check()} Day marked. Books down, feet up.</div>`}
-        ${lookAhead ? `<div class="chrono-beacon-then day-bar-next">Next class: <strong>${lookAhead.label}</strong> at ${formatDisplayTime(lookAhead.cls.time)} · ${escHtml_cd(lookAhead.cls.subject)}</div>` : ''}
-      </div>`;
-  } catch (e) {
-    return '';
-  }
-}
-
 // ── Day rail (Today) ────────────────────────────────────────────────────
 // The day's classes on one time column. Each row says its state in words
 // (Next, In class, Ended, Marked present); marigold only repeats it. Ended
@@ -9271,6 +9206,7 @@ const todaySettling = (key) => todaySettleState.key === String(key) && Date.now(
 // stay as they are; a long (often combined lab) title keeps the course code and is
 // cut at a word boundary. Nothing is abbreviated into an acronym. The full name stays
 // in the row's title, its aria-label and the Subject Hub link.
+// eslint-disable-next-line no-unused-vars -- kept for verify_today_calm
 function railClassLabel(entry, max = 28) {
   const full = String((entry && entry.subject) || '').trim();
   if (full.length <= max) return full;
@@ -9447,7 +9383,6 @@ let c2Drag = null;         // a swipe in progress; Today is not rebuilt undernea
 let c2Hold = null;         // a press that may become a hold
 let c2RerenderPending = false;
 let c2SuppressClick = false;
-let c2SheetReturnKey = null;
 const c2Inerted = [];      // page parts made inert while a sheet is open
 const c2Reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const c2Attr = (v) => escHtml_cd(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -9958,7 +9893,6 @@ window.openClassSheet = function(key) {
   if (tid ? !allTasks().some(a => a.id === tid) : (!c2Day || !c2Day.all.some(e => e.key === key))) return;
   const sheet = c2SheetEls();
   c2SheetKey = key;
-  c2SheetReturnKey = key;
   c2PaintSheet();
   sheet.setAttribute('aria-hidden', 'false');
   document.body.classList.add('c2-sheeted');
@@ -10679,9 +10613,6 @@ const icons = {
   chartLine:   () => svg('<path d="M3 3v18h18M7 15l4-6 3 3 5-7"/>'),
 };
 
-function sunSVG()  { return icons.sun(); }
-function moonSVG() { return icons.moon(); }
-
 function getResourceIcon(name) {
   const map = {
     video: icons.video, list: icons.list, code: icons.code, eye: icons.eye,
@@ -10976,6 +10907,7 @@ function getWeekId(d = new Date()) {
 // One key per dismissed week ('true'); only this week's is ever read.
 const WEEKLY_REVIEW_DISMISSED = 'cos_weekly_review_dismissed_';
 
+// eslint-disable-next-line no-unused-vars -- nothing shows the weekly review prompt now; kept for verify_weekly_review
 function isWeeklyReviewDismissed() {
   return safeGetStorage(WEEKLY_REVIEW_DISMISSED + getWeekId(), false) === true;
 }
@@ -11397,7 +11329,6 @@ function renderWeeklyAttendanceTracker() {
   const weekDays = getWeekDays(weekOffset);
 
   let totalAttended = 0;
-  let totalLabsAttended = 0;
   let totalSkipped = 0;
   const subjectStats = {};
 
@@ -11436,7 +11367,6 @@ function renderWeeklyAttendanceTracker() {
       if (status === 'attended' || status === 'od_accepted') {
         totalAttended++;
         subjectStats[subjKey].attended++;
-        if (isLab) totalLabsAttended++;
       } else if (status === 'skipped' || status === 'od_pending' || status === 'od_rejected') {
         totalSkipped++;
       }
@@ -11740,6 +11670,7 @@ function onboardingComingUpHtml() {
 }
 
 // Quiet date line over the welcome headline: "Monday, 9 November · Today".
+// eslint-disable-next-line no-unused-vars -- unused since the welcome redesign (ARCHITECTURE.md)
 function onboardingDateLine(d = new Date(), tail = ' \u00b7 Today') {
   const wd = d.toLocaleDateString('en-GB', { weekday: 'long' });
   const mo = d.toLocaleDateString('en-GB', { month: 'long' });
@@ -12273,7 +12204,6 @@ function renderDashboard() {
 
   const displayName = getDisplayName();
   const firstName = displayName ? displayName.split(' ')[0] : '';
-  const needsSetup = !displayName;
   const hasAttendanceData = totalMarked > 0;
 
   // Exam days left (null if not set)
@@ -12365,6 +12295,7 @@ function renderDashboard() {
     });
   }
 
+  // eslint-disable-next-line no-unused-vars -- kept for verify_gap_fixes
   const isFullySetup = setupSteps.length === 0;
   // No timetable yet: Today shows only the greeting, the setup card and the
   // Tasks panel. The schedule waits for a timetable; attendance also waits
@@ -12597,7 +12528,6 @@ function renderDashboard() {
   // The next-step line now only carries the attendance warning for one
   // subject: classes mark on the rail and late tasks sort out in their row.
   const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks: [], skipUnmarked: true });
-  const heroClass = activeClass || nextClass;
 
   // One banner at a time, by fixed priority. Attendance says itself once: when
   // the risk banner shows, the line under the title moves on to the next thing.
@@ -13863,6 +13793,7 @@ function computeSemesterProjection(attended, held, plannedTotal, targetPct = get
 // Monthly defaulter check: the overall % (every subject together) up to
 // the end of `monthKey` ('YYYY-MM'), plus that month's classes alone.
 // sessionsBySubject: { [subjectId]: [{ date, status, count? }] }
+// eslint-disable-next-line no-unused-vars -- attendance v2, not live yet
 function computeMonthlyAttendance(sessionsBySubject = {}, monthKey, targetPct = getAttendanceTarget()) {
   const upTo = [], within = [];
   Object.values(sessionsBySubject || {}).forEach(list => {
@@ -13944,6 +13875,7 @@ function attV2ActiveSnapshot(snaps = []) {
 }
 
 // Reads the v1 stores out of an exported backup file (exportData shape).
+// eslint-disable-next-line no-unused-vars -- attendance v2, not live yet
 function attendanceV1FromBackup(data = {}) {
   return {
     attendance: data.attendance || {},
@@ -14179,6 +14111,7 @@ function buildAttendanceV2FromV1(v1 = {}, timetable = {}, opts = {}) {
 // Decision 3: a device still on the old version keeps writing v1 marks.
 // Adds any v1 mark whose session id the v2 store does not have yet; never
 // changes or removes an existing session. Pure: returns a new store.
+// eslint-disable-next-line no-unused-vars -- attendance v2, not live yet
 function mergeV1MarksIntoV2(store, v1 = {}, timetable = {}) {
   const next = JSON.parse(JSON.stringify(store || {}));
   next.sessions = next.sessions || {};
@@ -14203,11 +14136,13 @@ function mergeV1MarksIntoV2(store, v1 = {}, timetable = {}) {
 }
 
 // Storage helpers for step 3. Nothing calls them yet.
+// eslint-disable-next-line no-unused-vars -- attendance v2, not live yet
 function loadAttendanceV2() {
   const s = safeGetStorage(KEY_ATTENDANCE_V2, null);
   return s && typeof s === 'object' && s.schemaVersion === 2 ? s : null;
 }
 
+// eslint-disable-next-line no-unused-vars -- attendance v2, not live yet
 function saveAttendanceV2(store) {
   safeSetStorage(KEY_ATTENDANCE_V2, store);
 }
@@ -15092,7 +15027,6 @@ function saveSubjectBaselineFromModal() {
   const notEntered = Math.max(0, parseInt(document.getElementById('ab-not-entered')?.value) || 0);
   const totalSessions = Math.max(0, parseInt(document.getElementById('ab-total-sessions')?.value) || 0);
 
-  const totalCount = present + absent + leave + notEntered;
   const countedForPct = present + absent + leave;   // Not Entered left out, as on the ERP
   const pct = countedForPct > 0 ? ((present / countedForPct) * 100).toFixed(1) : '0.0';
 
@@ -18701,11 +18635,6 @@ function renderResources() {
 
 function renderLinks() {
   state.resourcesTab = 'links';
-  renderResources();
-}
-
-function renderSummary() {
-  state.resourcesTab = 'summary';
   renderResources();
 }
 

@@ -24,7 +24,9 @@ const banned = [
 const strict = {
   ...js.configs.recommended.rules,
   'no-undef': 'error',
-  'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
+  'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true }],
+  // An empty catch is a deliberate best-effort call (haptics, storage, badges); other empty blocks still fail.
+  'no-empty': ['error', { allowEmptyCatch: true }],
   eqeqeq: ['error', 'always', { null: 'ignore' }],
   'no-shadow': 'error',
   'no-var': 'error',
