@@ -21081,9 +21081,7 @@ function saveNoticeChannelsFromSettings() {
 //   read()   the value written to the backup
 //   restore(v)  puts a backup value back; each row keeps its own guard, so a
 //            missing or wrong-shaped field (older backups) changes nothing
-//   order    'first' / 'last' to restore before / after the other rows:
-//            delete markers first, so restored tasks (stamped now) win over
-//            them; the vault last, so its files use the space left over
+// Restore runs in DESK_RESTORE_ORDER, not in this order.
 // The file names, field names and value shapes are the backup format: never
 // rename one without a migration (older backup files must still restore).
 const DESK_DATASETS = [
@@ -21095,13 +21093,13 @@ const DESK_DATASETS = [
       state.customTasks = v;
       saveCustomTasks({ all: true });   // restored tasks are stamped now, so older cloud copies cannot beat them
     } },
-  { key: KEY_TOMBSTONES, backup: 'tombstones', order: 'first', read: () => pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
+  { key: KEY_TOMBSTONES, backup: 'tombstones', read: () => pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
     restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_TOMBSTONES, pruneTombstones(mergeTombstones(safeGetStorage(KEY_TOMBSTONES, []), v))); } },
   { key: KEY_CUSTOM_TIMETABLE, backup: 'customTimetable', read: () => safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
     restore: (v) => { if (v) safeSetStorage(KEY_CUSTOM_TIMETABLE, v); } },
   { key: KEY_TIMETABLE_CHOICE, backup: 'timetableChoice', read: () => safeGetStorage(KEY_TIMETABLE_CHOICE, null),
     restore: (v) => { if (v) safeSetStorage(KEY_TIMETABLE_CHOICE, v); } },
-  { key: KEY_CUSTOM_LINKS, backup: 'customLinks', order: 'last', read: () => safeGetStorage(KEY_CUSTOM_LINKS, null),
+  { key: KEY_CUSTOM_LINKS, backup: 'customLinks', read: () => safeGetStorage(KEY_CUSTOM_LINKS, null),
     // Files that don't fit this phone become placeholders (the backup file
     // still has them); with IndexedDB they go there first (each read back)
     // and only the rest stay as data: URLs. Returns the dropped file names.
@@ -21174,6 +21172,14 @@ const DESK_DATASETS = [
     } },
 ];
 
+// The order a restore writes the datasets in (backup field names; every row
+// once). Delete markers before tasks, so restored tasks (stamped now) win over
+// them; the vault last, so its files use the space left over after the rest.
+const DESK_RESTORE_ORDER = ['profile', 'tombstones', 'customTasks', 'customTimetable', 'timetableChoice',
+  'attendance', 'attendanceBaseline', 'attendanceLive', 'hiddenSubjects', 'stripLabels', 'syllabus', 'userBatch',
+  'attTarget', 'aims', 'holiday', 'assignmentStatuses', 'notificationPrefs', 'noticeChannels', 'theme', 'accent',
+  'customLinks'];
+
 // The backup file's data fields (exportData adds exportedAt and the vault files).
 function deskBackupSnapshot() {
   const data = {};
@@ -21186,14 +21192,12 @@ function deskBackupSnapshot() {
 // is written at once; only a row whose restore returns a promise (the vault,
 // moving files into IndexedDB) is waited for.
 async function restoreDeskFromBackup(data) {
-  const at = (o) => (o === 'first' ? 0 : o === 'last' ? 2 : 1);
-  let vaultDropped = [];
-  for (const d of [...DESK_DATASETS].sort((a, b) => at(a.order) - at(b.order))) {
-    let r = d.restore(data[d.backup]);
-    if (r && typeof r.then === 'function') r = await r;
-    if (d.key === KEY_CUSTOM_LINKS) vaultDropped = r;
+  const done = {};
+  for (const field of DESK_RESTORE_ORDER) {
+    const r = DESK_DATASETS.find(d => d.backup === field).restore(data[field]);
+    done[field] = r && typeof r.then === 'function' ? await r : r;
   }
-  return vaultDropped;
+  return done.customLinks || [];
 }
 
 function exportData() {

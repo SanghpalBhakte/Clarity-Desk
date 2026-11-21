@@ -224,6 +224,7 @@ check('Restore writes the vault after everything else, through the storage-fitti
   const vaultAt = fresh.writes.lastIndexOf('cos_custom_links'), attAt = fresh.writes.indexOf('cos_attendance');
   if (!(vaultAt > attAt && attAt >= 0)) return `vault at ${vaultAt}, attendance at ${attAt}: ${fresh.writes.join()}`;
   const row = fresh.DESK_DATASETS.find(d => d.key === 'cos_custom_links');
+  if (String(row.restore).includes('safeSetStorage(KEY_CUSTOM_LINKS')) return 'restore still writes the vault directly';
   if (!String(row.restore).includes('saveLinksFittingStorage')) return 'restore no longer fits the vault to this phone';
   const push = (() => { const i = appSrc.indexOf('function pushLocalDataToCloud('); return appSrc.slice(i, appSrc.indexOf('\n}\n', i)); })();
   return push.includes('linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS') ? true : 'push does not use linksForCloud';

@@ -39,7 +39,8 @@ check('every key left out of backups says why',
 
 // The backup file and restore are built from DESK_DATASETS (one row per
 // backed-up key); the rows must match the keys listed with a backup field.
-const { DESK_DATASETS: rows, deskBackupSnapshot } = loadApp(['DESK_DATASETS', 'deskBackupSnapshot']);
+const { DESK_DATASETS: rows, DESK_RESTORE_ORDER: restoreOrder, deskBackupSnapshot, restoreDeskFromBackup, store, writes } =
+  loadApp(['DESK_DATASETS', 'DESK_RESTORE_ORDER', 'deskBackupSnapshot', 'restoreDeskFromBackup']);
 const fields = Object.entries(reg.keys).filter(([, v]) => v.backup).map(([k, v]) => [k, v.backup]);
 const rowOf = new Map(rows.map((d) => [d.key, d]));
 
@@ -49,6 +50,32 @@ check('every DESK_DATASETS row is a listed key with that backup field',
   rows.filter((d) => reg.keys[d.key]?.backup !== d.backup).map((d) => `${d.key} ("${d.backup}") is not listed with that backup field in storage-keys.json`));
 check('every row can be read for a backup and restored from one',
   rows.filter((d) => typeof d.read !== 'function' || typeof d.restore !== 'function').map((d) => `${d.key}: needs read() and restore()`));
+check('DESK_RESTORE_ORDER names every row exactly once',
+  (() => { const got = [...restoreOrder].sort(), want = rows.map((d) => d.backup).sort(); return J(got) === J(want) ? [] : [`order ${J(restoreOrder)} vs rows ${J(want)}`]; })());
+
+// A restore writes in that order: delete markers before tasks, the vault last
+// (the order restore had before the table, kept on purpose).
+{
+  const backup = {
+    profile: { name: 'Riya' }, tombstones: [{ id: 'x', deletedAt: Date.now() }], customTasks: [], customTimetable: { 1: [] }, timetableChoice: 'custom',
+    attendance: { '2026-11-09': {} }, attendanceBaseline: {}, attendanceLive: {}, hiddenSubjects: [], stripLabels: { DS: 'DS' }, syllabus: [],
+    userBatch: 'A2', attTarget: 75, holiday: { on: false }, assignmentStatuses: {}, notificationPrefs: {}, noticeChannels: { whatsappTitle: 'P' },
+    theme: 'midnight-ink', accent: 'rose', customLinks: [{ subject: 'DS', code: 'DS', resources: [] }]
+  };
+  for (const k of Object.keys(store)) delete store[k];
+  writes.length = 0;
+  restoreDeskFromBackup(backup);
+  const first = (k) => writes.indexOf(k);
+  const want = ['cos_profile', 'cos_tombstones', 'cos_custom_tasks', 'cos_custom_timetable', 'cos_timetable_choice', 'cos_attendance', 'cos_attendance_baseline',
+    'cos_attendance_live', 'cos_hidden_subjects', 'cos_strip_labels', 'cos_syllabus', 'cos_user_batch', 'cos_att_target', 'cos_holiday', 'cos_assignments',
+    'cos_notif_prefs', 'cos_notice_channels', 'cos_theme', 'cos_accent', 'cos_custom_links'];
+  const missing = want.filter((k) => first(k) < 0);
+  const outOfOrder = want.filter((k, i) => i && first(k) < first(want[i - 1]));
+  check('a restore writes the datasets in restore order, the vault last',
+    [...missing.map((k) => `${k} never written`), ...outOfOrder.map((k) => `${k} written before the dataset listed ahead of it`),
+     ...(writes.lastIndexOf('cos_custom_links') < Math.max(...want.slice(0, -1).map((k) => writes.lastIndexOf(k))) ? ['the vault is not written last'] : [])]);
+}
+
 check('the backup file has exactly the listed fields',
   (() => { const got = Object.keys(deskBackupSnapshot()).sort(), want = fields.map(([, f]) => f).sort(); return J(got) === J(want) ? [] : [`got ${J(got)}, want ${J(want)}`]; })());
 
