@@ -90,11 +90,9 @@
   },
   "prefixes": {
     "cos_corrupt_": {
-      "backup": null,
       "why": "a damaged saved value kept once by safeGetStorage, for repair"
     },
     "cos_weekly_review_dismissed_": {
-      "backup": null,
       "why": "one key per dismissed week; never pruned (known: grows by one key a week)"
     }
   }

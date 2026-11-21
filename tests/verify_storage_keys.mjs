@@ -118,11 +118,15 @@ check('DESK_SIGNIN_ORDER names backed-up rows, each at most once',
   const full = { profile: { name: 'Riya' }, customTasks: [], customTimetable: { 1: [] }, timetableChoice: 'custom', customLinks: [], assignmentStatuses: { a: 'done' },
     attendance: { '2026-11-09': {} }, attendanceBaseline: { DS: { present: 1, absent: 0 } }, attendanceLive: { DS: { present: 1 } }, syllabus: [], theme: 'midnight-ink',
     accent: 'rose', notificationPrefs: { on: true }, noticeChannels: { whatsappTitle: 'P' }, attTarget: 70, aims: { kind: 'line', line: 70 },
-    holiday: { on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1 }, tombstones: [] };
+    holiday: { on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1 }, tombstones: [{ id: 'gone', deletedAt: Date.now() }] };
+  full.customTasks = [{ id: 't1', title: 'Read', subject: 'DS', type: 'task', updatedAt: Date.now() }];
+  full.customLinks = [{ subject: 'DS', code: 'DS', resources: [{ label: 'Notes', url: 'https://example.edu', updatedAt: Date.now() }] }];
   app.applyDeskFromCloud(full);
   const safe = new Set(signinBackupKeys());
+  // Every synced, stored row gets a value here, so a new one cannot slip past.
   check('applying a cloud copy only writes rows the sign-in safety copy holds',
-    [...new Set(app.writes)].filter((k) => rowKeys.has(k) && !safe.has(k)).map((k) => `${k} is written by applying but not in DESK_SIGNIN_ORDER`));
+    [...allRows.filter((d) => d.cloud && d.key && !(d.cloud in full)).map((d) => `${d.cloud}: add a value to this check's cloud copy`),
+     ...[...new Set(app.writes)].filter((k) => rowKeys.has(k) && !safe.has(k)).map((k) => `${k} is written by applying but not in DESK_SIGNIN_ORDER`)]);
 }
 
 // The change check: every synced row except theme and palette counts.

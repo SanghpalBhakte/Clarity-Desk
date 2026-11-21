@@ -20906,7 +20906,10 @@ function saveNoticeChannelsFromSettings() {
 //            after a reload (keepLocalWhole); per-record merges still run
 //   check    its short name in the change check (calculatePayloadHash);
 //            absent = a change to it never counts as new
-//   checkValue(v)  the value compared there (default: v, or null when empty)
+//   checkValue(v)  the value compared there (default: v || null). `(v) => v`
+//            is not a no-op: a missing value stays undefined and drops out of
+//            the check, where the default writes null (changing it re-checks
+//            every desk as new)
 //   isData(v)  true when this value is the student's own data: the first
 //            sign-in question is asked only when both sides have some
 // Device-only keys (bookkeeping, undo copies, per-device flags) are not rows:
@@ -20997,7 +21000,7 @@ const DESK_DATASETS = [
       safeSetStorage(KEY_ASSIGNMENTS, v);
       state.assignments = loadAssignments();
     } },
-  { key: KEY_ATTENDANCE, backup: 'attendance', check: 'att', isData: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0, read: () => safeGetStorage(KEY_ATTENDANCE, {}),
+  { key: KEY_ATTENDANCE, backup: 'attendance', check: 'att', isData: (v) => isNonEmptyMap(v), read: () => safeGetStorage(KEY_ATTENDANCE, {}),
     restore: (v) => {
       if (!v) return;
       safeSetStorage(KEY_ATTENDANCE, v);
@@ -21009,11 +21012,11 @@ const DESK_DATASETS = [
       safeSetStorage(KEY_ATTENDANCE, v);
       if (fixShiftedAttendanceDates() > 0) syncToCloud();
     } },
-  { key: KEY_ATTENDANCE_BASELINE, backup: 'attendanceBaseline', check: 'attB', isData: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0, read: () => safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
+  { key: KEY_ATTENDANCE_BASELINE, backup: 'attendanceBaseline', check: 'attB', isData: (v) => isNonEmptyMap(v), read: () => safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
     restore: (v) => { if (v) safeSetStorage(KEY_ATTENDANCE_BASELINE, v); },
     cloud: 'attendanceBaseline', whole: true,
     apply: (v) => { if (v && typeof v === 'object') safeSetStorage(KEY_ATTENDANCE_BASELINE, v); } },
-  { key: KEY_ATTENDANCE_LIVE, backup: 'attendanceLive', check: 'attL', isData: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0, read: () => safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
+  { key: KEY_ATTENDANCE_LIVE, backup: 'attendanceLive', check: 'attL', isData: (v) => isNonEmptyMap(v), read: () => safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
     restore: (v) => { if (v) safeSetStorage(KEY_ATTENDANCE_LIVE, v); },
     cloud: 'attendanceLive', whole: true,
     apply: (v) => {
@@ -21116,6 +21119,9 @@ const DESK_RESTORE_ORDER = ['profile', 'tombstones', 'customTasks', 'customTimet
   'attTarget', 'aims', 'holiday', 'assignmentStatuses', 'notificationPrefs', 'noticeChannels', 'theme', 'accent',
   'customLinks'];
 
+// A map with at least one entry (an attendance map that holds marks).
+const isNonEmptyMap = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
+
 // The cloud copy's field order (cloud field names; every synced row once).
 const DESK_CLOUD_ORDER = ['profile', 'customTasks', 'customTimetable', 'timetableChoice', 'customLinks',
   'assignmentStatuses', 'attendance', 'attendanceBaseline', 'attendanceLive', 'syllabus', 'theme', 'accent',
@@ -21130,8 +21136,9 @@ const DESK_APPLY_ORDER = ['profile', 'customTasks', 'customTimetable', 'timetabl
 
 // The sign-in safety copy (backup field names, in the copy's key order):
 // everything applying a cloud copy may write, so Undo after the first
-// sign-in choice puts this phone back exactly. Hidden subjects and the lab
-// group are left out: applying never writes them.
+// sign-in choice puts this phone back exactly, plus the strip names (never
+// synced, kept so older safety copies still match). Hidden subjects and the
+// lab group are left out: applying never writes them.
 const DESK_SIGNIN_ORDER = ['customTasks', 'customLinks', 'customTimetable', 'timetableChoice', 'attendance',
   'attendanceBaseline', 'attendanceLive', 'profile', 'assignmentStatuses', 'tombstones', 'syllabus',
   'notificationPrefs', 'noticeChannels', 'attTarget', 'aims', 'holiday', 'theme', 'accent', 'stripLabels'];
