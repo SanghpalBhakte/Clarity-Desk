@@ -42,9 +42,6 @@
     }
   },
   "scanners.js": {
-    "no-restricted-syntax": {
-      "count": 2
-    },
     "no-unused-vars": {
       "count": 1
     },

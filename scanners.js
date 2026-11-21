@@ -234,11 +234,11 @@ async function handleAttendancePhotoUpload(event) {
   }
 
   if (!file.type.startsWith('image/')) {
-    alert('Please upload an image file (PNG, JPG, WEBP, etc.)');
+    showToast('That file isn’t a photo', 'fail', { detail: 'Pick an image file (PNG, JPG or WEBP).' });
     return;
   }
   if (file.size > 12 * 1024 * 1024) {
-    alert('Image is too large (max 12 MB). Please compress or crop it first.');
+    showToast('That photo is too big', 'fail', { detail: 'Photos up to 12 MB work. Crop it or take a smaller one.' });
     return;
   }
 
