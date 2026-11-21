@@ -170,6 +170,38 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u343",
+    date: "2026-11-21",
+    title: "Damaged saved data is kept aside instead of being lost, and a lab group saved as a number reads back correctly",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "When a saved list or record is cut off or the wrong type, the app uses an empty one and keeps the original under cos_corrupt_<key>, so the next save no longer erases it.",
+    points: [
+      "A lab group like \"2\" now comes back as text."
+    ]
+  },
+  {
+    id: "u342",
+    date: "2026-11-21",
+    title: "Redesigned Today: a calmer home screen that shows your day and lets you mark a class with a swipe",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Today now shows what is happening now, what is next and what is due, then gets out of the way.",
+    points: [
+      "New look: Lexend type, four palettes (Highlighter, Old Campus, Last Bench, Lo-fi) and dark mode that follows your phone",
+      "Your day as a strip with short subject names (you can choose your own), and simple rows under it",
+      "Swipe a class right to mark it Present, or left for Absent and more choices like \"Didn't happen\" and \"On duty\"; tap or hold it for its details, and Undo if you slip",
+      "Swipe a deadline to finish it or move it, and add one in a line",
+      "The title greets you by name; in the evening Today becomes a wrap-up, and after 9 PM it shows tomorrow",
+      "\"Can I skip this?\" gives the right answer near your attendance rule",
+      "Your study links sit on the class they belong to",
+      "The End-Sem countdown is one quiet line at the bottom",
+      "A floating tab bar on phones; on laptops, two calm columns, a calmer sidebar and no top bar"
+    ]
+  },
+  {
     id: "u341",
     date: "2026-11-19",
     title: "Clearer messages when a timetable scan finds nothing, and an honest note on what a WhatsApp import keeps",
