@@ -25,6 +25,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run lint
+
       - run: npm test
 
       # GitHub's runners sometimes cannot reach Ubuntu's apt mirrors, which failed

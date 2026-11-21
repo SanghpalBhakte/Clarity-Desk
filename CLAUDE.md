@@ -48,7 +48,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - Backup/restore must stay compatible.
 
 ## Verification (run, don't assume)
-- Logic changes → `npm test`
+- Logic changes → `npm run lint && npm test`
 - PWA/service worker/manifest/offline changes → `npm run test:pwa-smoke`
 - UI/theme/layout/modal changes → `npm run test:visual`
 - Release readiness → `npm run release:check`
