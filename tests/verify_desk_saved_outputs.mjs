@@ -97,6 +97,7 @@ function check(name, fn) {
 }
 
 const out = deskOutputs();
+const AIMS_LINE_80 = J({ v: 1, kind: 'line', line: 80, subjects: {} });
 // cos_aims holds one aim at a time, so each kind gets its own run of the same desk.
 const AIMS = {
   line: { v: 1, kind: 'line', line: 80, subjects: { DS: 85, OS: 70 } },
@@ -108,7 +109,24 @@ const aimsByKind = Object.fromEntries(Object.entries(AIMS).map(([kind, aim]) => 
   const o = deskOutputs({ ...SAMPLE_DESK, cos_aims: J(aim), cos_att_target: String(aim.line) });
   return [kind, { backup: o.backup.aims, cloud: o.cloud.aims, attTarget: o.cloud.attTarget, changeCheck: JSON.parse(o.changeCheck).am }];
 }));
-const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind };
+// Restore: the saved backup file put back on an empty phone. Every stored key
+// afterwards (raw strings, sorted), and the toast the student sees.
+async function restoredDesk(backup, store) {
+  globalThis.FileReader = class { readAsText() { Promise.resolve().then(() => this.onload({ target: { result: J(backup) } })); } };
+  const toasts = [];
+  globalThis.__deskToast = (msg, kind) => toasts.push(`${kind}: ${msg}`);
+  const app = loadApp(['importData'], { store });
+  app.eval('renderSettings = () => {}; showToast = (msg, kind) => globalThis.__deskToast(msg, kind)');
+  app.importData({ target: { files: [{}] } });
+  for (let i = 0; i < 50 && !toasts.length; i++) await new Promise(r => setImmediate(r));
+  return { store: Object.fromEntries(Object.keys(app.store).sort().map(k => [k, app.store[k]])), toasts };
+}
+const restored = await restoredDesk(out.backup);
+// An older backup file (before strip names, aims and delete markers) restored
+// on a phone that has them: they stay as they were.
+const OLD_BACKUP = Object.fromEntries(Object.entries(out.backup).filter(([k]) => !['stripLabels', 'aims', 'tombstones'].includes(k)));
+const restoredOld = await restoredDesk(OLD_BACKUP, { cos_strip_labels: J({ 'Operating Systems': 'OSY' }), cos_aims: AIMS_LINE_80, cos_att_target: '80', cos_tombstones: J([{ id: 't-kept', deletedAt: 1794100000000 }]) });
+const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld };
 const text = J(saved, null, 2) + '\n';
 
 if (process.env.UPDATE_GOLDEN) {
@@ -167,8 +185,27 @@ check('syllabus progress survives: done, revised and not started', () => {
 check('every aim kind is kept as its own kind', () =>
   Object.entries(aimsByKind).every(([k, v]) => v.backup.kind === k && v.cloud.kind === k) || J(aimsByKind));
 
+check('a restore puts every backed-up dataset back and says so', () => {
+  const st = restored.store;
+  const back = (k) => st[k] !== undefined;
+  const keys = ['cos_profile', 'cos_custom_tasks', 'cos_tombstones', 'cos_custom_timetable', 'cos_timetable_choice', 'cos_custom_links', 'cos_assignments',
+    'cos_attendance', 'cos_attendance_baseline', 'cos_attendance_live', 'cos_hidden_subjects', 'cos_syllabus', 'cos_user_batch', 'cos_att_target',
+    'cos_aims', 'cos_holiday', 'cos_strip_labels', 'cos_notif_prefs', 'cos_notice_channels', 'cos_theme', 'cos_accent'];
+  const missing = keys.filter(k => !back(k));
+  return !missing.length && restored.toasts.join() === 'done: Your desk is restored from the backup'
+    && st.cos_strip_labels === SAMPLE_DESK.cos_strip_labels && st.cos_user_batch === 'A2' && st.cos_theme === 'midnight-ink'
+    && JSON.parse(st.cos_custom_links)[0].resources[1].url.startsWith('data:') ? true : J({ missing, toasts: restored.toasts });
+});
+
+check('an older backup leaves strip names, aims and delete markers as they were', () => {
+  const st = restoredOld.store;
+  return st.cos_strip_labels === J({ 'Operating Systems': 'OSY' }) && st.cos_aims === AIMS_LINE_80
+    && JSON.parse(st.cos_tombstones).map(t => t.id).join() === 't-kept' && restoredOld.toasts.join() === 'done: Your desk is restored from the backup'
+    ? true : J({ strip: st.cos_strip_labels, aims: st.cos_aims, ts: st.cos_tombstones, toasts: restoredOld.toasts });
+});
+
 // Exactly as saved.
-for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind']) {
+for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld']) {
   check(`the ${name} matches the saved output exactly`, () => {
     const a = J(saved[name], null, 2), b = J(golden[name], null, 2);
     if (a === b) return true;

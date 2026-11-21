@@ -1,5 +1,5 @@
 {
-  "_about": "Every storage key the app uses (localStorage unless noted). backup = the field name in the backup file (exportData / importData), or null with a reason. signinUndo = saved before the first sign-in choice so Undo is exact (SIGNIN_BACKUP_KEYS). Checked by tests/verify_storage_keys.mjs: a new key fails until it is listed here.",
+  "_about": "Every storage key the app uses (localStorage unless noted). backup = the field name in the backup file (its DESK_DATASETS row in app.js, which exportData / importData are built from), or null with a reason. signinUndo = saved before the first sign-in choice so Undo is exact (SIGNIN_BACKUP_KEYS). Checked by tests/verify_storage_keys.mjs: a new key fails until it is listed here.",
   "keys": {
     "cos_profile":              { "backup": "profile", "signinUndo": true },
     "cos_assignments":          { "backup": "assignmentStatuses", "signinUndo": true },
