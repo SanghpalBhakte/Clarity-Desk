@@ -21071,31 +21071,133 @@ function saveNoticeChannelsFromSettings() {
   saveSettings();
 }
 
+// ── Desk datasets ─────────────────────────────────────────────
+// Every dataset the student owns that leaves this phone in a backup file,
+// one row each, in backup-file order (the order of the file's fields). A new
+// backed-up key is one row here; tests/storage-keys.json is checked against
+// this list (verify_storage_keys).
+//   key      the stored key
+//   backup   its field name in the backup file
+//   read()   the value written to the backup
+//   restore(v)  puts a backup value back; each row keeps its own guard, so a
+//            missing or wrong-shaped field (older backups) changes nothing
+//   order    'first' / 'last' to restore before / after the other rows:
+//            delete markers first, so restored tasks (stamped now) win over
+//            them; the vault last, so its files use the space left over
+// The file names, field names and value shapes are the backup format: never
+// rename one without a migration (older backup files must still restore).
+const DESK_DATASETS = [
+  { key: KEY_PROFILE, backup: 'profile', read: () => loadProfile(),
+    restore: (v) => { if (v) safeSetStorage(KEY_PROFILE, v); } },
+  { key: KEY_CUSTOM_TASKS, backup: 'customTasks', read: () => state.customTasks,
+    restore: (v) => {
+      if (!Array.isArray(v)) return;
+      state.customTasks = v;
+      saveCustomTasks({ all: true });   // restored tasks are stamped now, so older cloud copies cannot beat them
+    } },
+  { key: KEY_TOMBSTONES, backup: 'tombstones', order: 'first', read: () => pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
+    restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_TOMBSTONES, pruneTombstones(mergeTombstones(safeGetStorage(KEY_TOMBSTONES, []), v))); } },
+  { key: KEY_CUSTOM_TIMETABLE, backup: 'customTimetable', read: () => safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+    restore: (v) => { if (v) safeSetStorage(KEY_CUSTOM_TIMETABLE, v); } },
+  { key: KEY_TIMETABLE_CHOICE, backup: 'timetableChoice', read: () => safeGetStorage(KEY_TIMETABLE_CHOICE, null),
+    restore: (v) => { if (v) safeSetStorage(KEY_TIMETABLE_CHOICE, v); } },
+  { key: KEY_CUSTOM_LINKS, backup: 'customLinks', order: 'last', read: () => safeGetStorage(KEY_CUSTOM_LINKS, null),
+    // Files that don't fit this phone become placeholders (the backup file
+    // still has them); with IndexedDB they go there first (each read back)
+    // and only the rest stay as data: URLs. Returns the dropped file names.
+    restore: (v) => {
+      if (!v) return [];
+      const save = (links) => {
+        let dropped = [];
+        // If the vault can't be saved, its tombstones are rolled back too.
+        writeStamped(KEY_CUSTOM_LINKS, () => (links = stampVault(loadCustomLinks(), links, { all: true })), () => {
+          const r = saveLinksFittingStorage(links);
+          dropped = r.dropped;
+          return r.ok;
+        });
+        return dropped;
+      };
+      return vaultIdbOk === true ? vaultLinksIntoIdb(v).then(save) : save(v);
+    } },
+  { key: KEY_ASSIGNMENTS, backup: 'assignmentStatuses', read: () => safeGetStorage(KEY_ASSIGNMENTS, {}),
+    restore: (v) => {
+      if (!v) return;
+      safeSetStorage(KEY_ASSIGNMENTS, v);
+      state.assignments = loadAssignments();
+    } },
+  { key: KEY_ATTENDANCE, backup: 'attendance', read: () => safeGetStorage(KEY_ATTENDANCE, {}),
+    restore: (v) => {
+      if (!v) return;
+      safeSetStorage(KEY_ATTENDANCE, v);
+      fixShiftedAttendanceDates();
+    } },
+  { key: KEY_ATTENDANCE_BASELINE, backup: 'attendanceBaseline', read: () => safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
+    restore: (v) => { if (v) safeSetStorage(KEY_ATTENDANCE_BASELINE, v); } },
+  { key: KEY_ATTENDANCE_LIVE, backup: 'attendanceLive', read: () => safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
+    restore: (v) => { if (v) safeSetStorage(KEY_ATTENDANCE_LIVE, v); } },
+  { key: KEY_HIDDEN_SUBJECTS, backup: 'hiddenSubjects', read: () => safeGetStorage(KEY_HIDDEN_SUBJECTS, []),
+    restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_HIDDEN_SUBJECTS, v); } },
+  { key: KEY_SYLLABUS, backup: 'syllabus', read: () => loadSyllabus(),
+    restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(v)); } },
+  { key: KEY_USER_BATCH, backup: 'userBatch', read: () => safeGetStorage(KEY_USER_BATCH, ''),
+    restore: (v) => { if (v) safeSetStorage(KEY_USER_BATCH, v); } },
+  { key: KEY_ATT_TARGET, backup: 'attTarget', read: () => getAttendanceTarget(),
+    restore: (v) => { if (v) safeSetStorage(KEY_ATT_TARGET, v); } },
+  // Older backups have no aims: applyAimsFromData then changes nothing.
+  { key: KEY_AIMS, backup: 'aims', read: () => loadAims(), restore: (v) => applyAimsFromData(v) },
+  { key: KEY_HOLIDAY, backup: 'holiday', read: () => safeGetStorage(KEY_HOLIDAY, null),
+    restore: (v) => {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return;
+      safeSetStorage(KEY_HOLIDAY, v);
+      checkHolidayExpiry();
+    } },
+  // Older backups have no strip names: the strip keeps its automatic ones.
+  { key: KEY_STRIP_LABELS, backup: 'stripLabels', read: () => loadStripLabels(),
+    restore: (v) => { if (v && typeof v === 'object' && !Array.isArray(v)) safeSetStorage(KEY_STRIP_LABELS, cleanStripLabels(v)); } },
+  { key: KEY_NOTIF_PREFS, backup: 'notificationPrefs', read: () => loadNotifPrefs(),
+    restore: (v) => { if (v) safeSetStorage(KEY_NOTIF_PREFS, v); } },
+  { key: KEY_NOTICE_CHANNELS, backup: 'noticeChannels', read: () => loadNoticeChannels(),
+    restore: (v) => { if (v && typeof v === 'object') saveNoticeChannels(v); } },
+  // Open question (#401): with nothing saved these write Light / Highlighter,
+  // while a new student starts on Auto / Old Campus. Kept as is on purpose.
+  { key: KEY_THEME, backup: 'theme', read: () => localStorage.getItem(KEY_THEME) || 'paper-slate',
+    restore: (v) => {
+      if (!v) return;
+      localStorage.setItem(KEY_THEME, v);
+      initTheme();
+    } },
+  { key: KEY_ACCENT, backup: 'accent', read: () => localStorage.getItem(KEY_ACCENT) || 'terracotta',
+    restore: (v) => {
+      if (!v) return;
+      localStorage.setItem(KEY_ACCENT, v);
+      initAccent();
+    } },
+];
+
+// The backup file's data fields (exportData adds exportedAt and the vault files).
+function deskBackupSnapshot() {
+  const data = {};
+  DESK_DATASETS.forEach(d => { data[d.backup] = d.read(); });
+  return data;
+}
+
+// Puts a backup file's datasets back, in restore order. Resolves to the vault
+// file names that didn't fit this phone (still in the backup file). Every row
+// is written at once; only a row whose restore returns a promise (the vault,
+// moving files into IndexedDB) is waited for.
+async function restoreDeskFromBackup(data) {
+  const at = (o) => (o === 'first' ? 0 : o === 'last' ? 2 : 1);
+  let vaultDropped = [];
+  for (const d of [...DESK_DATASETS].sort((a, b) => at(a.order) - at(b.order))) {
+    let r = d.restore(data[d.backup]);
+    if (r && typeof r.then === 'function') r = await r;
+    if (d.key === KEY_CUSTOM_LINKS) vaultDropped = r;
+  }
+  return vaultDropped;
+}
+
 function exportData() {
-  const data = {
-    profile:            loadProfile(),
-    customTasks:        state.customTasks,
-    tombstones:         pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
-    customTimetable:    safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
-    timetableChoice:    safeGetStorage(KEY_TIMETABLE_CHOICE, null),
-    customLinks:        safeGetStorage(KEY_CUSTOM_LINKS, null),
-    assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
-    attendance:         safeGetStorage(KEY_ATTENDANCE, {}),
-    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
-    attendanceLive:     safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
-    hiddenSubjects:     safeGetStorage(KEY_HIDDEN_SUBJECTS, []),
-    syllabus:           loadSyllabus(),
-    userBatch:          safeGetStorage(KEY_USER_BATCH, ''),
-    attTarget:          getAttendanceTarget(),
-    aims:               loadAims(),
-    holiday:            safeGetStorage(KEY_HOLIDAY, null),
-    stripLabels:        loadStripLabels(),
-    notificationPrefs:  loadNotifPrefs(),
-    noticeChannels:     loadNoticeChannels(),
-    theme:              localStorage.getItem(KEY_THEME) || 'paper-slate',
-    accent:             localStorage.getItem(KEY_ACCENT) || 'terracotta',
-    exportedAt:         new Date().toISOString(),
-  };
+  const data = { ...deskBackupSnapshot(), exportedAt: new Date().toISOString() };
   // Files kept in IndexedDB go into the backup as data: URLs, up to a cap.
   const plan = vaultBackupPlan(data.customLinks);
   if (plan.any) {
@@ -21136,65 +21238,7 @@ function importData(event) {
       const data = JSON.parse(e.target.result);
       if (!data || typeof data !== 'object') throw new Error('Invalid JSON format');
 
-      if (data.profile) safeSetStorage(KEY_PROFILE, data.profile);
-      // Deleted-item markers first: restored items below stamp themselves and win over them.
-      if (Array.isArray(data.tombstones)) safeSetStorage(KEY_TOMBSTONES, pruneTombstones(mergeTombstones(safeGetStorage(KEY_TOMBSTONES, []), data.tombstones)));
-      if (Array.isArray(data.customTasks)) {
-        state.customTasks = data.customTasks;
-        saveCustomTasks({ all: true });   // restored tasks are stamped now, so older cloud copies cannot beat them
-      }
-      if (data.customTimetable) safeSetStorage(KEY_CUSTOM_TIMETABLE, data.customTimetable);
-      if (data.timetableChoice) safeSetStorage(KEY_TIMETABLE_CHOICE, data.timetableChoice);
-      if (data.attendance) {
-        safeSetStorage(KEY_ATTENDANCE, data.attendance);
-        fixShiftedAttendanceDates();
-      }
-      if (data.attendanceBaseline) safeSetStorage(KEY_ATTENDANCE_BASELINE, data.attendanceBaseline);
-      if (data.attendanceLive) safeSetStorage(KEY_ATTENDANCE_LIVE, data.attendanceLive);
-      if (Array.isArray(data.hiddenSubjects)) safeSetStorage(KEY_HIDDEN_SUBJECTS, data.hiddenSubjects);
-      // Older backups have no strip names: the strip keeps its automatic ones.
-      if (data.stripLabels && typeof data.stripLabels === 'object' && !Array.isArray(data.stripLabels)) safeSetStorage(KEY_STRIP_LABELS, cleanStripLabels(data.stripLabels));
-      if (Array.isArray(data.syllabus)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(data.syllabus));
-      if (data.userBatch) safeSetStorage(KEY_USER_BATCH, data.userBatch);
-      if (data.attTarget) safeSetStorage(KEY_ATT_TARGET, data.attTarget);
-      applyAimsFromData(data.aims);
-      if (data.holiday && typeof data.holiday === 'object' && !Array.isArray(data.holiday)) {
-        safeSetStorage(KEY_HOLIDAY, data.holiday);
-        checkHolidayExpiry();
-      }
-      if (data.assignmentStatuses) {
-        safeSetStorage(KEY_ASSIGNMENTS, data.assignmentStatuses);
-        state.assignments = loadAssignments();
-      }
-      if (data.notificationPrefs) {
-        safeSetStorage(KEY_NOTIF_PREFS, data.notificationPrefs);
-      }
-      if (data.noticeChannels && typeof data.noticeChannels === 'object') {
-        saveNoticeChannels(data.noticeChannels);
-      }
-      if (data.theme) {
-        localStorage.setItem(KEY_THEME, data.theme);
-        initTheme();
-      }
-      if (data.accent) {
-        localStorage.setItem(KEY_ACCENT, data.accent);
-        initAccent();
-      }
-      // Study Vault last, so its files only use space left over after the
-      // rest of the desk is back. Files that don't fit become placeholders;
-      // the backup file still has them.
-      // With IndexedDB, files go there first (each read back); only what
-      // didn't go in is left as data: URLs for saveLinksFittingStorage().
-      let vaultDropped = [];
-      if (data.customLinks && vaultIdbOk === true) data.customLinks = await vaultLinksIntoIdb(data.customLinks);
-      if (data.customLinks) {
-        // If the vault can't be saved, its tombstones are rolled back too.
-        writeStamped(KEY_CUSTOM_LINKS, () => (data.customLinks = stampVault(loadCustomLinks(), data.customLinks, { all: true })), () => {
-          const r = saveLinksFittingStorage(data.customLinks);
-          vaultDropped = r.dropped;
-          return r.ok;
-        });
-      }
+      const vaultDropped = await restoreDeskFromBackup(data);
 
       updateTopbarProfile();
       setupFABDrag();

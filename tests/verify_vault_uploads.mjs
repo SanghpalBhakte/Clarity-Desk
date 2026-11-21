@@ -15,6 +15,7 @@ import './_toast-dom-shim.mjs';
 //    placeholders, keeping every link.
 // ==================================================================
 process.env.TZ = 'Asia/Kolkata';
+import { loadApp } from './app-loader.mjs';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -215,19 +216,23 @@ check('Restore with files too big for the phone: biggest become placeholders, ev
     ? true : `${JSON.stringify(res)} ${JSON.stringify(r)}`;
 });
 
-check('Restore writes the vault after everything else, and the push sends placeholders', () => {
-  const body = (name) => { const i = appSrc.indexOf(`function ${name}(`); return appSrc.slice(i, appSrc.indexOf('\n}\n', i)); };
-  const imp = body('importData');
-  const vaultAt = imp.indexOf('saveLinksFittingStorage(data.customLinks)'), attAt = imp.indexOf('safeSetStorage(KEY_ATTENDANCE, data.attendance)');
-  const push = body('pushLocalDataToCloud');
-  if (imp.includes('safeSetStorage(KEY_CUSTOM_LINKS, data.customLinks)')) return 'restore still writes the vault directly';
-  if (!(vaultAt > attAt && attAt > 0)) return `vault at ${vaultAt}, attendance at ${attAt}`;
+// Restore and backup go through DESK_DATASETS (app.js); checked on a fresh app.
+const VAULT_WITH_FILE = [{ subject: 'DS', code: 'DS', resources: [LINK, { label: 'notes.pdf', url: 'data:application/pdf;base64,JVBERi0xLjQK', isUpload: true, fileId: 'f-notes' }] }];
+check('Restore writes the vault after everything else, through the storage-fitting save, and the push sends placeholders', () => {
+  const fresh = loadApp(['restoreDeskFromBackup', 'DESK_DATASETS']);
+  fresh.restoreDeskFromBackup({ attendance: { '2026-11-09': { DS_1000: 'attended' } }, customLinks: VAULT_WITH_FILE });
+  const vaultAt = fresh.writes.lastIndexOf('cos_custom_links'), attAt = fresh.writes.indexOf('cos_attendance');
+  if (!(vaultAt > attAt && attAt >= 0)) return `vault at ${vaultAt}, attendance at ${attAt}: ${fresh.writes.join()}`;
+  const row = fresh.DESK_DATASETS.find(d => d.key === 'cos_custom_links');
+  if (!String(row.restore).includes('saveLinksFittingStorage')) return 'restore no longer fits the vault to this phone';
+  const push = (() => { const i = appSrc.indexOf('function pushLocalDataToCloud('); return appSrc.slice(i, appSrc.indexOf('\n}\n', i)); })();
   return push.includes('linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS') ? true : 'push does not use linksForCloud';
 });
 
 check('Backups still include the files', () => {
-  const i = appSrc.indexOf('function exportData('), b = appSrc.slice(i, appSrc.indexOf('\n}\n', i));
-  return b.includes('customLinks:        safeGetStorage(KEY_CUSTOM_LINKS, null)') ? true : 'export changed';
+  const fresh = loadApp(['deskBackupSnapshot'], { store: { cos_custom_links: JSON.stringify(VAULT_WITH_FILE) } });
+  const r = fresh.deskBackupSnapshot().customLinks[0].resources[1];
+  return r.url.startsWith('data:') ? true : `backup file has ${JSON.stringify(r)}`;
 });
 
 // ── Size caps block: tests read the constants, not fixed numbers ──

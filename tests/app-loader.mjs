@@ -12,6 +12,7 @@
 //   opts.now     fixed clock (anything Date accepts); default 2026-11-10 10:00 India time
 // Returned besides the named functions:
 //   store        the raw localStorage map (read it, or set keys before a call)
+//   writes       every localStorage key written, in order
 //   timers       pending setTimeout/setInterval callbacks as { fn, ms, repeat };
 //                nothing runs on its own, a cleared one is removed
 //   eval(js)     run code inside the app's scope: read or set a `let`, swap a
@@ -66,15 +67,16 @@ globalThis.cancelAnimationFrame ??= () => {};
 
 function makeStorage(initial) {
   const store = { ...(initial || {}) };
+  const writes = [];
   const api = {
     getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
-    setItem: (k, v) => { store[k] = String(v); },
+    setItem: (k, v) => { writes.push(k); store[k] = String(v); },
     removeItem: (k) => { delete store[k]; },
     clear: () => { for (const k of Object.keys(store)) delete store[k]; },
     key: (i) => Object.keys(store)[i] ?? null,
     get length() { return Object.keys(store).length; }
   };
-  return { store, api };
+  return { store, writes, api };
 }
 
 function fixedDate(now) {
@@ -88,15 +90,18 @@ function fixedDate(now) {
 }
 
 export function loadApp(names = [], opts = {}) {
-  const { store, api } = makeStorage(opts.store);
+  const { store, writes, api } = makeStorage(opts.store);
   const session = makeStorage().api;
   const timers = [];
   let nextId = 0;
   const queue = (repeat) => (fn, ms) => { const id = ++nextId; timers.push({ id, fn, ms, repeat }); return id; };
   const clear = (id) => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); };
-  // Assigned through globalThis so the toast shim fills in its DOM methods.
+  // Assigned through globalThis so the toast shim fills in its DOM methods,
+  // then put back: a test with its own fake page keeps it.
+  const prevDoc = globalThis.document;
   globalThis.document = makeDocument();
   const doc = globalThis.document;
+  globalThis.document = prevDoc;
   const code = withLazyModules(APP_SRC.replace(DATA_IMPORT, DATA_SRC));
   const out = names.map(n => `${JSON.stringify(n)}: typeof ${n} === 'undefined' ? undefined : ${n}`).join(',\n');
   // Test-only: app.js and data.js are this repo's own files; `names` and the
@@ -105,6 +110,7 @@ export function loadApp(names = [], opts = {}) {
     `${code}\n;return { ${out}${out ? ',' : ''} eval: (__js) => eval(__js) };`);
   const app = run(api, session, doc, queue(false), clear, queue(true), clear, fixedDate(opts.now ?? DEFAULT_NOW));
   app.store = store;
+  app.writes = writes;
   app.timers = timers;
   return app;
 }
