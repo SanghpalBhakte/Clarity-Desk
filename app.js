@@ -153,7 +153,7 @@ function safeGetStorage(key, fallback = null) {
     try {
       // eslint-disable-next-line no-restricted-syntax -- the storage helper itself
       if (localStorage.getItem('cos_corrupt_' + key) === null) localStorage.setItem('cos_corrupt_' + key, v);
-    } catch (_) {}
+    } catch (_) { /* storage full: still return the default */ }
     return fallback;
   } catch (err) {
     console.warn(`localStorage read error for key [${key}]:`, err);
