@@ -3,9 +3,6 @@
     "eqeqeq": {
       "count": 1
     },
-    "no-empty": {
-      "count": 33
-    },
     "no-restricted-syntax": {
       "count": 56
     },
