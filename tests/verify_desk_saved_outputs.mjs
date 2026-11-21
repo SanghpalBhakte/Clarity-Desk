@@ -126,7 +126,39 @@ const restored = await restoredDesk(out.backup);
 // on a phone that has them: they stay as they were.
 const OLD_BACKUP = Object.fromEntries(Object.entries(out.backup).filter(([k]) => !['stripLabels', 'aims', 'tombstones'].includes(k)));
 const restoredOld = await restoredDesk(OLD_BACKUP, { cos_strip_labels: J({ 'Operating Systems': 'OSY' }), cos_aims: AIMS_LINE_80, cos_att_target: '80', cos_tombstones: J([{ id: 't-kept', deletedAt: 1794100000000 }]) });
-const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld };
+// Apply: a cloud copy put on a phone, the way a snapshot from the account
+// lands (applyCloudDataInner, as applyCloudDataToLocalState calls it). Every
+// stored key afterwards (raw strings, sorted) and whether a push was asked for.
+function appliedDesk(cloud, store, { keepLocal = false } = {}) {
+  const app = loadApp(['applyCloudDataInner'], { store });
+  app.eval('state.currentPage = "none"; state.customTasks = loadCustomTasks()');
+  if (keepLocal) app.eval('keepLocalWhole = true');
+  let pushes = 0;
+  globalThis.__deskPush = () => { pushes++; };
+  app.eval('syncToCloud = () => globalThis.__deskPush()');
+  app.applyCloudDataInner(JSON.parse(J(cloud)));
+  return { store: Object.fromEntries(Object.keys(app.store).sort().map(k => [k, app.store[k]])), pushAsked: pushes > 0 };
+}
+// A phone with its own desk: its own theme and palette, a holiday switched
+// after the cloud's, one task and one vault link the cloud lacks, a name only.
+const LIVED_IN = {
+  cos_profile: J({ name: 'Riya S', college: '' }),
+  cos_theme: 'paper-slate', cos_accent: 'rose',
+  cos_holiday: J({ on: false, since: '', until: '', changedAt: 1794200000000 }),
+  cos_custom_tasks: J([task('t-local', { title: 'Only on this phone', updatedAt: 1794250000000 })]),
+  cos_custom_links: J([{ subject: 'Operating Systems', code: 'OS', color: '#394B63', resources: [{ label: 'OS notes', url: 'https://example.edu/os', icon: 'link' }] }]),
+  cos_custom_timetable: J({ 1: [OS], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] }),
+  cos_attendance: J({ '2026-11-10': { OS_1115: 'attended' } }),
+  cos_att_target: '80'
+};
+const applied = {
+  freshPhone: appliedDesk(out.cloud),
+  livedIn: appliedDesk(out.cloud, LIVED_IN),
+  livedInKeepLocal: appliedDesk(out.cloud, LIVED_IN, { keepLocal: true }),
+  // An aim line outside 50-100 and a theme name from an old version.
+  oddValues: appliedDesk({ ...out.cloud, attTarget: 120, theme: 'dark' })
+};
+const saved = { backup: out.backup, cloud: out.cloud, changeCheck: out.changeCheck, signinCopy: out.signinCopy, aimsByKind, restored, restoredOld, applied };
 const text = J(saved, null, 2) + '\n';
 
 if (process.env.UPDATE_GOLDEN) {
@@ -204,8 +236,35 @@ check('an older backup leaves strip names, aims and delete markers as they were'
     ? true : J({ strip: st.cos_strip_labels, aims: st.cos_aims, ts: st.cos_tombstones, toasts: restoredOld.toasts });
 });
 
+check('a cloud copy on a fresh phone puts back every synced dataset', () => {
+  const st = applied.freshPhone.store;
+  const want = ['cos_profile', 'cos_custom_tasks', 'cos_tombstones', 'cos_custom_timetable', 'cos_timetable_choice', 'cos_custom_links', 'cos_assignments',
+    'cos_attendance', 'cos_attendance_baseline', 'cos_attendance_live', 'cos_syllabus', 'cos_att_target', 'cos_aims', 'cos_holiday', 'cos_notif_prefs',
+    'cos_notice_channels', 'cos_theme', 'cos_accent'];
+  const missing = want.filter(k => st[k] === undefined);
+  const notSynced = ['cos_strip_labels', 'cos_user_batch', 'cos_hidden_subjects'].filter(k => st[k] !== undefined);
+  return !missing.length && !notSynced.length ? true : J({ missing, notSynced });
+});
+check('a cloud copy keeps this phone\'s theme, palette and newer holiday, and merges tasks and vault', () => {
+  const st = applied.livedIn.store;
+  const ids = JSON.parse(st.cos_custom_tasks).map(t => t.id).sort().join();
+  const vault = JSON.parse(st.cos_custom_links).map(s => s.code).sort().join();
+  return st.cos_theme === 'paper-slate' && st.cos_accent === 'rose' && st.cos_holiday === LIVED_IN.cos_holiday
+    && ids === 't-lab,t-local,t-quiz,t-read' && vault === 'DS,OS' && JSON.parse(st.cos_profile).name === 'Riya' && applied.livedIn.pushAsked
+    ? true : J({ theme: st.cos_theme, accent: st.cos_accent, holiday: st.cos_holiday, ids, vault, push: applied.livedIn.pushAsked });
+});
+check('keep-this-phone mode leaves whole fields alone and still merges tasks and vault', () => {
+  const st = applied.livedInKeepLocal.store;
+  const ids = JSON.parse(st.cos_custom_tasks).map(t => t.id).sort().join();
+  return st.cos_custom_timetable === LIVED_IN.cos_custom_timetable && st.cos_attendance === LIVED_IN.cos_attendance && st.cos_att_target === '80'
+    && JSON.parse(st.cos_profile).name === 'Riya S' && ids === 't-lab,t-local,t-quiz,t-read' ? true
+    : J({ tt: st.cos_custom_timetable, att: st.cos_attendance, tg: st.cos_att_target, p: st.cos_profile, ids });
+});
+check('an aim line outside 50-100 from the cloud is ignored (the aim keeps its own line)', () =>
+  applied.oddValues.store.cos_att_target === '75' || `att target ${applied.oddValues.store.cos_att_target}`);
+
 // Exactly as saved.
-for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld']) {
+for (const name of ['backup', 'cloud', 'changeCheck', 'signinCopy', 'aimsByKind', 'restored', 'restoredOld', 'applied']) {
   check(`the ${name} matches the saved output exactly`, () => {
     const a = J(saved[name], null, 2), b = J(golden[name], null, 2);
     if (a === b) return true;
