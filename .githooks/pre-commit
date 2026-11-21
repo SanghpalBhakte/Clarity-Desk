@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fast checks before every commit (CI runs the full set). Turned on by
+# `npm install` (the "prepare" script sets core.hooksPath to .githooks).
+npx --no-install eslint . || exit 1
+node tests/verify_storage_keys.mjs >/dev/null || { node tests/verify_storage_keys.mjs | grep -A3 FAIL; exit 1; }
+node tests/verify_pwa_consistency.mjs >/dev/null || { node tests/verify_pwa_consistency.mjs | grep -A3 FAIL; exit 1; }
