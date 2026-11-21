@@ -1,6 +1,8 @@
-// Every storage key is listed in tests/storage-keys.json, and the backup file
-// and the sign-in Undo cover exactly the keys the list says they do. A new
-// key, or a backed-up key without its DESK_DATASETS row (app.js), fails here.
+// One key list: every storage key the app uses is either a DESK_DATASETS row
+// (app.js: it leaves this device in a backup or the cloud copy) or a
+// device-only key in tests/storage-keys.json with its reason, never both.
+// The backup, restore, cloud copy, apply, change check and sign-in safety
+// copy built from the rows are checked here.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +12,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const J = JSON.stringify;
 const reg = JSON.parse(read('tests/storage-keys.json'));
-const app = read('app.js');
 
 let passed = 0, failed = 0;
 function check(name, problems) {
@@ -27,29 +28,31 @@ for (const f of sources) {
     if (!used.has(m[1])) used.set(m[1], f);
   }
 }
+const { DESK_DATASETS: allRows, DESK_RESTORE_ORDER: restoreOrder, DESK_CLOUD_ORDER: cloudOrder, DESK_APPLY_ORDER: applyOrder,
+  DESK_SIGNIN_ORDER: signinOrder, deskBackupSnapshot, deskCloudCopy, restoreDeskFromBackup, signinBackupKeys, store, writes } =
+  loadApp(['DESK_DATASETS', 'DESK_RESTORE_ORDER', 'DESK_CLOUD_ORDER', 'DESK_APPLY_ORDER', 'DESK_SIGNIN_ORDER', 'deskBackupSnapshot', 'deskCloudCopy',
+    'restoreDeskFromBackup', 'signinBackupKeys']);
+const rowKeys = new Set(allRows.map((d) => d.key).filter(Boolean));
 const prefixes = Object.keys(reg.prefixes || {});
-const listed = (k) => k in reg.keys || prefixes.some((p) => k.startsWith(p));
+const deviceOnly = (k) => k in reg.keys || prefixes.some((p) => k.startsWith(p));
 
-check('every storage key in the app is listed in tests/storage-keys.json',
-  [...used].filter(([k]) => !listed(k)).map(([k, f]) => `${k} (${f}): add it with backup field or a reason`));
-check('every listed key is still used',
-  [...Object.keys(reg.keys), ...prefixes].filter((k) => ![...used.keys()].some((u) => u === k || u.startsWith(k))).map((k) => `${k} is listed but no app file uses it`));
-check('every key left out of backups says why',
-  Object.entries(reg.keys).filter(([, v]) => v.backup === null && !v.why).map(([k]) => k));
+check('every storage key in the app is a DESK_DATASETS row or a device-only key in tests/storage-keys.json',
+  [...used].filter(([k]) => !rowKeys.has(k) && !deviceOnly(k)).map(([k, f]) => `${k} (${f}): add a row, or list it as device-only with a reason`));
+check('no key is both a row and device-only',
+  [...rowKeys].filter(deviceOnly).map((k) => `${k} is a DESK_DATASETS row and listed in storage-keys.json`));
+check('every listed key and every row key is still used',
+  [...Object.keys(reg.keys), ...prefixes, ...rowKeys].filter((k) => ![...used.keys()].some((u) => u === k || u.startsWith(k))).map((k) => `${k} is listed but no app file uses it`));
+check('every device-only key says why',
+  [...Object.entries(reg.keys), ...Object.entries(reg.prefixes || {})].filter(([, v]) => !v.why).map(([k]) => k));
 
 // The backup file and restore are built from DESK_DATASETS (one row per
 // backed-up key); the rows must match the keys listed with a backup field.
-const { DESK_DATASETS: allRows, DESK_RESTORE_ORDER: restoreOrder, DESK_CLOUD_ORDER: cloudOrder, DESK_APPLY_ORDER: applyOrder,
-  deskBackupSnapshot, deskCloudCopy, restoreDeskFromBackup, store, writes } =
-  loadApp(['DESK_DATASETS', 'DESK_RESTORE_ORDER', 'DESK_CLOUD_ORDER', 'DESK_APPLY_ORDER', 'deskBackupSnapshot', 'deskCloudCopy', 'restoreDeskFromBackup']);
 const rows = allRows.filter((d) => d.backup);   // backed-up rows
-const fields = Object.entries(reg.keys).filter(([, v]) => v.backup).map(([k, v]) => [k, v.backup]);
-const rowOf = new Map(rows.map((d) => [d.key, d]));
 
-check('every backed-up key has a DESK_DATASETS row with the same backup field',
-  fields.filter(([k, f]) => rowOf.get(k)?.backup !== f).map(([k, f]) => `${k}: want backup "${f}", row has ${J(rowOf.get(k)?.backup)}`));
-check('every DESK_DATASETS row is a listed key with that backup field',
-  rows.filter((d) => reg.keys[d.key]?.backup !== d.backup).map((d) => `${d.key} ("${d.backup}") is not listed with that backup field in storage-keys.json`));
+check('every row has its own key and backup field (only the cloud-only summary has neither)',
+  (() => { const k = rows.map((d) => d.key), f = rows.map((d) => d.backup);
+    return [...allRows.filter((d) => !d.backup && (d.key || !d.cloud)).map((d) => `${d.key} / ${d.cloud}: needs a backup field`),
+      ...(new Set(k).size !== k.length || new Set(f).size !== f.length || k.some((x) => !x) ? [`keys ${J(k)} or fields ${J(f)} repeat or are missing`] : [])]; })());
 check('every row can be read for a backup and restored from one',
   rows.filter((d) => typeof d.read !== 'function' || typeof d.restore !== 'function').map((d) => `${d.key}: needs read() and restore()`));
 check('DESK_RESTORE_ORDER names every row exactly once',
@@ -80,8 +83,6 @@ check('DESK_RESTORE_ORDER names every row exactly once',
 
 // The cloud copy and applying it come from the same rows.
 const synced = allRows.filter((d) => d.cloud);
-check('every stored synced row is a listed key; rows that are never stored are cloud-only',
-  allRows.filter((d) => (d.key ? !(d.key in reg.keys) : (d.backup || !d.cloud))).map((d) => `${d.key} / ${d.cloud}`));
 check('DESK_CLOUD_ORDER names every synced row exactly once, and the cloud copy has exactly those fields',
   (() => { const want = synced.map((d) => d.cloud).sort(); const got = Object.keys(deskCloudCopy());
     return J([...cloudOrder].sort()) === J(want) && J(got) === J(cloudOrder) ? [] : [`order ${J(cloudOrder)}, copy ${J(got)}, rows ${J(want)}`]; })());
@@ -104,18 +105,41 @@ check('a synced, stored row with no apply of its own is one the task merge cover
     order.filter((k, i) => at(k) < 0 || (i && at(k) < at(order[i - 1]))).map((k) => `${k} out of order: ${app.writes.join()}`));
 }
 
-check('the backup file has exactly the listed fields',
-  (() => { const got = Object.keys(deskBackupSnapshot()).sort(), want = fields.map(([, f]) => f).sort(); return J(got) === J(want) ? [] : [`got ${J(got)}, want ${J(want)}`]; })());
+check('the backup file has exactly the rows\' backup fields, in row order',
+  (() => { const got = Object.keys(deskBackupSnapshot()), want = rows.map((d) => d.backup); return J(got) === J(want) ? [] : [`got ${J(got)}, want ${J(want)}`]; })());
 
-// Sign-in Undo: SIGNIN_BACKUP_KEYS, resolved through the KEY_ constants.
-const consts = Object.fromEntries([...app.matchAll(/^const (KEY_[A-Z0-9_]+)\s*=\s*'(cos_[a-z0-9_]+)'/gm)].map((m) => [m[1], m[2]]));
-const sbStart = app.indexOf('const SIGNIN_BACKUP_KEYS = [');
-const sbBlock = app.slice(sbStart, app.indexOf('];', sbStart));
-const signin = new Set([...sbBlock.matchAll(/KEY_[A-Z0-9_]+/g)].map((m) => consts[m[0]]));
-const wantSignin = new Set(Object.entries(reg.keys).filter(([, v]) => v.signinUndo).map(([k]) => k));
-check('SIGNIN_BACKUP_KEYS matches the keys marked signinUndo',
-  [...[...wantSignin].filter((k) => !signin.has(k)).map((k) => `${k} is signinUndo but not in SIGNIN_BACKUP_KEYS`),
-   ...[...signin].filter((k) => !wantSignin.has(k)).map((k) => `${k} is in SIGNIN_BACKUP_KEYS but not marked signinUndo`)]);
+// The sign-in safety copy: every backed-up row named once, and everything
+// applying a cloud copy writes is in it (so Undo is exact).
+check('DESK_SIGNIN_ORDER names backed-up rows, each at most once',
+  (() => { const bad = signinOrder.filter((f, i) => !rows.some((d) => d.backup === f) || signinOrder.indexOf(f) !== i); return bad.map((f) => `${f}: not a row, or named twice`); })());
+{
+  const app = loadApp(['applyDeskFromCloud', 'deskCloudCopy']);
+  app.eval('state.customTasks = []');
+  const full = { profile: { name: 'Riya' }, customTasks: [], customTimetable: { 1: [] }, timetableChoice: 'custom', customLinks: [], assignmentStatuses: { a: 'done' },
+    attendance: { '2026-11-09': {} }, attendanceBaseline: { DS: { present: 1, absent: 0 } }, attendanceLive: { DS: { present: 1 } }, syllabus: [], theme: 'midnight-ink',
+    accent: 'rose', notificationPrefs: { on: true }, noticeChannels: { whatsappTitle: 'P' }, attTarget: 70, aims: { kind: 'line', line: 70 },
+    holiday: { on: true, since: '2026-12-20', until: '2027-01-04', changedAt: 1 }, tombstones: [] };
+  app.applyDeskFromCloud(full);
+  const safe = new Set(signinBackupKeys());
+  check('applying a cloud copy only writes rows the sign-in safety copy holds',
+    [...new Set(app.writes)].filter((k) => rowKeys.has(k) && !safe.has(k)).map((k) => `${k} is written by applying but not in DESK_SIGNIN_ORDER`));
+}
+
+// The change check: every synced row except theme and palette counts.
+{
+  const fresh = loadApp(['deskCloudCopy', 'calculatePayloadHash']);   // a new phone: nothing saved
+  fresh.eval('state.customTasks = []');
+  const base = fresh.deskCloudCopy();
+  const changed = (field, v) => fresh.calculatePayloadHash(base) !== fresh.calculatePayloadHash({ ...base, [field]: v });
+  check('changing the theme or palette leaves the change check unchanged',
+    [['theme', 'midnight-ink'], ['theme', 'paper-slate'], ['accent', 'rose']].filter(([f, v]) => changed(f, v)).map(([f, v]) => `${f} = ${v} changes it`));
+  const samples = { profile: { name: 'Riya' }, customTasks: [{ id: 't1', title: 'Read', subject: 'DS', type: 'task' }], customTimetable: { 1: [] }, timetableChoice: 'custom',
+    customLinks: [{ subject: 'DS', code: 'DS', resources: [] }], assignmentStatuses: { a: 'done' }, attendance: { d: {} }, attendanceBaseline: { DS: {} }, attendanceLive: { DS: {} },
+    syllabus: [{ subjectName: 'DS', topics: [] }], notificationPrefs: { on: true }, noticeChannels: { x: 1 }, attTarget: 70, aims: { kind: 'count', count: 3 },
+    holiday: { on: true }, tombstones: [{ id: 'x', deletedAt: 1 }] };
+  check('a change to any other synced, stored dataset counts as new',
+    allRows.filter((d) => d.cloud && d.key && !['theme', 'accent'].includes(d.cloud)).filter((d) => !(d.cloud in samples) || !changed(d.cloud, samples[d.cloud])).map((d) => `${d.cloud}: a change is not counted`));
+}
 
 console.log(`\nPASSED: ${passed}\nFAILED: ${failed}`);
 if (failed) process.exit(1);

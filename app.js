@@ -5016,43 +5016,17 @@ function nextPushDelay(failCount) {
 }
 
 function calculatePayloadHash(data) {
+  // Every dataset with a `check` name in DESK_DATASETS, compared in one fixed
+  // shape. Any failure falls to the catch -> null -> the snapshot is applied,
+  // never skipped.
   try {
-    return stableStringify({
-      p: data.profile,
-      // The whole task list, not just its count: a rename, due-date change
-      // or tick made on another device keeps the count the same and used to
-      // be ignored. Run through sanitizeTask so a cloud copy (already
-      // sanitized) and this device's list compare in the same shape. Any
-      // failure here falls to the outer catch -> null -> the snapshot is
-      // applied, never skipped.
-      t: Array.isArray(data.customTasks)
-        ? data.customTasks.map(t => (t && t.id ? sanitizeTask(t) : t))
-        : null,
-      tc: data.timetableChoice || null,
-      syl: Array.isArray(data.syllabus) && data.syllabus.length ? data.syllabus : null,
-      np: data.notificationPrefs || null,
-      nc: data.noticeChannels || null,
-      tg: typeof data.attTarget === 'number' ? data.attTarget : null,
-      am: data.aims && typeof data.aims === 'object' ? { s: cleanAimSubjects(data.aims.subjects), k: aimKindOf(data.aims), n: aimCount(data.aims.count), g: data.aims.goal || '', t: aimTimes(data.aims.times), b: aimDate(data.aims.by), sc: data.aims.scope || '' } : null,
-      // Full timetable and attendance, not just a day count: a mark or a
-      // timetable edit made on another device must reach this one (it used
-      // to be ignored until something else changed, even across reloads).
-      tt: data.customTimetable || null,
-      a: data.assignmentStatuses,
-      att: data.attendance || null,
-      attB: data.attendanceBaseline || null,
-      attL: data.attendanceLive || null,
-      hol: data.holiday || null,
-      // Vault in its cloud shape (device files as placeholders) and the
-      // delete markers: a vault edit or delete on another device must count.
-      l: Array.isArray(data.customLinks) ? data.customLinks : null,
-      ts: Array.isArray(data.tombstones) && data.tombstones.length ? data.tombstones.filter(t => t && typeof t === 'object').slice().sort(byTombstoneOrder) : null
-      // theme deliberately excluded: it's applied via initTheme()/CSS
-      // variables, never needs a dashboard rebuild, and including it here
-      // was causing every theme switch (and the first cloud echo after
-      // a refresh) to force a full renderPage() -- the visible "flicker"
-      // in the masthead/stat tiles.
+    const out = {};
+    DESK_DATASETS.forEach(d => {
+      if (!d.check) return;
+      const v = data[d.cloud];
+      out[d.check] = d.checkValue ? d.checkValue(v) : (v || null);
     });
+    return stableStringify(out);
   } catch (e) {
     return null;
   }
@@ -5066,30 +5040,18 @@ function calculatePayloadHash(data) {
 let signinHold = null;        // { uid, data, backupOk, later }
 let signinLastCloud = null;   // latest cloud copy seen, so Undo can ask again
 const SIGNIN_UNDO_MS = 7500;  // a little longer than the Undo toast (7 s)
-const SIGNIN_BACKUP_KEYS = [KEY_CUSTOM_TASKS, KEY_CUSTOM_LINKS, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE,
-  KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_PROFILE, KEY_ASSIGNMENTS, KEY_TOMBSTONES,
-  // Everything else applying the cloud copy may overwrite, so Undo is exact.
-  KEY_SYLLABUS, KEY_NOTIF_PREFS, KEY_NOTICE_CHANNELS, KEY_ATT_TARGET, KEY_AIMS, KEY_HOLIDAY, KEY_THEME, KEY_ACCENT,
-  KEY_STRIP_LABELS];
+// The keys the safety copy holds, in DESK_SIGNIN_ORDER.
+const signinBackupKeys = () => DESK_SIGNIN_ORDER.map(field => deskRowFor(field, 'backup').key);
 
+// Tasks, vault items, classes or attendance (the rows with `isData`).
 function signinDataIn(src) {
-  const nonEmptyObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
   if (!src || typeof src !== 'object') return false;
-  if (Array.isArray(src.customTasks) && src.customTasks.length) return true;
-  if (Array.isArray(src.customLinks) && src.customLinks.some(s => s && Array.isArray(s.resources) && s.resources.length)) return true;
-  if (src.customTimetable && typeof src.customTimetable === 'object'
-    && Object.values(src.customTimetable).some(d => Array.isArray(d) && d.length)) return true;
-  return nonEmptyObj(src.attendance) || nonEmptyObj(src.attendanceBaseline) || nonEmptyObj(src.attendanceLive);
+  return DESK_DATASETS.some(d => d.isData && d.isData(src[d.cloud]));
 }
 function localHasData() {
-  return signinDataIn({
-    customTasks: safeGetStorage(KEY_CUSTOM_TASKS, null),
-    customLinks: safeGetStorage(KEY_CUSTOM_LINKS, null),
-    customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
-    attendance: safeGetStorage(KEY_ATTENDANCE, null),
-    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, null),
-    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, null)
-  });
+  const src = {};
+  DESK_DATASETS.forEach(d => { if (d.isData) src[d.cloud] = safeGetStorage(d.key, null); });
+  return signinDataIn(src);
 }
 function cloudHasData(data) { return signinDataIn(data); }
 
@@ -5130,7 +5092,7 @@ function unmarkSigninSeen(uid) {
 // Raw stored strings (exact Undo); the vault in cloud shape (no file bytes).
 function saveSigninBackup(uid) {
   const keys = {};
-  SIGNIN_BACKUP_KEYS.forEach(k => { keys[k] = localStorage.getItem(k); });
+  signinBackupKeys().forEach(k => { keys[k] = localStorage.getItem(k); });
   const links = safeGetStorage(KEY_CUSTOM_LINKS, null);
   if (Array.isArray(links)) keys[KEY_CUSTOM_LINKS] = JSON.stringify(linksForCloud(links));
   return safeSetStorage(KEY_SIGNIN_BACKUP, { at: Date.now(), uid, keys });
@@ -5311,7 +5273,7 @@ function undoSignin() {
   }
   const curLinks = safeGetStorage(KEY_CUSTOM_LINKS, null);
   let ok = true;
-  SIGNIN_BACKUP_KEYS.forEach(k => {
+  signinBackupKeys().forEach(k => {
     let v = Object.prototype.hasOwnProperty.call(b.keys, k) ? b.keys[k] : null;
     try {
       // Vault files this phone still holds get their bytes back.
@@ -5329,26 +5291,10 @@ function undoSignin() {
   return ok;
 }
 
-// This phone's desk in the same shape calculatePayloadHash reads from a cloud copy.
+// This phone's desk in the same shape calculatePayloadHash reads from a cloud
+// copy: the copy it would send (tasks as they are; the check sanitizes them).
 function localDeskHash() {
-  return calculatePayloadHash({
-    profile: loadProfile(),
-    customTasks: state.customTasks,
-    customTimetable: safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
-    timetableChoice: safeGetStorage(KEY_TIMETABLE_CHOICE, null),
-    syllabus: loadSyllabus(),
-    notificationPrefs: safeGetStorage(KEY_NOTIF_PREFS, null),
-    noticeChannels: safeGetStorage(KEY_NOTICE_CHANNELS, null),
-    attTarget: getAttendanceTarget(),
-    aims: loadAims(),
-    assignmentStatuses: safeGetStorage(KEY_ASSIGNMENTS, {}),
-    attendance: safeGetStorage(KEY_ATTENDANCE, {}),
-    attendanceBaseline: safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
-    attendanceLive: safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
-    holiday: safeGetStorage(KEY_HOLIDAY, null),
-    customLinks: linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS, null)),
-    tombstones: pruneTombstones(safeGetStorage(KEY_TOMBSTONES, []))
-  });
+  return calculatePayloadHash({ ...deskCloudCopy(), customTasks: state.customTasks });
 }
 
 // After a reload the in-memory sync flags start empty, so a saved "waiting"
@@ -20945,8 +20891,8 @@ function saveNoticeChannelsFromSettings() {
 // ── Desk datasets ─────────────────────────────────────────────
 // Every dataset the student owns that leaves this phone in a backup file or
 // the cloud copy, one row each, in backup-file order (the order of the file's
-// fields). A new key is one row here; tests/storage-keys.json is checked
-// against this list (verify_storage_keys).
+// fields). A new key is one row here, or, if it never leaves this device, a
+// line with its reason in tests/storage-keys.json (verify_storage_keys).
 //   key      the stored key (null: built when sent, never stored)
 //   backup   its field name in the backup file (null: not backed up)
 //   read()   the value written to the backup
@@ -20958,12 +20904,20 @@ function saveNoticeChannelsFromSettings() {
 //            this phone kept something the cloud lacks, so push once
 //   whole    a whole-field replace: skipped while this phone's copy is kept
 //            after a reload (keepLocalWhole); per-record merges still run
-// Restore runs in DESK_RESTORE_ORDER, the cloud copy in DESK_CLOUD_ORDER and
-// applying it in DESK_APPLY_ORDER, not in this order.
+//   check    its short name in the change check (calculatePayloadHash);
+//            absent = a change to it never counts as new
+//   checkValue(v)  the value compared there (default: v, or null when empty)
+//   isData(v)  true when this value is the student's own data: the first
+//            sign-in question is asked only when both sides have some
+// Device-only keys (bookkeeping, undo copies, per-device flags) are not rows:
+// they are listed with their reason in tests/storage-keys.json.
+// Restore runs in DESK_RESTORE_ORDER, the cloud copy in DESK_CLOUD_ORDER,
+// applying it in DESK_APPLY_ORDER and the sign-in safety copy in
+// DESK_SIGNIN_ORDER, not in this order.
 // The field names and value shapes are the backup and cloud formats: never
 // rename one without a migration (older backups and app versions must work).
 const DESK_DATASETS = [
-  { key: KEY_PROFILE, backup: 'profile', read: () => loadProfile(),
+  { key: KEY_PROFILE, backup: 'profile', check: 'p', checkValue: (v) => v, read: () => loadProfile(),
     restore: (v) => { if (v) safeSetStorage(KEY_PROFILE, v); },
     // Merged onto this phone's profile field by field: a field the cloud copy
     // lacks (or hasn't caught up on) never blanks a fresher local value, and
@@ -20980,7 +20934,12 @@ const DESK_DATASETS = [
       });
       safeSetStorage(KEY_PROFILE, cleanProfile);
     } },
-  { key: KEY_CUSTOM_TASKS, backup: 'customTasks', read: () => state.customTasks,
+  { key: KEY_CUSTOM_TASKS, backup: 'customTasks',
+    // The whole list, not just its count: a rename, date change or tick on
+    // another device keeps the count. Through sanitizeTask, so a cloud copy and
+    // this phone's list compare in the same shape.
+    check: 't', checkValue: (v) => (Array.isArray(v) ? v.map(t => (t && t.id ? sanitizeTask(t) : t)) : null),
+    isData: (v) => Array.isArray(v) && v.length > 0, read: () => state.customTasks,
     restore: (v) => {
       if (!Array.isArray(v)) return;
       state.customTasks = v;
@@ -20990,18 +20949,23 @@ const DESK_DATASETS = [
     // never a whole-list replace: one merge here covers all three rows.
     cloud: 'customTasks', cloudRead: () => state.customTasks.map(sanitizeTask).filter(Boolean),
     apply: (v, data) => mergeCloudIntoLocal(data) },
-  { key: KEY_TOMBSTONES, backup: 'tombstones', read: () => pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
+  { key: KEY_TOMBSTONES, backup: 'tombstones',
+    check: 'ts', checkValue: (v) => (Array.isArray(v) && v.length ? v.filter(t => t && typeof t === 'object').slice().sort(byTombstoneOrder) : null), read: () => pruneTombstones(safeGetStorage(KEY_TOMBSTONES, [])),
     restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_TOMBSTONES, pruneTombstones(mergeTombstones(safeGetStorage(KEY_TOMBSTONES, []), v))); },
     cloud: 'tombstones' },   // applied by the customTasks merge
-  { key: KEY_CUSTOM_TIMETABLE, backup: 'customTimetable', read: () => safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
+  { key: KEY_CUSTOM_TIMETABLE, backup: 'customTimetable', check: 'tt',
+    isData: (v) => !!v && typeof v === 'object' && Object.values(v).some(d => Array.isArray(d) && d.length), read: () => safeGetStorage(KEY_CUSTOM_TIMETABLE, null),
     restore: (v) => { if (v) safeSetStorage(KEY_CUSTOM_TIMETABLE, v); },
     cloud: 'customTimetable', whole: true,
     apply: (v) => { if (v && typeof v === 'object') safeSetStorage(KEY_CUSTOM_TIMETABLE, v); } },
-  { key: KEY_TIMETABLE_CHOICE, backup: 'timetableChoice', read: () => safeGetStorage(KEY_TIMETABLE_CHOICE, null),
+  { key: KEY_TIMETABLE_CHOICE, backup: 'timetableChoice', check: 'tc', read: () => safeGetStorage(KEY_TIMETABLE_CHOICE, null),
     restore: (v) => { if (v) safeSetStorage(KEY_TIMETABLE_CHOICE, v); },
     cloud: 'timetableChoice', whole: true,
     apply: (v) => { if (v && typeof v === 'string') safeSetStorage(KEY_TIMETABLE_CHOICE, v); } },
-  { key: KEY_CUSTOM_LINKS, backup: 'customLinks', read: () => safeGetStorage(KEY_CUSTOM_LINKS, null),
+  { key: KEY_CUSTOM_LINKS, backup: 'customLinks',
+    // In its cloud shape (device files as placeholders): an edit or delete on another device counts.
+    check: 'l', checkValue: (v) => (Array.isArray(v) ? v : null),
+    isData: (v) => Array.isArray(v) && v.some(s => s && Array.isArray(s.resources) && s.resources.length), read: () => safeGetStorage(KEY_CUSTOM_LINKS, null),
     // Files that don't fit this phone become placeholders (the backup file
     // still has them); with IndexedDB they go there first (each read back)
     // and only the rest stay as data: URLs. Returns the dropped file names.
@@ -21021,7 +20985,7 @@ const DESK_DATASETS = [
     },
     // Uploaded files stay on this device; the cloud gets placeholders.
     cloud: 'customLinks', cloudRead: () => linksForCloud(safeGetStorage(KEY_CUSTOM_LINKS, null)) },   // applied by the customTasks merge
-  { key: KEY_ASSIGNMENTS, backup: 'assignmentStatuses', read: () => safeGetStorage(KEY_ASSIGNMENTS, {}),
+  { key: KEY_ASSIGNMENTS, backup: 'assignmentStatuses', check: 'a', checkValue: (v) => v, read: () => safeGetStorage(KEY_ASSIGNMENTS, {}),
     restore: (v) => {
       if (!v) return;
       safeSetStorage(KEY_ASSIGNMENTS, v);
@@ -21033,7 +20997,7 @@ const DESK_DATASETS = [
       safeSetStorage(KEY_ASSIGNMENTS, v);
       state.assignments = loadAssignments();
     } },
-  { key: KEY_ATTENDANCE, backup: 'attendance', read: () => safeGetStorage(KEY_ATTENDANCE, {}),
+  { key: KEY_ATTENDANCE, backup: 'attendance', check: 'att', isData: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0, read: () => safeGetStorage(KEY_ATTENDANCE, {}),
     restore: (v) => {
       if (!v) return;
       safeSetStorage(KEY_ATTENDANCE, v);
@@ -21045,11 +21009,11 @@ const DESK_DATASETS = [
       safeSetStorage(KEY_ATTENDANCE, v);
       if (fixShiftedAttendanceDates() > 0) syncToCloud();
     } },
-  { key: KEY_ATTENDANCE_BASELINE, backup: 'attendanceBaseline', read: () => safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
+  { key: KEY_ATTENDANCE_BASELINE, backup: 'attendanceBaseline', check: 'attB', isData: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0, read: () => safeGetStorage(KEY_ATTENDANCE_BASELINE, {}),
     restore: (v) => { if (v) safeSetStorage(KEY_ATTENDANCE_BASELINE, v); },
     cloud: 'attendanceBaseline', whole: true,
     apply: (v) => { if (v && typeof v === 'object') safeSetStorage(KEY_ATTENDANCE_BASELINE, v); } },
-  { key: KEY_ATTENDANCE_LIVE, backup: 'attendanceLive', read: () => safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
+  { key: KEY_ATTENDANCE_LIVE, backup: 'attendanceLive', check: 'attL', isData: (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0, read: () => safeGetStorage(KEY_ATTENDANCE_LIVE, {}),
     restore: (v) => { if (v) safeSetStorage(KEY_ATTENDANCE_LIVE, v); },
     cloud: 'attendanceLive', whole: true,
     apply: (v) => {
@@ -21061,20 +21025,21 @@ const DESK_DATASETS = [
     } },
   { key: KEY_HIDDEN_SUBJECTS, backup: 'hiddenSubjects', read: () => safeGetStorage(KEY_HIDDEN_SUBJECTS, []),
     restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_HIDDEN_SUBJECTS, v); } },
-  { key: KEY_SYLLABUS, backup: 'syllabus', read: () => loadSyllabus(),
+  { key: KEY_SYLLABUS, backup: 'syllabus', check: 'syl', checkValue: (v) => (Array.isArray(v) && v.length ? v : null), read: () => loadSyllabus(),
     restore: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(v)); },
     cloud: 'syllabus', whole: true,
     apply: (v) => { if (Array.isArray(v)) safeSetStorage(KEY_SYLLABUS, sanitizeSyllabus(v)); } },
   { key: KEY_USER_BATCH, backup: 'userBatch', read: () => safeGetStorage(KEY_USER_BATCH, ''),
     restore: (v) => { if (v) safeSetStorage(KEY_USER_BATCH, v); } },
-  { key: KEY_ATT_TARGET, backup: 'attTarget', read: () => getAttendanceTarget(),
+  { key: KEY_ATT_TARGET, backup: 'attTarget', check: 'tg', checkValue: (v) => (typeof v === 'number' ? v : null), read: () => getAttendanceTarget(),
     restore: (v) => { if (v) safeSetStorage(KEY_ATT_TARGET, v); },
     cloud: 'attTarget', whole: true,
     apply: (v) => { if (typeof v === 'number' && v >= 50 && v <= 100) safeSetStorage(KEY_ATT_TARGET, v); } },
   // Older backups have no aims: applyAimsFromData then changes nothing.
-  { key: KEY_AIMS, backup: 'aims', read: () => loadAims(), restore: (v) => applyAimsFromData(v),
+  { key: KEY_AIMS, backup: 'aims',
+    check: 'am', checkValue: (v) => (v && typeof v === 'object' ? { s: cleanAimSubjects(v.subjects), k: aimKindOf(v), n: aimCount(v.count), g: v.goal || '', t: aimTimes(v.times), b: aimDate(v.by), sc: v.scope || '' } : null), read: () => loadAims(), restore: (v) => applyAimsFromData(v),
     cloud: 'aims', whole: true, apply: (v) => applyAimsFromData(v) },
-  { key: KEY_HOLIDAY, backup: 'holiday', read: () => safeGetStorage(KEY_HOLIDAY, null),
+  { key: KEY_HOLIDAY, backup: 'holiday', check: 'hol', read: () => safeGetStorage(KEY_HOLIDAY, null),
     restore: (v) => {
       if (!v || typeof v !== 'object' || Array.isArray(v)) return;
       safeSetStorage(KEY_HOLIDAY, v);
@@ -21094,16 +21059,19 @@ const DESK_DATASETS = [
   // Older backups have no strip names: the strip keeps its automatic ones.
   { key: KEY_STRIP_LABELS, backup: 'stripLabels', read: () => loadStripLabels(),
     restore: (v) => { if (v && typeof v === 'object' && !Array.isArray(v)) safeSetStorage(KEY_STRIP_LABELS, cleanStripLabels(v)); } },
-  { key: KEY_NOTIF_PREFS, backup: 'notificationPrefs', read: () => loadNotifPrefs(),
+  { key: KEY_NOTIF_PREFS, backup: 'notificationPrefs', check: 'np', read: () => loadNotifPrefs(),
     restore: (v) => { if (v) safeSetStorage(KEY_NOTIF_PREFS, v); },
     cloud: 'notificationPrefs', whole: true, cloudRead: () => safeGetStorage(KEY_NOTIF_PREFS, null),
     apply: (v) => { if (v && typeof v === 'object') safeSetStorage(KEY_NOTIF_PREFS, v); } },
-  { key: KEY_NOTICE_CHANNELS, backup: 'noticeChannels', read: () => loadNoticeChannels(),
+  { key: KEY_NOTICE_CHANNELS, backup: 'noticeChannels', check: 'nc', read: () => loadNoticeChannels(),
     restore: (v) => { if (v && typeof v === 'object') saveNoticeChannels(v); },
     cloud: 'noticeChannels', whole: true, cloudRead: () => safeGetStorage(KEY_NOTICE_CHANNELS, null),
     apply: (v) => { if (v && typeof v === 'object') safeSetStorage(KEY_NOTICE_CHANNELS, v); } },
   // Open question (#401): with nothing saved these write Light / Highlighter,
   // while a new student starts on Auto / Old Campus. Kept as is on purpose.
+  // Left out of the change check: applied through initTheme()/CSS variables, it
+  // never needs a page rebuild (counting it made every theme switch, and the
+  // first cloud echo after a refresh, re-render the page: a visible flicker).
   // A cloud theme or palette is taken only when this phone has none: each
   // device keeps its own choice. (Writing the local one back to the cloud made
   // two signed-in devices ping-pong forever; a toggle already pushes itself.)
@@ -21159,6 +21127,14 @@ const DESK_CLOUD_ORDER = ['profile', 'customTasks', 'customTimetable', 'timetabl
 const DESK_APPLY_ORDER = ['profile', 'customTasks', 'customTimetable', 'timetableChoice', 'syllabus',
   'assignmentStatuses', 'attendance', 'attendanceBaseline', 'attendanceLive', 'theme', 'accent',
   'notificationPrefs', 'noticeChannels', 'attTarget', 'aims', 'holiday'];
+
+// The sign-in safety copy (backup field names, in the copy's key order):
+// everything applying a cloud copy may write, so Undo after the first
+// sign-in choice puts this phone back exactly. Hidden subjects and the lab
+// group are left out: applying never writes them.
+const DESK_SIGNIN_ORDER = ['customTasks', 'customLinks', 'customTimetable', 'timetableChoice', 'attendance',
+  'attendanceBaseline', 'attendanceLive', 'profile', 'assignmentStatuses', 'tombstones', 'syllabus',
+  'notificationPrefs', 'noticeChannels', 'attTarget', 'aims', 'holiday', 'theme', 'accent', 'stripLabels'];
 
 const deskRowFor = (field, by) => DESK_DATASETS.find(d => d[by] === field);
 
