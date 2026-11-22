@@ -10910,40 +10910,8 @@ window._rsSave = function(taskId) {
   if (!val || !resolveTask(taskId, { dueDate: val })) renderPage('review');
 };
 
-function getWeekId(d = new Date()) {
-  const year = d.getFullYear();
-  const firstJan = new Date(year, 0, 1);
-  const dayNum = Math.floor((d - firstJan) / 86400000);
-  const weekNum = Math.ceil((dayNum + firstJan.getDay() + 1) / 7);
-  return `${year}-W${String(weekNum).padStart(2, '0')}`;
-}
-
-// One key per dismissed week ('true'); only this week's is ever read.
-const WEEKLY_REVIEW_DISMISSED = 'cos_weekly_review_dismissed_';
-
-// eslint-disable-next-line no-unused-vars -- nothing shows the weekly review prompt now; kept for verify_weekly_review
-function isWeeklyReviewDismissed() {
-  return safeGetStorage(WEEKLY_REVIEW_DISMISSED + getWeekId(), false) === true;
-}
-
-window.dismissWeeklyReview = function() {
-  const thisWeek = WEEKLY_REVIEW_DISMISSED + getWeekId();
-  safeSetStorage(thisWeek, 'true');
-  // Older weeks' keys are removed here (they used to pile up, one a week).
-  try {
-    const old = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(WEEKLY_REVIEW_DISMISSED) && k !== thisWeek) old.push(k);
-    }
-    old.forEach(k => safeRemoveStorage(k));
-  } catch (_) { /* storage blocked: the old keys stay, nothing else changes */ }
-  renderPage(state.currentPage);
-};
-
 window.completeWeeklyReset = function() {
-  dismissWeeklyReview();
-  showToast('Weekly review done', 'done', { detail: 'It comes back next week' });
+  showToast('Weekly review done', 'done');
   navigateTo('dashboard');
 };
 

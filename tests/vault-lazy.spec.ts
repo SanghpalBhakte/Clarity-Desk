@@ -113,3 +113,14 @@ test('the subject sheet has no color picker, and an edit keeps the subject\'s sa
   await expect.poll(async () => (await links(page)).length).toBe(2);
   expect((await links(page))[1].color).toBe('#394B63');
 });
+
+test('a link has no icon dropdown: the icon follows the address', async ({ page }) => {
+  await open(page);
+  await page.waitForSelector('#link-card-0');
+  await page.evaluate(() => (window as any).addLinkResource(0));
+  await expect(page.locator('select#lrm-icon')).toHaveCount(0);
+  await page.locator('#lrm-label').fill('Repo');
+  await page.locator('#lrm-url').fill('https://github.com/example/repo');
+  await page.evaluate(() => (window as any).saveLinkResource(0, null));
+  await expect.poll(async () => (await links(page))[0].resources[0]?.icon).toBe('code');
+});
