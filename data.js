@@ -170,6 +170,54 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u353",
+    date: "2026-11-23",
+    title: "A Vault link changed to a new address no longer keeps its old icon",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "A Vault link changed to a new address no longer keeps its old icon",
+    points: [
+
+    ]
+  },
+  {
+    id: "u352",
+    date: "2026-11-23",
+    title: "The welcome screens no longer play sounds",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The welcome screens no longer play sounds",
+    points: [
+
+    ]
+  },
+  {
+    id: "u351",
+    date: "2026-11-23",
+    title: "The Vault no longer asks for an icon, and the unused weekly review key is gone",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The Vault no longer asks for an icon, and the unused weekly review key is gone",
+    points: [
+
+    ]
+  },
+  {
+    id: "u350",
+    date: "2026-11-23",
+    title: "The Vault's New subject sheet no longer asks for a color",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The Vault's New subject sheet no longer asks for a color",
+    points: [
+
+    ]
+  },
+  {
     id: "u349",
     date: "2026-11-23",
     title: "The Study Vault opens without a loading pause for students who use it",
