@@ -514,6 +514,16 @@ check('Sync: old data without a stamp still applies, both ways', () => {
   return unstampedLocal && stampedCloud ? true : `${unstampedLocal}/${stampedCloud}`;
 });
 
+check('Sync: a break that already ended on another phone arrives switched off, and that off is the newest change', () => {
+  seed(); at('2026-10-19T09:50:00');
+  const a = makeApp();
+  // The laptop set a break that ended yesterday; this phone was closed all along.
+  a.applyCloudDataToLocalState({ holiday: { on: true, since: '2026-10-12', until: '2026-10-19', changedAt: 1000 } });
+  const h = JSON.parse(store.cos_holiday);
+  return a.isHolidayActive() === false && h.on === false && h.endedOn === '2026-10-19' && h.changedAt > 1000
+    ? true : JSON.stringify(h);
+});
+
 console.log('\n========================================');
 console.log(`TOTAL SCENARIOS CHECKED: ${total}`);
 console.log(`PASSED: ${passed}`);
