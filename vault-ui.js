@@ -284,7 +284,6 @@ export function createVaultUi(deps) {
       return `
       <div class="link-subject-card${open ? '' : ' is-collapsed'}" id="link-card-${si}">
         <div class="link-subject-header">
-          <span class="link-color-dot" style="background:${vaultEsc(s.color || '#394B63')}"></span>
           <button type="button" class="link-subject-toggle" onclick="vaultToggleSubject(${si})" aria-expanded="${open}" aria-controls="link-card-${si}">
             <span class="link-subject-title" title="${vaultEsc(s.subject)}">${vaultEsc(s.subject)}</span>
             <span class="link-subject-count">${all.length} item${all.length !== 1 ? 's' : ''}</span>
