@@ -170,6 +170,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u349",
+    date: "2026-11-23",
+    title: "The Study Vault opens without a loading pause for students who use it",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The Study Vault opens without a loading pause for students who use it",
+    points: [
+
+    ]
+  },
+  {
+    id: "u348",
+    date: "2026-11-23",
+    title: "Study Vault screens now load from their own file, so the app opens a little faster",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Study Vault screens now load from their own file, so the app opens a little faster",
+    points: [
+
+    ]
+  },
+  {
     id: "u347",
     date: "2026-11-22",
     title: "Syllabus screens now load from their own file, so the app opens a little faster",
