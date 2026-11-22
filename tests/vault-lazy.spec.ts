@@ -56,12 +56,13 @@ test('the Vault tab shows "Loading…" until its file arrives', async ({ page })
   await page.waitForSelector('#link-card-0');
 });
 
-test('the Briefing tab draws at once, without the Vault file', async ({ page }) => {
-  let asked = false;
-  await page.route('**/vault-ui.js', async route => { asked = true; await route.continue(); });
+test('the Briefing tab draws at once, even while the Vault file is held back', async ({ page }) => {
+  let release: () => void = () => {};
+  const held = new Promise<void>(r => { release = r; });
+  await page.route('**/vault-ui.js', async route => { await held; await route.continue(); });
   await open(page, '#summary');
   await expect(page.locator('#page-resources .page-title')).toHaveText('Daily Briefing');
-  expect(asked).toBe(false);
+  release();
 });
 
 test('the same works with no network (vault-ui.js is precached)', async ({ context, page }) => {
@@ -75,4 +76,20 @@ test('the same works with no network (vault-ui.js is precached)', async ({ conte
   } finally {
     await context.setOffline(false);
   }
+});
+
+test('a student with saved Vault items gets the file at idle, before opening the tab', async ({ page }) => {
+  let asked = false;
+  await page.route('**/vault-ui.js', async route => { asked = true; await route.continue(); });
+  await open(page, '#today');
+  await expect.poll(() => asked, { timeout: 8000 }).toBe(true);
+});
+
+test('a student with an empty Vault does not fetch the file on other tabs', async ({ page }) => {
+  let asked = false;
+  await page.route('**/vault-ui.js', async route => { asked = true; await route.continue(); });
+  await page.addInitScript(() => { localStorage.setItem('cos_custom_links', '[]'); });
+  await open(page, '#today');
+  await page.waitForTimeout(6000);
+  expect(asked).toBe(false);
 });
