@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 // Welcome polish for Azuki & Matcha: colours, a quiet-then-ready "That's me", small motion, tiny tap sounds.
-// Sounds are synthesized (Web Audio): none before a tap, none under reduced motion.
+// The welcome makes no sound: the audio stub below counts any Web Audio use.
 
 const stubAudio = () => {
   (window as any).__audio = { contexts: 0, oscillators: 0 };
@@ -55,17 +55,16 @@ test('name step: That\'s me is quiet until a name is typed, then turns red-bean'
   await expect(btn).not.toHaveCSS('background-color', 'rgb(138, 42, 54)');
 });
 
-test('sound: none before a tap, soft blips after taps', async ({ page }) => {
+test('no sound: taps on the welcome never start audio', async ({ page }) => {
   await open(page);
-  expect(await page.evaluate(() => (window as any).__audio.contexts)).toBe(0);
   await page.locator('#ob-due').fill('Lab report Friday');
   await page.locator('.ob-add-btn').click();
   const a = await page.evaluate(() => (window as any).__audio);
-  expect(a.contexts).toBe(1);
-  expect(a.oscillators).toBeGreaterThan(0);
+  expect(a.contexts).toBe(0);
+  expect(a.oscillators).toBe(0);
 });
 
-test('reduced motion: no new animation and no sound', async ({ browser }) => {
+test('reduced motion: no new animation', async ({ browser }) => {
   const ctx = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await ctx.newPage();
   await open(page);
