@@ -763,6 +763,10 @@ const setValue = (page: Page, sel: string, v: string) => page.evaluate(([s, val]
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }, [sel, v]);
 const run = (page: Page, js: string) => page.evaluate((code) => { (0, eval)(code); }, js);
+// The syllabus screens come from a lazy file; these scripts open a sheet and fill it in the same tick,
+// so load the file first (a student taps first and types after).
+// (closeSyllabusPasteModal is a no-op here; its stub loads the file and waits for it.)
+const preloadSyllabus = (page: Page) => page.evaluate(() => (window as any).closeSyllabusPasteModal());
 const today = () => { const d = new Date(Date.now() + 2000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 type Row = { name: string; open: string; trigger: string; field: string; note: string; valid: string | null };
@@ -793,6 +797,7 @@ test.describe('field errors', () => {
 
   for (const r of ROWS) {
     test(`field: ${r.name}`, async ({ page }) => {
+      if (/Syllabus/.test(r.open)) await preloadSyllabus(page);
       await run(page, r.open.replace(/__today__/g, today()));
       await run(page, r.trigger);
       const n = await noteFor(page, r.field);
@@ -905,6 +910,7 @@ test.describe('voice', () => {
     if (await undo.count()) await undo.first().click();
     await page.clock.runFor(13000);
     // Add a subject in the hub, a vault subject and a link.
+    await preloadSyllabus(page);
     await step(`showAddSyllabusSubjectModal(); document.getElementById('syl-subj-name').value = 'Physics'; confirmAddSyllabusSubject()`);
     await step(`addLinkSubject(); document.getElementById('lsm-name').value = 'Physics'; saveLinkSubject(null)`);
     await step(`addLinkResource(0); document.getElementById('lrm-label').value = 'Notes'; document.getElementById('lrm-url').value = 'https://example.com/notes'; saveLinkResource(0, null)`);
