@@ -13,7 +13,7 @@ const html = read('index.html');
 const app = read('app.js');
 
 // Loaded only when a student uses the feature; sw.js caches them on first use.
-const CACHED_ON_FIRST_USE = ['deadline-import.js', 'deadline-import-worker.js', 'vendor/jszip.min.js'];
+const CACHED_ON_FIRST_USE = ['deadline-import-worker.js', 'vendor/jszip.min.js'];
 
 let passed = 0, failed = 0;
 function check(name, problems) {

@@ -3,7 +3,8 @@
 // ==================================================================
 // app.js imports desk-assistant.js the first time Ask Desk is used and
 // scanners.js the first time a photo scan is used, and timetable-ocr.js the
-// first time a timetable photo is scanned. Tests that evaluate
+// first time a timetable photo is scanned, and whatsapp-import.js the first
+// time the import screen opens. Tests that evaluate
 // app.js's source directly (new Function) append these so the code exists,
 // exactly as it does after that first use, built from the same deps app.js
 // passes (clarityAssistantDeps, scannerDeps, timetableOcrDeps).
@@ -36,4 +37,12 @@ export function withTimetableOcr(appCode) {
   return `${appCode}\n${mod}\nTimetableOcr = createTimetableOcr(timetableOcrDeps());\nconst { ${names.join(', ')} } = TimetableOcr;\n`;
 }
 
-export const withLazyModules = (appCode) => withTimetableOcr(withScanners(withDeskAssistant(appCode)));
+// Defines every whatsapp-import.js handler by name (waSaveLinks, waToggle, ...)
+// except showWhatsAppImport, which app.js keeps as a stub that calls in here.
+export function withWhatsApp(appCode) {
+  const mod = fs.readFileSync(`${ROOT}/whatsapp-import.js`, 'utf8').replace(/^export function /m, 'function ');
+  const names = mod.slice(mod.lastIndexOf('return {') + 8, mod.lastIndexOf('};')).split(',').map(s => s.replace(/\/\/.*$/gm, '').trim()).filter(n => n && n !== 'showWhatsAppImport' && !n.startsWith('setReviewState'));
+  return `${appCode}\n${mod}\nWhatsApp = createWhatsAppImport(whatsAppDeps());\nconst { ${names.join(', ')} } = WhatsApp;\n`;
+}
+
+export const withLazyModules = (appCode) => withWhatsApp(withTimetableOcr(withScanners(withDeskAssistant(appCode))));

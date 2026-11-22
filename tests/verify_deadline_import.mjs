@@ -193,14 +193,16 @@ console.log('\n9. Share target and offline');
   const shareBlock = sw.slice(sw.indexOf('let pendingShare'), sw.indexOf("self.addEventListener('fetch'"));
   check('shared chat is never written to the Cache API or storage', !/caches\.|cache\.put|indexedDB|localStorage/.test(shareBlock));
   // v231: these load lazily and are cached on first use (not at install) so the first visit downloads less.
+  // The parser itself (~8 KB gzip) is precached with whatsapp-import.js so a first paste works offline.
   const precacheList = sw.slice(sw.indexOf('PRECACHE_ASSETS = ['), sw.indexOf('];', sw.indexOf('PRECACHE_ASSETS = [')));
-  for (const f of ['deadline-import.js', 'deadline-import-worker.js', 'vendor/jszip.min.js']) {
+  check('sw.js precaches the parser so the first paste works offline', precacheList.includes('deadline-import.js'));
+  for (const f of ['deadline-import-worker.js', 'vendor/jszip.min.js']) {
     check(`sw.js leaves ${f} to be cached on first use`, !precacheList.includes(f));
   }
   check('sw.js network-first branch caches .js files on first use', /\.js/.test(sw.slice(sw.indexOf("addEventListener('fetch'"))) && sw.includes('cache.put(e.request, clone)'));
   check('vendored JSZip is present', fs.existsSync(path.join(ROOT, 'vendor', 'jszip.min.js')));
   const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-  const waBlock = appSrc.slice(appSrc.indexOf('// ── Import from WhatsApp'), appSrc.indexOf('// Android share target: sw.js'));
+  const waBlock = fs.readFileSync(path.join(ROOT, 'whatsapp-import.js'), 'utf8');
   check('import screen never stores, sends or logs the chat', !/localStorage|safeSetStorage|indexedDB|fetch\(|sendBeacon|console\./.test(waBlock));
   check('import saves through saveCustomTasks()', /saveCustomTasks\(\)/.test(waBlock));
   check('no em dashes in import UI copy', !/—/.test(waBlock.replace(/^\s*\/\/.*$/gm, '')));
@@ -221,7 +223,7 @@ console.log('\n10. Plain pasted text (a circular, no WhatsApp timestamps)');
   check('a WhatsApp export is not treated as plain', chat.stats.plain === false && chat.stats.recognised === 2);
   const one = P.scanChat(asChat('Submit the DBMS journal by 25 Oct'), NOW);
   check('a single timestamped message is read as a chat, with its deadline', one.stats.plain === false && one.stats.recognised === 1 && one.items.length === 1 && fmtDay(one.items[0].date) === 'Sun 25 Oct');
-  const appSrc2 = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const appSrc2 = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'whatsapp-import.js'), 'utf8');
   check('app lets plain text through but still needs 2 headers for chats', /recognised < 2 && !result\.stats\.plain/.test(appSrc2));
   check('app accepts 1 header only when that message has a deadline', /recognised === 1 && result\.items\.length > 0/.test(appSrc2));
   check('app leaves unsure rows unticked', /waMidnight\(c\.date\) >= today && !c\.unsure/.test(appSrc2));

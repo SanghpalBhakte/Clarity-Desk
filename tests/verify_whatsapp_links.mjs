@@ -17,6 +17,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withWhatsApp } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 const parserSrc = fs.readFileSync(`${ROOT}/deadline-import.js`, 'utf8');
@@ -61,7 +62,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { waGuessLinkSubject, waLinkSubjects, waSaveLinks, waLinkToggle, waLinkSubject, waNormUrl, vaultIconForUrl, USAGE_EVENTS, setWa(v) { _wa = v; } };`)();
+const app = new Function(`${withWhatsApp(code)}\n return { waGuessLinkSubject, waLinkSubjects, waSaveLinks, waLinkToggle, waLinkSubject, waNormUrl, vaultIconForUrl, USAGE_EVENTS, setWa(v) { WhatsApp.setReviewState(v); } };`)();
 
 const getLinks = () => JSON.parse(store.cos_custom_links || '[]');
 function seed(extra = {}) {
@@ -190,7 +191,7 @@ check('Parser stays private: no storage, network or console calls', () => {
 });
 
 check('Entry points: Links tab in the review, and a Study Vault button', () =>
-  appSrc.includes("onclick=\"showWhatsAppImport(null, { tab: 'links' })\"") && appSrc.includes('waTabsHtml()') ? true : 'missing');
+  appSrc.includes("onclick=\"showWhatsAppImport(null, { tab: 'links' })\"") && fs.readFileSync(`${ROOT}/whatsapp-import.js`, 'utf8').includes('waTabsHtml()') ? true : 'missing');
 
 console.log('\n========================================');
 console.log(`WHATSAPP LINKS: ${passed}/${total} passed`);
