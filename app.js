@@ -138,6 +138,7 @@ function storageShapeOk(val, fallback) {
 
 function safeGetStorage(key, fallback = null) {
   try {
+    // eslint-disable-next-line no-restricted-syntax -- the storage helper itself
     const v = localStorage.getItem(key);
     if (v === null || v === undefined) return fallback;
     let val;
@@ -163,11 +164,21 @@ function safeGetStorage(key, fallback = null) {
 
 function safeSetStorage(key, val) {
   try {
+    // eslint-disable-next-line no-restricted-syntax -- the storage helper itself
     localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
     return true;
   } catch (err) {
     console.warn(`localStorage write error for key [${key}]:`, err);
     return false;
+  }
+}
+
+function safeRemoveStorage(key) {
+  try {
+    // eslint-disable-next-line no-restricted-syntax -- the storage helper itself
+    localStorage.removeItem(key);
+  } catch (err) {
+    console.warn(`localStorage remove error for key [${key}]:`, err);
   }
 }
 
@@ -1085,7 +1096,7 @@ function syncWaitingSaved() {
 // Not while the first sign-in question is open: nothing is headed to the account yet.
 function setSyncWaiting(on) {
   if (on) { if (currentUser && !signinHeld(currentUser.uid) && !syncWaitingSaved()) safeSetStorage(KEY_SYNC_WAITING, { uid: currentUser.uid }); return; }
-  try { localStorage.removeItem(KEY_SYNC_WAITING); } catch (_) {}
+  safeRemoveStorage(KEY_SYNC_WAITING);
 }
 
 // Phone storage was too full to keep the account's latest copy (badge only).
@@ -4267,7 +4278,7 @@ function completeEmailSignIn(email, link) {
   if (!auth) return Promise.resolve(null);
   return auth.signInWithEmailLink(email, link).then(result => {
     trackUsage('signin_done', 'email_link');
-    localStorage.removeItem(KEY_EMAIL_LINK_PENDING);
+    safeRemoveStorage(KEY_EMAIL_LINK_PENDING);
     incomingEmailLink = null;
     clearEmailLinkFromUrl();
     document.getElementById('email-signin-modal-backdrop')?.remove();
@@ -4635,10 +4646,12 @@ function stampSections(prev, next) {
 // write(list) -> true/false replaces the plain safeSetStorage (restore uses it).
 function writeStamped(storageKey, stampFn, write) {
   let before = null;
+  // eslint-disable-next-line no-restricted-syntax -- exact raw text (or missing) to put back
   try { before = localStorage.getItem(KEY_TOMBSTONES); } catch (e) { /* storage blocked */ }
   const list = stampFn();
   const ok = write ? write(list) : safeSetStorage(storageKey, list);
   if (!ok) {
+    // eslint-disable-next-line no-restricted-syntax -- puts the exact raw text back
     try { if (before == null) localStorage.removeItem(KEY_TOMBSTONES); else localStorage.setItem(KEY_TOMBSTONES, before); } catch (e) { /* storage blocked */ }
   }
   return { list, ok };
@@ -5062,7 +5075,7 @@ function cloudHasData(data) { return signinDataIn(data); }
 function needsSigninReview(uid, localHas, cloudHas) {
   if (!uid || !localHas || !cloudHas) return false;
   const seen = safeGetStorage(KEY_SIGNIN_SEEN, null);
-  if (!Array.isArray(seen)) return localStorage.getItem(KEY_SYNC_LAST_PUSHED) === null;
+  if (!Array.isArray(seen)) return safeGetStorage(KEY_SYNC_LAST_PUSHED, null) === null;
   return !seen.includes(uid);
 }
 // Accounts this phone has looked at (also kept in memory, in case storage is full).
@@ -5094,6 +5107,7 @@ function unmarkSigninSeen(uid) {
 // Raw stored strings (exact Undo); the vault in cloud shape (no file bytes).
 function saveSigninBackup(uid) {
   const keys = {};
+  // eslint-disable-next-line no-restricted-syntax -- exact raw text (or missing) for Undo
   signinBackupKeys().forEach(k => { keys[k] = localStorage.getItem(k); });
   const links = safeGetStorage(KEY_CUSTOM_LINKS, null);
   if (Array.isArray(links)) keys[KEY_CUSTOM_LINKS] = JSON.stringify(linksForCloud(links));
@@ -5280,6 +5294,7 @@ function undoSignin() {
     try {
       // Vault files this phone still holds get their bytes back.
       if (k === KEY_CUSTOM_LINKS && v) { const parsed = JSON.parse(v); if (Array.isArray(parsed)) v = JSON.stringify(mergeCloudLinks(parsed, curLinks)); }
+      // eslint-disable-next-line no-restricted-syntax -- puts the exact raw text back (Undo)
       if (v === null || v === undefined) localStorage.removeItem(k); else localStorage.setItem(k, v);
     } catch (e) { ok = false; }
   });
@@ -6272,13 +6287,12 @@ async function vaultViewInApp(blob, label, kind) {
   const setFull = (on) => {
     backdrop.classList.toggle('vault-full', on);
     fullBtn.textContent = on ? 'Minimise' : 'Full screen';
-    try { localStorage.setItem('cos_vault_view_full', on ? '1' : '0'); } catch (_) {}
+    safeSetStorage('cos_vault_view_full', on ? '1' : '0');
     if (!on && inBrowserFs()) document.exitFullscreen().catch(() => {});
   };
-  let saved = null;
-  try { saved = localStorage.getItem('cos_vault_view_full'); } catch (_) {}
+  const saved = safeGetStorage('cos_vault_view_full', '');
   const narrow = window.matchMedia('(max-width: 700px)').matches;
-  const startFull = saved === null ? narrow : saved === '1';
+  const startFull = saved === '' ? narrow : saved === '1';
   backdrop.classList.toggle('vault-full', startFull);
   fullBtn.textContent = startFull ? 'Minimise' : 'Full screen';
   if (backdrop.requestFullscreen && document.fullscreenEnabled && !narrow) fsBtn.style.display = '';
@@ -7853,7 +7867,7 @@ function applyThemeColorMeta(theme) {
 }
 
 function initTheme() {
-  const saved = localStorage.getItem(KEY_THEME);
+  const saved = safeGetStorage(KEY_THEME, '');
   let migratedAccent = null;
   if (saved && LEGACY_ACCENT_THEME_MAP[saved]) {
     // Old flat theme (e.g. 'dusty-rose') baked mode+accent together —
@@ -7864,9 +7878,9 @@ function initTheme() {
   const setting = normalizeThemeSetting(saved);
 
   if (saved !== setting) {
-    localStorage.setItem(KEY_THEME, setting);
+    safeSetStorage(KEY_THEME, setting);
   }
-  if (migratedAccent) localStorage.setItem(KEY_ACCENT, migratedAccent);
+  if (migratedAccent) safeSetStorage(KEY_ACCENT, migratedAccent);
 
   const mode = resolveThemeMode(setting, systemPrefersDark());
   document.documentElement.setAttribute('data-theme', mode);
@@ -7882,7 +7896,7 @@ function watchSystemTheme() {
   systemThemeWatched = true;
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   const onChange = () => {
-    if (normalizeThemeSetting(localStorage.getItem(KEY_THEME)) !== 'auto') return;
+    if (normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) !== 'auto') return;
     const mode = resolveThemeMode('auto', mq.matches);
     document.documentElement.setAttribute('data-theme', mode);
     applyThemeColorMeta(mode);
@@ -7893,14 +7907,14 @@ function watchSystemTheme() {
 }
 
 function initAccent() {
-  let accent = localStorage.getItem(KEY_ACCENT);
+  let accent = safeGetStorage(KEY_ACCENT, '');
   if (!accent) {
-    const legacyTheme = localStorage.getItem(KEY_THEME);
+    const legacyTheme = safeGetStorage(KEY_THEME, '');
     accent = LEGACY_ACCENT_THEME_MAP[legacyTheme] || null;
   }
   // New students start on Old Campus ('rose'); a saved choice always wins.
   if (!accent || !ALL_ACCENTS.includes(accent)) accent = 'rose';
-  localStorage.setItem(KEY_ACCENT, accent);
+  safeSetStorage(KEY_ACCENT, accent);
   document.documentElement.setAttribute('data-accent', accent);
   applyThemeColorMeta(document.documentElement.getAttribute('data-theme'));
 }
@@ -7908,7 +7922,7 @@ function initAccent() {
 function setAccent(accent, originEvent) {
   if (!ALL_ACCENTS.includes(accent)) return;
   document.documentElement.setAttribute('data-accent', accent);
-  localStorage.setItem(KEY_ACCENT, accent);
+  safeSetStorage(KEY_ACCENT, accent);
 
   applyThemeColorMeta(document.documentElement.getAttribute('data-theme'));
 
@@ -7931,7 +7945,7 @@ function setAccent(accent, originEvent) {
 function toggleTheme(originEvent) {
   // Cycles Auto -> the phone's opposite -> the phone's own mode -> Auto. The first tap always changes the
   // colours, and the label names the saved choice, so Auto is never lost unseen. Accent is separate (setAccent()).
-  setTheme(nextThemeSetting(localStorage.getItem(KEY_THEME), systemPrefersDark()), originEvent);
+  setTheme(nextThemeSetting(safeGetStorage(KEY_THEME, ''), systemPrefersDark()), originEvent);
 }
 
 function nextThemeSetting(stored, prefersDark) {
@@ -7951,7 +7965,7 @@ function setTheme(setting, originEvent) {
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', theme);
     applyThemeColorMeta(theme);
-    localStorage.setItem(KEY_THEME, setting);
+    safeSetStorage(KEY_THEME, setting);
     updateThemeSelector(setting);
     watchSystemTheme();
     // No renderPage() here: every themed value in the page already flows
@@ -8618,7 +8632,7 @@ function fixShiftedAttendanceDates() {
   });
 
   if (moved > 0) {
-    if (!safeGetStorage(KEY_ATT_DATEFIX_BACKUP, null)) localStorage.setItem(KEY_ATT_DATEFIX_BACKUP, original);
+    if (!safeGetStorage(KEY_ATT_DATEFIX_BACKUP, null)) safeSetStorage(KEY_ATT_DATEFIX_BACKUP, original);
     safeSetStorage(KEY_ATTENDANCE, data);
     console.info(`[Attendance] Moved ${moved} mark(s) saved under the previous day's date to the right day.`);
   }
@@ -9090,7 +9104,7 @@ function buildTodayFocus(o = {}) {
 const FOCUS_DISMISS_KEY = 'cd_focus_dismissed';   // local only, not a cos_* key, not synced
 function readDismissedFocus() {
   try {
-    const o = JSON.parse(localStorage.getItem(FOCUS_DISMISS_KEY) || 'null');
+    const o = safeGetStorage(FOCUS_DISMISS_KEY, null);
     return o && o.day === todayStr() && Array.isArray(o.ids) ? o.ids : [];
   } catch (e) { return []; }
 }
@@ -9098,7 +9112,7 @@ window.dismissTodayFocus = function(id) {
   try {
     const ids = readDismissedFocus();
     if (id && !ids.includes(id)) ids.push(id);
-    localStorage.setItem(FOCUS_DISMISS_KEY, JSON.stringify({ day: todayStr(), ids }));
+    safeSetStorage(FOCUS_DISMISS_KEY, { day: todayStr(), ids });
   } catch (e) { /* private mode: it simply comes back next render */ }
   if (state.currentPage === 'dashboard') renderDashboard();
 };
@@ -10922,8 +10936,7 @@ window.dismissWeeklyReview = function() {
       const k = localStorage.key(i);
       if (k && k.startsWith(WEEKLY_REVIEW_DISMISSED) && k !== thisWeek) old.push(k);
     }
-    // eslint-disable-next-line no-restricted-syntax -- no safe remove helper yet
-    old.forEach(k => localStorage.removeItem(k));
+    old.forEach(k => safeRemoveStorage(k));
   } catch (_) { /* storage blocked: the old keys stay, nothing else changes */ }
   renderPage(state.currentPage);
 };
@@ -11617,7 +11630,7 @@ function noteTimetableDay() {
 
 function checkOnboarding() {
   const p = loadProfile();
-  if (!p.name && !localStorage.getItem('cos_onboarding_dismissed') && !hasExistingUserData()) {
+  if (!p.name && !safeGetStorage('cos_onboarding_dismissed', '') && !hasExistingUserData()) {
     setTimeout(showOnboardingModal, 400);
   }
 }
@@ -11940,7 +11953,7 @@ window.onboardingStartTour = async function() {
 };
 
 window.dismissOnboarding = function() {
-  localStorage.setItem('cos_onboarding_dismissed', 'true');
+  safeSetStorage('cos_onboarding_dismissed', 'true');
   const existingChoice = safeGetStorage(KEY_TIMETABLE_CHOICE, null);
   if (!existingChoice) {
     safeSetStorage(KEY_TIMETABLE_CHOICE, 'clean');
@@ -14183,6 +14196,7 @@ function getAttendanceV2Derived() {
   let sig = '';
   try {
     sig = [KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE, KEY_ATT_TARGET]
+      // eslint-disable-next-line no-restricted-syntax -- cache key is the raw stored text
       .map(k => localStorage.getItem(k) || '').join('\u0001');
   } catch (e) { sig = null; }
   if (sig !== null && attV2Cache.sig === sig) return attV2Cache.value;
@@ -18703,6 +18717,7 @@ function vaultStorageStats(links) {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
+      // eslint-disable-next-line no-restricted-syntax -- size estimate inside a try; keeps the vault block free of storage-helper calls (verify_vault_phase1)
       total += k.length + String(localStorage.getItem(k) || '').length;
     }
   } catch (_) {}
@@ -20269,7 +20284,7 @@ function renderSettings() {
         <label class="form-label" style="margin-bottom:6px">Mode</label>
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Auto follows your phone. Or keep it light for the day and dark for night study.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
-          <button type="button" class="theme-swatch ${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'auto' ? 'active' : ''}" onclick="setTheme('auto', event)" aria-pressed="${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'auto'}" aria-label="Auto: follows your phone">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'auto' ? 'active' : ''}" onclick="setTheme('auto', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'auto'}" aria-label="Auto: follows your phone">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:linear-gradient(90deg,#EEF0E4 50%,#0E0F0C 50%)"></div>
               <div class="swatch-surface" style="background:linear-gradient(90deg,#FFFFFF 50%,#1B1D22 50%)"></div>
@@ -20280,7 +20295,7 @@ function renderSettings() {
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Follows your phone</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'paper-slate'}" aria-label="Paper Slate: daylight desk">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'paper-slate'}" aria-label="Paper Slate: daylight desk">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#F2F2EC"></div>
               <div class="swatch-surface" style="background:#FBFBF7"></div>
@@ -20291,7 +20306,7 @@ function renderSettings() {
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Daylight desk</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${normalizeThemeSetting(localStorage.getItem(KEY_THEME)) === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#101613"></div>
               <div class="swatch-surface" style="background:#161E19"></div>
@@ -20309,7 +20324,7 @@ function renderSettings() {
         <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Paper, ink and colour together. Each one has a light and a dark version.</div>
         <div class="theme-swatch-grid" role="group" aria-label="Palette selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
           ${PALETTE_SWATCHES.map(p => {
-            const on = (localStorage.getItem(KEY_ACCENT) || 'terracotta') === p.accent;
+            const on = (safeGetStorage(KEY_ACCENT, '') || 'terracotta') === p.accent;
             return `<button type="button" class="theme-swatch palette-swatch ${on ? 'active' : ''}" data-accent="${p.accent}" onclick="setAccent('${p.accent}', event)" aria-pressed="${on}" aria-label="${escAttr_cd(ACCENT_LABELS[p.accent] + ': ' + p.note)}">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:${p.colors[0]}"></div>
@@ -21026,32 +21041,32 @@ const DESK_DATASETS = [
   // A cloud theme or palette is taken only when this phone has none: each
   // device keeps its own choice. (Writing the local one back to the cloud made
   // two signed-in devices ping-pong forever; a toggle already pushes itself.)
-  { key: KEY_THEME, backup: 'theme', at: { restore: 19, cloud: 11, apply: 10, signin: 17 }, read: () => localStorage.getItem(KEY_THEME) || 'paper-slate',
+  { key: KEY_THEME, backup: 'theme', at: { restore: 19, cloud: 11, apply: 10, signin: 17 }, read: () => safeGetStorage(KEY_THEME, '') || 'paper-slate',
     restore: (v) => {
       if (!v) return;
-      localStorage.setItem(KEY_THEME, v);
+      safeSetStorage(KEY_THEME, v);
       initTheme();
     },
     cloud: 'theme',
     apply: (v) => {
       if (!v || typeof v !== 'string') return;
       const cloudTheme = LEGACY_THEME_MAP[v] || v;
-      if (!localStorage.getItem(KEY_THEME) && ALL_THEME_SETTINGS.includes(cloudTheme)) {
-        localStorage.setItem(KEY_THEME, cloudTheme);
+      if (!safeGetStorage(KEY_THEME, '') && ALL_THEME_SETTINGS.includes(cloudTheme)) {
+        safeSetStorage(KEY_THEME, cloudTheme);
         initTheme();
       }
     } },
-  { key: KEY_ACCENT, backup: 'accent', at: { restore: 20, cloud: 12, apply: 11, signin: 18 }, read: () => localStorage.getItem(KEY_ACCENT) || 'terracotta',
+  { key: KEY_ACCENT, backup: 'accent', at: { restore: 20, cloud: 12, apply: 11, signin: 18 }, read: () => safeGetStorage(KEY_ACCENT, '') || 'terracotta',
     restore: (v) => {
       if (!v) return;
-      localStorage.setItem(KEY_ACCENT, v);
+      safeSetStorage(KEY_ACCENT, v);
       initAccent();
     },
     cloud: 'accent',
     apply: (v) => {
       if (!v || typeof v !== 'string') return;
-      if (!localStorage.getItem(KEY_ACCENT) && ALL_ACCENTS.includes(v)) {
-        localStorage.setItem(KEY_ACCENT, v);
+      if (!safeGetStorage(KEY_ACCENT, '') && ALL_ACCENTS.includes(v)) {
+        safeSetStorage(KEY_ACCENT, v);
         initAccent();
       }
     } },
@@ -22095,7 +22110,7 @@ function setupFABDrag() {
       document.removeEventListener('pointerdown', hintOutsideHandler, true);
       hintOutsideHandler = null;
     }
-    localStorage.setItem('fabHintDismissed', 'true');
+    safeSetStorage('fabHintDismissed', 'true');
   };
 
   // The tip never covers a control: it waits until the spot beside the button
@@ -22110,7 +22125,7 @@ function setupFABDrag() {
     });
   };
   const showHint = () => {
-    if (hintEl || localStorage.getItem('fabHintDismissed') || window.innerWidth > 768) return;
+    if (hintEl || safeGetStorage('fabHintDismissed', '') || window.innerWidth > 768) return;
     if (!fab.getClientRects().length) return; // the button isn't on this page
     hintEl = document.createElement('div');
     hintEl.className = 'fab-hint';
@@ -22139,8 +22154,8 @@ function setupFABDrag() {
     // Exit 3: auto-hide after a few seconds if the user takes no action
     hintTimeoutId = setTimeout(dismissHint, 3500);
   };
-  if (window.innerWidth <= 768 && !localStorage.getItem('fabHintDismissed')) {
-    const tryHint = () => { if (localStorage.getItem('fabHintDismissed')) { window.removeEventListener('hashchange', tryHintSoon); return; } showHint(); };
+  if (window.innerWidth <= 768 && !safeGetStorage('fabHintDismissed', '')) {
+    const tryHint = () => { if (safeGetStorage('fabHintDismissed', '')) { window.removeEventListener('hashchange', tryHintSoon); return; } showHint(); };
     const tryHintSoon = () => setTimeout(tryHint, 700);
     window.addEventListener('hashchange', tryHintSoon);
     tryHintSoon();
@@ -22161,7 +22176,7 @@ function setupFABDrag() {
       fab.style.transform = 'translateX(-50%)';
     }
   };
-  const savedPos = localStorage.getItem('fabPosition');
+  const savedPos = safeGetStorage('fabPosition', '');
   if (savedPos) applySnapPosition(savedPos);
 
   const getClientX = (e) => e.touches ? e.touches[0].clientX : e.clientX;
@@ -22219,7 +22234,7 @@ function setupFABDrag() {
       else if (center > w * 0.66) snapPos = 'right';
       else snapPos = 'center';
       applySnapPosition(snapPos);
-      localStorage.setItem('fabPosition', snapPos);
+      safeSetStorage('fabPosition', snapPos);
     }
   };
 
@@ -22342,7 +22357,7 @@ function setupFABDrag() {
 
   window.toggleSidebar = function () {
     const collapsed = root.classList.toggle('sidebar-collapsed');
-    try { localStorage.setItem('cd_sidebar_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+    safeSetStorage('cd_sidebar_collapsed', collapsed ? '1' : '0');
     syncSidebarBtn();
   };
 
