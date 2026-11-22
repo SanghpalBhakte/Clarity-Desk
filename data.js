@@ -170,6 +170,30 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u347",
+    date: "2026-11-22",
+    title: "Syllabus screens now load from their own file, so the app opens a little faster",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Adding topics, editing them and adding a subject move out of app.js into syllabus-ui.js, loaded the first time a syllabus screen is used.",
+    points: [
+      "The file is saved for offline use, so the syllabus works with no signal."
+    ]
+  },
+  {
+    id: "u346",
+    date: "2026-11-22",
+    title: "Paste a message or circular now loads from its own file, so the app opens a little faster",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The import screen moves out of app.js into whatsapp-import.js, loaded the first time it opens.",
+    points: [
+      "It and its parser are saved for offline use, so pasting a circular with no signal still works."
+    ]
+  },
+  {
     id: "u345",
     date: "2026-11-22",
     title: "If some saved data was ever damaged, Settings → Backup now says so and lets you download or clear the kept copy",
