@@ -17842,6 +17842,19 @@ function loadVaultUi() {
   return _vaultUiLoad;
 }
 
+// A student who keeps things in the Vault gets the file fetched while the
+// phone is idle, so opening the tab skips "Loading…" and works offline even
+// if the service worker had not finished caching it. Failure is silent here;
+// opening the tab reports it.
+function warmVaultUi() {
+  try {
+    if (!loadCustomLinks().length) return;
+    const go = () => loadVaultUi().catch(() => {});
+    if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 5000 });
+    else setTimeout(go, 3000);
+  } catch (e) { /* nothing to warm */ }
+}
+
 function callVault(name, args) {
   if (VaultUi) return VaultUi[name](...args);
   return loadVaultUi().then(
@@ -20068,6 +20081,7 @@ function init() {
   try { migrateLegacySampleTimetable(); } catch (e) { console.warn('[Timetable] sample copy skipped:', e); }
   try { noteTimetableDay(); } catch (e) { console.warn('[Onboarding] timetable day skipped:', e); }
   try { vaultIdbStart(); } catch (e) { console.warn('[Vault] file store skipped:', e); }
+  warmVaultUi();
   initTheme();
   initAccent();
   updateTopbarProfile();
