@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Laptop: the button sits in the top bar. Phone shell: it moves into the large-title row.
+const ASK_DESK_BTN = '.topbar #assistant-toggle-btn, [data-testid="topbar"] #assistant-toggle-btn, #c2-title-actions #assistant-toggle-btn';
+
 test.describe('Clarity Desk PWA Smoke Suite', () => {
   test('1. Manifest presence, linkage, and valid schema', async ({ page, request }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -129,7 +132,7 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
       await page.reload({ waitUntil: 'domcontentloaded' });
 
       // Verify app shell and essential UI components render offline
-      const topbar = page.locator('.topbar #assistant-toggle-btn, [data-testid="topbar"] #assistant-toggle-btn');
+      const topbar = page.locator(ASK_DESK_BTN);
       await expect(topbar.first()).toBeVisible({ timeout: 5000 });
 
       const mainContent = page.locator('.app-shell, main, #app');
@@ -203,7 +206,7 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
     try {
       const t0 = Date.now();
       await page.reload({ waitUntil: 'commit' });
-      await expect(page.locator('.topbar #assistant-toggle-btn, [data-testid="topbar"] #assistant-toggle-btn').first()).toBeVisible({ timeout: 15000 });
+      await expect(page.locator(ASK_DESK_BTN).first()).toBeVisible({ timeout: 15000 });
       // The shell HTML lays out before app.js runs; wait for the app itself.
       await page.waitForFunction(() => typeof (window as any).setTheme === 'function', null, { timeout: 15000 });
       const ms = Date.now() - t0;
@@ -222,7 +225,7 @@ test.describe('Clarity Desk PWA Smoke Suite', () => {
       if (req.serviceWorker() && new URL(req.url()).pathname === '/app.js') fresh.push(req.url());
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.topbar #assistant-toggle-btn, [data-testid="topbar"] #assistant-toggle-btn').first()).toBeVisible();
+    await expect(page.locator(ASK_DESK_BTN).first()).toBeVisible();
     await expect.poll(() => fresh.length, { message: 'the worker should fetch app.js from the network' }).toBeGreaterThan(0);
   });
 });
