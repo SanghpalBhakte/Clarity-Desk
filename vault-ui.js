@@ -961,14 +961,8 @@ export function createVaultUi(deps) {
             <input id="lrm-url" class="form-input" type="text" inputmode="url" value="${vaultEsc(existing?.url)}" placeholder="https://drive.google.com/... or GitHub link" oninput="autoDetectVaultIcon(this.value)" />
           </div>
 
-          <div>
-            <label class="form-label">Category Icon</label>
-            <select id="lrm-icon" class="form-input">
-              ${['book-open','code','video','graduation-cap','database','link','eye','list'].map(ic =>
-                `<option value="${ic}" ${(existing?.icon||'book-open')===ic?'selected':''}>${ic === 'book-open' ? '📖 Notes / PDF' : ic === 'code' ? '💻 Code / Repo' : ic === 'video' ? '🎥 Lecture Video' : ic === 'graduation-cap' ? '🎓 Syllabus / Guide' : ic === 'database' ? '🗄️ Cloud Drive' : '🔗 Web Resource'}</option>`
-              ).join('')}
-            </select>
-          </div>
+          <!-- The icon is picked from the link or file type; nobody has to choose it. -->
+          <input id="lrm-icon" type="hidden" value="${vaultEsc(existing?.icon || 'book-open')}" />
         </div>
 
         <div class="modal-footer" style="margin-top:16px">
