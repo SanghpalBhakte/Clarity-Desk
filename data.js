@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u345",
+    date: "2026-11-22",
+    title: "If some saved data was ever damaged, Settings → Backup now says so and lets you download or clear the kept copy",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "If some saved data was ever damaged, Settings → Backup now says so and lets you download or clear the kept copy",
+    points: [
+
+    ]
+  },
+  {
     id: "u344",
     date: "2026-11-21",
     title: "Choosing a wrong file or a too-big photo for an attendance scan now shows a message in the app instead of a pop-up box",
