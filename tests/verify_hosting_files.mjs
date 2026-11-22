@@ -17,7 +17,7 @@ import { fileURLToPath } from 'url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RUNTIME_FILES = [
   '404.html', 'index.html', 'app.js', 'data.js', 'style.css', 'sw.js', 'manifest.json',
-  'firebase-config.js', 'desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'whatsapp-import.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
+  'firebase-config.js', 'desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'whatsapp-import.js', 'syllabus-ui.js', 'deadline-import.js', 'welcome-tour.js', 'deadline-import-worker.js', 'vendor/jszip.min.js',
   'favicon.ico', 'favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png',
   'icon-192.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-512-maskable.png', 'badge-96.png',
   'og-image.png', 'robots.txt', 'screenshot-phone.png', 'screenshot-wide.png',
@@ -114,7 +114,7 @@ scenario('Lazy modules app.js imports (Ask Desk, scanners, timetable reader, fir
   const list = sw.slice(sw.indexOf('PRECACHE_ASSETS = ['), sw.indexOf('];', sw.indexOf('PRECACHE_ASSETS = [')));
   const cdn = (ship.match(/CDN_FILES = \[([^\]]*)\]/) || [, ''])[1];
   const bad = [];
-  for (const f of ['desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'whatsapp-import.js', 'deadline-import.js', 'welcome-tour.js']) {
+  for (const f of ['desk-assistant.js', 'scanners.js', 'timetable-ocr.js', 'whatsapp-import.js', 'syllabus-ui.js', 'deadline-import.js', 'welcome-tour.js']) {
     if (!app.includes(`import('./${f}')`)) bad.push(`app.js does not import ${f}`);
     if (!list.includes(`/${f}'`)) bad.push(`sw.js does not precache ${f} (offline)`);
     if (!cdn.includes(`'${f}'`)) bad.push(`ship.mjs CDN_FILES is missing ${f}`);

@@ -20,7 +20,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import { withScanners } from './lazy-modules.mjs';
+import { withScanners, withSyllabusUi } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -82,7 +82,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const NOTICES = [];
 `);
 let lastApp = null;
-const makeApp = () => lastApp = new Function('__fakeDb', `${withScanners(code)}\n db = __fakeDb;\n signinSeen = () => true; // an already signed-in phone\n return { state, AIService, topicsFromSyllabusScan, syllabusScanFileProblem, runSyllabusScan, parseSyllabusPaste, parseSyllabusLine, sanitizeSyllabus, loadSyllabus, saveSyllabus, syllabusStats, syllabusCardHTML, syllabusTodayLine, getSubjectList, renderDashboard, pushLocalDataToCloud, applyCloudDataToLocalState, exportData };`)(fakeDb);
+const makeApp = () => lastApp = new Function('__fakeDb', `${withSyllabusUi(withScanners(code))}\n db = __fakeDb;\n signinSeen = () => true; // an already signed-in phone\n return { state, AIService, topicsFromSyllabusScan, syllabusScanFileProblem, runSyllabusScan, parseSyllabusPaste, parseSyllabusLine, sanitizeSyllabus, loadSyllabus, saveSyllabus, syllabusStats, syllabusCardHTML, syllabusTodayLine, getSubjectList, renderDashboard, pushLocalDataToCloud, applyCloudDataToLocalState, exportData };`)(fakeDb);
 
 function seed(extra = {}) {
   for (const k of Object.keys(store)) delete store[k];

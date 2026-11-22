@@ -3,8 +3,9 @@
 // ==================================================================
 // app.js imports desk-assistant.js the first time Ask Desk is used and
 // scanners.js the first time a photo scan is used, and timetable-ocr.js the
-// first time a timetable photo is scanned, and whatsapp-import.js the first
-// time the import screen opens. Tests that evaluate
+// first time a timetable photo is scanned, whatsapp-import.js the first
+// time the import screen opens, and syllabus-ui.js the first time a syllabus
+// screen is used. Tests that evaluate
 // app.js's source directly (new Function) append these so the code exists,
 // exactly as it does after that first use, built from the same deps app.js
 // passes (clarityAssistantDeps, scannerDeps, timetableOcrDeps).
@@ -45,4 +46,13 @@ export function withWhatsApp(appCode) {
   return `${appCode}\n${mod}\nWhatsApp = createWhatsAppImport(whatsAppDeps());\nconst { ${names.join(', ')} } = WhatsApp;\n`;
 }
 
-export const withLazyModules = (appCode) => withWhatsApp(withTimetableOcr(withScanners(withDeskAssistant(appCode))));
+// Defines every syllabus-ui.js function by name (parseSyllabusPaste,
+// cycleSyllabusTopic, ...). app.js's scanner deps read parseSyllabusLine and
+// the paste draft from SyllabusUi, so this goes under withScanners.
+export function withSyllabusUi(appCode) {
+  const mod = fs.readFileSync(`${ROOT}/syllabus-ui.js`, 'utf8').replace(/^export function /m, 'function ');
+  const names = mod.slice(mod.lastIndexOf('return {') + 8, mod.lastIndexOf('};')).split(',').map(s => s.replace(/\/\/.*$/gm, '').trim()).filter(n => n && !n.startsWith('getPasteDraft'));
+  return `${appCode}\n${mod}\nSyllabusUi = createSyllabusUi(syllabusDeps());\nconst { ${names.join(', ')} } = SyllabusUi;\n`;
+}
+
+export const withLazyModules = (appCode) => withWhatsApp(withTimetableOcr(withScanners(withSyllabusUi(withDeskAssistant(appCode)))));
