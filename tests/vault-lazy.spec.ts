@@ -100,6 +100,8 @@ test('the subject sheet has no color picker, and an edit keeps the subject\'s sa
   });
   await open(page);
   await page.waitForSelector('#link-card-0');
+  // The header shows name, count and code only: no colour dot.
+  await expect(page.locator('#link-card-0 .link-color-dot')).toHaveCount(0);
   await page.evaluate(() => (window as any).editLinkSubject(0));
   await expect(page.locator('#lsm-name')).toBeVisible();
   await expect(page.locator('#lsm-color')).toHaveCount(0);
