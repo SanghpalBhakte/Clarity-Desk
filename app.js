@@ -11665,7 +11665,6 @@ window.onboardingAddDue = function() {
   // Nothing typed: stay on the welcome, the field is the place to start.
   if (!text) { document.getElementById('ob-due')?.focus(); return; }
   trackUsage('welcome_choice', 'task');
-  obSound('done');
   window.dismissOnboarding();
   tkQuickAdd({ value: text });
 };
@@ -11882,7 +11881,6 @@ window.onboardingShowName = function() {
   const step = document.getElementById('onboarding-step-1');
   if (!step) return;
   trackUsage('welcome_choice', 'explore');
-  obSound('tap');
   step.classList.add('ob-name-step-quiet');
   step.innerHTML = `
     <div class="ob-name">
@@ -11904,7 +11902,6 @@ window.onboardingSaveName = function(skip) {
   if (name) saveProfileField('name', name);
   trackUsage(name ? 'name_given' : 'name_skipped');
   if (name) updateTopbarProfile();
-  if (name) obSound('done');
   window.onboardingStartTour();
 };
 
@@ -17612,30 +17609,6 @@ function showWhatsAppImport(prefill = null, opts = {}) {
 // support it; silently nothing elsewhere).
 function haptic(ms = 10) {
   try { if (navigator.vibrate && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) navigator.vibrate(ms); } catch (_) {}
-}
-
-// Welcome only: tiny synthesized blips on a student's own taps (no audio files).
-// Never before a tap, never under reduced motion, never throws.
-let obAudio = null;
-function obSound(kind) {
-  try {
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    obAudio = obAudio || new AC();
-    if (obAudio.state === 'suspended') obAudio.resume();
-    const notes = { tap: [[660, 0]], done: [[523, 0], [784, 0.09]] }[kind] || [];
-    const t0 = obAudio.currentTime;
-    notes.forEach(([freq, at]) => {
-      const osc = obAudio.createOscillator(), gain = obAudio.createGain();
-      osc.type = 'sine'; osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t0 + at);
-      gain.gain.exponentialRampToValueAtTime(0.05, t0 + at + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.16);
-      osc.connect(gain); gain.connect(obAudio.destination);
-      osc.start(t0 + at); osc.stop(t0 + at + 0.18);
-    });
-  } catch (_) {}
 }
 
 function showUndoToast(msg, onUndo, type = 'done', opts = {}) {
