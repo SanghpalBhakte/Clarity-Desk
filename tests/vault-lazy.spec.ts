@@ -124,3 +124,15 @@ test('a link has no icon dropdown: the icon follows the address', async ({ page 
   await page.evaluate(() => (window as any).saveLinkResource(0, null));
   await expect.poll(async () => (await links(page))[0].resources[0]?.icon).toBe('code');
 });
+
+test('editing a link to an unknown address drops the old icon', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('cos_custom_links', JSON.stringify([{ subject: 'Physics', code: 'PHY', color: '#394B63', resources: [{ label: 'Lecture', url: 'https://youtube.com/watch?v=1', icon: 'video' }] }]));
+  });
+  await open(page);
+  await page.waitForSelector('#link-card-0');
+  await page.evaluate(() => (window as any).editLinkResource(0, 0));
+  await page.locator('#lrm-url').fill('https://example.edu/notes');
+  await page.evaluate(() => (window as any).saveLinkResource(0, 0));
+  await expect.poll(async () => (await links(page))[0].resources[0]?.icon).toBe('link');
+});

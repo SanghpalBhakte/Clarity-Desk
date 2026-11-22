@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Welcome polish for Azuki & Matcha: colours, a quiet-then-ready "That's me", small motion, tiny tap sounds.
+// Welcome polish for Azuki & Matcha: colours, a quiet-then-ready "That's me", small motion.
 // The welcome makes no sound: the audio stub below counts any Web Audio use.
 
 const stubAudio = () => {
