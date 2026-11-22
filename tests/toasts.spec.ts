@@ -767,6 +767,8 @@ const run = (page: Page, js: string) => page.evaluate((code) => { (0, eval)(code
 // so load the file first (a student taps first and types after).
 // (closeSyllabusPasteModal is a no-op here; its stub loads the file and waits for it.)
 const preloadSyllabus = (page: Page) => page.evaluate(() => (window as any).closeSyllabusPasteModal());
+// The Vault screens are a lazy file too; a handler called before it loads only starts the load.
+const preloadVault = (page: Page) => page.evaluate(() => (window as any).closeVaultAddMenu());
 const today = () => { const d = new Date(Date.now() + 2000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 type Row = { name: string; open: string; trigger: string; field: string; note: string; valid: string | null };
@@ -798,6 +800,7 @@ test.describe('field errors', () => {
   for (const r of ROWS) {
     test(`field: ${r.name}`, async ({ page }) => {
       if (/Syllabus/.test(r.open)) await preloadSyllabus(page);
+      if (/addLink/.test(r.open)) await preloadVault(page);
       await run(page, r.open.replace(/__today__/g, today()));
       await run(page, r.trigger);
       const n = await noteFor(page, r.field);
@@ -838,6 +841,7 @@ test.describe('field errors', () => {
   });
 
   test('clears only when valid', async ({ page }) => {
+    await preloadVault(page);
     await run(page, `localStorage.setItem('cos_custom_links', ${JSON.stringify(LINKS)}); addLinkResource(0); document.getElementById('lrm-label').value = 'Notes'; document.getElementById('lrm-url').value = 'javascript:x'`);
     await run(page, `saveLinkResource(0, null)`);
     const url = page.locator('#lrm-url');
@@ -911,6 +915,7 @@ test.describe('voice', () => {
     await page.clock.runFor(13000);
     // Add a subject in the hub, a vault subject and a link.
     await preloadSyllabus(page);
+    await preloadVault(page);
     await step(`showAddSyllabusSubjectModal(); document.getElementById('syl-subj-name').value = 'Physics'; confirmAddSyllabusSubject()`);
     await step(`addLinkSubject(); document.getElementById('lsm-name').value = 'Physics'; saveLinkSubject(null)`);
     await step(`addLinkResource(0); document.getElementById('lrm-label').value = 'Notes'; document.getElementById('lrm-url').value = 'https://example.com/notes'; saveLinkResource(0, null)`);
@@ -1049,6 +1054,7 @@ test.describe('review fixes', () => {
 
   test('a file-too-big error goes away when a smaller file is picked', async ({ page }) => {
     await openApp(page);
+    await preloadVault(page);
     await page.evaluate(() => {
       const w = window as any;
       w.handleVaultFileSelect({ target: { files: [{ size: 50 * 1024 * 1024, name: 'big.pdf', type: 'application/pdf' }], value: 'x' } });
@@ -1322,6 +1328,7 @@ test.describe('review round 2: names', () => {
   const PREFIX = 'Engineering Mathematics III and Numerical Methods for Computer Science Students, Unit ';
   test('two vault subjects with the same long start get two messages', async ({ page }) => {
     await openApp(page);
+    await preloadVault(page);
     const keys = await page.evaluate((prefix) => {
       const w = window as any;
       for (const end of ['One', 'Two']) {
