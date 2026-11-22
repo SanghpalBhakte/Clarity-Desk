@@ -90,7 +90,7 @@
   },
   "prefixes": {
     "cos_corrupt_": {
-      "why": "a damaged saved value kept once by safeGetStorage, for repair"
+      "why": "a damaged saved value kept once by safeGetStorage, for repair; Settings → Backup offers Download or Clear"
     },
     "cos_weekly_review_dismissed_": {
       "why": "one key per dismissed week (this device only); dismissing removes the older weeks' keys"

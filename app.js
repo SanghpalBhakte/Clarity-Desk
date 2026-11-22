@@ -20395,7 +20395,7 @@ function renderSettings() {
           Restore Backup (.json)
         </button>
         <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importData(event)">
-      </div>
+      </div>${corruptCopiesHTML()}
     </div>
 
     </section>
@@ -21151,6 +21151,54 @@ function downloadBackupFile(data) {
   URL.revokeObjectURL(url);
   showToast('Backup file downloaded', 'done');
 }
+
+// Damaged saved values safeGetStorage set aside (cos_corrupt_<key>, the exact
+// raw text). Settings → Backup shows them only when there are some.
+function corruptKeptCopies() {
+  const out = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      // eslint-disable-next-line no-restricted-syntax -- the exact kept text
+      if (k && k.startsWith('cos_corrupt_')) out[k.slice('cos_corrupt_'.length)] = localStorage.getItem(k);
+    }
+  } catch (_) {}
+  return out;
+}
+
+function corruptCopiesHTML() {
+  const keys = Object.keys(corruptKeptCopies());
+  if (!keys.length) return '';
+  const names = keys.map(k => ((DESK_DATASETS.find(d => d.key === k) || {}).backup || k.replace(/^cos_/, '')).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase()).join(', ');
+  return `
+      <div id="st-corrupt" style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;font-size:var(--text-base);color:var(--text-secondary);line-height:1.5">
+        Some saved data couldn’t be read (${escHtml_cd(names)}), so the app started that part fresh and kept a copy of the damaged text.
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn-secondary" onclick="downloadCorruptCopies()">Download the copy</button>
+          <button class="btn-secondary" onclick="clearCorruptCopies()">Clear the copy</button>
+        </div>
+      </div>`;
+}
+
+window.downloadCorruptCopies = function() {
+  const keys = corruptKeptCopies();
+  if (!Object.keys(keys).length) return;
+  const blob = new Blob([JSON.stringify({ app: 'Clarity Desk', kind: 'damaged-data', keys }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `clarity-desk-damaged-data-${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Copy downloaded', 'done');
+};
+
+window.clearCorruptCopies = function() {
+  appConfirm('Clear the kept copy of the damaged data? Your current data stays as it is. The copy can’t be brought back.', 'Clear', () => {
+    Object.keys(corruptKeptCopies()).forEach(k => safeRemoveStorage('cos_corrupt_' + k));
+    showToast('Kept copy cleared', 'done');
+    renderPage(state.currentPage);
+  });
+};
 
 function importData(event) {
   const file = event.target.files[0];
