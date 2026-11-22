@@ -912,8 +912,9 @@ export function createVaultUi(deps) {
   function autoDetectVaultIcon(url) {
     const iconEl = document.getElementById('lrm-icon');
     if (!iconEl || !url) return;
-    const icon = vaultIconForUrl(url);
-    if (icon) iconEl.value = icon;
+    // Nobody picks the icon now, so an unknown address gets the plain link
+    // icon (as Add several does) instead of keeping an old one.
+    iconEl.value = vaultIconForUrl(url) || 'link';
   }
 
   function showLinkResourceModal(si, ri, existing) {
