@@ -12,7 +12,7 @@ let slowUntil = 0;
 // URLs are spelled exactly as index.html requests them (with ?v=N, or the
 // jsDelivr copy pinned to the deployed commit), so the install step and the
 // page share one download. scripts/ship.mjs bumps ?v=N and sets the commit.
-// desk-assistant.js, scanners.js, timetable-ocr.js, whatsapp-import.js (with its parser deadline-import.js), syllabus-ui.js and welcome-tour.js are precached so Ask Desk, the photo
+// desk-assistant.js, scanners.js, timetable-ocr.js, whatsapp-import.js (with its parser deadline-import.js), syllabus-ui.js, vault-ui.js and welcome-tour.js are precached so Ask Desk, the photo
 // scans and the first-run tour work offline even though app.js imports them lazily. deadline-import-worker.js (long chats only; the
 // main thread is the fallback) and vendor/jszip.min.js (.zip exports) are cached on first use instead.
 const PRECACHE_ASSETS = [
@@ -27,6 +27,7 @@ const PRECACHE_ASSETS = [
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7e6256c43ce351930326f4ffbd65e835e3d053ce/timetable-ocr.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7e6256c43ce351930326f4ffbd65e835e3d053ce/whatsapp-import.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7e6256c43ce351930326f4ffbd65e835e3d053ce/syllabus-ui.js',
+  'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7e6256c43ce351930326f4ffbd65e835e3d053ce/vault-ui.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7e6256c43ce351930326f4ffbd65e835e3d053ce/deadline-import.js',
   'https://cdn.jsdelivr.net/gh/SanghpalBhakte/Clarity-Desk@7e6256c43ce351930326f4ffbd65e835e3d053ce/welcome-tour.js',
   './manifest.json',

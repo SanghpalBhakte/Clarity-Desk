@@ -18,6 +18,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withVaultUi } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -122,7 +123,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { vaultIdbOpen, vaultMigrateFiles, linksForCloud, mergeCloudLinks, vaultBackupPlan, vaultLinksForBackup, vaultLinksIntoIdb, saveLinksFittingStorage, vaultStorageStats, isVaultIdbFile, isVaultPlaceholder, vaultFileTooBigMessage, vaultResourceRow, vaultDeleteUnusedBlob, vaultFileId, vbState: () => _vb, idbOk: () => vaultIdbOk, blobIds: () => _vaultBlobIds };`)();
+const makeApp = () => new Function(`${withVaultUi(code)}\n return { vaultIdbOpen, vaultMigrateFiles, linksForCloud, mergeCloudLinks, vaultBackupPlan, vaultLinksForBackup, vaultLinksIntoIdb, saveLinksFittingStorage, vaultStorageStats, isVaultIdbFile, isVaultPlaceholder, vaultFileTooBigMessage, vaultResourceRow, vaultDeleteUnusedBlob, vaultFileId, vbState: () => VaultUi.getBulkState(), idbOk: () => vaultIdbOk, blobIds: () => _vaultBlobIds };`)();
 
 const flush = async (n = 40) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
 const bytesOf = (n, seed = 7) => { const b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = (i * 31 + seed) & 255; return b; };

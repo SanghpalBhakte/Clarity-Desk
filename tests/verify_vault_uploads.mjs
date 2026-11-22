@@ -19,6 +19,7 @@ import { loadApp } from './app-loader.mjs';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withVaultUi } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -71,7 +72,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { saveCustomLinks, linksForCloud, mergeCloudLinks, saveLinksFittingStorage, vaultFileTooBigMessage, applyCloudDataToLocalState, isVaultPlaceholder, vaultFileId, VAULT_FILE_MAX_BYTES,
+const app = new Function(`${withVaultUi(code)}\n return { saveCustomLinks, linksForCloud, mergeCloudLinks, saveLinksFittingStorage, vaultFileTooBigMessage, applyCloudDataToLocalState, isVaultPlaceholder, vaultFileId, VAULT_FILE_MAX_BYTES,
   sanitizeTask, pushGuard, TASK_TITLE_MAX, TASK_DESC_MAX, VAULT_IMPORT_LABEL_MAX, VAULT_IDB_MAX_BYTES, VAULT_CLOUD_MAX_BYTES, VAULT_BULK_MAX_ROWS, PUSH_WARN_BYTES, PUSH_FULL_BYTES };`)();
 
 const dataUrl = (n, ch = 'A') => 'data:application/pdf;base64,' + ch.repeat(n);

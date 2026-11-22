@@ -11,9 +11,6 @@
     },
     "no-shadow": {
       "count": 15
-    },
-    "no-useless-escape": {
-      "count": 1
     }
   },
   "deadline-import.js": {

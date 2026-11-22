@@ -18,6 +18,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withVaultUi } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -158,7 +159,7 @@ globalThis.URL.createObjectURL = (b) => { opened.push(b); return 'blob:x'; };
 globalThis.URL.revokeObjectURL = () => {};
 globalThis.open = () => null;
 
-const makeApp = () => new Function(`${code}\n return {
+const makeApp = () => new Function(`${withVaultUi(code)}\n return {
   vaultIdbOpen, vaultPutBlob, linksForCloud, isVaultPlaceholder, vaultFileId, vaultResourceRow, vaultCloudSweep,
   vaultPlaceholderHere, VAULT_CLOUD_PART_BYTES, VAULT_CLOUD_MAX_BYTES, blobIds: () => _vaultBlobIds,
   setCloud: (u, d) => { currentUser = u; db = d; },

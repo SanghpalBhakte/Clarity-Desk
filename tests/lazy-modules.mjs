@@ -4,8 +4,8 @@
 // app.js imports desk-assistant.js the first time Ask Desk is used and
 // scanners.js the first time a photo scan is used, and timetable-ocr.js the
 // first time a timetable photo is scanned, whatsapp-import.js the first
-// time the import screen opens, and syllabus-ui.js the first time a syllabus
-// screen is used. Tests that evaluate
+// time the import screen opens, syllabus-ui.js the first time a syllabus
+// screen is used, and vault-ui.js the first time the Vault tab opens. Tests that evaluate
 // app.js's source directly (new Function) append these so the code exists,
 // exactly as it does after that first use, built from the same deps app.js
 // passes (clarityAssistantDeps, scannerDeps, timetableOcrDeps).
@@ -55,4 +55,13 @@ export function withSyllabusUi(appCode) {
   return `${appCode}\n${mod}\nSyllabusUi = createSyllabusUi(syllabusDeps());\nconst { ${names.join(', ')} } = SyllabusUi;\n`;
 }
 
-export const withLazyModules = (appCode) => withWhatsApp(withTimetableOcr(withScanners(withSyllabusUi(withDeskAssistant(appCode)))));
+// Defines every vault-ui.js function by name (renderLinksContent,
+// vaultExtractLinks, saveLinkResource, ...) and getBulkState, the draft of
+// "add several" (tests read it as `_vb` did when it lived in app.js).
+export function withVaultUi(appCode) {
+  const mod = fs.readFileSync(`${ROOT}/vault-ui.js`, 'utf8').replace(/^export function /m, 'function ');
+  const names = mod.slice(mod.lastIndexOf('return {') + 8, mod.lastIndexOf('};')).split(',').map(s => s.replace(/\/\/.*$/gm, '').trim()).filter(n => n && !n.startsWith('getBulkState'));
+  return `${appCode}\n${mod}\nVaultUi = createVaultUi(vaultDeps());\nconst { ${names.join(', ')} } = VaultUi;\n`;
+}
+
+export const withLazyModules = (appCode) => withVaultUi(withWhatsApp(withTimetableOcr(withScanners(withSyllabusUi(withDeskAssistant(appCode))))));

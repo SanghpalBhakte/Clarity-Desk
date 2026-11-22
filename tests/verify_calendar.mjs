@@ -13,6 +13,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withVaultUi } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -52,7 +53,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const makeApp = () => new Function(`${code}\n return { state, getCalendarItems, renderCalendar, getCalendarAgenda, refreshIfDayChanged, showAddTaskModal, navigate };`)();
+const makeApp = () => new Function(`${withVaultUi(code)}\n return { state, getCalendarItems, renderCalendar, getCalendarAgenda, refreshIfDayChanged, showAddTaskModal, navigate };`)();
 
 // Monday: a General lecture, a lab for A2 and a lab for B1, plus recess.
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', type: 'lecture', batches: [] };

@@ -191,7 +191,7 @@ check('Parser stays private: no storage, network or console calls', () => {
 });
 
 check('Entry points: Links tab in the review, and a Study Vault button', () =>
-  appSrc.includes("onclick=\"showWhatsAppImport(null, { tab: 'links' })\"") && fs.readFileSync(`${ROOT}/whatsapp-import.js`, 'utf8').includes('waTabsHtml()') ? true : 'missing');
+  fs.readFileSync(`${ROOT}/vault-ui.js`, 'utf8').includes("onclick=\"showWhatsAppImport(null, { tab: 'links' })\"") && fs.readFileSync(`${ROOT}/whatsapp-import.js`, 'utf8').includes('waTabsHtml()') ? true : 'missing');
 
 console.log('\n========================================');
 console.log(`WHATSAPP LINKS: ${passed}/${total} passed`);

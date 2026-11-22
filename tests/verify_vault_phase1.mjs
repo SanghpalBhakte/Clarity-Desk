@@ -18,6 +18,7 @@ process.env.TZ = 'Asia/Kolkata';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { withVaultUi } from './lazy-modules.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -76,7 +77,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { vaultSafeUrl, vaultEsc, vaultNormalizeUrl, vaultTypeLabel, vaultStorageStats, vaultExtractLinks, renderLinksContent, vbState: () => _vb, VAULT_BULK_MAX_ROWS };`)();
+const app = new Function(`${withVaultUi(code)}\n return { vaultSafeUrl, vaultEsc, vaultNormalizeUrl, vaultTypeLabel, vaultStorageStats, vaultExtractLinks, renderLinksContent, vbState: () => VaultUi.getBulkState(), VAULT_BULK_MAX_ROWS };`)();
 
 const LINK = { label: 'DBMS playlist', url: 'https://youtube.com/playlist?list=x', icon: 'video', isUpload: false, fileSize: '' };
 const vault = (...resources) => [{ subject: 'DBMS', code: 'DBMS', resources }];
@@ -289,8 +290,9 @@ check('No new storage key: only cos_custom_links was touched', () => {
 });
 
 check('Free plan: the new code makes no cloud, network or Firestore call', () => {
-  const a = appSrc.indexOf('// ── Study Vault: safe output'), b = appSrc.indexOf('window.addLinkSubject = function');
-  const block = appSrc.slice(a, b);
+  const vaultSrc = fs.readFileSync(`${ROOT}/vault-ui.js`, 'utf8');
+  const a = vaultSrc.indexOf('let _vaultQuery'), b = vaultSrc.indexOf('function addLinkSubject');
+  const block = vaultSrc.slice(a, b);
   return a > 0 && b > a && !/fetch\(|firebase|firestore|XMLHttpRequest|sendBeacon|WebSocket|\bsyncToCloud\b|getStorage\(|uploadBytes/i.test(block) ? true : 'cloud call found';
 });
 
