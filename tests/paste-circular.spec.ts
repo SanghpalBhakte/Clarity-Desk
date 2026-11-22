@@ -57,3 +57,19 @@ test('pasted text with no date saves nothing and says so', async ({ page }) => {
   await expect(page.getByText('No deadlines found')).toBeVisible();
   expect(await savedTasks(page)).toBe(0);
 });
+
+test('the import opens and finds deadlines with no network (module and parser are precached)', async ({ context, page }) => {
+  await openTasks(page);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof (window as any).showWhatsAppImport === 'function');
+    await page.evaluate(() => (window as any).showWhatsAppImport());
+    await page.getByTestId('wa-paste').fill(CIRCULAR);
+    await page.getByTestId('wa-find').click();
+    await expect(page.getByTestId('wa-summary')).toContainText('Found 1 upcoming');
+  } finally {
+    await context.setOffline(false);
+  }
+});
