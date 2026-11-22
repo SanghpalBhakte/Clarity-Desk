@@ -93,3 +93,23 @@ test('a student with an empty Vault does not fetch the file on other tabs', asyn
   await page.waitForTimeout(6000);
   expect(asked).toBe(false);
 });
+
+test('the subject sheet has no color picker, and an edit keeps the subject\'s saved color', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('cos_custom_links', JSON.stringify([{ subject: 'Physics', code: 'PHY', color: '#7a3b3b', resources: [] }]));
+  });
+  await open(page);
+  await page.waitForSelector('#link-card-0');
+  await page.evaluate(() => (window as any).editLinkSubject(0));
+  await expect(page.locator('#lsm-name')).toBeVisible();
+  await expect(page.locator('#lsm-color')).toHaveCount(0);
+  await page.locator('#lsm-code').fill('PH1');
+  await page.evaluate(() => (window as any).saveLinkSubject(0));
+  await expect.poll(async () => (await links(page))[0].code).toBe('PH1');
+  expect((await links(page))[0].color).toBe('#7a3b3b');
+  await page.evaluate(() => (window as any).addLinkSubject());
+  await page.locator('#lsm-name').fill('Maths');
+  await page.evaluate(() => (window as any).saveLinkSubject(null));
+  await expect.poll(async () => (await links(page)).length).toBe(2);
+  expect((await links(page))[1].color).toBe('#394B63');
+});

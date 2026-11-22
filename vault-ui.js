@@ -771,10 +771,6 @@ export function createVaultUi(deps) {
             <label class="form-label">Short Code</label>
             <input id="lsm-code" class="form-input" value="${vaultEsc(existing?.code)}" placeholder="e.g. DSA" />
           </div>
-          <div>
-            <label class="form-label">Color Indicator</label>
-            <input id="lsm-color" type="color" value="${existing?.color || '#394B63'}" style="width:60px;height:36px;border:none;cursor:pointer;background:none" />
-          </div>
         </div>
         <div class="modal-footer">
           <button class="btn-secondary" onclick="document.getElementById('link-subject-modal-backdrop')?.remove()">Cancel</button>
@@ -790,16 +786,15 @@ export function createVaultUi(deps) {
     const nameEl = document.getElementById('lsm-name');
     const name  = nameEl?.value?.trim();
     const code  = document.getElementById('lsm-code')?.value?.trim();
-    const color = document.getElementById('lsm-color')?.value || '#394B63';
     if (!name) {
       reportFormErrors([{ input: nameEl, msg: 'Type the subject name, like Physics' }]);
       return;
     }
     const links = loadCustomLinks();
     if (si === null) {
-      links.push({ subject: name, code: code || name.slice(0,4).toUpperCase(), color, resources: [] });
+      links.push({ subject: name, code: code || name.slice(0,4).toUpperCase(), color: '#394B63', resources: [] });
     } else {
-      links[si] = { ...links[si], subject: name, code: code || links[si].code, color };
+      links[si] = { ...links[si], subject: name, code: code || links[si].code };
     }
     if (!saveCustomLinks(links)) { showToast(VAULT_FULL_MESSAGE, 'error'); return; }
     document.getElementById('link-subject-modal-backdrop')?.remove();
