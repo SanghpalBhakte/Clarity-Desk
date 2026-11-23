@@ -192,6 +192,7 @@ export function createWhatsAppImport(deps) {
       if (waIsOpen()) waRenderAddChat('Couldn’t open the chat reader. Check your connection once and try again.');
       return;
     }
+    // eslint-disable-next-line no-useless-assignment -- deliberate: release the pasted chat text early
     raw = null; // drop the chat text; only the found rows are kept
     if (!waIsOpen()) return;
     // Plain pasted text (a circular) has no timestamps; a chat needs at least 2,

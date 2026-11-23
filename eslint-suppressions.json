@@ -11,21 +11,10 @@
     },
     "no-shadow": {
       "count": 15
-    },
-    "no-useless-assignment": {
-      "count": 7
-    },
-    "preserve-caught-error": {
-      "count": 1
     }
   },
   "deadline-import.js": {
     "no-useless-escape": {
-      "count": 2
-    }
-  },
-  "desk-assistant.js": {
-    "no-useless-assignment": {
       "count": 2
     }
   },
@@ -37,16 +26,6 @@
   "sw.js": {
     "no-implicit-globals": {
       "count": 2
-    }
-  },
-  "vault-ui.js": {
-    "no-useless-assignment": {
-      "count": 2
-    }
-  },
-  "whatsapp-import.js": {
-    "no-useless-assignment": {
-      "count": 1
     }
   }
 }

@@ -793,7 +793,7 @@ async function retryToast(key, run) {
     t.el.classList.add('toast-show');
     announceToast('Trying again…', false);
   }
-  let ok = false;
+  let ok;
   try { ok = !!(await run()); } catch (_) { ok = false; }
   if (!t) return;
   t.retrying = false;
@@ -1868,7 +1868,7 @@ async function fetchWithTimeout(url, options = {}, ms = 45000) {
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (err) {
-    if (err && err.name === 'AbortError') throw new Error(`No response within ${Math.round(ms / 1000)}s`);
+    if (err && err.name === 'AbortError') throw new Error(`No response within ${Math.round(ms / 1000)}s`, { cause: err });
     throw err;
   } finally {
     clearTimeout(timer);
@@ -9543,7 +9543,7 @@ function c2ResourceInfo(r) {
   const href = vaultSafeUrl(r.url);
   if (!href) return null;
   if (/^data:/i.test(href)) return { sub: 'Vault' };
-  let host = '';
+  let host;
   try { host = new URL(href).hostname.replace(/^www\./, ''); } catch (e) { host = ''; }
   const sub = /(^|\.)drive\.google\.com$/.test(host) ? 'Google Drive' : /(^|\.)docs\.google\.com$/.test(host) ? 'Google Docs' : /(^|\.)(youtube\.com|youtu\.be)$/.test(host) ? 'YouTube' : host;
   return { sub: sub || 'Link' };
@@ -11128,7 +11128,7 @@ function calculateSmartAttendanceGuidance(totalAttended, totalSkipped, targetPct
 
   let classesToAttend = 0;
   let safeSkips = 0;
-  let message = '';
+  let message;
 
   if (!isSafe) {
     // Formula: ceil((targetFraction * T - A) / (1 - targetFraction))
@@ -11683,7 +11683,7 @@ const OB_LOGO = `<img src="favicon.svg" alt="" width="24" height="24" style="bor
 // a first-run student has none, so nothing shows (the example day sits under
 // "Set up more later").
 function onboardingComingUpHtml() {
-  let task = null;
+  let task;
   try {
     const today = localDateKey(new Date());
     task = (state.customTasks || []).filter(t => t && t.status === 'pending' && !t.noDeadline && t.dueDate && t.dueDate >= today)
@@ -13070,7 +13070,7 @@ function renderTimetable() {
   `;
   }).join('');
 
-  let content = '';
+  let content;
   if (!classes.length) {
     // A whole empty week reads as an open page; one empty day stays short.
     const weekEmpty = [0, 1, 2, 3, 4, 5, 6].every(d => !(liveTT[d] || []).length);
@@ -14212,7 +14212,7 @@ function isAttendanceV2Active() {
 
 let attV2Cache = { sig: null, value: null };
 function getAttendanceV2Derived() {
-  let sig = '';
+  let sig;
   try {
     sig = [KEY_ATTENDANCE, KEY_ATTENDANCE_BASELINE, KEY_ATTENDANCE_LIVE, KEY_CUSTOM_TIMETABLE, KEY_TIMETABLE_CHOICE, KEY_ATT_TARGET]
       // eslint-disable-next-line no-restricted-syntax -- cache key is the raw stored text
@@ -20492,7 +20492,7 @@ function setupFABDrag() {
       const w = window.innerWidth;
       
       fab.style.right = 'auto';
-      let snapPos = 'right';
+      let snapPos;
       if (center < w * 0.33) snapPos = 'left';
       else if (center > w * 0.66) snapPos = 'right';
       else snapPos = 'center';
