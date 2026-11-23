@@ -170,6 +170,78 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u359",
+    date: "2026-11-23",
+    title: "Backup reminder waits a full week after the update for everyone, and never stops the move to the new address",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Backup reminder waits a full week after the update for everyone, and never stops the move to the new address",
+    points: [
+
+    ]
+  },
+  {
+    id: "u358",
+    date: "2026-11-23",
+    title: "Not signed in? Once a month, a gentle reminder to back up, because this phone holds your only copy",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Not signed in? Once a month, a gentle reminder to back up, because this phone holds your only copy",
+    points: [
+
+    ]
+  },
+  {
+    id: "u357",
+    date: "2026-11-23",
+    title: "Signed in but not syncing, Settings shows your last backup date instead of \"Saved to your account\"",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Signed in but not syncing, Settings shows your last backup date instead of \"Saved to your account\"",
+    points: [
+
+    ]
+  },
+  {
+    id: "u356",
+    date: "2026-11-23",
+    title: "Settings now shows when you last made a backup file",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Closes #434",
+    points: [
+
+    ]
+  },
+  {
+    id: "u355",
+    date: "2026-11-23",
+    title: "The evening mark reminder stays quiet once you've marked all of today's classes",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Closes #435",
+    points: [
+
+    ]
+  },
+  {
+    id: "u354",
+    date: "2026-11-23",
+    title: "New in Settings → Reminders: one evening reminder to mark today's classes, off unless you turn it on",
+    category: "Feature",
+    tag: "Feature",
+    tagColor: "var(--accent)",
+    summary: "Closes #433",
+    points: [
+
+    ]
+  },
+  {
     id: "u353",
     date: "2026-11-23",
     title: "A Vault link changed to a new address no longer keeps its old icon",
