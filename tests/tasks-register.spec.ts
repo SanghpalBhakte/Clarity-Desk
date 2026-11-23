@@ -90,5 +90,7 @@ test('a task with no subject shows no "General" label', async ({ page }) => {
   const tk = await open(page, [{ id: 'g', subject: 'General', code: 'GEN', title: 'Pay hostel fee', taskType: 'assignment', dueDate: '2026-09-26', priority: 'medium', status: 'pending' }]);
   const row = tk.locator('.tk-card', { hasText: 'Pay hostel fee' });
   await expect(row.locator('.tk-meta')).not.toContainText('General');
-  await expect(row.locator('.tk-meta')).toContainText('in 2 days');
+  // The date shows once, in the day column (#455), not again as "in 2 days".
+  await expect(row.locator('.tk-day')).toContainText('26 Sep');
+  await expect(row.locator('.tk-meta')).not.toContainText('in 2 days');
 });

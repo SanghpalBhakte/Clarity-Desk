@@ -273,12 +273,32 @@ export function createSyllabusUi(deps) {
         <div id="syl-paste-body"></div>
       </div>`;
     document.body.appendChild(backdrop);
+    keepAboveKeyboard(backdrop);
     renderSyllabusPasteStep();
+  }
+
+  // A phone keyboard shrinks only the visible part of the page, so a fixed
+  // sheet runs under it. Fit the sheet to what is visible; its buttons stay
+  // pinned to the sheet's bottom (CSS), so Preview topics and Cancel stay in view.
+  let sylKeyboardFit = null;
+  function keepAboveKeyboard(backdrop) {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    if (sylKeyboardFit) vv.removeEventListener('resize', sylKeyboardFit);
+    sylKeyboardFit = () => {
+      if (!backdrop.isConnected) { vv.removeEventListener('resize', sylKeyboardFit); sylKeyboardFit = null; return; }
+      backdrop.style.top = vv.offsetTop + 'px';
+      backdrop.style.height = vv.height + 'px';
+    };
+    vv.addEventListener('resize', sylKeyboardFit);
+    sylKeyboardFit();
   }
 
   function closeSyllabusPasteModal() {
     sylPasteDraft = null;
     document.getElementById('syl-paste-backdrop')?.remove();
+    if (sylKeyboardFit && window.visualViewport) window.visualViewport.removeEventListener('resize', sylKeyboardFit);
+    sylKeyboardFit = null;
   }
 
   function renderSyllabusPasteStep(prefill = '') {

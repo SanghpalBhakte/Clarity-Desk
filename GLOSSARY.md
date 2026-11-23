@@ -26,6 +26,14 @@ _Avoid_: break
 Record attendance for one class: Present, Absent, or another choice under More.
 _Avoid_: attend (as a verb for the action)
 
+**Theme**
+A colour set the student picks in Settings → Look. Each theme looks clearly different, not only in its colours.
+_Avoid_: accent, palette, appearance
+
+**Light / Dark / Auto**
+Whether the screen is light or dark, or follows the phone. Separate from the theme: every theme works in both.
+_Avoid_: theme, mode names like Paper Slate or Midnight Ink
+
 **Backup**
 A file the student saves that holds everything on their desk, so it can be put back later or on another phone. For a student who is not signed in, it is the only copy outside this phone.
 _Avoid_: export, JSON

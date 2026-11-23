@@ -307,13 +307,14 @@ check('Greeting: holiday words while the break is on', () => {
   return /Happy holidays|Enjoy the break|Easy day/.test(g) ? true : g;
 });
 
-check('Briefing: holiday view lists deadlines inside the break (and overdue) plus kept tasks only', () => {
+// Late is not a break deadline (#455): it is one "N Late · Look through" line.
+check('Briefing: holiday view lists deadlines inside the break, Late as one line, plus kept tasks only', () => {
   seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26') }); at('2026-10-19T09:50:00');
   const a = makeApp();
   const box = { innerHTML: '' }; a.renderSummaryContent(box);
   const html = box.innerHTML;
   const ok = html.includes('Deadlines during your break') && html.includes('Lab journal') && html.includes('DBMS assignment')
-    && html.includes('Old quiz') && html.includes('Gym streak') && html.includes('endHolidayEarly()')
+    && !html.includes('Old quiz') && html.includes('class="bf-late"') && html.includes('Gym streak') && html.includes('endHolidayEarly()')
     && !html.includes('Read one paper a week') && !html.includes('Mini project') && !html.includes("Today's Schedule");
   return ok ? true : 'holiday briefing wrong';
 });

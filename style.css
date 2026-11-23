@@ -2492,6 +2492,15 @@ a.card:hover,
 }
 @media (prefers-reduced-motion: reduce) { .modal, .modal-backdrop { animation: none; } }
 
+/* Add topics: the sheet fits the space above the phone keyboard (syllabus-ui.js)
+   and its Cancel / Preview topics row stays pinned to the sheet's bottom. */
+#syl-paste-backdrop .modal { max-height: 100%; }
+#syl-paste-backdrop .modal-footer {
+  position: sticky; bottom: -24px; z-index: 1;
+  margin-bottom: -24px; padding: 12px 0 24px;
+  background: var(--modal-bg, var(--color-surface, #fffdfc));
+}
+
 /* ── Startup / Onboarding Welcome Dialog ────────────────────── */
 /* Firefox: the card inherited .modal's 88vh cap but was overflow:hidden, so on a
    short phone screen its top and bottom were cut off and could not be
@@ -7390,6 +7399,8 @@ body.holiday-mode .holiday-banner {
 .bf-act { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; }
 .bf-ruled { border-top: 1px solid var(--color-rule, var(--border)); padding-top: 14px; }
 .bf-quiet { margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
+.bf-late { display: flex; align-items: center; margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
+.bf-late strong { color: var(--color-thread, var(--accent)); }
 .bf-note { margin: 10px 0 0; font-size: var(--text-sm); color: var(--text-secondary); }
 .bw { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .bw-day { display: flex; align-items: center; gap: 10px; }
@@ -7580,7 +7591,7 @@ body.holiday-mode .holiday-banner {
 #page-settings .st-nav-btn {
   flex-shrink: 0;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-height: 44px;
   padding: 0;
@@ -8892,7 +8903,10 @@ html body .bottom-nav, html body .sidebar {
   .more-sheet-slots .theme-toggle-label, .more-sheet-slots #sync-text { display: inline; order: 2; margin-left: auto; font-size: 0.76rem; font-weight: 500; color: var(--c2-mut); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .more-sheet-slots .storage-status-dot { display: none; }
   .more-sheet-slots svg { color: var(--c2-mut); flex-shrink: 0; }
-  .more-sheet-slots #topbar-avatar svg { width: 20px; height: 20px; }
+  /* Sync is a status, not a place: one quiet line, "Sync · On this phone only" */
+  .more-sheet-slots #sync-status-btn { min-height: 44px; font-size: 0.8rem; font-weight: 500; color: var(--c2-mut); gap: 10px; }
+  .more-sheet-slots #sync-status-btn #sync-text { margin-left: 0; }
+  .more-sheet-slots #sync-status-btn #sync-text::before { content: '· '; }
   .more-sheet-slots .theme-toggle-icon, .more-sheet-slots .storage-status-icon { display: inline-flex; width: 20px; justify-content: center; }
 }
 
