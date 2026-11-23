@@ -78,6 +78,7 @@ const KEY_EMAIL_LINK_PENDING  = 'cos_email_link_pending';
 // "Clarity Desk has a new address" card: { dismissedAt }. Device-only,
 // left out of backups and sync.
 const KEY_MOVED_PROMPT        = 'cos_moved_prompt';
+const KEY_LAST_BACKUP         = 'cos_last_backup';   // day a Backup file was last made on this phone (device-only)
 // Anonymous usage counts: { optOut, firstOpen, day2, once: {}, queue: [] }.
 // Device-only, left out of backups and sync.
 const KEY_USAGE               = 'cos_usage';
@@ -18550,7 +18551,8 @@ function renderSettings() {
           Restore Backup (.json)
         </button>
         <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importData(event)">
-      </div>${corruptCopiesHTML()}
+      </div>
+      <div id="settings-last-backup" style="font-size:var(--text-sm);color:var(--text-muted);margin-top:10px">${lastBackupLine()}</div>${corruptCopiesHTML()}
     </div>
 
     </section>
@@ -19305,7 +19307,19 @@ function downloadBackupFile(data) {
   a.href = url; a.download = `clarity-desk-backup-${todayStr()}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  // "Made", not "saved": a browser can't confirm where the file went.
+  safeSetStorage(KEY_LAST_BACKUP, todayStr());
+  const line = document.getElementById('settings-last-backup');
+  if (line) line.textContent = lastBackupLine();
   showToast('Backup file downloaded', 'done');
+}
+
+// Settings → Backup: when this phone last made a Backup file. Signed in, the
+// account already holds a copy, so that is what it says instead.
+function lastBackupLine() {
+  if (currentUser) return 'Saved to your account';
+  const d = safeGetStorage(KEY_LAST_BACKUP, null);
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? `Last backup: ${formatDate(d)}` : 'Last backup: never';
 }
 
 // Damaged saved values safeGetStorage set aside (cos_corrupt_<key>, the exact
