@@ -162,7 +162,7 @@ export function createVaultUi(deps) {
               </div>${actions}
             </div>` : `
             <div class="resource-item-row">
-              <a class="resource-link" href="#" onclick="vaultOpenFile('${vaultEsc(r.fileId)}');return false" title="Click to open ${label}">
+              <a class="resource-link" href="#" onclick="vaultOpenFile(${jsArg_cd(r.fileId)});return false" title="Click to open ${label}">
                 <span class="r-icon">${getResourceIcon(r.icon || 'book-open')}</span>
                 <span class="resource-label" title="${label}">${label}</span>${badge}
                 ${r.fileSize ? `<span class="type-badge" style="font-size:var(--text-2xs);padding:1px 5px;background:var(--surface-2);color:var(--text-muted);margin-left:4px">${vaultEsc(r.fileSize)}</span>` : ''}

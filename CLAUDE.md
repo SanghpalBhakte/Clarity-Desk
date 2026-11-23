@@ -5,7 +5,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 
 ## Key files
 - `index.html` — app shell, head theme bootstrap, modal templates, nav
-- `app.js` — core logic (monolithic, ~11k lines, no module boundaries — high risk)
+- `app.js` — core logic (monolithic, ~20.7k lines, no module boundaries — high risk)
 - `style.css` — themes, layout, responsive system
 - `data.js` — fallback/default datasets
 - `manifest.json`, `sw.js` — PWA manifest and service worker/cache versioning
@@ -69,3 +69,13 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 
 ## Reporting format
 After any change, report: files changed, what changed in each, commands run, actual results, remaining risks. Never say "done" without evidence.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on SanghpalBhakte/Clarity-Desk (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.

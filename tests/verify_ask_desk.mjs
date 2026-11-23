@@ -227,12 +227,12 @@ check('Next OS class is today at 11:00 AM', () => {
 
 check('Unclear question gets clickable "did you mean" suggestions', () => {
   const html = A.respond('week stuff');
-  return html.includes('Did you mean') && html.includes("sendAssistantMessage('") ? true : html.slice(0, 200);
+  return html.includes('Did you mean') && html.includes('sendAssistantMessage(&quot;') ? true : html.slice(0, 200);
 });
 
 check('Nothing recognised at all still offers starter questions', () => {
   const html = A.respond('is it raining');
-  return html.includes("sendAssistantMessage('") ? true : html.slice(0, 200);
+  return html.includes('sendAssistantMessage(&quot;') ? true : html.slice(0, 200);
 });
 
 check('Every button in every answer has well-formed quotes', () => {

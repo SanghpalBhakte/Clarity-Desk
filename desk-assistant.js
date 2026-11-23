@@ -21,7 +21,7 @@ export function createClarityAssistant(deps) {
     formatDisplayTimeRange, getAttendanceTarget, getCanonicalSubjectKey,
     getCountdownLabel, getOverallAttendance, getSubjectAttendance,
     getSubjectList, holidayLabel, icons, isBreakEntry,
-    isHolidayActive, isTaskOverdue, isTeachingClass,
+    isHolidayActive, isTaskOverdue, isTeachingClass, jsArg_cd,
     loadAttendanceBaselines, loadHoliday, loadProfile, loadTimetable,
     syllabusExamInfo, syllabusStats, syllabusTodayLine, timeToMinutes,
     timetableForDisplay, visibleSyllabusEntries
@@ -444,14 +444,14 @@ export function createClarityAssistant(deps) {
   }
 
   function sylOpenButton(name, label) {
-    return `<button class="btn btn-sm btn-secondary" onclick="openSubjectSyllabus('${jsArg(name)}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.book()} ${label || `Open ${escHtml(name)} syllabus`} →</button>`;
+    return `<button class="btn btn-sm btn-secondary" onclick="openSubjectSyllabus(${jsArg_cd(name)})" style="font-size:var(--text-sm);padding:4px 10px">${icons.book()} ${label || `Open ${escHtml(name)} syllabus`} →</button>`;
   }
 
   function sylNone(subject) {
     const name = subject ? subject.name : '';
     return `${subject ? `There's no syllabus for <strong>${escHtml(name)}</strong> yet.` : "You haven't added a syllabus yet."} Paste the topics once and I can tell you what's left, what to revise and what carries the most marks.<br><br>
     ${subject
-      ? `<button class="btn btn-sm btn-primary" onclick="openSubjectSyllabus('${jsArg(name)}', true)" style="font-size:var(--text-sm);padding:5px 12px">+ Add ${escHtml(name)} topics</button>`
+      ? `<button class="btn btn-sm btn-primary" onclick="openSubjectSyllabus(${jsArg_cd(name)}, true)" style="font-size:var(--text-sm);padding:5px 12px">+ Add ${escHtml(name)} topics</button>`
       : `<button class="btn btn-sm btn-primary" onclick="navigate('subjects')" style="font-size:var(--text-sm);padding:5px 12px">${icons.book()} Open Subject Hubs →</button>`}`;
   }
 
@@ -1345,10 +1345,6 @@ export function createClarityAssistant(deps) {
     <button class="btn btn-sm btn-primary" onclick="triggerTimetableImport()" style="font-size:var(--text-sm);padding:5px 12px">${icons.camera()} Scan timetable →</button>`;
   }
 
-  function jsArg(str) {
-    return escHtml(String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
-  }
-
   function sameSubject(a, b) {
     const k = (x) => (typeof getCanonicalSubjectKey === 'function' ? getCanonicalSubjectKey(x || '') : String(x || '').toLowerCase().trim());
     return !!a && !!b && k(a) === k(b);
@@ -1360,7 +1356,7 @@ export function createClarityAssistant(deps) {
 
   function subjectButtons(subject, extra = '') {
     return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button class="btn btn-sm btn-secondary" onclick="openSubjectHub('${jsArg(subject.name)}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.book()} Open ${escHtml(subject.name)} →</button>${extra}
+      <button class="btn btn-sm btn-secondary" onclick="openSubjectHub(${jsArg_cd(subject.name)})" style="font-size:var(--text-sm);padding:4px 10px">${icons.book()} Open ${escHtml(subject.name)} →</button>${extra}
     </div>`;
   }
 
@@ -1603,7 +1599,7 @@ export function createClarityAssistant(deps) {
       return { ex, score };
     }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(x => x.ex);
     const picks = scored.length ? scored : ['What do I have today?', 'How is my attendance?', 'What tasks are urgent?', 'Plan my week'];
-    const buttons = picks.map(ex => `<button class="btn btn-sm btn-secondary" onclick="sendAssistantMessage('${jsArg(ex)}')" style="font-size:var(--text-sm);padding:4px 10px">${escHtml(ex)}</button>`).join('');
+    const buttons = picks.map(ex => `<button class="btn btn-sm btn-secondary" onclick="sendAssistantMessage(${jsArg_cd(ex)})" style="font-size:var(--text-sm);padding:4px 10px">${escHtml(ex)}</button>`).join('');
     return `${scored.length ? 'Did you mean:' : "I didn't get that. I answer questions about your classes, attendance and tasks. Try:"}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${buttons}</div>`;
   }
@@ -1682,7 +1678,7 @@ export function createClarityAssistant(deps) {
     res += pTasks.length
       ? `${pTasks.length} pending task${pTasks.length !== 1 ? 's' : ''}: ${pTasks.map(t => escHtml(t.title)).join(', ')}`
       : `No pending tasks.`;
-    return res + subjectButtons(s, ` <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, '${jsArg(s.name)}')" style="font-size:var(--text-sm);padding:4px 10px">${icons.edit()} Add task</button>`);
+    return res + subjectButtons(s, ` <button class="btn btn-sm btn-secondary" onclick="showAddTaskModal(null, ${jsArg_cd(s.name)})" style="font-size:var(--text-sm);padding:4px 10px">${icons.edit()} Add task</button>`);
   }
 
   return { respond, understand };

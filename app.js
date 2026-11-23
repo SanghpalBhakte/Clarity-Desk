@@ -16488,7 +16488,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     if (vaultPlaceholderFetchable(r)) return `<button type="button" class="hub-row hub-link" onclick="${vaultPlaceholderHere(r) ? 'vaultOpenFile' : 'vaultGetCloudFile'}(${jsArg_cd(r.fileId)})" title="${vaultPlaceholderHere(r) ? '' : 'Added on another device. Download it here.'}">${title}<span class="hub-row-sub">Download</span></button>`;
     if (isVaultPlaceholder(r)) return `<div class="hub-row">${title}<span class="vault-on-device" title="This file was added on another device. Open it there.">On another device</span></div>`;
     if (vaultIdbMissing(r)) return `<div class="hub-row">${title}<span class="vault-on-device" title="${vaultEsc(VAULT_MISSING_MESSAGE)}">Missing on this device</span></div>`;
-    if (isVaultIdbFile(r)) return `<button type="button" class="hub-row hub-link" onclick="vaultOpenFile('${vaultEsc(r.fileId)}')">${title}<span class="hub-row-sub">Download</span></button>`;
+    if (isVaultIdbFile(r)) return `<button type="button" class="hub-row hub-link" onclick="vaultOpenFile(${jsArg_cd(r.fileId)})">${title}<span class="hub-row-sub">Download</span></button>`;
     if (!vaultSafeUrl(r.url)) return `<div class="hub-row">${title}<span class="vault-on-device" title="This address can’t be opened from the vault.">Link blocked</span></div>`;
     return `<a class="hub-row hub-link" href="${vaultEsc(vaultSafeUrl(r.url))}" target="_blank" rel="noopener noreferrer">${title}<span class="hub-row-sub">${r.isUpload ? 'Download' : vaultEsc(hostOf(vaultSafeUrl(r.url)))}</span>${r.isUpload ? '' : arrow}</a>`;
   }).join('') : `<p class="hub-quiet">Nothing on the shelf yet. Drive folders, lecture notes, syllabus PDFs or code repos for ${escHtml_cd(subj.name)} go here.</p>`;
@@ -19658,7 +19658,7 @@ function clarityAssistantDeps() {
     formatDisplayTimeRange, getAttendanceTarget, getCanonicalSubjectKey,
     getCountdownLabel, getOverallAttendance, getSubjectAttendance,
     getSubjectList, holidayLabel, icons, isBreakEntry,
-    isHolidayActive, isTaskOverdue, isTeachingClass,
+    isHolidayActive, isTaskOverdue, isTeachingClass, jsArg_cd,
     loadAttendanceBaselines, loadHoliday, loadProfile, loadTimetable,
     syllabusExamInfo, syllabusStats, syllabusTodayLine, timeToMinutes,
     timetableForDisplay, visibleSyllabusEntries,
