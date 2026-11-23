@@ -170,6 +170,90 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u367",
+    date: "2026-11-24",
+    title: "Subjects without a short name show initials from their full name (like APS) instead of a long course code, and you can rename them",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Tasks, Subjects and Today now name a subject by your own short name if you set one, else its usual short code (DS, PBST), else initials made from the full name.",
+    points: [
+      "Rename it on the Subject page or from a class on Today. Renames stay on this phone and are kept in backups."
+    ]
+  },
+  {
+    id: "u366",
+    date: "2026-11-24",
+    title: "Notifications on OnePlus phones should show the Clarity Desk logo in the status bar instead of a white square",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The main app icon is now just the logo with a see-through background.",
+    points: [
+      "Some phones (OnePlus, Oppo, Realme) paint that icon in one colour for the status bar, and the old solid tile came out as a white square. The home-screen icon and the \"Install Clarity Desk\" card look the same as before."
+    ]
+  },
+  {
+    id: "u365",
+    date: "2026-11-24",
+    title: "On a holiday the Daily Briefing also shows Late tasks as one line instead of mixing them into the break's deadlines",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "On a holiday the Daily Briefing also shows Late tasks as one line instead of mixing them into the break's deadlines",
+    points: [
+
+    ]
+  },
+  {
+    id: "u364",
+    date: "2026-11-24",
+    title: "Small fixes from the phone review: Settings tabs centred, Daily Briefing named right, greeting follows the clock, Late tasks in one line, Settings once in More, Add topics buttons stay above the keyboard, no repeated task notes or dates",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Small fixes from the phone review: Settings tabs centred, Daily Briefing named right, greeting follows the clock, Late tasks in one line, Settings once in More, Add topics buttons stay above the keyboard, no repeated task notes or dates",
+    points: [
+
+    ]
+  },
+  {
+    id: "u363",
+    date: "2026-11-24",
+    title: "Glossary: \"Theme\" means the colour set, and Light / Dark / Auto is separate",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Glossary: \"Theme\" means the colour set, and Light / Dark / Auto is separate",
+    points: [
+
+    ]
+  },
+  {
+    id: "u362",
+    date: "2026-11-24",
+    title: "Opened from Instagram or WhatsApp? The \"open in your browser\" card now shows right after the welcome",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Before, it appeared behind the welcome screen, so new students never saw it.",
+    points: [
+
+    ]
+  },
+  {
+    id: "u361",
+    date: "2026-11-23",
+    title: "If copying a link fails, the app now shows the link to copy instead of a browser pop-up",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Inside Instagram or WhatsApp the browser pop-up is often blocked, so tapping Copy link did nothing.",
+    points: [
+      "The timing report also shows local time, not UTC."
+    ]
+  },
+  {
     id: "u360",
     date: "2026-11-23",
     title: "Safer handling of Vault file buttons, and the safety test now checks every app file",
