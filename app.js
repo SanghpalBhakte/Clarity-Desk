@@ -4361,10 +4361,10 @@ function copyIncomingEmailLink() {
   const done = () => showToast('Link copied. Open Clarity Desk from your home screen and paste it in Settings → Sign in with email.', 'success');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(link).then(done).catch(() => {
-      window.prompt('Copy this sign-in link:', link);
+      appConfirm('Copy this sign-in link (press and hold to select it):\n\n' + link, 'Done');
     });
   } else {
-    window.prompt('Copy this sign-in link:', link);
+    appConfirm('Copy this sign-in link (press and hold to select it):\n\n' + link, 'Done');
   }
 }
 
@@ -6977,7 +6977,7 @@ async function copyInAppLink() {
     await navigator.clipboard.writeText(url);
     showToast('Link copied. Paste it into Chrome or Safari.', 'success');
   } catch (_) {
-    window.prompt('Copy this link and open it in Chrome or Safari:', url);
+    appConfirm('Copy this link and open it in Chrome or Safari (press and hold to select it):\n\n' + url, 'Done');
   }
 }
 
@@ -10363,7 +10363,7 @@ function appConfirm(msg, okLabel, onYes) {
   backdrop.id = 'app-confirm-backdrop';
   backdrop.innerHTML = `
     <div class="modal" style="max-width:400px;width:92vw">
-      <div class="modal-body" data-msg style="font-size:var(--text-base);line-height:1.45;padding-top:20px;white-space:pre-line"></div>
+      <div class="modal-body" data-msg style="font-size:var(--text-base);line-height:1.45;padding-top:20px;white-space:pre-line;overflow-wrap:anywhere"></div>
       <div class="modal-footer" style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
         ${onYes ? '<button type="button" class="btn-secondary" data-act="no">Cancel</button>' : ''}
         <button type="button" class="btn-primary" data-act="yes">${okLabel}</button>
@@ -20303,7 +20303,7 @@ function showTimingReport() {
   const sw = TIMING_SAVED_COPY ? 'yes (opened from the saved copy)' : 'no (first visit, or saved copy not ready)';
 
   const lines = [
-    `Clarity Desk timing · ${new Date().toISOString().slice(0, 16)} · v${((document.querySelector('script[type=module]') || {}).outerHTML || '').match(/v=(\d+)/)?.[1] || '?'}`,
+    `Clarity Desk timing · ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', hour12: true })} · v${((document.querySelector('script[type=module]') || {}).outerHTML || '').match(/v=(\d+)/)?.[1] || '?'}`,
     `Saved copy in use: ${sw}`,
     `Network: ${(navigator.connection && navigator.connection.effectiveType) || 'unknown'}`,
     '',
