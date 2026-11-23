@@ -47,6 +47,16 @@ test('Briefing greeting follows the clock while it stays open', async ({ page })
   await expect(page.locator('.bf-kicker')).toHaveText('This afternoon');
 });
 
+test('On a holiday, Late tasks are one line, not break deadlines', async ({ page }) => {
+  await openDesk(page, undefined, { cos_holiday: JSON.stringify({ on: true, since: '2026-11-20', until: '2026-12-05', changedAt: 1794100000000 }) });
+  await go(page, 'summary');
+  const brief = page.locator('#page-resources');
+  await expect(brief).toContainText('Deadlines during your break');
+  await expect(brief).not.toContainText('DS lab record');
+  await expect(brief).not.toContainText('overdue');
+  await expect(page.locator('.bf-late')).toHaveText(/2 Late\s*·?\s*Look through/);
+});
+
 test('Late tasks are one line, not under Due this week', async ({ page }) => {
   await openDesk(page);
   await go(page, 'summary');

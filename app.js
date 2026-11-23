@@ -10881,7 +10881,7 @@ window.resolveTask = resolveTask;
 
 // A task's note is shown only when it says more than the title: empty, "—"
 // or the title again (case, spaces and an end full stop aside) is hidden.
-function taskNoteAddsSomething(t) {
+function shouldShowTaskNote(t) {
   const norm = (v) => String(v || '').trim().replace(/\s+/g, ' ').replace(/\.$/, '').toLowerCase();
   const note = norm(t && t.description);
   return !!note && note !== '—' && note !== norm(t.title);
@@ -17154,7 +17154,7 @@ function renderAssignments() {
         <div class="assignment-body"${bodyAttrs}>
           <div class="assignment-title">${escHtml_cd(a.title)}</div>
           <div class="tk-meta">${bits.join('')}</div>
-          ${taskNoteAddsSomething(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
+          ${shouldShowTaskNote(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
         </div>
         ${tail}
         ${actions}
@@ -17879,10 +17879,11 @@ function holidayBriefingHTML() {
   // Open-ended break: the next two weeks of deadlines.
   const horizon = h && h.until ? h.until : (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 15); return localDateKey(d); })();
   const pending = allTasks().filter(a => a && a.status === 'pending');
+  const late = briefingLateTasks(pending);
   const deadlines = pending
-    .filter(a => !isOngoingTask(a) && a.dueDate && (isTaskOverdue(a) || a.dueDate < horizon))
+    .filter(a => !isOngoingTask(a) && a.dueDate && !isTaskOverdue(a) && a.dueDate < horizon)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const kept = pending.filter(a => a.keepInHoliday === true && !deadlines.includes(a));
+  const kept = pending.filter(a => a.keepInHoliday === true && !deadlines.includes(a) && !late.includes(a));
   const daysLeft = holidayDaysLeft(h);
   const row = (a, sub, cls) => `
     <div class="summary-item${cls ? ' ' + cls : ''}" onclick="navigateTo('assignments')" style="cursor:pointer">
@@ -17894,7 +17895,6 @@ function holidayBriefingHTML() {
     </div>`;
   const dueText = (a) => {
     const d = dueDaysLeft(a.dueDate);
-    if (d < 0) return `${Math.abs(d)}d overdue`;
     if (d === 0) return 'Due today';
     if (d === 1) return 'Due tomorrow';
     return `Due ${holidayDayLabel(a.dueDate, true)}`;
@@ -17910,8 +17910,9 @@ function holidayBriefingHTML() {
     </div>
 
     <div class="section-heading" style="margin-top:20px">Deadlines during your break</div>
+    ${briefingLateLine(late)}
     ${deadlines.length
-      ? deadlines.map(a => row(a, dueText(a), isTaskOverdue(a) ? 'is-overdue' : '')).join('')
+      ? deadlines.map(a => row(a, dueText(a), '')).join('')
       : '<div class="card holiday-empty">No deadlines while you\'re away. 🌿</div>'}
 
     <div class="section-heading" style="margin-top:20px">Kept during holiday</div>
@@ -17919,6 +17920,15 @@ function holidayBriefingHTML() {
       ? kept.map(a => row(a, isOngoingTask(a) ? 'Ongoing' : dueText(a), '')).join('')
       : '<div class="card holiday-empty">Nothing else to do. Tick "Keep during holiday" on a task to see it here.</div>'}
   `;
+}
+
+// Late is not Due (GLOSSARY): the Briefing gives Late tasks one line of
+// their own, "3 Late · Look through", which opens Tasks.
+function briefingLateTasks(pending) {
+  return pending.filter(a => !isOngoingTask(a) && a.dueDate && isTaskOverdue(a));
+}
+function briefingLateLine(late) {
+  return late.length ? `<p class="bf-late"><span><strong>${late.length} Late</strong> · </span><button type="button" class="bf-act" onclick="navigateTo('assignments')">Look through</button></p>` : '';
 }
 
 function renderSummaryContent(container) {
@@ -17933,7 +17943,7 @@ function renderSummaryContent(container) {
   const today = todayStr();
   const horizon = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 7); return localDateKey(d); })();
   const pending = allTasks().filter(a => a && a.status === 'pending');
-  const late = pending.filter(a => !isOngoingTask(a) && a.dueDate && isTaskOverdue(a));
+  const late = briefingLateTasks(pending);
   const due = pending.filter(a => !isOngoingTask(a) && a.dueDate && !isTaskOverdue(a) && a.dueDate < horizon)
     .sort((x, y) => x.dueDate.localeCompare(y.dueDate));
   const ongoing = pending.filter(a => isOngoingTask(a) && !isTaskPausedForHoliday(a));
@@ -17990,7 +18000,7 @@ function renderSummaryContent(container) {
 
       <section class="bf-section bf-ruled" aria-label="Due this week">
         <div class="bf-h"><h3>Due this week</h3>${pending.length ? `<button type="button" class="bf-act" onclick="navigateTo('assignments')">All tasks →</button>` : ''}</div>
-        ${late.length ? `<p class="bf-late"><span><strong>${late.length} Late</strong> · </span><button type="button" class="bf-act" onclick="navigateTo('assignments')">Look through</button></p>` : ''}
+        ${briefingLateLine(late)}
         ${due.length ? due.map(a => `
           <button type="button" class="bf-row" onclick="navigateTo('assignments')">
             <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
@@ -18052,18 +18062,20 @@ function briefingPart(now = new Date()) {
   return now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening';
 }
 
-// A Briefing left open (or a phone app resumed) keeps its old greeting until
-// redrawn: redraw it when the time of day has moved on. Reads only.
+// A Briefing left open (or a phone app resumed) keeps its old greeting:
+// update just that word when the time of day moves on, so the page never
+// jumps while it is being read. Reads only.
 function refreshBriefingPart() {
   if (state.currentPage !== 'resources' || state.resourcesTab !== 'summary') return;
   const k = document.querySelector('#page-resources .bf-kicker');
-  if (k && k.dataset.part !== briefingPart()) renderResources();
+  const part = briefingPart();
+  if (k && k.dataset.part !== part) { k.dataset.part = part; k.textContent = `This ${part}`; }
 }
 
 // "Tomorrow's a lab day." with the key words in the thread colour, plus
 // one line of times. Fixed words only, so the html is safe. "A clear week"
 // only when there are no classes and nothing Due or Late either.
-function briefingFocusHeadline(focus, openTasks = 0) {
+function briefingFocusHeadline(focus, openTasks) {
   if (!focus && openTasks) return { html: 'No <em>classes</em> this week.', sub: 'No classes in the next seven days.' };
   if (!focus) return { html: 'A <em>clear</em> week.', sub: 'No classes in the next seven days.' };
   const n = focus.classes.length;
