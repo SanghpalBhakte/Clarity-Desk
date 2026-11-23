@@ -213,6 +213,13 @@ console.log('\n1c. No evening reminder once today is fully marked');
   check('In-app: something unmarked, shown', shown.some(n => n.tag === 'mark_rem_2026-10-26'));
   delete store.cos_attendance;
   NOW = ist('2026-10-19T21:00:00');
+
+  // The drop relies on marking (and its Undo) resending the push list.
+  const body = (start) => { const i = appSrc.indexOf(start); return appSrc.slice(i, appSrc.indexOf('\n};\n', i)); };
+  const syncs = (src) => (src.match(/syncToCloud\(\)/g) || []).length;
+  check('One mark and its Undo both resend the list', syncs(body('window.setAttendance = function(')) >= 2);
+  check('"I was at all N" and its Undo both resend the list', syncs(body('window.markEndedPresent = function(')) >= 2);
+  check('...and a sync reschedules the push list', /function syncToCloud\(\) \{[\s\S]{0,200}?schedulePushSync\(\);\s*\n\s*if \(!currentUser\) return;/.test(appSrc));
 }
 
 console.log('\n2. In-app check and push agree (dedupe)');
