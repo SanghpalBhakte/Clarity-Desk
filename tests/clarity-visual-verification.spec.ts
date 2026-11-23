@@ -262,18 +262,19 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
     await clearRuntime(page);
   });
 
-  // The theme switch lives in the More sheet on a phone and in Settings (Appearance) on a laptop: neither has a top bar switch.
+  // The theme switch lives in Settings (Look), reached from the sidebar on a laptop
+  // and from More > Settings on a phone (#455): neither has a top bar switch.
   async function themeControl(page: Page) {
     if ((page.viewportSize()?.width ?? 1440) >= 768) {
       await page.locator('#sidebar-settings').click();
-      const now = await page.locator(SEL.rootHtml).getAttribute('data-theme');
-      const swatch = page.locator('.theme-swatch', { hasText: now === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' });
-      await swatch.waitFor({ state: 'visible' });
-      return swatch;
+    } else {
+      await page.locator('#bnav-more').click();
+      await page.locator('#more-sheet [data-nav="settings"]').click();
     }
-    await page.locator('#bnav-more').click();
-    await page.locator('#theme-toggle-btn').waitFor({ state: 'visible' });   // the sheet slides in
-    return page.locator('#theme-toggle-btn');
+    const now = await page.locator(SEL.rootHtml).getAttribute('data-theme');
+    const swatch = page.locator('.theme-swatch', { hasText: now === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' });
+    await swatch.waitFor({ state: 'visible' });
+    return swatch;
   }
 
   test('theme switch is reachable', async ({ page }) => {

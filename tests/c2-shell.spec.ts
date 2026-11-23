@@ -41,19 +41,14 @@ test.describe('phone 390x844', () => {
     await expect(page.locator('.c2-largetitle #assistant-toggle-btn')).toBeVisible();
   });
 
-  test('More lists Profile and settings, Appearance and Sync, and they still work', async ({ page }) => {
+  // #455: Settings shows once; the avatar and theme switch are no longer extra rows.
+  test('More lists Settings once plus Sync, and Sync still opens Settings', async ({ page }) => {
     await page.click('#bnav-more');
     const sheet = page.locator('#more-sheet');
-    for (const t of ['Profile and settings', 'Appearance', 'Sync']) await expect(sheet.getByText(t, { exact: true })).toBeVisible();
-    const before = await page.locator('html').getAttribute('data-theme');
-    await sheet.locator('#theme-toggle-btn').click();
-    await expect(page.locator('html')).not.toHaveAttribute('data-theme', before!);
-    // Two more taps come back to Auto, and the row says so (a tap never drops Auto unseen)
-    await sheet.locator('#theme-toggle-btn').click();
-    await sheet.locator('#theme-toggle-btn').click();
-    await expect(sheet.locator('#theme-toggle-label')).toHaveText('Auto');
-    expect(await page.evaluate(() => localStorage.getItem('cos_theme'))).toBe('auto');
-    await sheet.locator('#topbar-avatar').click();
+    await expect(sheet.getByText('Sync', { exact: true })).toBeVisible();
+    for (const t of ['Profile and settings', 'Appearance']) await expect(sheet.getByText(t, { exact: true })).toHaveCount(0);
+    await expect(sheet.locator('#theme-toggle-btn, #topbar-avatar')).toHaveCount(0);
+    await sheet.locator('#sync-status-btn').click();
     await expect(page.locator('#page-settings')).toBeVisible();
   });
 

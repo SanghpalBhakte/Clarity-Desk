@@ -10879,6 +10879,14 @@ function resolveTask(taskId, change = {}) {
 }
 window.resolveTask = resolveTask;
 
+// A task's note is shown only when it says more than the title: empty, "—"
+// or the title again (case, spaces and an end full stop aside) is hidden.
+function taskNoteAddsSomething(t) {
+  const norm = (v) => String(v || '').trim().replace(/\s+/g, ' ').replace(/\.$/, '').toLowerCase();
+  const note = norm(t && t.description);
+  return !!note && note !== '—' && note !== norm(t.title);
+}
+
 // Tasks more than STALE_TASK_DAYS late leave Today's main list and wait in
 // one "older tasks" line, so a student coming back sees today first.
 // Display only: nothing is moved, closed or deleted until the student picks.
@@ -17109,12 +17117,8 @@ function renderAssignments() {
     let when = '', whenCls = '';
     if (done) when = 'done';
     else if (isOngoing) { const wk = goalCheckinsThisWeek(a); when = isTaskPausedForHoliday(a) ? 'resting for the holiday' : wk ? `${wk} this week` : 'keeps going'; whenCls = 'ongoing'; }
-    else if (days !== null) {
-      if (days < 0)        { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
-      else if (days === 0) { when = 'due today'; whenCls = 'today'; }
-      else if (days === 1) { when = 'tomorrow'; whenCls = 'soon'; }
-      else                 { when = `in ${days} days`; whenCls = days <= 3 ? 'soon' : ''; }
-    }
+    // The day column already shows the date, so only Late (a status) is said again.
+    else if (days !== null && days < 0) { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
     const isCategory = ['GEN', 'MIS', 'OTH'].includes(String(a.code || '').toUpperCase());
     // The old "Mission" category reads as General (missions are a Task Type now).
     const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
@@ -17150,7 +17154,7 @@ function renderAssignments() {
         <div class="assignment-body"${bodyAttrs}>
           <div class="assignment-title">${escHtml_cd(a.title)}</div>
           <div class="tk-meta">${bits.join('')}</div>
-          ${(a.description || '').trim() && a.description.trim() !== '—' ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
+          ${taskNoteAddsSomething(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
         </div>
         ${tail}
         ${actions}
@@ -17923,19 +17927,20 @@ function renderSummaryContent(container) {
   const nowMin = currentTimeMinutes();
   const week = briefingWeek(now);
   const focus = briefingFocus(week, nowMin);
-  const head = briefingFocusHeadline(focus);
-  const part = now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening';
+  const part = briefingPart(now);
 
-  // Due this week: overdue first, then the next seven days.
+  // Due this week: the next seven days. Late tasks are not Due: they get one line.
   const today = todayStr();
   const horizon = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() + 7); return localDateKey(d); })();
   const pending = allTasks().filter(a => a && a.status === 'pending');
-  const due = pending.filter(a => !isOngoingTask(a) && a.dueDate && (isTaskOverdue(a) || a.dueDate < horizon))
+  const late = pending.filter(a => !isOngoingTask(a) && a.dueDate && isTaskOverdue(a));
+  const due = pending.filter(a => !isOngoingTask(a) && a.dueDate && !isTaskOverdue(a) && a.dueDate < horizon)
     .sort((x, y) => x.dueDate.localeCompare(y.dueDate));
   const ongoing = pending.filter(a => isOngoingTask(a) && !isTaskPausedForHoliday(a));
+  const head = briefingFocusHeadline(focus, due.length + late.length);
   const dueText = (a) => {
     const d = dueDaysLeft(a.dueDate);
-    return d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due ${DAY_NAMES[new Date(a.dueDate + 'T12:00:00').getDay()]}`;
+    return d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due ${DAY_NAMES[new Date(a.dueDate + 'T12:00:00').getDay()]}`;
   };
   const watch = briefingWatch();
 
@@ -17962,7 +17967,7 @@ function renderSummaryContent(container) {
   container.innerHTML = `
     <div class="bf">
       <header class="bf-head">
-        <div class="bf-kicker">This ${part}</div>
+        <div class="bf-kicker" data-part="${part}">This ${part}</div>
         <h2 class="bf-title">${head.html}</h2>
         ${head.sub ? `<p class="bf-sub">${escHtml_cd(head.sub)}</p>` : ''}
       </header>
@@ -17985,11 +17990,12 @@ function renderSummaryContent(container) {
 
       <section class="bf-section bf-ruled" aria-label="Due this week">
         <div class="bf-h"><h3>Due this week</h3>${pending.length ? `<button type="button" class="bf-act" onclick="navigateTo('assignments')">All tasks →</button>` : ''}</div>
+        ${late.length ? `<p class="bf-late"><span><strong>${late.length} Late</strong> · </span><button type="button" class="bf-act" onclick="navigateTo('assignments')">Look through</button></p>` : ''}
         ${due.length ? due.map(a => `
-          <button type="button" class="bf-row${isTaskOverdue(a) ? ' is-overdue' : ''}" onclick="navigateTo('assignments')">
+          <button type="button" class="bf-row" onclick="navigateTo('assignments')">
             <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
             <span class="bf-row-when">${dueText(a)}</span>
-          </button>`).join('') : `<p class="bf-quiet">${ongoing.length ? 'No deadlines this week.' : 'Nothing. Rare. Enjoy it.'}</p>`}
+          </button>`).join('') : (late.length ? '' : `<p class="bf-quiet">${ongoing.length ? 'No deadlines this week.' : 'Nothing. Rare. Enjoy it.'}</p>`)}
         ${ongoing.map(a => `
           <button type="button" class="bf-row" onclick="navigateTo('assignments')">
             <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
@@ -18041,9 +18047,24 @@ function briefingFocus(week, nowMin) {
   return null;
 }
 
+// The Briefing's greeting word for the time of day.
+function briefingPart(now = new Date()) {
+  return now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening';
+}
+
+// A Briefing left open (or a phone app resumed) keeps its old greeting until
+// redrawn: redraw it when the time of day has moved on. Reads only.
+function refreshBriefingPart() {
+  if (state.currentPage !== 'resources' || state.resourcesTab !== 'summary') return;
+  const k = document.querySelector('#page-resources .bf-kicker');
+  if (k && k.dataset.part !== briefingPart()) renderResources();
+}
+
 // "Tomorrow's a lab day." with the key words in the thread colour, plus
-// one line of times. Fixed words only, so the html is safe.
-function briefingFocusHeadline(focus) {
+// one line of times. Fixed words only, so the html is safe. "A clear week"
+// only when there are no classes and nothing Due or Late either.
+function briefingFocusHeadline(focus, openTasks = 0) {
+  if (!focus && openTasks) return { html: 'No <em>classes</em> this week.', sub: 'No classes in the next seven days.' };
   if (!focus) return { html: 'A <em>clear</em> week.', sub: 'No classes in the next seven days.' };
   const n = focus.classes.length;
   const first = formatDisplayTime(focus.classes[0].time);
@@ -20213,6 +20234,7 @@ function init() {
     checkScheduledNotifications();
       updateLiveClockDisplay();
     refreshIfDayChanged();
+    refreshBriefingPart();
   }, 60000);
   // A backgrounded PWA's timers are paused; check the date as soon as it's shown again.
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfDayChanged(); });
@@ -20223,6 +20245,7 @@ function init() {
   const catchUpClock = () => {
     if (document.hidden) return;
     updateLiveClockDisplay();
+    refreshBriefingPart();
     tickBeacon();
     scheduleBeaconTick();
   };
@@ -20537,7 +20560,8 @@ function setupFABDrag() {
 
 // ── Phone shell: large title, slim bar, and the header parts that live in More ──
 // On a phone the topbar is gone. Its Ask Desk button moves into the large title and
-// its theme switch, sync status and avatar move into the More sheet. They are the same
+// its sync status moves into the More sheet (the sheet's own Settings row covers the
+// avatar and theme switch, so they stay in the hidden topbar). They are the same
 // elements (same ids, same handlers), so nothing else has to know. On a wider screen
 // they go back to the topbar in their original order. UI only: no cos_* data.
 (function () {
@@ -20559,7 +20583,7 @@ function setupFABDrag() {
     const avatar = document.getElementById('topbar-avatar');
     if (phone) {
       if (ask) titleSlot.appendChild(ask);
-      [avatar, theme, sync].forEach(function (el) { if (el) sheetSlot.appendChild(el); });
+      if (sync) sheetSlot.appendChild(sync);
     } else {
       [theme, sync, ask, avatar].forEach(function (el) { if (el) actions.appendChild(el); });
     }
@@ -20579,7 +20603,9 @@ function setupFABDrag() {
     })();
     // Today's big title is the greeting (set by renderDashboard) by day; the compact bar always says Today or Tomorrow.
     const head = onToday ? window.c2Head : null;
-    const title = onToday ? (head && !head.night ? head.greeting : dayLabel()) : (PAGE_NAMES[page] || 'Clarity Desk');
+    // Study Vault and Daily Briefing share the resources page: the open tab names it.
+    const named = page === 'resources' ? (state.resourcesTab || 'links') : page;
+    const title = onToday ? (head && !head.night ? head.greeting : dayLabel()) : (PAGE_NAMES[named] || 'Clarity Desk');
     const barTitle = onToday ? dayLabel() : title;
     const t = document.getElementById('c2-lt-title');
     const d = document.getElementById('c2-lt-date');
