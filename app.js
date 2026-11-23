@@ -79,6 +79,8 @@ const KEY_EMAIL_LINK_PENDING  = 'cos_email_link_pending';
 // left out of backups and sync.
 const KEY_MOVED_PROMPT        = 'cos_moved_prompt';
 const KEY_LAST_BACKUP         = 'cos_last_backup';   // day a Backup file was last made on this phone (device-only)
+const KEY_BACKUP_NUDGE        = 'cos_backup_nudge';  // day the "Back up now" reminder was last shown (device-only)
+const KEY_FIRST_SEEN          = 'cos_first_seen';    // day this phone first opened the app (device-only)
 // Anonymous usage counts: { optOut, firstOpen, day2, once: {}, queue: [] }.
 // Device-only, left out of backups and sync.
 const KEY_USAGE               = 'cos_usage';
@@ -19329,6 +19331,51 @@ function lastBackupLine() {
   return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? `Last backup: ${formatDate(d)}` : 'Last backup: never';
 }
 
+// ── "Back up now" reminder ────────────────────────────────────
+// For a student who is not signed in, this phone holds the only copy. One
+// toast, at most once a month, once there is something worth keeping.
+function backupNudgeDue({ signedIn, today, firstSeen, marks, tasks, lastBackup, lastNudge }) {
+  if (signedIn || !firstSeen) return false;
+  if (usageDaysBetween(firstSeen, today) < 7) return false;
+  if (marks < 10 && tasks < 3) return false;
+  if (lastBackup && usageDaysBetween(lastBackup, today) < 30) return false;
+  if (lastNudge && usageDaysBetween(lastNudge, today) < 30) return false;
+  return true;
+}
+
+// The day this phone first opened the app. Starts from the usage first-open
+// day when there is one (it is only kept while usage counting is on).
+function noteFirstSeen() {
+  if (safeGetStorage(KEY_FIRST_SEEN, null)) return;
+  const first = loadUsage().firstOpen;
+  safeSetStorage(KEY_FIRST_SEEN, /^\d{4}-\d{2}-\d{2}$/.test(first || '') ? first : todayStr());
+}
+
+// A few seconds after start, on Today only, never over the tour, the welcome
+// or any open window (it is then not counted as shown, so it tries again on
+// a later open). Signed in last time counts as signed in: sign-in loads later.
+function maybeShowBackupNudge() {
+  if (state.currentPage !== 'dashboard') return;
+  if (document.querySelector('#tour-root, #onboarding-backdrop')) return;
+  // Open ones only: the More sheet stays in the page (aria-hidden) between uses.
+  if ([...document.querySelectorAll('.modal-backdrop, [aria-modal="true"]')]
+    .some(e => e.getAttribute('aria-hidden') !== 'true' && e.getClientRects().length)) return;
+  const today = todayStr();
+  const day = (k) => { const v = safeGetStorage(k, null); return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; };
+  const marks = Object.values(safeGetStorage(KEY_ATTENDANCE, {}) || {})
+    .reduce((n, d) => n + (d && typeof d === 'object' ? Object.values(d).filter(Boolean).length : 0), 0);
+  if (!backupNudgeDue({
+    signedIn: !!currentUser || safeGetStorage(KEY_CLOUD_SIGNED_IN, false) === true,
+    today, firstSeen: day(KEY_FIRST_SEEN), marks, tasks: (state.customTasks || []).length,
+    lastBackup: day(KEY_LAST_BACKUP), lastNudge: day(KEY_BACKUP_NUDGE)
+  })) return;
+  safeSetStorage(KEY_BACKUP_NUDGE, today);
+  showToast('Everything here is saved only on this phone.', 'note', {
+    key: 'backup-nudge',
+    action: { label: 'Back up now', fn: () => { exportData(); return true; } }
+  });
+}
+
 // Damaged saved values safeGetStorage set aside (cos_corrupt_<key>, the exact
 // raw text). Settings → Backup shows them only when there are some.
 function corruptKeptCopies() {
@@ -20098,6 +20145,8 @@ function init() {
   try { checkHolidayExpiry(); } catch (e) { console.warn('[Holiday] expiry check skipped:', e); }
   try { migrateLegacySampleTimetable(); } catch (e) { console.warn('[Timetable] sample copy skipped:', e); }
   try { noteTimetableDay(); } catch (e) { console.warn('[Onboarding] timetable day skipped:', e); }
+  try { noteFirstSeen(); } catch (e) { console.warn('[Backup] first-open day skipped:', e); }
+  setTimeout(() => { try { maybeShowBackupNudge(); } catch (e) { console.warn('[Backup] reminder skipped:', e); } }, 5000);
   try { vaultIdbStart(); } catch (e) { console.warn('[Vault] file store skipped:', e); }
   warmVaultUi();
   initTheme();

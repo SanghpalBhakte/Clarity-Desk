@@ -64,6 +64,12 @@
     "cos_last_backup": {
       "why": "when this phone last made a Backup file; describes the phone, not the desk"
     },
+    "cos_backup_nudge": {
+      "why": "when this phone last showed the Back up now reminder"
+    },
+    "cos_first_seen": {
+      "why": "the day this phone first opened the app (gates the Back up now reminder)"
+    },
     "cos_usage": {
       "why": "anonymous device counts"
     },
