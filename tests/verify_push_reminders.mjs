@@ -187,6 +187,41 @@ console.log('\n1b. Evening "Mark today" reminder (opt-in)');
   NOW = ist('2026-10-19T21:00:00');
 }
 
+console.log('\n1c. No evening reminder once today is fully marked');
+{
+  const has = (key) => app.buildUpcomingReminders().some(r => r.tag === `mark_rem_${key}`);
+  const marks = (m) => { store.cos_attendance = JSON.stringify({ '2026-10-26': m }); };
+  setup({ prefs: { markReminder: 'evening' } });
+  NOW = ist('2026-10-26T15:45:00');
+  marks({ DS_0900: 'attended' });
+  check('Lab still unmarked: today\'s reminder stays', has('2026-10-26'));
+  marks({ DS_0900: 'attended', DSL_1330: 'cancelled' });
+  check('Every own-group class marked (any mark, Didn\'t happen too): today\'s reminder is gone', !has('2026-10-26'));
+  check('...next Monday\'s stays', has('2026-11-02'));
+  marks({ DS_0900: 'attended', DSL_1330: 'od_pending' });
+  check('On duty counts as marked', !has('2026-10-26'));
+  marks({ DS_0900: 'attended' });
+  check('Undo of a mark brings today\'s reminder back', has('2026-10-26'));
+
+  NOW = ist('2026-10-26T16:01:00');
+  marks({ DS_0900: 'attended', DSL_1330: 'skipped' });
+  shown.length = 0;
+  app.checkScheduledNotifications();
+  check('In-app: fully marked, nothing shown', !shown.some(n => n.tag === 'mark_rem_2026-10-26'));
+  marks({ DS_0900: 'attended' });
+  app.checkScheduledNotifications();
+  check('In-app: something unmarked, shown', shown.some(n => n.tag === 'mark_rem_2026-10-26'));
+  delete store.cos_attendance;
+  NOW = ist('2026-10-19T21:00:00');
+
+  // The drop relies on marking (and its Undo) resending the push list.
+  const body = (start) => { const i = appSrc.indexOf(start); return appSrc.slice(i, appSrc.indexOf('\n};\n', i)); };
+  const syncs = (src) => (src.match(/syncToCloud\(\)/g) || []).length;
+  check('One mark and its Undo both resend the list', syncs(body('window.setAttendance = function(')) >= 2);
+  check('"I was at all N" and its Undo both resend the list', syncs(body('window.markEndedPresent = function(')) >= 2);
+  check('...and a sync reschedules the push list', /function syncToCloud\(\) \{[\s\S]{0,200}?schedulePushSync\(\);\s*\n\s*if \(!currentUser\) return;/.test(appSrc));
+}
+
 console.log('\n2. In-app check and push agree (dedupe)');
 setup();
 NOW = ist('2026-10-20T08:05:00');
