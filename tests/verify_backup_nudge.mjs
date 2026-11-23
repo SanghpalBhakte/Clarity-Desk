@@ -30,6 +30,8 @@ console.log('\n"Last backup" line');
   check('Still shown after a reload', () => again.lastBackupLine() === 'Last backup: 10 Nov 2026' || again.lastBackupLine());
   again.eval('currentUser = { uid: "u1" }');
   check('Signed in: "Saved to your account"', () => again.lastBackupLine() === 'Saved to your account' || again.lastBackupLine());
+  again.eval('cloudPushFailed = "unavailable"');
+  check('Signed in but the last sync failed: the Backup date again, not a promise', () => again.lastBackupLine() === 'Last backup: 10 Nov 2026' || again.lastBackupLine());
   const damaged = loadApp(NAMES, { store: { cos_last_backup: J('not a date') } });
   check('A damaged value reads as never', () => damaged.lastBackupLine() === 'Last backup: never' || damaged.lastBackupLine());
 }

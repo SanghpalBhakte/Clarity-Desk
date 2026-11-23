@@ -1282,6 +1282,8 @@ function updateSyncUI(status = null) {
   if (settingsText && text) settingsText.textContent = text.textContent;
   const sizeLine = document.getElementById('settings-cloud-size');
   if (sizeLine) { sizeLine.textContent = syncSizeNote(); sizeLine.hidden = !sizeLine.textContent; }
+  const backupLine = document.getElementById('settings-last-backup');
+  if (backupLine) backupLine.textContent = lastBackupLine();
 }
 
 // ── Vision AI Service (Groq primary → Gemini fallback) ────────
@@ -19314,10 +19316,11 @@ function downloadBackupFile(data) {
   showToast('Backup file downloaded', 'done');
 }
 
-// Settings → Backup: when this phone last made a Backup file. Signed in, the
-// account already holds a copy, so that is what it says instead.
+// Settings → Backup: when this phone last made a Backup file. Signed in and
+// syncing, the account already holds a copy, so that is what it says instead
+// (not while the last sync failed: then the Backup date is the honest line).
 function lastBackupLine() {
-  if (currentUser) return 'Saved to your account';
+  if (currentUser && !cloudPushFailed) return 'Saved to your account';
   const d = safeGetStorage(KEY_LAST_BACKUP, null);
   return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? `Last backup: ${formatDate(d)}` : 'Last backup: never';
 }
