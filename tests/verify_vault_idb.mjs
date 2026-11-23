@@ -19,6 +19,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { withVaultUi } from './lazy-modules.mjs';
+import { handlerCalls } from './handler-calls.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -291,7 +292,7 @@ await check('Vault list: an IndexedDB file opens from IndexedDB; a missing one s
   const r = getLinks()[0].resources[1];
   const ok = app.vaultResourceRow(0, 1, r);
   const missing = app.vaultResourceRow(0, 1, { ...r, fileId: 'bmissing-1' });
-  return ok.includes(`vaultOpenFile(&quot;${r.fileId}&quot;)`) && /Missing on this device/.test(missing) ? true : 'row';
+  return JSON.stringify(handlerCalls(ok, 'vaultOpenFile')) === JSON.stringify([[r.fileId]]) && /Missing on this device/.test(missing) ? true : 'row';
 });
 
 await check('Storage meter counts IndexedDB files', () => {
