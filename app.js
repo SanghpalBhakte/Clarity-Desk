@@ -9362,6 +9362,25 @@ function saveStripLabel(subjectName, label) {
   safeSetStorage(KEY_STRIP_LABELS, all);
 }
 
+// A course number ("MGM51OEL115", "CS 301"): letters and digits, 5+ characters. Never shown as a subject's name.
+const isCourseNumber = (code) => { const c = String(code || '').replace(/[\s-]/g, ''); return c.length >= 5 && /\d/.test(c) && /[A-Za-z]/.test(c); };
+
+// A subject's short name on Tasks, Subjects and Today (display only; the stored code never changes).
+// The student's own name (cos_strip_labels) wins; then the code as before (DS, PBST, OS Lab), unless it is
+// a course number; then initials from the full name ("Art of Public Speaking" -> "APS").
+function subjectShortName(name, code, own) {
+  const key = stripSubjectKey({ subject: name || code });
+  const mine = (own || loadStripLabels())[key];
+  if (mine) return mine;
+  const c = String(code || '').trim();
+  if (c && !isCourseNumber(c)) return c;
+  if (Object.prototype.hasOwnProperty.call(STRIP_SHORT_FORMS, key)) return STRIP_SHORT_FORMS[key];
+  const forms = deriveShortForms(key);
+  return forms[forms.length - 1] || key || c;
+}
+// Today's sentences: a class with no code keeps its full name ("Maths III at 9:00 AM").
+const classShortName = (c) => (c && c.code ? subjectShortName(c.subject, c.code) : (loadStripLabels()[stripSubjectKey(c)] || String((c && c.subject) || '')));
+
 // Labels to try for one class, best first. A student's own strip name is the only candidate when set.
 function stripLabelCandidates(entry, own) {
   const ownName = String(own || '').trim();
@@ -9514,7 +9533,7 @@ function c2NowHTML(x, currentMin) {
         <h2>${name}</h2>
         <p class="c2-now-m">${formatDisplayTime(c.time)}${c.end ? ` to ${formatDisplayTime(c.end)}` : ''}${c.room ? `, ${escHtml_cd(c.room)}` : ''}${x.to !== null ? ` · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : ''}</p>
         ${x.to !== null ? `<div class="c2-prog" role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" data-beacon-bar><i style="width:${pct}%"></i></div>` : ''}
-        ${st ? `<div class="c2-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(c.code || c.subject)}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>` : ''}
+        ${st ? `<div class="c2-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(classShortName(c))}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>` : ''}
         <div class="c2-acts">${x.status === 'unset'
           ? `<span class="c2-hint">Swipe right to mark</span><button type="button" data-c2-mark="attended" data-key="${key}" aria-label="Present, mark ${c2Attr(c.subject)} as attended">Present</button><button type="button" data-c2-open data-key="${key}" aria-label="More choices for ${c2Attr(c.subject)}">More</button>`
           : `${done}<button type="button" data-c2-open data-key="${key}" aria-label="Change the mark for ${c2Attr(c.subject)}">Change</button>`}</div>
@@ -9625,7 +9644,7 @@ let c2RenderedMode = null;
 function c2SmartLine({ mode = 'day', dayClasses = [], tomorrowClasses = [], activeClass = null, nextClass = null, currentMin = 0, unmarkedCount = 0, dueTomorrowTitle = '' } = {}) {
   const from = (c) => timeToMinutes(c.time || '00:00');
   const to = (c) => (c.end ? timeToMinutes(c.end) : from(c) + 60);
-  const label = (c) => c.code || c.subject || 'Class';
+  const label = (c) => classShortName(c) || 'Class';
   const byTime = (list) => list.slice().sort((x, y) => from(x) - from(y));
   if (mode === 'night') {
     const first = byTime(tomorrowClasses)[0];
@@ -9745,9 +9764,6 @@ function c2PaintStrip() {
   c2MeasureCtx.font = `600 12px ${getComputedStyle(strip).fontFamily}`;
   const lay = layoutStrip(c2Day.strip, { width, measure: (t) => c2MeasureCtx.measureText(t).width, own: loadStripLabels() });
   if (!lay.blocks.length) return;
-  // What each single class shows, so the sheet's "Name on the strip" row names the same thing.
-  c2Day.labels = {};
-  lay.blocks.forEach(b => { if (b.kind === 'one' && b.label) c2Day.labels[b.ids[0]] = b.label; });
   const byKey = new Map(c2Day.all.map(x => [x.key, x]));
   const x = (h) => ((h - lay.start) / (lay.end - lay.start)) * width;
   const blocks = lay.blocks.map(b => {
@@ -9848,7 +9864,7 @@ function c2SheetHTML(x) {
   let h = `<div class="c2-grab" aria-hidden="true"></div>
     <h3 id="c2-sheet-title">${escHtml_cd(c.subject)}</h3>
     <p class="c2-sheet-m">${formatDisplayTime(c.time)}${c.end ? ` to ${formatDisplayTime(c.end)}` : ''}${c.room ? `, ${escHtml_cd(c.room)}` : ''}</p>`;
-  if (st) h += `<div class="c2-fx c2-sheet-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(c.code || c.subject)}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>`;
+  if (st) h += `<div class="c2-fx c2-sheet-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(classShortName(c))}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>`;
   if (later) {
     if (st) {
       // Decided from the exact counts (computeNowGuidance), never from a rounded figure: 74.7% is under 75%.
@@ -9877,22 +9893,22 @@ function c2SheetHTML(x) {
   return h + c2NameRowHTML(x);
 }
 
-// "Name on the strip": the label the strip shows for this subject, where it came from, and a field to choose one.
+// "Short name": the subject's short name (also on the strip, Tasks and Subjects), where it came from, and a field to choose one.
 let c2NameEdit = null;   // { key, value } while the field is open (kept through the minute re-render)
 function c2NameRowHTML(x) {
   const c = x.c, key = c2Attr(x.key);
   const own = loadStripLabels()[stripSubjectKey(c)] || '';
   const cands = stripLabelCandidates(c, own);
-  const shown = own || (c2Day && c2Day.labels && c2Day.labels[x.key]) || cands[1] || cands[0] || '';
+  const shown = own || subjectShortName(c.subject, c.code, {}) || cands[1] || cands[0] || '';
   // The timetable's own code or full name (with or without " Lab") came from the timetable; anything else was made.
   const base = shown.replace(/ Lab$/, '').toUpperCase();
   const given = [c.code, c.subject, stripSubjectKey(c)].map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
   const from = own ? 'Your choice' : given.includes(base) || given.includes(shown.toUpperCase()) ? 'From your timetable' : 'Made from the name';
   const open = !!c2NameEdit && c2NameEdit.key === x.key;
-  return `<p class="c2-sl">On your day strip</p>
-    <button type="button" class="c2-opt c2-namerow" data-c2-name data-key="${key}" aria-expanded="${open}" aria-controls="c2-namefield"><span>Name on the strip · <b>${escHtml_cd(shown)}</b><small>${from}</small></span></button>
+  return `<p class="c2-sl">Name</p>
+    <button type="button" class="c2-opt c2-namerow" data-c2-name data-key="${key}" aria-expanded="${open}" aria-controls="c2-namefield"><span>Short name · <b>${escHtml_cd(shown)}</b><small>${from}</small></span></button>
     <div class="c2-namefield" id="c2-namefield"${open ? '' : ' hidden'}>
-      <input type="text" maxlength="${STRIP_LABEL_MAX}" autocomplete="off" spellcheck="false" aria-label="Name on the strip for ${c2Attr(c.subject)}, up to ${STRIP_LABEL_MAX} characters. Leave empty for the automatic name." value="${c2Attr(open ? c2NameEdit.value : own)}" placeholder="${c2Attr(cands[1] || cands[0] || '')}">
+      <input type="text" maxlength="${STRIP_LABEL_MAX}" autocomplete="off" spellcheck="false" aria-label="Short name for ${c2Attr(c.subject)}, up to ${STRIP_LABEL_MAX} characters. Leave empty for the automatic name." value="${c2Attr(open ? c2NameEdit.value : own)}" placeholder="${c2Attr(subjectShortName(c.subject, c.code, {}))}">
       <button type="button" class="c2-all" data-c2-name-save data-key="${key}">Save</button>
     </div>`;
 }
@@ -9907,7 +9923,7 @@ function c2SaveName(key) {
   c2PaintSheet();
   const row = document.querySelector('#c2-sheet [data-c2-name]');
   if (row) row.focus();
-  showToast(inp.value.trim() ? 'Strip name saved' : 'Back to the automatic name', 'done');
+  showToast(inp.value.trim() ? 'Short name saved' : 'Back to the automatic name', 'done');
 }
 
 // A task row's key is "task:<id>" so rows, open state and the sheet share one set of helpers with classes.
@@ -13227,6 +13243,20 @@ window.closeSubjectHub = function() {
   }
 };
 
+// Subject page "Short name · Rename": the same own name the Today sheet sets (cos_strip_labels, this device only).
+window.hubEditShortName = function(btn) {
+  const form = document.getElementById('hub-short-field');
+  if (!form) return;
+  form.hidden = !form.hidden;
+  btn.setAttribute('aria-expanded', String(!form.hidden));
+  if (!form.hidden) form.elements[0].focus();
+};
+window.hubSaveShortName = function(subjectName, value) {
+  saveStripLabel(stripSubjectKey({ subject: subjectName }), value);
+  renderSubjects();
+  showToast(String(value || '').trim() ? 'Short name saved' : 'Back to the automatic name', 'done');
+};
+
 function getSubjectList(options = {}) {
   const { includeTimetable = true } = options;
   const map = new Map();
@@ -16280,8 +16310,10 @@ function renderSubjectsOverview(el, subjects) {
     (!riskN && !watchN && ranked.some(r => r.tier === 'safe') ? ' · all on track' : '');
   const TIER_WORD = { risk: 'At risk', watch: 'Watch', safe: 'Safe', none: 'No data' };
   const RING_C = 2 * Math.PI * 20;
-  // The subject's code sits inside its ring (DS, DEMP), like a label on a gauge.
-  const ringCode = (s) => String(s.code || '').trim().slice(0, 5);
+  // The subject's short name sits inside its ring (DS, DEMP, APS), like a label on a gauge.
+  const ownShort = loadStripLabels();
+  const shortOf = (s) => subjectShortName(s.name, s.code, ownShort);
+  const ringCode = (s) => shortOf(s).slice(0, 5);
   // Day one (nothing marked anywhere): one line explains the rings instead of
   // every row saying "not set yet".
   const noneYet = !isSelfStudyMode() && ranked.every(r => r.tier === 'none');
@@ -16319,8 +16351,8 @@ function renderSubjectsOverview(el, subjects) {
           ${tier === 'none' ? '' : `<div class="sj-line">${line}</div>`}
           ${projection ? `<div class="sj-meta">${projection}</div>` : ''}
           ${(() => {
-            // The code is in the ring already; it stays here only when it was too long to fit there.
-            const meta = [ringCode(s) === String(s.code || '').trim() ? '' : escHtml_cd(s.code),
+            // The short name is in the ring already; it stays here only when it was too long to fit there.
+            const meta = [ringCode(s) === shortOf(s) ? '' : escHtml_cd(shortOf(s)),
               att.labPart && att.labPart.pct !== null ? `Lab ${att.labPart.pctLabel}%` : '',
               pending ? `${pending} pending task${pending !== 1 ? 's' : ''}` : '',
               sylLine(s).replace(/^ · /, '')].filter(Boolean).join(' · ');
@@ -16414,9 +16446,9 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
     }
   });
 
-  const code = String(subj.code || '').trim();
-  const short = code || subj.name;
-  const ringCode = code.slice(0, 5);
+  const own = loadStripLabels()[stripSubjectKey({ subject: subj.name })] || '';
+  const short = subjectShortName(subj.name, subj.code);
+  const ringCode = short.slice(0, 5);
   const subjArg = jsArg_cd(subj.code || subj.name);
   const nameArg = jsArg_cd(subj.name);
   const nameQ = (subj.name || '').replace(/'/g, "\\'");
@@ -16442,7 +16474,7 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
   const types = [...new Set(subj.slots.map(sl => (sl.type || 'lecture') === 'lab' ? 'lab' : 'lecture'))];
   const kinds = types.length === 2 ? 'Lectures + lab' : types[0] === 'lab' ? 'Lab' : types.length ? 'Lectures' : '';
   const batches = [...new Set(subj.slots.flatMap(sl => sl.batches || []))];
-  const meta2 = [kinds, batches.length ? `batch ${batches.join(', ')}` : '', code.length > 5 ? code : ''].filter(Boolean).join(' · ');
+  const meta2 = [kinds, batches.length ? `batch ${batches.join(', ')}` : ''].filter(Boolean).join(' · ');
 
   // This week: one cell per day, a dashed cell when there is no class.
   const today = new Date().getDay();
@@ -16523,6 +16555,11 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
             <h1 class="hub-title">${escHtml_cd(subj.name)}</h1>
             ${teacher || subj.room ? `<div class="hub-meta">${escHtml_cd([teacher, subj.room].filter(Boolean).join(' · '))}</div>` : ''}
             ${meta2 ? `<div class="hub-meta2">${escHtml_cd(meta2)}</div>` : ''}
+            <div class="hub-meta2 hub-short">Short name <b>${escHtml_cd(short)}</b> <button type="button" class="hub-act" onclick="hubEditShortName(this)" aria-expanded="false" aria-controls="hub-short-field">Rename</button></div>
+            <form class="hub-short-field" id="hub-short-field" hidden onsubmit="event.preventDefault(); hubSaveShortName(${nameArg}, this.elements[0].value)">
+              <input type="text" class="form-input" maxlength="${STRIP_LABEL_MAX}" autocomplete="off" spellcheck="false" value="${escAttr_cd(own)}" placeholder="${escAttr_cd(subjectShortName(subj.name, subj.code, {}))}" aria-label="${escAttr_cd(`Short name for ${subj.name}, up to ${STRIP_LABEL_MAX} characters. Leave empty for the automatic name.`)}">
+              <button type="submit" class="hub-act">Save</button>
+            </form>
           </div>
         </section>
 
@@ -17046,17 +17083,20 @@ function renderAssignments() {
   // Subjects: one line of names that filters the list (the list itself is
   // the only place a task is written out). Codes carry the full name.
   const subjectFullName = (s) => (all.find(a => a.code === s && a.subject) || {}).subject || s;
+  // Chips and rows show the short name (initials when the code is a course number); filtering still uses the code.
+  const ownShort = loadStripLabels();
+  const chipName = (s) => subjectShortName(subjectFullName(s), s, ownShort);
   if (state.assignSubjectFilter !== 'all') narrowing.push(subjectFullName(state.assignSubjectFilter));
   const subjIndex = subjects.length > 1 ? `
     <nav class="tk-subjects" aria-label="Show one subject">
-      ${subjects.map(s => { const full = s === 'all' ? 'Show all subjects' : subjectFullName(s); return `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" title="${escAttr_cd(full)}" aria-label="${escAttr_cd(full)}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name">${s === 'all' ? 'All' : escHtml_cd(s)}</span></button>`; }).join('')}
+      ${subjects.map(s => { const full = s === 'all' ? 'Show all subjects' : subjectFullName(s); return `<button type="button" class="tk-subj-pick" aria-pressed="${s === state.assignSubjectFilter}" title="${escAttr_cd(full)}" aria-label="${escAttr_cd(full)}" onclick="setAssignSubject(${jsArg_cd(s)})"><span class="tk-subj-name">${s === 'all' ? 'All' : escHtml_cd(chipName(s))}</span></button>`; }).join('')}
     </nav>` : '';
 
   // Strip and Later name a task by its subject code; General/Other tasks
   // (or ones with no code) by their title.
   const tickLabel = (a) => {
     const c = String(a.code || '').trim();
-    return c && !['GEN', 'MIS', 'OTH'].includes(c.toUpperCase()) ? c : (a.title || 'Task');
+    return c && !['GEN', 'MIS', 'OTH'].includes(c.toUpperCase()) ? subjectShortName(a.subject, c, ownShort) : (a.title || 'Task');
   };
 
   // Laptops: two weeks from this Monday as a strip, one tick per deadline
@@ -17121,7 +17161,7 @@ function renderAssignments() {
     else if (days !== null && days < 0) { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
     const isCategory = ['GEN', 'MIS', 'OTH'].includes(String(a.code || '').toUpperCase());
     // The old "Mission" category reads as General (missions are a Task Type now).
-    const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : ((a.code || '').trim() || a.subject);
+    const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : (a.code || '').trim() ? subjectShortName(a.subject, a.code, ownShort) : a.subject;
 
     // "General" is filler: a task with no subject just shows its date.
     const bits = subjectText === 'General' ? [] : [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page"><span class="tk-subj-text">${escHtml_cd(subjectText)}</span></span>`];
@@ -17139,7 +17179,7 @@ function renderAssignments() {
       : `<div class="assignment-checkbox" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}">
           ${done ? icons.check() : ''}
         </div>`;
-    const hubName = isCategory ? '' : ((a.code || '').trim() || a.subject);
+    const hubName = isCategory ? '' : subjectText;
     const actions = rowOpen ? `
       <div class="tk-row-actions">
         ${isCustom && isOngoing && !done ? `<button type="button" onclick="goalCheckIn('${a.id}')">${(a.checkins || []).includes(todayStr()) ? 'Not today after all' : 'Did it today'}</button>` : ''}

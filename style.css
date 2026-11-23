@@ -7341,6 +7341,11 @@ body.holiday-mode .holiday-banner {
 .hub-title { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.65rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--text-primary); }
 .hub-meta { margin-top: 4px; font-size: var(--text-base); color: var(--text-secondary); }
 .hub-meta2 { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.hub-short { display: flex; align-items: center; gap: 6px; }
+.hub-short b { color: var(--text-secondary); }
+.hub-short .hub-act { margin-left: 6px; }
+.hub-short-field { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.hub-short-field .form-input { width: 9.5em; min-height: 40px; }
 .hub-section { min-width: 0; }
 .hub-story { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.45; color: var(--text-primary); }
 .hub-story-lab { margin: 6px 0 0; font-size: var(--text-base); line-height: 1.45; color: var(--text-secondary); }

@@ -30,7 +30,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
   const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { deriveShortForms, stripLabelCandidates, layoutStrip, getCanonicalSubjectCode };`)();
+const app = new Function(`${code}\n return { deriveShortForms, stripLabelCandidates, layoutStrip, getCanonicalSubjectCode, subjectShortName, classShortName };`)();
 let fails = 0;
 const check = (name, ok) => { if (!ok) { fails++; console.error('FAIL', name); } else console.log('ok  ', name); };
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -161,6 +161,15 @@ check('old backup without stripLabels restores without throwing', restore(JSON.s
 check('...and leaves loadStripLabels() as {}', eq(own.loadStripLabels(), {}));
 restore(JSON.stringify({ customTasks: [], stripLabels: { 'Environmental Studies': 'EVS', Bad: 7, Long: 'ABCDEFGHIJKLMNOP' } }));
 check('backup with stripLabels restores them (cleaned and capped)', eq(own.loadStripLabels(), { 'Environmental Studies': 'EVS', Long: 'ABCDEFGHIJ' }));
+
+// #457: short names on Tasks, Subjects and Today. Own name wins, codes stay, course numbers become initials.
+check('course number -> initials', app.subjectShortName('Art of Public Speaking', 'MGM51OEL115', {}) === 'APS');
+check('spaced course number -> initials', app.subjectShortName('Data Structures', 'CS 301', {}) === 'DS');
+check('short codes unchanged (DS, PBST, OS Lab, M3)', ['DS', 'PBST', 'OS Lab', 'M3'].every(c => app.subjectShortName('Anything', c, {}) === c));
+check('no code -> initials from the name', app.subjectShortName('Art of Public Speaking', '', {}) === 'APS');
+check('own name wins over code and initials', app.subjectShortName('Art of Public Speaking', 'MGM51OEL115', { 'Art of Public Speaking': 'Talk' }) === 'Talk');
+check('Today sentence: no code keeps the full name', app.classShortName({ subject: 'Maths III', code: '' }) === 'Maths III');
+check('Today sentence: course number -> initials', app.classShortName({ subject: 'Art of Public Speaking', code: 'MGM51OEL115' }) === 'APS');
 
 if (fails) { console.error(`${fails} strip check(s) failed`); process.exit(1); }
 console.log('All strip label checks passed.');
