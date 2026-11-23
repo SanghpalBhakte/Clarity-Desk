@@ -392,7 +392,7 @@ test.describe('tasks', () => {
   });
 });
 
-test.describe('name on the strip', () => {
+test.describe('short name', () => {
   const dbmsBlock = (today: ReturnType<Page['locator']>) => today.locator('.c2-strip .c2-blk:not(.gap)').nth(1);
 
   test('tap a class, type a name, Save: the strip shows it; clearing goes back to the automatic name', async ({ page }) => {
@@ -401,7 +401,7 @@ test.describe('name on the strip', () => {
     expect(auto).not.toBe('DB');
     await face(today, 'Database Management Systems').click();
     const sheet = page.locator('#c2-sheet');
-    const row = sheet.getByRole('button', { name: /^Name on the strip/ });
+    const row = sheet.getByRole('button', { name: /^Short name/ });
     await expect(row).toContainText('From your timetable');
     await row.click();
     const field = sheet.getByRole('textbox');
@@ -423,7 +423,7 @@ test.describe('name on the strip', () => {
     const today = await open(page, '2026-09-24T12:40:00', {}, { install: true });
     await face(today, 'Database Management Systems').click();
     const sheet = page.locator('#c2-sheet');
-    await sheet.getByRole('button', { name: /^Name on the strip/ }).click();
+    await sheet.getByRole('button', { name: /^Short name/ }).click();
     const field = sheet.getByRole('textbox');
     await field.pressSequentially('ABCDEFGHIJKL');
     await expect(field).toHaveValue('ABCDEFGHIJ');
@@ -437,7 +437,7 @@ test.describe('name on the strip', () => {
     const before = await marks(page);
     await face(today, 'Database Management Systems').click();
     const sheet = page.locator('#c2-sheet');
-    await sheet.getByRole('button', { name: /^Name on the strip/ }).click();
+    await sheet.getByRole('button', { name: /^Short name/ }).click();
     await sheet.getByRole('textbox').fill('DB');
     await sheet.getByRole('button', { name: 'Save' }).click();
     expect(await marks(page)).toBe(before);
