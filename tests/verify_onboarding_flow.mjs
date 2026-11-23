@@ -51,7 +51,9 @@ globalThis.document = {
   body: { appendChild(x) { appended.push(x); } }, documentElement: { setAttribute() {}, getAttribute: () => null, style: {} }
 };
 
-const code = appSrc.replace('function trackUsage(name, ...parts) {', 'function trackUsage(name, ...parts) { (globalThis.__EV__ ||= []).push([name, ...parts].join("/"));').replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
+const code = appSrc.replace('function trackUsage(name, ...parts) {', 'function trackUsage(name, ...parts) { (globalThis.__EV__ ||= []).push([name, ...parts].join("/"));')
+  // The tour file is not under test here; without this the import looks for tests/welcome-tour.js and warns.
+  .replace(/import\('\.\/welcome-tour\.js'\)/g, 'Promise.resolve({ startTour() {} })').replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const STUDENT = { name: '', batch: '', roll: '' };
   const TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
