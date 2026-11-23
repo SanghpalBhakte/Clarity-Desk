@@ -7,6 +7,7 @@ const BASE_URL = TARGET_URL || `http://127.0.0.1:${PORT}`;
 export default defineConfig({
   testDir: './tests',
   testMatch: /.*\.spec\.ts$/,
+  globalSetup: './tests/global-setup.ts',
   timeout: 60_000,
   expect: {
     timeout: 10_000,

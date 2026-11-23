@@ -26,6 +26,13 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   let reqPath = req.url.split('?')[0];
   if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
+  // Which folder this server shows: Playwright's global setup checks it, so a
+  // server left running from another worktree can't be tested by mistake.
+  if (reqPath === '/__root') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(ROOT);
+    return;
+  }
   const filePath = path.join(ROOT, reqPath);
 
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
