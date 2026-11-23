@@ -92,7 +92,8 @@ check('Bookkeeping the app writes on any visit (attendance mode, date-fix cutoff
     cos_att_v2_state: JSON.stringify({ mode: 'v2', decidedAt: '2026-10-25T17:54:58.744Z' }),
     cos_att_datefix_cutoff: '"2026-10-25"',
     cos_notified_history: JSON.stringify({ 'notice-1': 1761400000000 }),
-    cos_notified_notices: JSON.stringify({ 'n1': true })
+    cos_notified_notices: JSON.stringify({ 'n1': true }),
+    cos_first_seen: '"2026-10-25"', cos_backup_nudge: '"2026-10-25"'
   });
   return action('campusos-83365.web.app') === 'redirect' ? true : `got ${action('campusos-83365.web.app')}`;
 });
