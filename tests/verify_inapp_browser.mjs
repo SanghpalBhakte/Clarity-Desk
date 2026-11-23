@@ -7,7 +7,8 @@
 //  - Android gets a one-tap "Open in Chrome" intent link for this page;
 //    iPhone gets the "••• → Open in browser" steps; both can copy the link;
 //  - Google sign-in is not attempted inside them (Google blocks it), and
-//    Settings offers "open in browser first" instead.
+//    Settings offers "open in browser first" instead;
+//  - the card waits while the welcome is open and shows once it closes.
 // ==================================================================
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -37,7 +38,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = []; const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { isInAppBrowserUA, detectDevice, chromeIntentUrl, inAppBannerHtml, loginWithGoogle };`)();
+const app = new Function(`${code}\n return { isInAppBrowserUA, detectDevice, chromeIntentUrl, inAppBannerHtml, loginWithGoogle, showInAppBanner };`)();
 
 const UA = {
   instagramAndroid: 'Mozilla/5.0 (Linux; Android 13; SM-A145F Build/TP1A; wv) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36 Instagram 312.0.0.34.111 Android',
@@ -94,6 +95,16 @@ check('Settings swaps the Google button for "open in browser first" inside in-ap
 
 check('The card is shown on open in an in-app browser', () =>
   appSrc.includes('if (detectDevice().inApp) setTimeout(() => showInAppBanner(), 1200);') ? true : 'init hook missing');
+
+check('While the welcome is open the card waits (it would sit hidden under it), then shows when the welcome closes', () => {
+  nav.userAgent = UA.instagramAndroid; appended.length = 0;
+  const realGet = document.getElementById;
+  document.getElementById = (id) => (id === 'onboarding-backdrop' ? {} : null);
+  app.showInAppBanner();
+  document.getElementById = realGet;
+  if (appended.length) return 'card shown under the welcome';
+  return appSrc.includes('if (inAppBannerWaiting) { inAppBannerWaiting = false; showInAppBanner(); }') ? true : 'dismissOnboarding does not show the waiting card';
+});
 
 console.log('\n========================================');
 console.log(`IN-APP BROWSERS: ${passed}/${total} passed`);
