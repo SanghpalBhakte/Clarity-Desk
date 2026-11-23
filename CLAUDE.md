@@ -5,7 +5,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 
 ## Key files
 - `index.html` — app shell, head theme bootstrap, modal templates, nav
-- `app.js` — core logic (monolithic, ~20.7k lines, no module boundaries — high risk)
+- `app.js` — core logic (monolithic, no module boundaries — high risk)
 - `style.css` — themes, layout, responsive system
 - `data.js` — fallback/default datasets
 - `manifest.json`, `sw.js` — PWA manifest and service worker/cache versioning
