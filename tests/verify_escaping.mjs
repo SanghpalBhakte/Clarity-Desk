@@ -16,6 +16,10 @@ import { fileURLToPath } from 'url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
 const scanners = fs.readFileSync(path.join(ROOT, 'scanners.js'), 'utf8');
+// Every top-level script: app.js plus the files split out of it (vault-ui.js,
+// desk-assistant.js, ...) and any added later.
+const SCRIPTS = fs.readdirSync(ROOT).filter((f) => f.endsWith('.js')).sort()
+  .map((f) => [f, fs.readFileSync(path.join(ROOT, f), 'utf8')]);
 let total = 0, passed = 0;
 function check(name, ok) {
   total++;
@@ -53,10 +57,12 @@ const RAW = [
   [/aria-label="Mark \$\{c\.subject\}/, 'subject raw in an aria-label'],
   [/>\$\{n\.title\}</, 'notice title as raw HTML'],
   [/>\$\{s\.name\}</, 'subject name as raw HTML'],
+  // A helper inside quotes in an inline handler: use fn(${jsArg_cd(x)}), no quotes.
+  [/\bon[a-z]+="[^"]*'\$\{(vaultEsc|jsArg)\(/, "inline handler with '${vaultEsc(…)}' or '${jsArg(…)}' (use jsArg_cd)"],
 ];
 for (const [re, what] of RAW) {
-  const hits = app.split('\n').map((l, i) => re.test(l) ? i + 1 : 0).filter(Boolean);
-  check(`app.js: no ${what}`, hits.length === 0 || `lines ${hits.join(', ')}`);
+  const hits = SCRIPTS.flatMap(([f, src]) => src.split('\n').map((l, i) => re.test(l) ? `${f}:${i + 1}` : '').filter(Boolean));
+  check(`no ${what}`, hits.length === 0 || hits.join(', '));
 }
 check('scanners.js: subject options are escaped', !/<option value="\$\{(s\.name|r\.subject)\}/.test(scanners) || 'raw option value');
 

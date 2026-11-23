@@ -291,7 +291,7 @@ await check('Vault list: an IndexedDB file opens from IndexedDB; a missing one s
   const r = getLinks()[0].resources[1];
   const ok = app.vaultResourceRow(0, 1, r);
   const missing = app.vaultResourceRow(0, 1, { ...r, fileId: 'bmissing-1' });
-  return ok.includes(`vaultOpenFile('${r.fileId}')`) && /Missing on this device/.test(missing) ? true : 'row';
+  return ok.includes(`vaultOpenFile(&quot;${r.fileId}&quot;)`) && /Missing on this device/.test(missing) ? true : 'row';
 });
 
 await check('Storage meter counts IndexedDB files', () => {
