@@ -7482,13 +7482,17 @@ function reminderClassesFor(dayIdx) {
 
 // The opt-in evening "Mark today" reminder: 30 min after the day's last
 // teaching class (General + own group), no later than 8:30 PM, but never
-// sooner than 10 min after a late class ends. Null on a day with no class.
-// Worded to stay true if the student has already marked.
+// sooner than 10 min after a late class ends. Null on a day with no class,
+// or once every one of those classes has a mark (any mark): marking syncs
+// the push list, so the pending reminder is dropped. Worded to stay true
+// if a mark made offline never reached the push server.
 const MARK_REMINDER_CAP = 20 * 60 + 30;
 function markReminderFor(dateKey, weekday) {
-  const ends = reminderClassesFor(weekday).map(c => timeToMinutes(c.end || c.time));
-  if (!ends.length) return null;
-  const last = Math.max(...ends);
+  const classes = reminderClassesFor(weekday);
+  if (!classes.length) return null;
+  const marked = (safeGetStorage(KEY_ATTENDANCE, {}) || {})[dateKey] || {};
+  if (classes.every(c => marked[attendanceKeyFor(c)])) return null;
+  const last = Math.max(...classes.map(c => timeToMinutes(c.end || c.time)));
   return {
     minutes: Math.max(Math.min(last + 30, MARK_REMINDER_CAP), last + 10),
     tag: `mark_rem_${dateKey}`,
