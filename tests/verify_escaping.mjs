@@ -12,6 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { decodeAttr } from './handler-calls.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
@@ -33,7 +34,6 @@ const fnSrc = (name) => {
 
 console.log('🛡  STUDENT TEXT IS SHOWN AS TEXT');
 const { escHtml_cd, escAttr_cd, jsArg_cd } = new Function(`${fnSrc('escHtml_cd')}${fnSrc('escAttr_cd')}${fnSrc('jsArg_cd')} return { escHtml_cd, escAttr_cd, jsArg_cd };`)();
-const decodeAttr = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 for (const v of ["Women's Studies", 'Say "hi"', '<img src=x onerror=alert(1)>', "'); alert(1); ('", 'a\\b', 'R&D', '', null]) {
   const out = jsArg_cd(v);

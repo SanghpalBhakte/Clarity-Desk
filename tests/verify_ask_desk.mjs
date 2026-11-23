@@ -17,6 +17,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { withDeskAssistant } from './lazy-modules.mjs';
+import { handlerCalls, brokenHandlers } from './handler-calls.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const appSrc = fs.readFileSync(`${ROOT}/app.js`, 'utf8');
 
@@ -162,6 +163,9 @@ CASES.forEach(([q, intent, s, d]) => {
   });
 });
 
+// The questions an answer's buttons would ask Ask Desk when tapped.
+const askedQuestions = (html) => handlerCalls(html, 'sendAssistantMessage').map(a => a[0]).filter(q => typeof q === 'string' && q);
+
 check('"is it safe..." does not read the word "it" as the subject IT; "IT" in capitals does', () => {
   const a = A.understand('is it safe to skip today');
   const b = A.understand('can I skip IT on friday');
@@ -227,24 +231,19 @@ check('Next OS class is today at 11:00 AM', () => {
 
 check('Unclear question gets clickable "did you mean" suggestions', () => {
   const html = A.respond('week stuff');
-  return html.includes('Did you mean') && html.includes('sendAssistantMessage(&quot;') ? true : html.slice(0, 200);
+  return html.includes('Did you mean') && askedQuestions(html).length ? true : html.slice(0, 200);
 });
 
 check('Nothing recognised at all still offers starter questions', () => {
   const html = A.respond('is it raining');
-  return html.includes('sendAssistantMessage(&quot;') ? true : html.slice(0, 200);
+  return askedQuestions(html).length ? true : html.slice(0, 200);
 });
 
 check('Every button in every answer has well-formed quotes', () => {
   seed();
   const a = makeApp().ClarityAssistant;
   const bad = [];
-  CASES.forEach(([q]) => {
-    (a.respond(q).match(/onclick="[^"]*"/g) || []).forEach(attr => {
-      const quotes = (attr.replace(/\\'/g, '').match(/'/g) || []).length;
-      if (quotes % 2) bad.push(`${q}: ${attr}`);
-    });
-  });
+  CASES.forEach(([q]) => brokenHandlers(a.respond(q)).forEach(h => bad.push(`${q}: ${h}`)));
   return bad.length ? bad.slice(0, 3).join(' | ') : true;
 });
 
