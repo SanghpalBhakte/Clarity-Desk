@@ -6881,7 +6881,7 @@ function showMovedBanner(tries = 6) {
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', 'Clarity Desk has a new address');
   el.innerHTML = `
-    <img class="install-banner-icon" src="./icon-192.png" alt="" width="40" height="40">
+    <img class="install-banner-icon" src="./icon-192-maskable.png" alt="" width="40" height="40">
     <div class="install-banner-text"><strong>Clarity Desk has a new address</strong><span>Use claritydesk.web.app from now on. Your desk is saved on this address, so bring it with you first.</span></div>
     <div class="install-banner-actions">
       <button type="button" class="btn-secondary" onclick="dismissMovedBanner()">Not now</button>
@@ -6951,7 +6951,7 @@ function inAppBannerHtml(dev = detectDevice()) {
   const openBtn = dev.os === 'android'
     ? `<a class="btn-primary" href="${escHtml_cd(chromeIntentUrl())}" style="text-decoration:none;display:inline-flex;align-items:center">Open in Chrome</a>` : '';
   return `
-    <img class="install-banner-icon" src="./icon-192.png" alt="" width="40" height="40">
+    <img class="install-banner-icon" src="./icon-192-maskable.png" alt="" width="40" height="40">
     <div class="install-banner-text"><strong>You’re inside ${where}</strong><span>Your desk may not be saved here. ${steps}</span></div>
     <div class="install-banner-actions">
       <button type="button" class="btn-secondary" onclick="document.getElementById('inapp-banner')?.remove()">Not now</button>
@@ -7176,7 +7176,7 @@ function showInstallBanner(kind) {
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', 'Install Clarity Desk');
   el.innerHTML = `
-    <img class="install-banner-icon" src="./icon-192.png" alt="" width="40" height="40">
+    <img class="install-banner-icon" src="./icon-192-maskable.png" alt="" width="40" height="40">
     <div class="install-banner-text"><strong>Install Clarity Desk</strong><span>${text}</span></div>
     <div class="install-banner-actions">
       <button type="button" class="btn-secondary" onclick="dismissInstallBanner()">Not now</button>

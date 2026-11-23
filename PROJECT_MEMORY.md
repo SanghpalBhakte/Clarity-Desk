@@ -219,7 +219,7 @@ Earlier iterations shipped up to 6 named themes (Paper Slate, Midnight Ink, Espr
 ### 🔹 Accessibility & State Parity
 - **Measured WCAG Contrast:** Body Text `13.62:1` (Light) / `15.65:1` (Dark) — Exceeds WCAG AAA.
 - **Pre-Paint Theme Hydration:** Synchronous `<head>` script inspects `localStorage` and falls back automatically to system `window.matchMedia('(prefers-color-scheme: dark)')` with no noticeable flash during normal reload and navigation.
-- **Multi-Surface Icon Coverage:** `manifest.json` includes `192×192` and `512×512` PNG app icons (`any` + `maskable` purposes) and `apple-touch-icon.png`. Every icon file must be pixel-consistent with the current brand tokens above (see the rebrand-trap note).
+- **Multi-Surface Icon Coverage:** `manifest.json` includes `192×192` and `512×512` PNG app icons (`any` + `maskable` purposes) and `apple-touch-icon.png`. The `any` icons are only the logo on a see-through background (no dark tile). The believed cause of the white square in the OnePlus status bar is that OnePlus/Oppo/Realme paint the main icon in one colour there (#456; unconfirmed until checked on a OnePlus). The maskable icons keep the full tile for the home screen, and the in-app install cards use `icon-192-maskable.png` so they still show the tile; `tests/verify_app_icons.mjs` checks both. Every icon file must be pixel-consistent with the current brand tokens above (see the rebrand-trap note).
 
 ---
 
