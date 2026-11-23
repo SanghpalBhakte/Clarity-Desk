@@ -6437,7 +6437,8 @@ function loadNotifPrefs() {
     newNotices: "instant",       // "instant" | "same_day" | "off"
     dailySummaryTime: "08:00",
     ongoingNudges: "off",        // "off" | "daily" | "every_2_days" | "weekly" (tasks with no deadline)
-    ongoingNudgeTime: "18:00"
+    ongoingNudgeTime: "18:00",
+    markReminder: "off"          // "off" | "evening" (opt-in: an evening "Mark today" reminder)
   };
   if (saved && typeof saved === 'object') {
     const mapped = { ...defaults, ...saved };
@@ -6455,10 +6456,12 @@ function loadNotifPrefs() {
 // Reminder presets: one tap fills the five choice fields below, nothing new is
 // stored (the saved shape is still the flat prefs). Times are left alone.
 // Balanced equals the defaults. A mix that matches none shows as Custom.
+// The evening mark reminder is not one of the five, so turning it on never
+// makes a preset read as Custom; only Off also switches it off.
 const NOTIF_PRESETS = {
   calm:     { label: 'Calm',     taskUpcoming: 'day_before', taskOverdue: 'same_day', classReminders: '1_hour', attendanceAlerts: 'weekly',  ongoingNudges: 'off', note: 'Tasks the day before, one overdue reminder a day, classes an hour ahead, attendance weekly, no nudges.' },
   balanced: { label: 'Balanced', taskUpcoming: 'day_before', taskOverdue: 'same_day', classReminders: '15_min', attendanceAlerts: 'instant', ongoingNudges: 'off', note: 'Tasks the day before, one overdue reminder a day, classes 15 minutes ahead, attendance as it drops.' },
-  off:      { label: 'Off',      taskUpcoming: 'off',        taskOverdue: 'off',      classReminders: 'off',    attendanceAlerts: 'off',     ongoingNudges: 'off', note: 'No reminders. You can still switch single ones back on below.' }
+  off:      { label: 'Off',      taskUpcoming: 'off',        taskOverdue: 'off',      classReminders: 'off',    attendanceAlerts: 'off',     ongoingNudges: 'off', markReminder: 'off', note: 'No reminders. You can still switch single ones back on below.' }
 };
 const NOTIF_PRESET_FIELDS = { taskUpcoming: 'np-task-upcoming', taskOverdue: 'np-task-overdue', classReminders: 'np-class-reminders', attendanceAlerts: 'np-attendance-alerts', ongoingNudges: 'np-ongoing-nudges' };
 function notifPresetOf(vals) {
@@ -6474,6 +6477,8 @@ function notifPresetsHtml(prefs) {
 function npReadFields() {
   const v = {};
   for (const f in NOTIF_PRESET_FIELDS) v[f] = document.getElementById(NOTIF_PRESET_FIELDS[f])?.value;
+  const mark = document.getElementById('np-mark-reminder');
+  if (mark) v.markReminder = mark.value;   // so Undo after Off brings it back
   return v;
 }
 function npSyncPresets() {
@@ -6487,6 +6492,8 @@ function npSetFields(vals) {
     const el = document.getElementById(NOTIF_PRESET_FIELDS[f]);
     if (el && vals[f] !== undefined) { el.value = vals[f]; first = first || el; }
   }
+  const mark = document.getElementById('np-mark-reminder');
+  if (mark && vals.markReminder !== undefined) mark.value = vals.markReminder;
   const nudgeRow = document.getElementById('np-nudge-time-row');
   if (nudgeRow) nudgeRow.style.display = (vals.ongoingNudges || document.getElementById('np-ongoing-nudges')?.value) === 'off' ? 'none' : 'flex';
   if (first) first.dispatchEvent(new Event('change', { bubbles: true })); // autosave + sync
@@ -7473,6 +7480,24 @@ function reminderClassesFor(dayIdx) {
   return ((loadTimetable() || {})[dayIdx] || []).filter(c => isTeachingClass(c) && shouldKeepClassForUserBatch(c, batch));
 }
 
+// The opt-in evening "Mark today" reminder: 30 min after the day's last
+// teaching class (General + own group), no later than 8:30 PM, but never
+// sooner than 10 min after a late class ends. Null on a day with no class.
+// Worded to stay true if the student has already marked.
+const MARK_REMINDER_CAP = 20 * 60 + 30;
+function markReminderFor(dateKey, weekday) {
+  const ends = reminderClassesFor(weekday).map(c => timeToMinutes(c.end || c.time));
+  if (!ends.length) return null;
+  const last = Math.max(...ends);
+  return {
+    minutes: Math.max(Math.min(last + 30, MARK_REMINDER_CAP), last + 10),
+    tag: `mark_rem_${dateKey}`,
+    title: "Today's classes are done",
+    body: 'Mark them in ten seconds.',
+    url: './#dashboard'
+  };
+}
+
 // Every class and deadline reminder due in the next `days` days, with the
 // moment it should fire (worked out here, in the phone's own time, and
 // sent to the push server as a UTC timestamp). Only what a notification
@@ -7519,6 +7544,15 @@ function buildUpcomingReminders(now = new Date(), days = PUSH_SYNC_DAYS) {
       reminderClassesFor(weekday).forEach(c => {
         add(buildClassReminder(c, key), at(key, timeToMinutes(c.time || '10:00') - lead));
       });
+    }
+  }
+
+  if (prefs.markReminder === 'evening') {
+    for (let i = 0; i < days; i++) {
+      const key = dayKey(i);
+      if (isHolidayActive(key)) continue;
+      const r = markReminderFor(key, new Date(`${key}T12:00:00`).getDay());
+      if (r) add(r, at(key, r.minutes));
     }
   }
 
@@ -7612,6 +7646,16 @@ function checkScheduledNotifications() {
         }
       }
     });
+  }
+
+  // 3b. Evening "Mark today" reminder: from its minute, for up to 2 hours
+  // (opening the app at midnight should not ping about the afternoon).
+  if (prefs.markReminder === 'evening' && !onHoliday && !pushCovers) {
+    const r = markReminderFor(today, now.getDay());
+    if (r && currentMin >= r.minutes && currentMin < r.minutes + 120 && !notifiedMap[r.tag]) {
+      dispatchNotification(r.title, { body: r.body, tag: r.tag, data: { url: r.url } });
+      notifiedMap[r.tag] = true;
+    }
   }
 
   // 4. Low-Attendance Warning Alert
@@ -18330,6 +18374,17 @@ function renderSettings() {
 
         <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
           <div>
+            <span style="font-weight:500;color:var(--text-primary)">Mark Today's Classes</span>
+            <div style="font-size:var(--text-sm);color:var(--text-muted)">One reminder after your last class</div>
+          </div>
+          <select class="form-select" id="np-mark-reminder" aria-label="Mark today's classes" style="width:170px;padding:5px 8px;font-size:var(--text-base)">
+            <option value="off" ${nPrefs.markReminder !== 'evening' ? 'selected' : ''}>Off</option>
+            <option value="evening" ${nPrefs.markReminder === 'evening' ? 'selected' : ''}>In the Evening</option>
+          </select>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:var(--text-md);gap:12px;flex-wrap:wrap">
+          <div>
             <span style="font-weight:500;color:var(--text-primary)">Low-Attendance Alerts</span>
             <div style="font-size:var(--text-sm);color:var(--text-muted)">Alert if attendance drops below target (${getAttendanceTarget()}%)</div>
           </div>
@@ -18554,7 +18609,7 @@ function renderSettings() {
 // also a moment after typing stops), and its section shows "Saved".
 const SETTINGS_AUTOSAVE_IDS = new Set(['s-name', 's-roll', 's-college', 's-branch', 's-year', 's-batch',
   's-exam-label', 's-exam-date', 's-self-study', 's-att-target', 's-aim-kind', 's-aim-count', 's-aim-goal', 's-aim-times', 's-aim-by', 's-aim-scope', 'nc-wa-title', 'nc-wa-url',
-  'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-attendance-alerts',
+  'np-task-upcoming', 'np-task-overdue', 'np-class-reminders', 'np-mark-reminder', 'np-attendance-alerts',
   'np-summary-time', 'np-ongoing-nudges', 'np-nudge-time']);
 let settingsTypingTimer = null;
 let settingsPendingSave = null;
@@ -18904,6 +18959,7 @@ function saveSettings(opts = {}) {
     // Opt-in settings keep their saved value if a field is missing, never reset to off.
     ongoingNudges: document.getElementById('np-ongoing-nudges')?.value || loadNotifPrefs().ongoingNudges,
     ongoingNudgeTime: document.getElementById('np-nudge-time')?.value || loadNotifPrefs().ongoingNudgeTime,
+    markReminder: document.getElementById('np-mark-reminder')?.value || loadNotifPrefs().markReminder,
   };
   saveNotifPrefs(nPrefs);
 

@@ -259,7 +259,8 @@
       "newNotices": "instant",
       "dailySummaryTime": "08:00",
       "ongoingNudges": "off",
-      "ongoingNudgeTime": "18:00"
+      "ongoingNudgeTime": "18:00",
+      "markReminder": "off"
     },
     "noticeChannels": {
       "officialTitle": "Official Updates",
@@ -727,7 +728,7 @@
       "cos_hidden_subjects": "[\"Environmental Studies\"]",
       "cos_holiday": "{\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\",\"changedAt\":1794100000000}",
       "cos_notice_channels": "{\"officialTitle\":\"Official Updates\",\"officialUrl\":\"\",\"whatsappTitle\":\"College portal\",\"whatsappUrl\":\"https://portal.example.edu\"}",
-      "cos_notif_prefs": "{\"enabled\":false,\"taskUpcoming\":\"day_before\",\"taskOverdue\":\"daily\",\"classReminders\":\"10\",\"attendanceAlerts\":\"on\",\"newNotices\":\"instant\",\"dailySummaryTime\":\"08:00\",\"ongoingNudges\":\"off\",\"ongoingNudgeTime\":\"18:00\"}",
+      "cos_notif_prefs": "{\"enabled\":false,\"taskUpcoming\":\"day_before\",\"taskOverdue\":\"daily\",\"classReminders\":\"10\",\"attendanceAlerts\":\"on\",\"newNotices\":\"instant\",\"dailySummaryTime\":\"08:00\",\"ongoingNudges\":\"off\",\"ongoingNudgeTime\":\"18:00\",\"markReminder\":\"off\"}",
       "cos_profile": "{\"name\":\"Riya\",\"college\":\"Sample College\",\"branch\":\"CSE\",\"year\":\"SE\",\"rollNo\":\"42\",\"batch\":\"A2\",\"examDate\":\"2026-12-01\",\"examLabel\":\"End-Sem\",\"studyMode\":\"\"}",
       "cos_strip_labels": "{\"Data Structures\":\"DSA\"}",
       "cos_syllabus": "[{\"subjectKey\":\"datastructures\",\"subjectName\":\"Data Structures\",\"examDate\":\"2026-12-01\",\"updatedAt\":\"\",\"topics\":[{\"id\":\"tp1\",\"title\":\"Stacks\",\"status\":\"done\",\"importance\":3,\"marks\":10,\"doneAt\":\"2026-11-02\"},{\"id\":\"tp2\",\"title\":\"Queues\",\"status\":\"revised\",\"importance\":2,\"doneAt\":\"2026-11-05\"},{\"id\":\"tp3\",\"title\":\"Trees\",\"status\":\"todo\",\"importance\":1}]}]",
@@ -757,7 +758,7 @@
       "cos_hidden_subjects": "[\"Environmental Studies\"]",
       "cos_holiday": "{\"on\":true,\"since\":\"2026-12-20\",\"until\":\"2027-01-04\",\"changedAt\":1794100000000}",
       "cos_notice_channels": "{\"officialTitle\":\"Official Updates\",\"officialUrl\":\"\",\"whatsappTitle\":\"College portal\",\"whatsappUrl\":\"https://portal.example.edu\"}",
-      "cos_notif_prefs": "{\"enabled\":false,\"taskUpcoming\":\"day_before\",\"taskOverdue\":\"daily\",\"classReminders\":\"10\",\"attendanceAlerts\":\"on\",\"newNotices\":\"instant\",\"dailySummaryTime\":\"08:00\",\"ongoingNudges\":\"off\",\"ongoingNudgeTime\":\"18:00\"}",
+      "cos_notif_prefs": "{\"enabled\":false,\"taskUpcoming\":\"day_before\",\"taskOverdue\":\"daily\",\"classReminders\":\"10\",\"attendanceAlerts\":\"on\",\"newNotices\":\"instant\",\"dailySummaryTime\":\"08:00\",\"ongoingNudges\":\"off\",\"ongoingNudgeTime\":\"18:00\",\"markReminder\":\"off\"}",
       "cos_profile": "{\"name\":\"Riya\",\"college\":\"Sample College\",\"branch\":\"CSE\",\"year\":\"SE\",\"rollNo\":\"42\",\"batch\":\"A2\",\"examDate\":\"2026-12-01\",\"examLabel\":\"End-Sem\",\"studyMode\":\"\"}",
       "cos_strip_labels": "{\"Operating Systems\":\"OSY\"}",
       "cos_syllabus": "[{\"subjectKey\":\"datastructures\",\"subjectName\":\"Data Structures\",\"examDate\":\"2026-12-01\",\"updatedAt\":\"\",\"topics\":[{\"id\":\"tp1\",\"title\":\"Stacks\",\"status\":\"done\",\"importance\":3,\"marks\":10,\"doneAt\":\"2026-11-02\"},{\"id\":\"tp2\",\"title\":\"Queues\",\"status\":\"revised\",\"importance\":2,\"doneAt\":\"2026-11-05\"},{\"id\":\"tp3\",\"title\":\"Trees\",\"status\":\"todo\",\"importance\":1}]}]",
