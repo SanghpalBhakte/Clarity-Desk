@@ -22,7 +22,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [
-    ['list'],
+    [process.env.CI ? 'list' : 'line'],
     ['html', { open: 'never', outputFolder: 'playwright-report' }]
   ],
   use: {
