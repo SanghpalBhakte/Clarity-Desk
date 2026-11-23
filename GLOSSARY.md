@@ -25,3 +25,7 @@ _Avoid_: break
 **Mark**
 Record attendance for one class: Present, Absent, or another choice under More.
 _Avoid_: attend (as a verb for the action)
+
+**Backup**
+A file the student saves that holds everything on their desk, so it can be put back later or on another phone. For a student who is not signed in, it is the only copy outside this phone.
+_Avoid_: export, JSON

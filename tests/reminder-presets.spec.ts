@@ -18,7 +18,7 @@ test('presets fill the fields, save the flat prefs, show Custom and undo', async
   await expect(page.locator('#np-preset-note')).toContainText('Calm:');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('cos_notif_prefs') || '{}'));
   expect(saved).toMatchObject({ classReminders: '1_hour', attendanceAlerts: 'weekly', taskUpcoming: 'day_before', ongoingNudges: 'off' });
-  expect(Object.keys(saved).sort()).toEqual(['attendanceAlerts', 'classReminders', 'dailySummaryTime', 'newNotices', 'ongoingNudgeTime', 'ongoingNudges', 'taskOverdue', 'taskUpcoming']);
+  expect(Object.keys(saved).sort()).toEqual(['attendanceAlerts', 'classReminders', 'dailySummaryTime', 'markReminder', 'newNotices', 'ongoingNudgeTime', 'ongoingNudges', 'taskOverdue', 'taskUpcoming']);
 
   await get('np-class-reminders').selectOption('30_min');
   await expect(page.locator('#np-custom')).toBeVisible();
@@ -30,4 +30,28 @@ test('presets fill the fields, save the flat prefs, show Custom and undo', async
   await expect(get('np-class-reminders')).toHaveValue('30_min');
   await expect(get('np-task-upcoming')).toHaveValue('day_before');
   expect((await page.evaluate(() => JSON.parse(localStorage.getItem('cos_notif_prefs') || '{}'))).classReminders).toBe('30_min');
+});
+
+test('the evening mark reminder is off by default, saves, keeps the preset, and Off switches it off', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('cos_onboarding_dismissed', 'true'));
+  await page.goto('/');
+  await page.evaluate(() => (window as any).navigate('settings'));
+  const mark = page.getByLabel("Mark today's classes");
+  const prefs = () => page.evaluate(() => JSON.parse(localStorage.getItem('cos_notif_prefs') || '{}'));
+  await expect(mark).toHaveValue('off');
+
+  await mark.selectOption('evening');
+  await expect.poll(async () => (await prefs()).markReminder).toBe('evening');
+  await expect(page.getByRole('button', { name: 'Balanced' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.reload();
+  await page.evaluate(() => (window as any).navigate('settings'));
+  await expect(mark).toHaveValue('evening');
+
+  await page.getByRole('button', { name: 'Off', exact: true }).first().click();
+  await expect(mark).toHaveValue('off');
+  await expect.poll(async () => (await prefs()).markReminder).toBe('off');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(mark).toHaveValue('evening');
+  await expect.poll(async () => (await prefs()).markReminder).toBe('evening');
 });

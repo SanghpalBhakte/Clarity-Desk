@@ -79,7 +79,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const EMPTY_TIMETABLE = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 0: [] };
   const ASSIGNMENTS = []; const NOTICES = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
 `);
-const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey, reminderSheetMode, reminderSheetInstall, detectDevice, installBannerKind, reminderTipsView, dismissInstallBanner };`)();
+const app = new Function(`${code}\n return { state, buildUpcomingReminders, checkScheduledNotifications, loadNotifPrefs, notifPresetOf, NOTIF_PRESETS, buildTaskReminder, buildClassReminder, isClosedAppPushActive, bugReportUrl, withTimeout, fetchVapidKey, reminderSheetMode, reminderSheetInstall, detectDevice, installBannerKind, reminderTipsView, dismissInstallBanner };`)();
 
 const LECTURE = { subject: 'Data Structures', code: 'DS', time: '09:00', end: '10:00', room: '301', teacher: 'Prof. Rao', type: 'lecture', batches: [] };
 const LAB_A2  = { subject: 'DS Lab', code: 'DSL', time: '13:30', end: '15:30', type: 'lab', batches: ['A2'] };
@@ -136,6 +136,56 @@ check('Both switched off: nothing synced', app.buildUpcomingReminders().length =
 setup({ holiday: { on: true, since: '2026-10-26', until: '2026-10-27' } });
 rs = app.buildUpcomingReminders();
 check('Holiday mode: no class reminders on a holiday, deadlines still come', !byTag('class_rem_DS_09:00_2026-10-26') && !!byTag('upcoming_sameday_c-2_2026-10-22'));
+
+console.log('\n1b. Evening "Mark today" reminder (opt-in)');
+{
+  const markOf = (list, key) => list.find(r => r.tag === `mark_rem_${key}`);
+  setup();
+  check('Missing setting means Off: no mark reminder', !app.buildUpcomingReminders().some(r => r.tag.startsWith('mark_rem_')));
+  check('Saved prefs without the field load as Off', app.loadNotifPrefs().markReminder === 'off');
+  setup({ prefs: { markReminder: 'evening' } });
+  rs = app.buildUpcomingReminders();
+  const mon = markOf(rs, '2026-10-26');
+  check('Monday: 30 min after the last own-group class (lab ends 3:30 PM) = 4:00 PM', mon && mon.fireAt === ist('2026-10-26T16:00:00'), mon && new RealDate(mon.fireAt).toISOString());
+  check('...neutral text, opens Today', mon && mon.title === "Today's classes are done" && mon.body === 'Mark them in ten seconds.' && mon.url === './#dashboard');
+  check('One per teaching day, none on days with no classes', rs.filter(r => r.tag.startsWith('mark_rem_')).map(r => r.tag).join() === 'mark_rem_2026-10-26');
+  check('Passes the Worker validation', validateReminders([mon], NOW).length === 1);
+
+  const withMonday = (classes) => { store.cos_custom_timetable = JSON.stringify({ ...TT, 1: classes }); return markOf(app.buildUpcomingReminders(), '2026-10-26'); };
+  const at2015 = withMonday([LECTURE, { ...LECTURE, code: 'EVE', time: '19:15', end: '20:15' }]);
+  check('Class ending 8:15 PM: capped at 8:30 PM', at2015 && at2015.fireAt === ist('2026-10-26T20:30:00'));
+  const at2100 = withMonday([LECTURE, { ...LECTURE, code: 'LATE', time: '19:00', end: '21:00' }]);
+  check('Class ending 9:00 PM: 10 min after it ends (9:10 PM), not before', at2100 && at2100.fireAt === ist('2026-10-26T21:10:00'));
+  const otherGroup = withMonday([LECTURE, LAB_A2, { ...LAB_B1, time: '17:00', end: '19:00' }]);
+  check("Another group's later lab does not move the time", otherGroup && otherGroup.fireAt === ist('2026-10-26T16:00:00'));
+  check('Only a recess that day: no mark reminder', !withMonday([RECESS]));
+
+  setup({ prefs: { markReminder: 'evening' }, holiday: { on: true, since: '2026-10-26', until: '2026-10-27' } });
+  check('Holiday break: no mark reminder', !markOf(app.buildUpcomingReminders(), '2026-10-26'));
+
+  const BAL = { taskUpcoming: 'day_before', taskOverdue: 'same_day', classReminders: '15_min', attendanceAlerts: 'instant', ongoingNudges: 'off' };
+  check('Presets ignore the new row: Balanced stays Balanced with it on', app.notifPresetOf({ ...BAL, markReminder: 'evening' }) === 'balanced');
+  check('Off preset switches it off; Calm and Balanced leave it alone', app.NOTIF_PRESETS.off.markReminder === 'off' && !('markReminder' in app.NOTIF_PRESETS.calm) && !('markReminder' in app.NOTIF_PRESETS.balanced));
+
+  // In-app path (no closed-app push on this device): same tag, same minute.
+  setup({ prefs: { markReminder: 'evening' } });
+  NOW = ist('2026-10-26T15:58:00');
+  shown.length = 0;
+  app.checkScheduledNotifications();
+  check('In-app: nothing before 4:00 PM', !shown.some(n => n.tag === 'mark_rem_2026-10-26'));
+  NOW = ist('2026-10-26T16:01:00');
+  app.checkScheduledNotifications();
+  const inApp = shown.find(n => n.tag === 'mark_rem_2026-10-26');
+  check('In-app: shows at 4:00 PM with the same tag, opens Today', inApp && inApp.data?.url === './#dashboard');
+  app.checkScheduledNotifications();
+  check('In-app: shown once', shown.filter(n => n.tag === 'mark_rem_2026-10-26').length === 1);
+  setup({ prefs: { markReminder: 'evening' } });
+  NOW = ist('2026-10-26T19:30:00');
+  shown.length = 0;
+  app.checkScheduledNotifications();
+  check('In-app: not more than 2 hours late (opened at 7:30 PM)', !shown.some(n => n.tag === 'mark_rem_2026-10-26'));
+  NOW = ist('2026-10-19T21:00:00');
+}
 
 console.log('\n2. In-app check and push agree (dedupe)');
 setup();
