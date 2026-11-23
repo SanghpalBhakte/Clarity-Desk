@@ -3,8 +3,9 @@ import { SAMPLE_DESK } from './sample-desk.mjs';
 
 // #455: the small visible bugs from the phone review, on a phone with the
 // sample desk. Tuesday 24 Nov 2026: "DS lab record" is 10 days Late, "OS
-// quiz" 16 days Late, "Read chapter 4" is a goal.
-test.use({ viewport: { width: 412, height: 860 }, hasTouch: true, isMobile: true });
+// quiz" 16 days Late, "Read chapter 4" is a goal. Times are India time, so
+// the greeting checks give the same answer on a UTC CI runner.
+test.use({ viewport: { width: 412, height: 860 }, hasTouch: true, isMobile: true, timezoneId: 'Asia/Kolkata' });
 
 async function openDesk(page: Page, at = '2026-11-24T15:30:00+05:30', over: Record<string, string> = {}) {
   await page.clock.install({ time: new Date(at) });
