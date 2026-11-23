@@ -6960,8 +6960,12 @@ function inAppBannerHtml(dev = detectDevice()) {
     </div>`;
 }
 
+// The welcome sits above this banner, so while it is open the banner waits
+// and dismissOnboarding shows it once it closes (same as the update strip).
+let inAppBannerWaiting = false;
 function showInAppBanner() {
   if (document.getElementById('inapp-banner')) return;
+  if (document.getElementById('onboarding-backdrop')) { inAppBannerWaiting = true; return; }
   const el = document.createElement('div');
   el.id = 'inapp-banner';
   el.className = 'install-banner is-inapp';
@@ -11981,6 +11985,7 @@ window.dismissOnboarding = function() {
   setAppBehindWelcomeInert(false);
   renderPage(state.currentPage);
   if (updateBannerWaiting) { updateBannerWaiting = false; showUpdateAvailableBanner(); }
+  if (inAppBannerWaiting) { inAppBannerWaiting = false; showInAppBanner(); }
 };
 
 // Settings > About: the same tour again, without touching first-run state.
