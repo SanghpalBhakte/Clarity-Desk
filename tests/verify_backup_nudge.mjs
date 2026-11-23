@@ -94,7 +94,7 @@ console.log('\nBackup reminder: shown once, as a toast');
   check('First open is recorded on this phone the first time', () => String(fresh.store.cos_first_seen).includes('2026-11-10') || String(fresh.store.cos_first_seen));
   const counted = loadApp(['noteFirstSeen'], { store: { cos_usage: J({ firstOpen: '2026-09-01' }) } });
   counted.noteFirstSeen();
-  check('...from the usage first-open day when the phone has one', () => String(counted.store.cos_first_seen).includes('2026-09-01') || String(counted.store.cos_first_seen));
+  check('...as today even when an older usage first-open day exists (a current student waits a week too)', () => String(counted.store.cos_first_seen).includes('2026-11-10') || String(counted.store.cos_first_seen));
   const kept = loadApp(['noteFirstSeen'], { store: { cos_first_seen: J('2026-10-01') } });
   kept.noteFirstSeen();
   check('...and never moved later', () => String(kept.store.cos_first_seen).includes('2026-10-01') || String(kept.store.cos_first_seen));

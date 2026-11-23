@@ -6834,7 +6834,8 @@ const OLD_HOSTS = ['campusos-83365.web.app', 'campusos-83365.firebaseapp.com', '
 // Preferences, and bookkeeping the app writes on its own during any visit,
 // that are no loss to leave behind. Any other cos_* key counts as desk data.
 const MOVE_SAFE_KEYS = ['cos_theme', 'cos_accent', 'cos_install_prompt', 'cos_onboarding_dismissed', 'cos_timetable_choice', KEY_MOVED_PROMPT,
-  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN, KEY_SYNC_WAITING];
+  KEY_ATT_V2_STATE, KEY_ATT_DATEFIX_CUTOFF, 'cos_notified_history', 'cos_notified_notices', KEY_USAGE, KEY_CLOUD_SIGNED_IN, KEY_SYNC_WAITING,
+  KEY_FIRST_SEEN, KEY_BACKUP_NUDGE];
 const MOVED_SNOOZE_MS = 3 * 86400000;
 
 function isOldAddress(hostname) {
@@ -19343,12 +19344,11 @@ function backupNudgeDue({ signedIn, today, firstSeen, marks, tasks, lastBackup, 
   return true;
 }
 
-// The day this phone first opened the app. Starts from the usage first-open
-// day when there is one (it is only kept while usage counting is on).
+// The day this phone first opened the app (for a student who already had the
+// app, the first open after this update, so they too wait a week).
 function noteFirstSeen() {
   if (safeGetStorage(KEY_FIRST_SEEN, null)) return;
-  const first = loadUsage().firstOpen;
-  safeSetStorage(KEY_FIRST_SEEN, /^\d{4}-\d{2}-\d{2}$/.test(first || '') ? first : todayStr());
+  safeSetStorage(KEY_FIRST_SEEN, todayStr());
 }
 
 // A few seconds after start, on Today only, never over the tour, the welcome
@@ -19361,7 +19361,7 @@ function maybeShowBackupNudge() {
   if ([...document.querySelectorAll('.modal-backdrop, [aria-modal="true"]')]
     .some(e => e.getAttribute('aria-hidden') !== 'true' && e.getClientRects().length)) return;
   const today = todayStr();
-  const day = (k) => { const v = safeGetStorage(k, null); return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; };
+  const day = (k) => aimDate(safeGetStorage(k, null)) || null;
   const marks = Object.values(safeGetStorage(KEY_ATTENDANCE, {}) || {})
     .reduce((n, d) => n + (d && typeof d === 'object' ? Object.values(d).filter(Boolean).length : 0), 0);
   if (!backupNudgeDue({
