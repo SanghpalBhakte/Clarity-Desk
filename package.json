@@ -32,6 +32,7 @@
     "devnotes": "node scripts/generate-devnotes.mjs",
     "ship": "node scripts/ship.mjs",
     "ship:check": "node scripts/ship.mjs --dry-run",
+    "merge-pr": "node scripts/merge-when-ready.mjs",
     "lint": "eslint .",
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks',{stdio:'ignore'})}catch(e){}\""
   },
