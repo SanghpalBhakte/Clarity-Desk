@@ -621,7 +621,7 @@ export function createClarityAssistant(deps) {
     const pending = allTasks().filter(t => t.status === 'pending').length;
     const dayName = DAY_NAMES[new Date().getDay()];
 
-    let line2 = '';
+    let line2;
     if (todayClasses.length > 0) {
       line2 = `You have <strong>${todayClasses.length} class${todayClasses.length !== 1 ? 'es' : ''}</strong> today (${dayName})`;
     } else {
@@ -1104,7 +1104,7 @@ export function createClarityAssistant(deps) {
       return `<li><span class="cd-item-label">${escHtml(c.subject)}</span><span class="cd-item-meta">${timeStr}${meta ? ' · ' + escHtml(meta) : ''}</span></li>`;
     }).join('');
 
-    let guidance = '';
+    let guidance;
     const next = getNextClass();
     if (next) {
       guidance = `<div style="margin-top:10px;font-size:var(--text-sm);color:var(--text-secondary);border-top:1px dashed var(--border);padding-top:8px">⏱️ Next up: <strong>${escHtml(next.subject)}</strong> at ${formatTime(next.time)}${next.room ? ' (' + escHtml(next.room) + ')' : ''}</div>`;

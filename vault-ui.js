@@ -418,7 +418,7 @@ export function createVaultUi(deps) {
         let url = raw.replace(/[.,;:!?)\]}>]+$/, '');
         if (/^www\./i.test(url)) url = 'https://' + url;
         if (!vaultSafeUrl(url)) return;
-        let host = '';
+        let host;
         try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return; }
         const k = waNormUrl(url);
         if (seen.has(k)) return;
@@ -589,7 +589,7 @@ export function createVaultUi(deps) {
     const names = [...new Set([...vb.subjects.map(s => s.name), 'General'])];
     const rows = vb.rows.map(r => {
       const opts = [...new Set([...names, r.subject])].map(n => `<option value="${vaultEsc(n)}" ${n === r.subject ? 'selected' : ''}>${vaultEsc(n)}</option>`).join('');
-      let meta = '';
+      let meta;
       if (r.kind === 'file') meta = formatBytes(r.size);
       else { try { meta = new URL(r.url).hostname.replace(/^www\./, ''); } catch (_) { meta = ''; } }
       const type = vaultTypeLabel(r.kind === 'file' ? { label: r.label, url: r.url, isUpload: true } : { url: r.url });
