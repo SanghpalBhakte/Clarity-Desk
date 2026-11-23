@@ -170,6 +170,18 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u360",
+    date: "2026-11-23",
+    title: "Safer handling of Vault file buttons, and the safety test now checks every app file",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Vault file buttons and the Ask Desk buttons now pass names to the page the same safe way as the rest of the app.",
+    points: [
+      "The safety test that guards this used to read only two files; it now reads every app file."
+    ]
+  },
+  {
     id: "u359",
     date: "2026-11-23",
     title: "Backup reminder waits a full week after the update for everyone, and never stops the move to the new address",
