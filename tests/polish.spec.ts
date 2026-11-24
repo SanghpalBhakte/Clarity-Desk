@@ -83,7 +83,8 @@ function collect(args: { sizes: number[]; year: string }): { rule: string; what:
   for (const el of texts) {
     const cs = getComputedStyle(el);
     const cut = (cs.textOverflow === 'ellipsis' || cs.webkitLineClamp !== 'none') && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
-    if (cut && !el.closest('.c2-tname, .task-ledger-item, [data-task-id]')) out.push({ rule: 'no-clipped-text', what: name(el) });
+    // Only a task's title may end in "…" (Today's task rows and the Tasks list).
+    if (cut && !el.closest('.c2-tname, .assignment-title')) out.push({ rule: 'no-clipped-text', what: name(el) });
   }
 
   if (page.id === 'page-dashboard') {

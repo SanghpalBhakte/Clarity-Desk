@@ -19302,7 +19302,7 @@ const DESK_DATASETS = [
         initTheme();
       }
     } },
-  { key: KEY_ACCENT, backup: 'accent', at: { restore: 20, cloud: 12, apply: 11, signin: 18 }, read: () => safeGetStorage(KEY_ACCENT, '') || 'terracotta',
+  { key: KEY_ACCENT, backup: 'accent', at: { restore: 20, cloud: 12, apply: 11, signin: 18 }, read: () => safeGetStorage(KEY_ACCENT, '') || 'rose',
     restore: (v) => {
       if (!v) return;
       safeSetStorage(KEY_ACCENT, v);
