@@ -30,7 +30,7 @@ const code = appSrc.replace(/import\s+\{[^}]*\}\s+from\s+['"][^'"]*['"];?/g, `
   const ASSIGNMENTS = []; const QUICK_LINKS = []; const DEV_UPDATES = [];
   const NOTICES = [];
 `);
-const app = new Function(`${code}\n return { resolveThemeMode, normalizeThemeSetting, nextThemeSetting, ACCENT_LABELS, PALETTE_SWATCHES };`)();
+const app = new Function(`${code}\n return { resolveThemeMode, normalizeThemeSetting, nextThemeSetting, ACCENT_LABELS, PALETTE_SWATCHES, THEME_LABELS, ALL_ACCENTS, LEGACY_ACCENT_THEME_MAP };`)();
 let fails = 0;
 const check = (name, ok) => { if (!ok) { fails++; console.error('FAIL', name); } else console.log('ok  ', name); };
 
@@ -52,9 +52,13 @@ check('garbage follows the phone', app.resolveThemeMode('banana', true) === 'mid
 check('tap cycle, light phone: auto -> dark -> light -> auto', app.nextThemeSetting('auto', false) === 'midnight-ink' && app.nextThemeSetting('midnight-ink', false) === 'paper-slate' && app.nextThemeSetting('paper-slate', false) === 'auto');
 check('tap cycle, dark phone: auto -> light -> dark -> auto', app.nextThemeSetting('auto', true) === 'paper-slate' && app.nextThemeSetting('paper-slate', true) === 'midnight-ink' && app.nextThemeSetting('midnight-ink', true) === 'auto');
 check('tap from nothing saved or garbage behaves like auto', app.nextThemeSetting(null, false) === 'midnight-ink' && app.nextThemeSetting('banana', true) === 'paper-slate');
-check('palette names', app.ACCENT_LABELS.apricot === 'Lo-fi' && app.ACCENT_LABELS.terracotta === 'Highlighter' && app.ACCENT_LABELS.rose === 'Old Campus' && app.ACCENT_LABELS.lavender === 'Last Bench');
+check('palette names', app.ACCENT_LABELS.apricot === 'Lo-fi' && app.ACCENT_LABELS.terracotta === 'Highlighter' && app.ACCENT_LABELS.rose === 'Old Campus' && app.ACCENT_LABELS.lavender === 'Campus Sunset');
+// #459: students read Light / Dark / Auto and a Theme name; every stored value (old ones too) still finds its Theme.
+check('mode words are Light and Dark', app.THEME_LABELS['paper-slate'] === 'Light' && app.THEME_LABELS['midnight-ink'] === 'Dark');
+check('every Theme has a name and a swatch', app.ALL_ACCENTS.every(a => app.ACCENT_LABELS[a] && app.PALETTE_SWATCHES.some(p => p.accent === a)));
+check('old flat theme values still map to a Theme', Object.values(app.LEGACY_ACCENT_THEME_MAP).every(a => app.ALL_ACCENTS.includes(a)) && app.normalizeThemeSetting('honeyed-lavender') === 'paper-slate');
 const note = Object.fromEntries(app.PALETTE_SWATCHES.map(p => [p.accent, p.note]));
-check('palette notes', note.terracotta === 'Charcoal ink, marigold highlighter' && note.rose === 'Old brick and olive lawns' && note.lavender === 'Evening navy, persimmon sky' && note.apricot === 'Deep teal, lamplight lilac');
+check('palette notes', note.terracotta === 'Charcoal · marigold' && note.rose === 'Wine · olive' && note.lavender === 'Navy · persimmon' && note.apricot === 'Iron teal · lilac');
 const sw = Object.fromEntries(app.PALETTE_SWATCHES.map(p => [p.accent, p.colors.join(',').toLowerCase()]));
 check('swatch colours (page, ink, now card)', sw.terracotta === '#f3f1ea,#1d2024,#25292f' && sw.rose === '#eef0e4,#2e3428,#683238' && sw.lavender === '#eaeef2,#1d3346,#223f5d' && sw.apricot === '#e7edeb,#1d3433,#1c4a4e');
 if (fails) { console.error(`${fails} theme check(s) failed`); process.exit(1); }

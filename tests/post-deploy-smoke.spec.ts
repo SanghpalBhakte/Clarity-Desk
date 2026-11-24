@@ -58,7 +58,7 @@ test.describe('Clarity Desk Post-Deploy / Target URL Smoke Suite', () => {
     // The laptop has no top bar switch: the theme is chosen in Settings.
     await page.locator('#sidebar-settings').click();
     const initialTheme = await page.locator('html').getAttribute('data-theme');
-    const other = page.locator('.theme-swatch', { hasText: initialTheme === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' });
+    const other = page.locator('.theme-swatch:not(.palette-swatch)', { has: page.locator('.swatch-name', { hasText: initialTheme === 'midnight-ink' ? /^(Light|Paper Slate)$/ : /^(Dark|Midnight Ink)$/ }) });
     await expect(other).toBeVisible({ timeout: 5000 });
     await other.click();
     await page.waitForTimeout(300);

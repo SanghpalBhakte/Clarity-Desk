@@ -222,7 +222,7 @@ test.describe('laptop: no top bar', () => {
     await expect(page.locator('#assistant-toggle-btn')).toHaveAttribute('aria-expanded', 'false');
     await page.click('#sidebar-settings');
     const before = await page.locator('html').getAttribute('data-theme');
-    await page.locator('.theme-swatch', { hasText: before === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' }).click();
+    await page.locator('.theme-swatch:not(.palette-swatch) .swatch-name', { hasText: before === 'midnight-ink' ? /^Light$/ : /^Dark$/ }).click();
     await expect.poll(() => page.locator('html').getAttribute('data-theme')).not.toBe(before);
   });
 

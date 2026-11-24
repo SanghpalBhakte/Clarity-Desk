@@ -272,7 +272,7 @@ test.describe('Clarity Desk Visual & Layout Verification', () => {
       await page.locator('#more-sheet [data-nav="settings"]').click();
     }
     const now = await page.locator(SEL.rootHtml).getAttribute('data-theme');
-    const swatch = page.locator('.theme-swatch', { hasText: now === 'midnight-ink' ? 'Paper Slate' : 'Midnight Ink' });
+    const swatch = page.locator('.theme-swatch:not(.palette-swatch)', { has: page.locator('.swatch-name', { hasText: now === 'midnight-ink' ? /^Light$/ : /^Dark$/ }) });
     await swatch.waitFor({ state: 'visible' });
     return swatch;
   }

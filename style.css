@@ -169,12 +169,12 @@
 
   --focus-ring: var(--color-focus-ring);
 
-  --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-display: 'Bricolage Grotesque', var(--font-sans);
-  --font-editorial: 'Bricolage Grotesque', var(--font-sans);
+  --font-sans: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-editorial: var(--font-sans);
   /* Numbers use the display face with tabular digits (set below), not a
      coding mono: the mono read as a terminal next to Quicksand/Nunito. */
-  --font-mono: 'Instrument Sans', var(--font-sans);
+  --font-mono: var(--font-sans);
   --font:          var(--font-sans);
 
   /* Type scale: 9 canonical steps, replacing ~40 ad-hoc inline
@@ -9245,3 +9245,52 @@ body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex
   html body .topbar .btn-back { width: 38px; height: 38px; background: var(--c2-s1); border-color: var(--c2-line); color: var(--c2-ink); }
   html body .content-area { padding-top: 64px; }
 }
+
+/* ═══ Themes (#459): one font (Lexend), so a Theme is its colours (C2 tokens above), its title weight and one "now" detail.
+   Layout never changes between Themes. Status colours stay fixed. The accent marks only "now"; a free gap is a neutral
+   hatched outline, so red or pink never means free. Lexend here stops at weight 700. Board: issue #458. ═══ */
+:root { --th-tw: 600; --th-tls: -0.02em; }
+:root[data-accent="terracotta"] { --th-tw: 700; --th-tls: -0.03em; }
+:root[data-accent="lavender"] { --th-tw: 650; --th-tls: -0.022em; }
+:root[data-accent="apricot"] { --th-tw: 500; --th-tls: -0.01em; }
+.c2-lt-title, #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle, .c2-now h2 { font-weight: var(--th-tw); letter-spacing: var(--th-tls); }
+
+/* Free gap: hatched outline in every Theme */
+:root .c2-blk.gap, :root[data-theme] .c2-blk.gap { background-color: transparent; color: var(--c2-mut); box-shadow: inset 0 0 0 1.5px var(--c2-line); background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--c2-blk-end) 6px 8px); }
+.c2-gaprow .c2-face-static { background: none; }
+
+/* Highlighter: a see-through marker stroke across the class happening now, behind its name; the now line is thin ink */
+:root[data-accent="terracotta"] .c2-blk.live { background: var(--c2-blk); color: var(--c2-ink); isolation: isolate; }
+:root[data-accent="terracotta"] .c2-blk.live::before { content: ""; position: absolute; z-index: -1; left: 3px; right: 2px; top: 30%; bottom: 24%; border-radius: 4px 9px 6px 10px / 8px 5px 9px 6px; background: color-mix(in srgb, var(--c2-acc) 62%, transparent); transform: rotate(-2deg) skewX(-6deg); pointer-events: none; }
+:root[data-theme="midnight-ink"][data-accent="terracotta"] .c2-blk.live::before { background: color-mix(in srgb, var(--c2-acc) 46%, transparent); }
+:root[data-accent="terracotta"] .c2-nowmark { width: 1.5px; background: linear-gradient(var(--c2-ink) 0 9px, transparent 9px 47px, var(--c2-ink) 47px); opacity: 0.55; }
+:root[data-accent="terracotta"] .c2-nowmark::before { background: var(--c2-ink); }
+
+/* Old Campus: notebook rules sitting on the title lines' baselines (Lexend descent = 0.25em), and a margin rule */
+:root[data-accent="rose"] .c2-largetitle { position: relative; }
+:root[data-accent="rose"] .c2-largetitle::before, :root[data-accent="rose"] .c2-dtitle::before { content: ""; position: absolute; left: -9px; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--c2-now) 45%, transparent); }
+:root[data-theme="midnight-ink"][data-accent="rose"] { --th-margin: #d98a92; }
+:root[data-theme="midnight-ink"][data-accent="rose"] .c2-largetitle::before, :root[data-theme="midnight-ink"][data-accent="rose"] .c2-dtitle::before { background: color-mix(in srgb, var(--th-margin) 45%, transparent); }
+/* The date line is 22px in every Theme, so Old Campus can rule it without moving anything. */
+.c2-lt-date, #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { line-height: 22px; }
+:root[data-accent="rose"] .c2-lt-date, :root[data-accent="rose"] #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { background: linear-gradient(var(--th-rule), var(--th-rule)) no-repeat left 0 bottom calc((22px - 1.25em) / 2 + 0.25em - 2px) / 100% 1px; }
+:root[data-accent="rose"] .c2-lt-title, :root[data-accent="rose"] #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle {
+  /* one 1.05em tile per line, the rule 0.15em - 2px above each line's bottom: just under its baseline, on every line of a wrapped title */
+  position: relative; background: linear-gradient(to top, transparent 0 calc(0.15em - 2px), var(--th-rule) calc(0.15em - 2px) calc(0.15em - 1px), transparent calc(0.15em - 1px)) repeat-y 0 0 / 100% 1.05em;
+}
+:root[data-accent="rose"] { --th-rule: color-mix(in srgb, var(--c2-acc) 34%, transparent); }
+
+/* Campus Sunset: a setting sun marks now, on the strip and on the now card */
+:root[data-accent="lavender"] .c2-nowmark::before { width: 16px; height: 8px; left: -7px; top: -8px; border-radius: 16px 16px 0 0; }
+:root[data-accent="lavender"] .c2-now-k::before { content: ""; display: inline-block; width: 14px; height: 7px; margin-right: 8px; border-radius: 14px 14px 0 0; background: var(--c2-acc); vertical-align: 0.1em; }
+
+/* Lo-fi: dotted tape for progress and the now line, square ticks */
+:root[data-accent="apricot"] .c2-prog { background: radial-gradient(circle, var(--c2-now-line) 1.6px, transparent 2px) 0 0 / 8px 4px; }
+:root[data-accent="apricot"] .c2-prog i { background: radial-gradient(circle, var(--c2-acc) 2.2px, transparent 2.6px) 0 0 / 8px 4px; }
+:root[data-accent="apricot"] .c2-nowmark { width: 3px; background: repeating-linear-gradient(to bottom, var(--c2-acc) 0 4px, transparent 4px 7px); }
+:root[data-accent="apricot"] .c2-tface .task-checkbox::before { border-radius: 7px; }
+
+/* One detail per Theme: the older stitched section rules of this palette are off (they read as clutter next to the sun). */
+:root[data-theme="paper-slate"][data-accent="lavender"] .panel-header, :root[data-theme="paper-slate"][data-accent="lavender"] .section-heading { background-image: none; }
+/* Campus Sunset dark: buttons and links were the same persimmon as "now"; they take a light navy sky instead (Light uses navy too). */
+:root[data-theme="midnight-ink"][data-accent="lavender"] { --raw-brand-1: #a9c0da; --raw-brand-2: #c0d2e6; --color-thread: #a9c0da; --color-hover-fill: rgba(169, 192, 218, 0.10); --color-pressed-fill: rgba(169, 192, 218, 0.16); }

@@ -27,7 +27,7 @@ Record attendance for one class: Present, Absent, or another choice under More.
 _Avoid_: attend (as a verb for the action)
 
 **Theme**
-A colour set the student picks in Settings → Look. Each theme looks clearly different, not only in its colours.
+A colour set the student picks in Settings → Look: Highlighter, Old Campus (the default), Campus Sunset or Lo-fi. Each looks clearly different, not only in its colours: its title weight and how "now" is marked differ too.
 _Avoid_: accent, palette, appearance
 
 **Light / Dark / Auto**
