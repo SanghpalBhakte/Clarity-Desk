@@ -196,10 +196,13 @@ scenario('Fonts are self-hosted: @font-face in the page <head>, files published,
   for (const f of ['index.html', '404.html']) {
     const head = fs.readFileSync(path.join(ROOT, f), 'utf8').split('</head>')[0];
     if (/fonts\.(googleapis|gstatic)\.com/.test(head)) bad.push(`${f}: still calls Google Fonts`);
-    for (const fam of ['Instrument Sans', 'Bricolage Grotesque', 'Lexend']) if (!head.includes(`font-family:'${fam}'`)) bad.push(`${f}: no @font-face for ${fam}`);
+    if (!head.includes("font-family:'Lexend'")) bad.push(`${f}: no @font-face for Lexend`);
+    // One font (#459): the retired ones stay hosted for older cached pages, but nothing loads them.
+    for (const fam of ['Instrument Sans', 'Bricolage Grotesque']) if (head.includes(`font-family:'${fam}'`)) bad.push(`${f}: still declares ${fam}`);
     for (const file of head.match(/fonts\/[\w-]+\.woff2/g) || []) if (!fs.existsSync(path.join(ROOT, file))) bad.push(`${f}: ${file} missing`);
   }
-  for (const file of ['instrument-sans', 'instrument-sans-italic', 'bricolage-grotesque', 'lexend']) if (!sw.includes(`'fonts/${file}.woff2'`)) bad.push(`sw.js does not precache ${file}`);
+  if (!sw.includes("'fonts/lexend.woff2'")) bad.push('sw.js does not precache lexend');
+  for (const file of ['instrument-sans', 'instrument-sans-italic', 'bricolage-grotesque']) if (sw.includes(`'fonts/${file}.woff2'`)) bad.push(`sw.js still precaches ${file}`);
   return bad.length === 0 ? true : bad.join('; ');
 });
 

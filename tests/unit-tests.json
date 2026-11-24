@@ -17,6 +17,7 @@
   "tests/verify_task_category_cleanup.mjs",
   "tests/verify_ai_proxy.mjs",
   "tests/verify_hosting_files.mjs",
+  "tests/verify_style_tokens.mjs",
   "tests/verify_app_icons.mjs",
   "tests/verify_attendance_dates.mjs",
   "tests/verify_attendance_percentage.mjs",

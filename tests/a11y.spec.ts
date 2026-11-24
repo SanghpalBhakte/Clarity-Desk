@@ -7,21 +7,29 @@ import AxeBuilder from '@axe-core/playwright';
 // the busy states (classes, calendar chips, attendance buttons) are checked.
 const PAGES = ['dashboard', 'timetable', 'assignments', 'subjects', 'calendar', 'resources', 'summary', 'settings'];
 
-for (const theme of ['light', 'dark']) {
-  test(`no serious accessibility problems (${theme})`, async ({ page }) => {
+// The default Theme (Old Campus) is checked on every page above; the other Themes on the four main screens (#459).
+const THEME_PAGES = ['dashboard', 'assignments', 'subjects', 'settings'];
+const RUNS = [
+  ...['light', 'dark'].map((theme) => ({ theme, accent: '', pages: PAGES })),
+  ...['terracotta', 'lavender', 'apricot'].flatMap((accent) => ['light', 'dark'].map((theme) => ({ theme, accent, pages: THEME_PAGES }))),
+];
+
+for (const { theme, accent, pages } of RUNS) {
+  test(`no serious accessibility problems (${theme}${accent ? ', ' + accent : ''})`, async ({ page }) => {
     // A Thursday mid-morning with classes, so Today shows its mark buttons and
     // day bar on every run, not only on days the real clock lands on a class.
     await page.clock.setFixedTime(new Date('2026-09-24T10:20:00'));
-    await page.addInitScript((t) => {
+    await page.addInitScript(({ t, a }) => {
       localStorage.setItem('cos_onboarding_dismissed', 'true');
       localStorage.setItem('cos_onboarding_done', '1');
       localStorage.setItem('cos_timetable_choice', 'aids');
       localStorage.setItem('cos_theme', t);
-    }, theme);
+      if (a) localStorage.setItem('cos_accent', a);
+    }, { t: theme, a: accent });
     await page.goto('/');
     await page.waitForFunction(() => typeof (window as any).navigate === 'function');
     const found: string[] = [];
-    for (const p of PAGES) {
+    for (const p of pages) {
       await page.evaluate((x) => (window as any).navigate(x), p);
       await page.waitForTimeout(400);   // page fade-in, so contrast is read at full opacity
       const r = await new AxeBuilder({ page })

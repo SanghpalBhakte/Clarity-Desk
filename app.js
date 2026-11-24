@@ -7815,29 +7815,30 @@ const ALL_THEMES = ['paper-slate', 'midnight-ink'];
 // What is saved in cos_theme: a mode, or 'auto' (follow the phone). data-theme always holds the resolved mode.
 const ALL_THEME_SETTINGS = ['auto', ...ALL_THEMES];
 
+// Student words: Light / Dark / Auto (GLOSSARY.md). The stored values stay paper-slate / midnight-ink / auto.
 const THEME_LABELS = {
-  'paper-slate':  'Paper Slate',
-  'midnight-ink': 'Midnight Ink'
+  'paper-slate':  'Light',
+  'midnight-ink': 'Dark'
 };
 
 const ALL_ACCENTS = ['terracotta', 'rose', 'lavender', 'apricot'];
 
-// Each accent value now names a whole palette (paper, ink and brand, in
-// both modes; see style.css 1b/2b). The stored values stay the same, so
-// backups, sync and older app versions need no change.
+// Each accent value names a whole Theme (colours, title weight and one "now" detail, in
+// both Light and Dark; see the Themes layer at the end of style.css). The stored values
+// stay the same, so backups, sync and older app versions need no change.
 const ACCENT_LABELS = {
   'terracotta': 'Highlighter',
   'rose':       'Old Campus',
-  'lavender':   'Last Bench',
+  'lavender':   'Campus Sunset',
   'apricot':    'Lo-fi'
 };
 
-// Settings preview colours: page, ink, now-card colour.
+// Settings preview colours: page, ink, now-card colour. Order as on the #458 board.
 const PALETTE_SWATCHES = [
-  { accent: 'terracotta', note: 'Charcoal ink, marigold highlighter', colors: ['#F3F1EA', '#1D2024', '#25292F'] },
-  { accent: 'lavender',   note: 'Evening navy, persimmon sky',        colors: ['#EAEEF2', '#1D3346', '#223F5D'] },
-  { accent: 'apricot',    note: 'Deep teal, lamplight lilac',         colors: ['#E7EDEB', '#1D3433', '#1C4A4E'] },
-  { accent: 'rose',       note: 'Old brick and olive lawns',          colors: ['#EEF0E4', '#2E3428', '#683238'] }
+  { accent: 'terracotta', note: 'Charcoal · marigold',  colors: ['#F3F1EA', '#1D2024', '#25292F'] },
+  { accent: 'rose',       note: 'Wine · olive',         colors: ['#EEF0E4', '#2E3428', '#683238'] },
+  { accent: 'lavender',   note: 'Navy · persimmon',     colors: ['#EAEEF2', '#1D3346', '#223F5D'] },
+  { accent: 'apricot',    note: 'Iron teal · lilac',    colors: ['#E7EDEB', '#1D3433', '#1C4A4E'] }
 ];
 
 // Retired flat 5-theme names (each baked mode+accent into one value)
@@ -8137,11 +8138,11 @@ function updateThemeSelector(setting) {
   // `setting` is the saved choice (auto / light / dark). The label names that choice; the icon shows the mode painted.
   const theme = resolveThemeMode(setting, systemPrefersDark());
   const isDark = theme === 'midnight-ink';
-  const nameOf = (s) => s === 'auto' ? 'Auto' : (THEME_LABELS[s] || 'Paper Slate');
+  const nameOf = (s) => s === 'auto' ? 'Auto' : (THEME_LABELS[s] || 'Light');
   const themeName = nameOf(normalizeThemeSetting(setting));
   const nextThemeName = nameOf(nextThemeSetting(setting, systemPrefersDark()));
   if (btn) {
-    btn.setAttribute('aria-label', `Current theme: ${themeName}. Click to switch to ${nextThemeName}.`);
+    btn.setAttribute('aria-label', `Light / Dark / Auto: ${themeName}. Tap for ${nextThemeName}.`);
     btn.setAttribute('title', `Switch to ${nextThemeName}`);
     btn.setAttribute('data-theme-active', theme);
   }
@@ -18524,9 +18525,9 @@ function renderSettings() {
       <div class="st-head"><span class="st-num" aria-hidden="true">04</span><h2 class="st-title" id="st-look-h">Look</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-group" style="margin-bottom:20px">
-        <label class="form-label" style="margin-bottom:6px">Mode</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Auto follows your phone. Or keep it light for the day and dark for night study.</div>
-        <div class="theme-swatch-grid" role="group" aria-label="Mode selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
+        <label class="form-label" style="margin-bottom:6px">Light / Dark / Auto</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Auto follows your phone. Every Theme works in both.</div>
+        <div class="theme-swatch-grid" role="group" aria-label="Light, Dark or Auto" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
           <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'auto' ? 'active' : ''}" onclick="setTheme('auto', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'auto'}" aria-label="Auto: follows your phone">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:linear-gradient(90deg,#EEF0E4 50%,#0E0F0C 50%)"></div>
@@ -18538,36 +18539,36 @@ function renderSettings() {
               <span style="font-size:var(--text-xs);color:var(--text-muted)">Follows your phone</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'paper-slate'}" aria-label="Paper Slate: daylight desk">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'paper-slate' ? 'active' : ''}" onclick="setTheme('paper-slate', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'paper-slate'}" aria-label="Light: for the day">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#F2F2EC"></div>
               <div class="swatch-surface" style="background:#FBFBF7"></div>
               <div class="swatch-accent" style="background:#1E3A2F"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Paper Slate</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Daylight desk</span>
+              <span class="swatch-name" style="font-weight:600">Light</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">For the day</span>
             </div>
           </button>
-          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'midnight-ink'}" aria-label="Midnight Ink: focused night study">
+          <button type="button" class="theme-swatch ${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'midnight-ink' ? 'active' : ''}" onclick="setTheme('midnight-ink', event)" aria-pressed="${normalizeThemeSetting(safeGetStorage(KEY_THEME, '')) === 'midnight-ink'}" aria-label="Dark: for night study">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:#101613"></div>
               <div class="swatch-surface" style="background:#161E19"></div>
               <div class="swatch-accent" style="background:#A9DCBD"></div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;text-align:left">
-              <span class="swatch-name" style="font-weight:600">Midnight Ink</span>
-              <span style="font-size:var(--text-xs);color:var(--text-muted)">Focused night study</span>
+              <span class="swatch-name" style="font-weight:600">Dark</span>
+              <span style="font-size:var(--text-xs);color:var(--text-muted)">For night study</span>
             </div>
           </button>
         </div>
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label" style="margin-bottom:6px">Palette</label>
-        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Paper, ink and colour together. Each one has a light and a dark version.</div>
-        <div class="theme-swatch-grid" role="group" aria-label="Palette selection" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
+        <label class="form-label" style="margin-bottom:6px">Theme</label>
+        <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Colours, titles and how "now" is marked.</div>
+        <div class="theme-swatch-grid" role="group" aria-label="Theme" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))">
           ${PALETTE_SWATCHES.map(p => {
-            const on = (safeGetStorage(KEY_ACCENT, '') || 'terracotta') === p.accent;
+            const on = (safeGetStorage(KEY_ACCENT, '') || 'rose') === p.accent;
             return `<button type="button" class="theme-swatch palette-swatch ${on ? 'active' : ''}" data-accent="${p.accent}" onclick="setAccent('${p.accent}', event)" aria-pressed="${on}" aria-label="${escAttr_cd(ACCENT_LABELS[p.accent] + ': ' + p.note)}">
             <div class="swatch-preview" aria-hidden="true">
               <div class="swatch-bg" style="background:${p.colors[0]}"></div>

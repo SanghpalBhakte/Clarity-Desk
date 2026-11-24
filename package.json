@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "node tests/run-all.mjs",
-    "test:visual": "playwright test tests/clarity-visual-verification.spec.ts",
+    "test:visual": "playwright test tests/clarity-visual-verification.spec.ts tests/polish.spec.ts",
     "test:visual:update": "playwright test tests/clarity-visual-verification.spec.ts --update-snapshots",
     "ui:shots": "node scripts/ui-council/shoot.mjs",
     "ui:outside-review": "node scripts/ui-council/outside-review.mjs",

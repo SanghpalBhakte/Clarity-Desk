@@ -41,9 +41,6 @@ const PRECACHE_ASSETS = [
   './icon-512.png',
   './icon-512-maskable.png',
   './badge-96.png',
-  'fonts/instrument-sans.woff2',
-  'fonts/instrument-sans-italic.woff2',
-  'fonts/bricolage-grotesque.woff2',
   'fonts/lexend.woff2'
 ];
 

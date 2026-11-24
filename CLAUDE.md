@@ -28,6 +28,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - Ask one question before coding if something is ambiguous.
 - If you change structure or data flow, update `docs/ARCHITECTURE.md` in the same task.
 - Read `docs/ARCHITECTURE.md` for structure and data flow instead of exploring from scratch; `docs/AUDIT.md` lists known issues.
+- Screens students see follow `docs/POLISH.md`: anything new on Today replaces or folds something, or changes the spec first.
 
 ## Protected systems — inspect carefully, explain risk before touching
 - `cos_*` storage schemas
