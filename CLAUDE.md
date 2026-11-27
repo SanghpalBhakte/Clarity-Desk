@@ -53,6 +53,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - PWA/service worker/manifest/offline changes → `npm run test:pwa-smoke`
 - UI/theme/layout/modal changes → `npm run test:visual`
 - Release readiness → `npm run release:check`
+- Looking at a screen (boards, before/after) → `npm run ui:shots -- --screen <s> --desk messy --scale 1 [--crop <sel>]`: the real app at phone and laptop size, cached. Linux screenshots for CI → `gh workflow run visual-snapshots.yml --ref <branch>` (commits them and reruns Tests).
 - Local preview: use `node tests/serve.mjs` (http://127.0.0.1:4173). `index.html` loads `app.js`, `data.js` and `style.css` from jsDelivr at a pinned commit, so a plain static server shows the live code, not local edits; `tests/serve.mjs` rewrites those links to the local files.
 - Report exact failures; distinguish real regression vs setup issue vs pre-existing problem. Never weaken a test to pass.
 

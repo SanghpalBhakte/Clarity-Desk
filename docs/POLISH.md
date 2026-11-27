@@ -4,6 +4,9 @@ What "finished" means for any screen a student sees. Approved on the #458 board
 (https://claude.ai/artifact/QE4s9HHbu33cvVydbtCugw). Most rules are checked by tests;
 the rest are checked by eye on the phone before a ship.
 
+Boards and before/after pictures are shots of the real app with the messy desk
+(`npm run ui:shots -- --desk messy`), not hand-drawn pages: a tidy mock hides what real data does.
+
 ## The rule for adding things
 
 Anything new on Today must replace or fold something already there, or change the spec

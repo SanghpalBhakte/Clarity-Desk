@@ -1,19 +1,19 @@
 name: Refresh Linux screenshots
 
 # CI runs the visual tests on Linux, where fonts render a little differently
-# from a Mac, so it needs its own saved screenshots. Run this by hand
-# (Actions > Refresh Linux screenshots > Run workflow, pick the branch) after
-# a deliberate UI change, download the "linux-screenshots" artifact and
-# commit the files into tests/clarity-visual-verification.spec.ts-snapshots/.
-# It rewrites only the screenshots that fail CI's comparison, so the artifact
-# holds just those (none means CI already passes). Run it on a pushed branch
-# before opening the PR, so the first Tests run is green.
+# from a Mac, so it needs its own saved screenshots. After a deliberate UI
+# change, run it on the pushed branch (gh workflow run visual-snapshots.yml
+# --ref <branch>): it rewrites only the screenshots that fail CI's comparison,
+# commits them to that branch and starts Tests on the new commit. Then
+# `git pull` the branch. Never commits on main. The changed files are also
+# kept as the "linux-screenshots" artifact for a look.
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # commit the refreshed screenshots to the branch
+  actions: write    # start Tests: a push made with this token starts no workflow
 
 jobs:
   snapshots:
@@ -57,3 +57,16 @@ jobs:
           path: changed-screenshots/
           retention-days: 7
           if-no-files-found: ignore
+
+      - name: Commit the screenshots and start Tests
+        if: github.ref_name != 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add -- 'tests/clarity-visual-verification.spec.ts-snapshots/*-linux.png'
+          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "chore: refresh the Linux screenshots"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          gh workflow run test.yml --ref "$GITHUB_REF_NAME"
