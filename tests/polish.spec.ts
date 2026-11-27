@@ -29,7 +29,6 @@ const SIZES = [12, 14, 16, 20, 34, 38, 22];
 
 // Not calm yet: [screen][rule] -> the ticket that makes it pass. Remove an entry when its ticket lands.
 const PENDING: Partial<Record<Screen, Partial<Record<Rule, string>>>> = {
-  tasks: { 'no-clipped-text': '#461', 'font-sizes': '#461' },
   subjects: { 'font-sizes': '#462' },
   settings: { 'no-clipped-text': '#463', 'no-course-codes': '#463', 'font-sizes': '#463' },
   briefing: { 'font-sizes': '#463' },

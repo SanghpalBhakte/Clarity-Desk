@@ -27,8 +27,8 @@ async function open(page: Page) {
 
 test('long subject names never overlap and every subject is listed', async ({ page }) => {
   await open(page);
-  const names = await page.locator('.tk-subj-pick .tk-subj-name').allTextContents();
-  expect(names).toContain('Engineering Mathematics III (Probability and Statistics)');
+  // Listed by its short name (initials, #461); the full name is the button's accessible name.
+  await expect(page.getByRole('button', { name: 'Engineering Mathematics III (Probability and Statistics)' })).toHaveText('E3');
   for (const meta of await page.locator('#page-assignments .tk-meta').all()) {
     const lines = await meta.evaluate((m) => new Set([...m.children].map((c) => Math.round(c.getBoundingClientRect().top))).size);
     expect(lines).toBe(1);

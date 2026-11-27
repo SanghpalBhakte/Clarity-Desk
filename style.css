@@ -7717,12 +7717,14 @@ body.holiday-mode .holiday-banner {
 .st-aim-row .s-aim-subj { flex: none; width: 76px; }
 
 /* ── Tasks in the Briefing's voice ─────────────────────────────────────
-   A headline instead of a title + counters, ruled sections, a day column,
-   the check on the right, and one typed add bar (pinned above the bottom
+   "12 to do · 3 Late" instead of a sentence (#461), ruled sections, the
+   check first, one-line titles with one date in words, and one typed add bar (pinned above the bottom
    nav on phones, beside the headline on laptops). */
 #page-assignments .tk-page { display: flex; flex-direction: column; gap: 14px; }
 .tk-kicker { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: var(--text-sm); color: var(--text-secondary); }
-.tk-headline { margin: 4px 0 0; font-family: var(--font-display); font-size: clamp(24px, 6.6vw, 30px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--text-primary); }
+.tk-headline { margin: 4px 0 0; font-family: var(--font-display); font-size: 1.25rem; font-weight: 500; line-height: 1.3; color: var(--text-primary); }
+.tk-headline b { font-weight: 700; }
+.tk-headline svg { width: 0.85em; height: 0.85em; margin-right: 3px; vertical-align: -0.08em; }
 .tk-headline-late.is-late { color: var(--color-thread, var(--accent)); }
 .tk-link { min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--color-rule); text-underline-offset: 3px; cursor: pointer; }
 .tk-narrow, .tk-none { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); }
@@ -7739,6 +7741,8 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-group { margin: 0 0 6px; }
 #page-assignments .tk-group-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--text-primary); }
 #page-assignments .tk-group-head h2 { margin: 0; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+/* #461: the tick leads the row, then the title on one line, then subject and one date. */
+#page-assignments .tk-card .assignment-checkbox { margin-left: 0; width: 28px; height: 28px; }
 /* Midnight Ink: small dates need a little more size on dark. */
 :root[data-theme="midnight-ink"] #page-assignments .tk-day-date { font-size: 0.8125rem; color: var(--text-secondary); }
 
@@ -7749,8 +7753,9 @@ body.holiday-mode .holiday-banner {
 .tk-card.is-late .tk-day-name { color: var(--status-error, var(--color-error)); }
 #page-assignments .tk-card .assignment-body { flex: 1 1 0; min-width: 0; padding: 6px 0; cursor: pointer; border-radius: 6px; }
 #page-assignments .tk-card .assignment-body:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
-#page-assignments .tk-card .assignment-title { font-size: 1rem; font-weight: 600; -webkit-line-clamp: 2; }
-#page-assignments .tk-meta { gap: 0; font-size: 0.8125rem; }
+#page-assignments .tk-card .assignment-title { display: block; font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
+#page-assignments .tk-meta { gap: 0; font-size: 0.875rem; }
+#page-assignments .tk-due.overdue svg { width: 0.9em; height: 0.9em; margin-right: 3px; vertical-align: -0.1em; }
 /* One line: the details keep their width and only a long subject name gives
    way (ellipsis), so a wrapped line never starts with a stray dot. */
 #page-assignments .tk-meta { flex-wrap: nowrap; min-width: 0; }
@@ -7760,14 +7765,14 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-due.overdue { display: inline; color: var(--status-error, var(--color-error)); }
 #page-assignments .tk-due.overdue::before { width: auto; height: auto; border: 0; }
 #page-assignments .tk-prio { color: var(--text-primary); font-weight: 600; }
-#page-assignments .tk-card .assignment-desc { margin-top: 2px; font-size: 0.8125rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#page-assignments .tk-card .assignment-desc { flex-basis: 100%; margin-top: 2px; padding-left: 40px; font-size: 0.875rem; color: var(--text-secondary); overflow-wrap: anywhere; }
 #page-assignments .tk-card .assignment-checkbox { flex: none; margin-right: 0; border-radius: 8px; border: 2px solid var(--text-primary); }
 #page-assignments .tk-card.is-late .assignment-checkbox { border-color: var(--color-thread, var(--accent)); }
 /* Rows to tick first (late, due today or tomorrow, exams, quizzes): a bigger, accent box. */
 #page-assignments .tk-card.is-key .assignment-checkbox { width: 28px; height: 28px; border-width: 2.5px; border-color: var(--color-thread, var(--accent)); }
 #page-assignments .tk-card.done .assignment-checkbox { background: var(--text-primary); border-color: var(--text-primary); color: var(--color-canvas); }
 #page-assignments .tk-card.done { opacity: 0.55; }
-.tk-row-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 20px; padding: 0 0 2px 60px; }
+.tk-row-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 20px; padding: 0 0 2px 40px; }
 .tk-row-actions button { min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 0.875rem; font-weight: 700; color: var(--text-primary); cursor: pointer; }
 .tk-row-actions .task-delete-btn { color: var(--status-error, var(--color-error)); }
 
@@ -7775,7 +7780,7 @@ body.holiday-mode .holiday-banner {
 #page-assignments .tk-fold { margin: 0; border-bottom: 1px solid var(--color-rule); }
 .tk-fold-head { display: flex; align-items: center; gap: 12px; min-height: 52px; list-style: none; cursor: pointer; }
 .tk-fold-head::-webkit-details-marker { display: none; }
-.tk-fold-name { flex: none; width: 48px; font-family: var(--font-display); font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+.tk-fold-name { flex: none; min-width: 48px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 .tk-fold-sum { flex: 1; min-width: 0; font-size: 0.875rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tk-fold-sign { flex: none; width: 24px; text-align: center; color: var(--text-secondary); }
 /* A chevron, not '+': next to the add bar a '+' read as "add a goal". */
@@ -7790,7 +7795,7 @@ body.holiday-mode .holiday-banner {
 /* The add bar: type a task, Enter opens the form filled in. */
 .tk-add { display: flex; align-items: center; gap: 6px; min-height: 52px; padding: 0 6px 0 4px; border: 1.5px solid var(--text-primary); border-radius: 16px; background: var(--color-surface, var(--color-canvas)); }
 .tk-add:focus-within { border-color: var(--color-thread, var(--accent)); }
-.tk-add-plus { flex: none; width: 44px; height: 44px; padding: 0; border: 0; background: none; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--color-thread, var(--accent)); cursor: pointer; }
+.tk-add-plus { flex: none; width: 44px; height: 44px; padding: 0; border: 0; background: none; font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; line-height: 1; color: var(--color-thread, var(--accent)); cursor: pointer; }
 .tk-add input { flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 1rem; color: var(--text-primary); }
 .tk-add input::placeholder { color: var(--text-muted); }
 .tk-add input { text-overflow: ellipsis; }
@@ -7799,7 +7804,7 @@ body.holiday-mode .holiday-banner {
    bar's own rounded edge instead. */
 .tk-add input[name="q"]:focus-visible { outline: 0 !important; }
 .tk-add:has(input:focus-visible) { box-shadow: 0 0 0 1px var(--color-thread, var(--accent)); }
-.tk-add-paste { flex: none; min-height: 44px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.8125rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+.tk-add-paste { flex: none; min-height: 44px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.875rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
 
 /* Two weeks strip (laptops only): one column a day, ticks for deadlines,
    a thread-coloured needle on today. */
@@ -7828,7 +7833,6 @@ body.holiday-mode .holiday-banner {
 .tk-tick-more { padding-left: 9px; font-size: 0.75rem; color: var(--text-secondary); }
 
 @media (max-width: 767px) {
-  #page-assignments .tk-group-head h2 { font-size: 1.125rem; }
   /* Fixed, not sticky: .content-area is overflow:auto but grows with its
      content, so a sticky bar pins to it, not the screen, and opens half
      under the nav. */
@@ -8290,7 +8294,7 @@ html.sidebar-collapsed .sidebar .nav-item::after { background: var(--board-ink);
    a warm or green tone: the headline stays ink, an unticked box is a plain ink
    outline (bigger on rows to do first), and today in the two-week strip uses
    the same "now" colour as Today and Timetable. */
-.tk-headline-late.is-late { color: inherit; }
+.tk-headline-late.is-late { color: var(--status-error, var(--color-error)); font-weight: 600; }
 #page-assignments .tk-card.is-late .assignment-checkbox,
 #page-assignments .tk-card.is-key .assignment-checkbox { border-color: var(--text-primary); }
 .tk-strip-day.is-today .tk-strip-date { color: var(--text-primary); }
@@ -8338,7 +8342,6 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   .topbar-brand { display: none; }
   .tk-kicker { flex-wrap: wrap; gap: 4px 12px; }
   .tk-link, .tk-headline { max-width: 100%; overflow-wrap: anywhere; }
-  .tk-headline { font-size: 22px; }
   .tt-day-tabs { max-width: 100%; }
   .bottom-nav-item { min-width: 0; padding-left: 0; padding-right: 0; font-size: 0.45rem; letter-spacing: -0.03em; }
   #page-assignments .tk-meta { flex-wrap: wrap; min-width: 0; max-width: 100%; }

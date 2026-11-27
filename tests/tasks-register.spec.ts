@@ -26,13 +26,12 @@ async function open(page: Page, tasks: unknown[], opts: { install?: boolean } = 
 }
 
 const headlines: [string, unknown[], string][] = [
-  ['one late', [task('a', 'OS quiz', '2026-09-22'), task('b', 'CN worksheet', '2026-09-28', 'CN')], 'Two to do. OS quiz is late. Start there.'],
-  ['two late', [task('a', 'OS quiz', '2026-09-21'), task('b', 'DS sheet', '2026-09-23', 'DS')], 'Two to do. Two are late. OS quiz first.'],
-  ['due today', [task('a', 'Physics viva prep', '2026-09-24', 'PHY'), task('b', 'CN worksheet', '2026-09-28', 'CN')], 'Two to do. Physics viva prep is due today.'],
-  ['next tomorrow', [task('a', 'DBMS ER diagram', '2026-09-25', 'DBMS')], 'One to do. Next: DBMS ER diagram, tomorrow.'],
-  ['next later in the week', [task('a', 'CN worksheet', '2026-09-28', 'CN')], 'One to do. Next: CN worksheet, Monday.'],
-  ['long title stops at a word', [task('a', 'Submit the complete Design and Analysis of Algorithms assignment 3', '2026-09-23', 'DAA')], 'One to do. Submit the complete… is late. Start there.'],
-  ['only older tasks', OLD, 'Nothing needs attention right now.'],
+  // Numbers, not a sentence (#461): "N to do · N Late". Older tasks count too.
+  ['one late', [task('a', 'OS quiz', '2026-09-22'), task('b', 'CN worksheet', '2026-09-28', 'CN')], '2 to do · 1 Late'],
+  ['two late', [task('a', 'OS quiz', '2026-09-21'), task('b', 'DS sheet', '2026-09-23', 'DS')], '2 to do · 2 Late'],
+  ['nothing late', [task('a', 'Physics viva prep', '2026-09-24', 'PHY'), task('b', 'CN worksheet', '2026-09-28', 'CN')], '2 to do'],
+  ['only older tasks', OLD, '3 to do · 3 Late'],
+  ['all done', [{ ...task('a', 'OS quiz', '2026-09-22'), status: 'submitted' }], 'All clear.'],
   ['nothing at all', [], 'A clean slate.'],
 ];
 for (const [name, tasks, text] of headlines) {
@@ -44,7 +43,7 @@ for (const [name, tasks, text] of headlines) {
 
 test('older tasks fold into one line, are left out of the headline, and clear in two steps with Undo', async ({ page }) => {
   const tk = await open(page, [task('a', 'OS quiz', '2026-09-22'), ...OLD], { install: true });
-  await expect(tk.locator('.tk-headline')).toHaveText('One to do. OS quiz is late. Start there.');
+  await expect(tk.locator('.tk-headline')).toHaveText('4 to do · 4 Late');
   const older = tk.locator('.tk-group-older');
   await expect(older.locator('summary')).toContainText('Older');
   await expect(older.locator('summary')).toContainText('3 tasks from September');
@@ -90,7 +89,7 @@ test('a task with no subject shows no "General" label', async ({ page }) => {
   const tk = await open(page, [{ id: 'g', subject: 'General', code: 'GEN', title: 'Pay hostel fee', taskType: 'assignment', dueDate: '2026-09-26', priority: 'medium', status: 'pending' }]);
   const row = tk.locator('.tk-card', { hasText: 'Pay hostel fee' });
   await expect(row.locator('.tk-meta')).not.toContainText('General');
-  // The date shows once, in the day column (#455), not again as "in 2 days".
-  await expect(row.locator('.tk-day')).toContainText('26 Sep');
-  await expect(row.locator('.tk-meta')).not.toContainText('in 2 days');
+  // The date shows once, in words (#461), not again as "in 2 days".
+  await expect(row.locator('.tk-meta')).toHaveText('Sat');
+  await expect(row.locator('.tk-day')).toHaveCount(0);
 });
