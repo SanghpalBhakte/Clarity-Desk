@@ -132,13 +132,16 @@ test('Tasks: a note that repeats the title is hidden, and the date shows once', 
   const same = page.locator('#ac-t-same');
   await expect(same.locator('.assignment-title')).toHaveText('Submit DS file');
   await expect(same.locator('.assignment-desc')).toHaveCount(0);
-  await expect(same.locator('.tk-day')).toContainText('26 Nov');
-  await expect(same.locator('.tk-meta')).not.toContainText(/in 2 days|Thu|26 Nov/);
+  // One date, in words, in the meta line (#461).
+  await expect(same.locator('.tk-due')).toHaveText('Thu');
+  await expect(same.locator('.tk-meta')).not.toContainText(/in 2 days|26 Nov/);
 
+  // A real note shows when the row is opened, so a row stays two lines (#461).
   const note = page.locator('#ac-t-note');
+  await expect(note.locator('.assignment-desc')).toHaveCount(0);
+  await note.locator('.assignment-body').click();
   await expect(note.locator('.assignment-desc')).toHaveText('Units 1 and 2');
-  await expect(note.locator('.tk-day')).toContainText('Today');
-  await expect(note.locator('.tk-meta')).not.toContainText(/today/i);
+  await expect(note.locator('.tk-due')).toHaveText('Today');
 
   // Late is a status, not a second date: it stays.
   await expect(page.locator('#ac-t-lab .tk-meta')).toContainText('10 days late');

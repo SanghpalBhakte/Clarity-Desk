@@ -17088,28 +17088,14 @@ function renderAssignments() {
     return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}${d.getFullYear() === thisYear ? '' : ' ' + d.getFullYear()}`;
   };
 
-  // Headline: how much is left, then the one to start with, by name.
-  // Tasks more than 14 days late wait in the Older fold (same rule as
-  // Today), so they don't count here.
-  const NUM_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-  const numWord = (n) => n < NUM_WORDS.length ? NUM_WORDS[n] : String(n);
-  const byDue = (a, b) => (a.dueDate || '').localeCompare(b.dueDate || '');
-  const live = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a) && !isTaskStale(a)).sort(byDue);
+  // Headline counts: tasks with a date still open; more than 14 days late they wait in the Older fold.
+  const live = all.filter(a => a.status === 'pending' && !isOngoingTaskRow(a) && !isTaskStale(a));
   const staleN = all.filter(a => a.status === 'pending' && isTaskStale(a)).length;
-  const lateList = live.filter(a => isTaskOverdue(a));
-  const lateN = lateList.length;
-  const todayList = live.filter(a => dueDaysLeft(a.dueDate) === 0);
-  const soon = live.find(a => { const d = dueDaysLeft(a.dueDate); return d !== null && d > 0 && d <= 7; });
-  // Long titles stop at a word, so the headline stays two lines on a phone.
-  const nameOf = (a) => { const t = String(a.title || 'Task').trim(); if (t.length <= 24) return escHtml_cd(t); const cut = t.slice(0, 22); const sp = cut.lastIndexOf(' '); return escHtml_cd((sp > 8 ? cut.slice(0, sp) : cut).replace(/[\s,.:;-]+$/, '') + '…'); };
-  const headA = !all.length ? 'A clean slate.' : live.length ? `${numWord(live.length)} to do.` : staleN ? 'Nothing needs attention right now.' : 'All clear.';
-  const headB = !all.length ? ''
-    : lateN === 1 ? `${nameOf(lateList[0])} is late. Start there.`
-    : lateN ? `${numWord(lateN)} are late. ${nameOf(lateList[0])} first.`
-    : todayList.length === 1 ? `${nameOf(todayList[0])} is due today.`
-    : todayList.length ? `${numWord(todayList.length)} due today. ${nameOf(todayList[0])} first.`
-    : soon ? (() => { const d = dueDaysLeft(soon.dueDate); return `Next: ${nameOf(soon)}, ${d === 1 ? 'tomorrow' : DAY_NAMES[new Date(soon.dueDate + 'T00:00:00').getDay()]}.`; })()
-    : live.length ? 'Nothing late.' : staleN ? '' : 'Books down, feet up.';
+  const lateN = live.filter(a => isTaskOverdue(a)).length;
+  // Numbers, not a sentence (#461): "12 to do · 3 Late". Older tasks count too; the list folds them.
+  const todoN = live.length + staleN, allLateN = lateN + staleN;
+  const headA = !all.length ? 'A clean slate.' : todoN ? `<b>${todoN} to do</b>` : 'All clear.';
+  const headB = todoN && allLateN ? `${icons.alert()}${allLateN} Late` : '';
 
   // Filters opened from elsewhere (Today's "late" line, the Calendar) still
   // apply. One plain line says so, with the way back.
@@ -17124,7 +17110,8 @@ function renderAssignments() {
   const subjectFullName = (s) => (all.find(a => a.code === s && a.subject) || {}).subject || s;
   // Chips and rows show the short name (initials when the code is a course number); filtering still uses the code.
   const ownShort = loadStripLabels();
-  const chipName = (s) => subjectShortName(subjectFullName(s), s, ownShort);
+  // A subject with no code is listed by its name; it gets initials like its row (never the long name).
+  const chipName = (s) => { const full = subjectFullName(s); return subjectShortName(full, s === full ? '' : s, ownShort); };
   if (state.assignSubjectFilter !== 'all') narrowing.push(subjectFullName(state.assignSubjectFilter));
   const subjIndex = subjects.length > 1 ? `
     <nav class="tk-subjects" aria-label="Show one subject">
@@ -17185,28 +17172,22 @@ function renderAssignments() {
     // Rows to tick first: late, due today or tomorrow, exams and quizzes.
     const isKey = !done && !isOngoing && (taskType === 'exam' || taskType === 'quiz' || (days !== null && days <= 1));
 
-    let dayName = '', dayDate = '';
-    if (isOngoing) dayName = 'Goal';
-    else if (a.dueDate && days !== null) {
-      const d = new Date(a.dueDate + 'T00:00:00');
-      dayName = days === 0 ? 'Today' : DAY_SHORT[d.getDay()];
-      dayDate = shortDate(a.dueDate);
-    }
-
     let when = '', whenCls = '';
     if (done) when = 'done';
     else if (isOngoing) { const wk = goalCheckinsThisWeek(a); when = isTaskPausedForHoliday(a) ? 'resting for the holiday' : wk ? `${wk} this week` : 'keeps going'; whenCls = 'ongoing'; }
-    // The day column already shows the date, so only Late (a status) is said again.
-    else if (days !== null && days < 0) { const n = Math.abs(days); when = `${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
+    // The date shows once, here, in words (#461): Today, Tomorrow, a weekday this week, else "2 Dec".
+    else if (days !== null && days < 0) { const n = Math.abs(days); when = `${icons.alert()}${n} ${n === 1 ? 'day' : 'days'} late`; whenCls = 'overdue'; }
+    else if (days !== null) { when = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days < 7 ? DAY_SHORT[new Date(a.dueDate + 'T00:00:00').getDay()] : shortDate(a.dueDate); whenCls = days === 0 ? 'today' : ''; }
     const isCategory = ['GEN', 'MIS', 'OTH'].includes(String(a.code || '').toUpperCase());
     // The old "Mission" category reads as General (missions are a Task Type now).
-    const subjectText = isCategory ? (String(a.code || '').toUpperCase() === 'MIS' ? 'General' : a.subject) : (a.code || '').trim() ? subjectShortName(a.subject, a.code, ownShort) : a.subject;
+    // OTH is a real subject stored without a code: it gets its short name too (initials, #457).
+    const codeUp = String(a.code || '').toUpperCase();
+    const subjectText = codeUp === 'MIS' ? 'General' : codeUp === 'GEN' || (codeUp === 'OTH' && /^(other|general)$/i.test(String(a.subject || ''))) ? a.subject : subjectShortName(a.subject, isCategory ? '' : (a.code || '').trim(), ownShort);
 
     // "General" is filler: a task with no subject just shows its date.
     const bits = subjectText === 'General' ? [] : [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page"><span class="tk-subj-text">${escHtml_cd(subjectText)}</span></span>`];
     if (taskType !== 'assignment' && typeLabel(taskType).toLowerCase() !== String(subjectText).toLowerCase()) bits.push(`<span class="tk-type">${typeLabel(taskType)}</span>`);
     if (when) bits.push(`<span class="tk-due ${whenCls}">${when}</span>`);
-    if (a.priority === 'high' && !done) bits.push(`<span class="tk-prio">high priority</span>`);
     if (a.marks > 0) bits.push(`<span class="tk-marks">${a.marks} marks</span>`);
 
     const picked = taskSelectMode && taskSelection.has(a.id);
@@ -17220,6 +17201,7 @@ function renderAssignments() {
         </div>`;
     const hubName = isCategory ? '' : subjectText;
     const actions = rowOpen ? `
+      ${shouldShowTaskNote(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
       <div class="tk-row-actions">
         ${isCustom && isOngoing && !done ? `<button type="button" onclick="goalCheckIn('${a.id}')">${(a.checkins || []).includes(todayStr()) ? 'Not today after all' : 'Did it today'}</button>` : ''}
         ${isCustom ? `<button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">Edit</button>` : ''}
@@ -17229,13 +17211,11 @@ function renderAssignments() {
     const bodyAttrs = taskSelectMode ? '' : ` role="button" tabindex="0" aria-expanded="${rowOpen}" onclick="toggleTaskRow('${a.id}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();toggleTaskRow('${a.id}')}"`;
     return `
       <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${late ? 'is-late' : ''} ${isKey ? 'is-key' : ''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
-        <span class="tk-day" aria-hidden="${dayName ? 'false' : 'true'}"><span class="tk-day-name">${dayName}</span>${dayDate ? `<span class="tk-day-date">${dayDate}</span>` : ''}</span>
+        ${tail}
         <div class="assignment-body"${bodyAttrs}>
           <div class="assignment-title">${escHtml_cd(a.title)}</div>
           <div class="tk-meta">${bits.join('')}</div>
-          ${shouldShowTaskNote(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
         </div>
-        ${tail}
         ${actions}
       </div>`;
   };
@@ -17330,7 +17310,7 @@ function renderAssignments() {
         <div class="tk-kicker"><span>${DAY_NAMES[new Date().getDay()]} · your tasks</span>
           ${all.some(a => a.isCustom) && !taskSelectMode ? `<button type="button" class="tk-link" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
         </div>
-        <h1 class="tk-headline">${headA}${headB ? ` <span class="tk-headline-late${lateN ? ' is-late' : ''}">${headB}</span>` : ''}</h1>
+        <h1 class="tk-headline">${headA}${headB ? ` · <span class="tk-headline-late is-late">${headB}</span>` : ''}</h1>
       </header>
       ${stripHTML}
       <div class="tk-main">
