@@ -46,7 +46,9 @@ async function hold(page: Page, sel: string, ms = 600) {
   await page.mouse.up();
   await page.waitForTimeout(450);
 }
-const face = (today: ReturnType<Page['locator']>, name: string) => today.locator('.c2-row', { hasText: name }).locator('.c2-face');
+// A row by its class's full name: on a phone a long name shows its short form, and the full one stays in data-full.
+const rowNamed = (today: ReturnType<Page['locator']>, name: string) => today.locator(`.c2-row:has(.c2-nm b[data-full="${name}"])`).or(today.locator('.c2-row', { hasText: name }));
+const face = (today: ReturnType<Page['locator']>, name: string) => rowNamed(today, name).locator('.c2-face');
 
 test.describe('strip and rows', () => {
   test('the strip shows every class, never cuts or repeats a label, and is hidden from screen readers', async ({ page }) => {
@@ -64,15 +66,16 @@ test.describe('strip and rows', () => {
     await expect(strip.locator('.c2-blk.gap')).toHaveCount(1);
   });
 
-  test('every class is a row with its full name, time and status in words; the next one counts down', async ({ page }) => {
+  test('every class is a row with its name (full if it fits one line), time and status in words; the next one counts down', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00');
     const rows = today.locator('.c2-row');
     await expect(rows).toHaveCount(3);
-    await expect(rows.nth(0)).toContainText('Data Structures');
+    await expect(rows.nth(0).locator('.c2-nm b')).toHaveAttribute('data-full', 'Data Structures');
     await expect(rows.nth(0)).toContainText('9:00 AM');
     await expect(rows.nth(0)).toContainText('Not marked');
-    await expect(rows.nth(1)).toContainText('Database Management Systems');
-    await expect(rows.nth(2)).toContainText('Operating Systems Lab');
+    await expect(rows.nth(1).locator('.c2-nm b')).toHaveAttribute('data-full', 'Database Management Systems');
+    await expect(rows.nth(2).locator('.c2-nm b')).toHaveAttribute('data-full', 'Operating Systems Lab');
+    for (const b of await today.locator('.c2-row .c2-nm b').all()) expect(await b.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'a name is cut off').toBe(true);
     await expect(rows.nth(2)).toContainText('In 1h 20m');
     expect(((await rows.nth(0).boundingBox())!).height).toBeGreaterThanOrEqual(54);
     await expect(today.locator('.c2-row .c2-face[data-swipe]')).toHaveCount(2);
@@ -120,7 +123,7 @@ test.describe('class sheet', () => {
     expect(JSON.parse(await marks(page))['2026-09-24']).toMatchObject({ DS_0900: 'skipped' });
     // A marked, ended class folds into "1 earlier class, marked" (kept on purpose); open it to see the row.
     await today.locator('.c2-fold-btn').click();
-    await expect(today.locator('.c2-row', { hasText: 'Data Structures' })).toContainText('Absent');
+    await expect(rowNamed(today, 'Data Structures')).toContainText('Absent');
     await face(today, 'Data Structures').click();
     await page.locator('.c2-sheet').getByRole('button', { name: /^Clear mark/ }).click();
     expect(JSON.parse((await marks(page)) || '{}')['2026-09-24'] || {}).not.toHaveProperty('DS_0900');
@@ -194,7 +197,7 @@ test.describe('class sheet', () => {
   test('hold opens the same sheet and never marks; right-click does too', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00');
     const before = await marks(page);
-    await hold(page, '.c2-row:has-text("Data Structures") .c2-face');
+    await hold(page, '.c2-row:has(.c2-nm b[data-full="Data Structures"]) .c2-face');
     expect(await sheetOpen(page)).toBe(true);
     expect(await marks(page)).toBe(before);
     await page.keyboard.press('Escape');
@@ -219,9 +222,9 @@ test.describe('gestures', () => {
     // A desk that already has marks (the old Undo writes {} when it empties a desk that had none).
     const today = await open(page, '2026-09-24T12:40:00', { cos_attendance: { '2026-09-23': { DS_0900: 'attended' } } });
     const before = await marks(page);
-    await drag(page, '.c2-row:has-text("Data Structures") .c2-face', 150);
+    await drag(page, '.c2-row:has(.c2-nm b[data-full="Data Structures"]) .c2-face', 150);
     expect(JSON.parse(await marks(page))['2026-09-24']).toMatchObject({ DS_0900: 'attended' });
-    await expect(today.locator('.c2-row', { hasText: 'Data Structures' }).or(today.locator('.c2-fold'))).toBeVisible();
+    await expect(rowNamed(today, 'Data Structures').or(today.locator('.c2-fold'))).toBeVisible();
     await page.getByRole('button', { name: 'Undo' }).click();
     await page.waitForTimeout(300);
     expect(await marks(page)).toBe(before);
@@ -229,16 +232,16 @@ test.describe('gestures', () => {
 
   test('short swipe left holds the row open at -160 with Absent and More; Absent marks it', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00');
-    const sel = '.c2-row:has-text("Database Management Systems") .c2-face';
+    const sel = '.c2-row:has(.c2-nm b[data-full="Database Management Systems"]) .c2-face';
     await drag(page, sel, -90);
     expect(await page.locator(sel).evaluate((e) => (e as HTMLElement).style.transform)).toContain('-160');
-    await today.locator('.c2-row', { hasText: 'Database Management Systems' }).locator('.c2-ul button', { hasText: 'Absent' }).click();
+    await rowNamed(today, 'Database Management Systems').locator('.c2-ul button', { hasText: 'Absent' }).click();
     expect(JSON.parse(await marks(page))['2026-09-24']).toMatchObject({ DBMS_1100: 'skipped' });
   });
 
   test('a vertical drag never slides a row', async ({ page }) => {
     await open(page, '2026-09-24T12:40:00');
-    const sel = '.c2-row:has-text("Data Structures") .c2-face';
+    const sel = '.c2-row:has(.c2-nm b[data-full="Data Structures"]) .c2-face';
     await drag(page, sel, 8, 140);
     const t = await page.locator(sel).evaluate((e) => (e as HTMLElement).style.transform || 'none');
     expect(t).not.toMatch(/translateX\((-?[1-9])/);
@@ -246,7 +249,7 @@ test.describe('gestures', () => {
 
   test('edge guard: a drag that starts within 20 px of the screen edge does not move the row', async ({ page }) => {
     await open(page, '2026-09-24T12:40:00');
-    const sel = '.c2-row:has-text("Data Structures") .c2-face';
+    const sel = '.c2-row:has(.c2-nm b[data-full="Data Structures"]) .c2-face';
     const before = await marks(page);
     await drag(page, sel, 150, 0, 12, { x: 10 });
     expect(await marks(page)).toBe(before);
@@ -255,11 +258,11 @@ test.describe('gestures', () => {
 
   test('an open row and an open sheet survive the minute re-render', async ({ page }) => {
     await open(page, '2026-09-24T12:40:00', {}, { install: true });
-    const sel = '.c2-row:has-text("Database Management Systems") .c2-face';
+    const sel = '.c2-row:has(.c2-nm b[data-full="Database Management Systems"]) .c2-face';
     await drag(page, sel, -90);
     await page.clock.runFor(61000);
     expect(await page.locator(sel).evaluate((e) => (e as HTMLElement).style.transform)).toContain('-160');
-    await page.locator('.c2-row:has-text("Data Structures") .c2-face').click();
+    await page.locator('.c2-row:has(.c2-nm b[data-full="Data Structures"]) .c2-face').click();
     await expect(page.locator('.c2-sheet')).toBeVisible();
     await page.clock.runFor(61000);
     await expect(page.locator('.c2-sheet')).toBeVisible();
@@ -271,7 +274,7 @@ test.describe('gestures', () => {
     const today = await open(page, '2026-09-24T12:40:00');
     const t = await face(today, 'Data Structures').evaluate((e) => getComputedStyle(e).transitionDuration);
     expect(t.split(',').every((x) => parseFloat(x) === 0)).toBe(true);
-    await drag(page, '.c2-row:has-text("Data Structures") .c2-face', 150);
+    await drag(page, '.c2-row:has(.c2-nm b[data-full="Data Structures"]) .c2-face', 150);
     expect(JSON.parse(await marks(page))['2026-09-24']).toMatchObject({ DS_0900: 'attended' });
   });
 });
@@ -494,8 +497,9 @@ test.describe('modes', () => {
 
   test('daytime: the greeting is the title, the date stays above it, the bar still says Today', async ({ page }) => {
     await open(page, '2026-09-24T12:40:00');
-    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon, Riya.');
-    await expect(page.locator('#c2-lt-date')).toHaveText('Thursday 24 September');
+    // The title is fitted to one line: the greeting, or its short form on a narrow phone.
+    await expect(page.locator('#c2-lt-title')).toHaveText(/^(Good afternoon|Afternoon), Riya\.$/);
+    await expect(page.locator('#c2-lt-date')).toHaveText('Thu 24 Sept');
     await expect(page.locator('#c2-compact-title')).toHaveText('Today');
     await expect(page.locator('.c2-dtitle')).toHaveText('Good afternoon, Riya.');
   });
@@ -505,7 +509,7 @@ test.describe('modes', () => {
     await page.evaluate(() => (window as any).navigateTo('timetable'));
     await expect(page.locator('#c2-lt-title')).toHaveText('Timetable');
     await page.evaluate(() => (window as any).navigateTo('dashboard'));
-    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon, Riya.');
+    await expect(page.locator('#c2-lt-title')).toHaveText(/^(Good afternoon|Afternoon), Riya\.$/);
   });
 
   test('no name saved: the title is the greeting without a name', async ({ page }) => {
@@ -515,15 +519,19 @@ test.describe('modes', () => {
 
   test('a name with markup is shown as typed, never as HTML', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00', { cos_profile: { name: '<b>Riya</b>' } });
-    await expect(page.locator('#c2-lt-title')).toHaveText('Good afternoon, <b>Riya</b>.');
+    // On a narrow phone the greeting moves to the date line; either way it is the typed text.
+    await expect(page.locator('.c2-largetitle')).toContainText('<b>Riya</b>');
+    expect(await page.locator('.c2-largetitle').evaluate((e) => e.querySelector('b'))).toBeNull();
     expect(await today.locator('.c2-dtitle').evaluate((e) => e.querySelector('b'))).toBeNull();
   });
 
-  test('a 40 letter name wraps on a 320 px phone and never clips', async ({ page }) => {
+  test('a 40 letter name on a 320 px phone: the title stays one line and never clips, the greeting moves above it', async ({ page }) => {
     await open(page, '2026-09-24T12:40:00', { cos_profile: { name: 'A'.repeat(40) } });
     await page.setViewportSize({ width: 320, height: 700 });
+    await expect(page.locator('#c2-lt-title')).toHaveText('Today');
     const r = await page.locator('#c2-lt-title').evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth }));
     expect(r.sw).toBeLessThanOrEqual(r.cw + 1);
+    await expect(page.locator('#c2-lt-date')).toContainText('Afternoon, ' + 'A'.repeat(40));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
@@ -673,9 +681,11 @@ test.describe('calm details', () => {
     const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'OS quiz', '2026-09-22')] });
     await expect(today.getByRole('heading', { name: /^Your day/ })).toBeVisible();
     expect(await today.getByRole('heading', { name: 'Due', exact: true }).evaluate((e) => getComputedStyle(e).textTransform)).toBe('none');
-    const late = today.locator('.c2-row.t .due-badge').first();
-    await expect(late).toHaveText('2 days late');
+    // Late work is one line above the Due rows (#460): "1 Late · 2 days", with the warning icon.
+    const late = today.locator('.stale-line .c2-st.bad');
+    await expect(late).toHaveText('1 Late');
     await expect(late.locator('svg')).toHaveCount(1);
+    await expect(today.locator('.stale-what')).toHaveText('1 Late · 2 days');
   });
   test('the free row names the task that could go there', async ({ page }) => {
     const today = await open(page, '2026-09-24T12:40:00', { cos_custom_tasks: [T('t1', 'OS quiz', '2026-09-26')] });
@@ -707,7 +717,7 @@ test.describe('smart line in the evening and at night with late work', () => {
   test('evening: the class line wins over the slipped-task line', async ({ page }) => {
     const today = await open(page, '2026-09-24T18:40:00', { cos_custom_tasks: late });
     await expect(today.locator('.desk-greeting')).toHaveText('3 classes today. Mark them in one tap.');
-    await expect(today.locator('.c2-row.t .due-badge').first()).toHaveText('2 days late');
+    await expect(today.locator('.stale-what')).toHaveText('1 Late · 2 days');
   });
   test('night: tomorrow starts at the first class, even with a late task', async ({ page }) => {
     const today = await open(page, '2026-09-24T22:50:00', { cos_custom_tasks: late });

@@ -40,13 +40,14 @@ for (const w of [320, 360, 412]) {
         const box = await today.locator(sel).first().boundingBox();
         expect(box && box.y + box.height, sel + ' on the first screen').toBeLessThan(812);
       }
-      // Every late task shows (never hidden by the cap); the rest says exactly how many.
+      // Every late task is counted in one Late line (#460); three upcoming rows; the rest says exactly how many.
+      await expect(today.locator('.stale-what')).toHaveText('3 Late · oldest 3 days');
       await expect(today.locator('.task-ledger-item')).toHaveCount(3);
-      await expect(today.locator('.dash-more-link', { hasText: 'more' })).toContainText('+5 more in Tasks');
-      // The long class title is shown whole (wrapping to two lines at most); the button's own text is its accessible name.
+      await expect(today.locator('.dash-more-link', { hasText: 'more' })).toContainText('+2 more in Tasks');
+      // The long class title sits on one line: the full name if it fits, else a short one, never cut off.
       const name = today.locator('.c2-row:not(.t) .c2-nm b').first();
-      await expect(name).toHaveText(/Web Development Lab Section/);
-      await expect(today.locator('.c2-row:not(.t) .c2-face').first()).toContainText('Web Development Lab Section');
+      await expect(name).toHaveAttribute('data-full', /Web Development Lab Section/);
+      expect(await name.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'the name is not cut off').toBe(true);
       // Quick add stays in flow and reachable.
       await expect(today.locator('#quick-add-input')).toBeAttached();
     });

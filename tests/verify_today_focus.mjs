@@ -167,14 +167,14 @@ check('First step: sanitizeTask keeps it trimmed and capped, drops blanks, and l
   return kept === 'Read the aim' && capped === 80 && !blank && !old && !odd ? true : [kept, capped, blank, old, odd].join(',');
 });
 
-check('Slipped task: Today offers Done / Tomorrow / Pick a day for your own overdue task', () => {
+check('Slipped task: Today shows it as one Late line with Look through, and the kinder line', () => {
   const tasks = [{ id: 'c-9', title: 'Lab report', dueDate: '2026-09-27', status: 'pending', taskType: 'assignment', isCustom: true }];
   const { html } = today(DAY + 'T09:00:00', { cos_custom_tasks: JSON.stringify(tasks) });
   const h = html();
-  const ok = h.includes('toggleAssignment(') && h.includes('data-swipe="task"') && h.includes('data-c2-move');
   if (/need[s]? attention/.test(h)) return 'old overdue wording still shown';
-  // The buttons sit in the task's own Due row.
-  return focusOf(h) === undefined && ok && h.includes('1 task slipped. Pick a new day or mark it done.') ? true : 'buttons or kinder line missing';
+  // Late is one line above the Due rows (#460, docs/POLISH.md); Look through opens Done / Move for each task.
+  const ok = /1 Late<\/strong><\/span> · \d+ days?/.test(h) && h.includes('toggleStaleTasks()') && !h.includes('data-swipe="task"');
+  return focusOf(h) === undefined && ok && h.includes('1 task slipped. Pick a new day or mark it done.') ? true : 'Late line or kinder line missing';
 });
 
 check('Slipped task: Done, Tomorrow and a picked day change only that task, and Undo puts it back', () => {

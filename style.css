@@ -6751,10 +6751,11 @@ body.holiday-mode .holiday-banner {
 /* Nothing pending: one calm next step, no invented urgency. */
 .dash-quiet-next { margin: -4px 0 4px; font-size: var(--text-sm); color: var(--text-muted); }
 /* Tasks long past their date: one calm line under today's tasks, opened in place. */
-.stale-tasks { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 4px; }
-.stale-tasks.is-alone { margin-top: 0; border-top: 0; padding-top: 0; }
-.stale-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-size: var(--text-sm); color: var(--text-secondary); }
+.stale-tasks { border-bottom: 1px solid var(--c2-line, var(--border)); } /* Today's one Late line, above the Due rows */
+.stale-line { display: flex; align-items: center; gap: 10px; min-height: 52px; white-space: nowrap; font-size: var(--text-sm); color: var(--text-secondary); }
+.stale-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .stale-what strong { color: var(--text-primary); font-weight: 600; }
+.stale-what .c2-st.bad strong { color: inherit; }
 .stale-acts { display: flex; gap: 14px; margin-left: auto; }
 .stale-toggle, .stale-all {
   min-height: 44px; padding: 4px 0; background: none; border: none; cursor: pointer;
@@ -6770,7 +6771,7 @@ body.holiday-mode .holiday-banner {
 .stale-title { max-width: 100%; font-weight: 600; font-size: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stale-meta { font-size: var(--text-xs); color: var(--text-muted); }
 .stale-row-acts { position: relative; display: flex; gap: 6px; flex-shrink: 0; }
-.stale-row-acts .btn { min-height: 36px; }
+.stale-row-acts .btn { min-height: 44px; } /* taps at least 44 (docs/POLISH.md) */
 /* Attendance with nothing marked: one sentence, no empty bar. */
 .dashboard-right-panel > .dashboard-panel:first-child .setup-ask { margin: 0; }
 
@@ -7058,7 +7059,7 @@ body.holiday-mode .holiday-banner {
 /* Attendance figure in ink; the verdict word carries the colour. */
 #page-dashboard .att-stat-figure.is-safe { color: var(--text-primary); }
 #page-dashboard .att-stat-figure { font-weight: 700; letter-spacing: -0.02em; }
-#page-dashboard .att-stat-figure .att-dec { font-size: 0.55em; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
+#page-dashboard .att-stat-figure .att-dec { font-size: 0.59em; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
 #page-dashboard .att-stat-figure.is-safe + .att-stat-label { color: var(--status-success); }
 #page-dashboard .att-stat-figure.at-risk + .att-stat-label { color: var(--status-error); }
 
@@ -8534,7 +8535,7 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .desk-greeting { font-size: clamp(1.5rem, 7.4vw, 1.875rem); line-height: 1.12; text-wrap: balance; }
   #page-dashboard .desk-greeting-sub { font-size: 1rem; line-height: 1.45; max-width: 34ch; }
   #page-dashboard .desk-quip { font-weight: 600; color: var(--text-primary); }
-  #page-dashboard .panel-title.is-label { font-size: 15px; font-weight: 600; letter-spacing: .07em; }
+  #page-dashboard .panel-title.is-label { font-size: 14px; font-weight: 600; letter-spacing: .07em; }
   #page-dashboard .panel-action { font-size: 14px; }
   #page-dashboard .rail-time { font-size: 14px; }
   #page-dashboard .rail-time small { font-size: 13px; }
@@ -8544,30 +8545,31 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .rail-row { padding-block: 12px; }
   #page-dashboard .task-ledger-item { padding-block: 12px; }
   #page-dashboard .task-ledger-meta { font-size: 14px !important; margin-top: 4px !important; }
-  #page-dashboard .task-ledger-item .due-badge { font-size: 13px !important; padding: 3px 8px !important; }
+  #page-dashboard .task-ledger-item .due-badge { font-size: 14px !important; padding: 3px 8px !important; }
   #page-dashboard .dash-why { font-size: 13px; font-weight: 500; color: var(--text-muted); }
   #page-dashboard .dash-why-line { font-size: 14px; }
   #page-dashboard .dash-more-link { font-size: 14px; }
 }
 @media (max-width: 767px) {
-  #page-dashboard .today-risk-line, #page-dashboard .today-risk-subj { font-size: 15px; line-height: 1.4; }
+  #page-dashboard .today-risk-line, #page-dashboard .today-risk-line .today-risk-subj { font-size: 15px; line-height: 1.4; }
   #page-dashboard .stale-tasks, #page-dashboard .stale-tasks button { font-size: 14px; }
-  #page-dashboard .dashboard-panel .att-stat-label, #page-dashboard .dashboard-panel .att-note, #page-dashboard .dashboard-panel .att-stat-sub { font-size: 13px; }
+  #page-dashboard .dashboard-panel .att-stat-label, #page-dashboard .dashboard-panel .att-note, #page-dashboard .dashboard-panel .att-stat-sub { font-size: 14px; }
 }
 @media (max-width: 767px) {
   #page-dashboard .rail-now span { font-size: 13px; }
   #page-dashboard .stale-tasks strong, #page-dashboard .stale-tasks span { font-size: 14px !important; }
   #page-dashboard .dashboard-panel strong { font-size: max(1em, 13px); }
   #page-dashboard .quick-add .btn-sm, #page-dashboard .dashboard-panel .btn-sm { font-size: 14px !important; }
-  #page-dashboard .att-gauge-label, #page-dashboard .att-stale-note { font-size: 13px; }
+  #page-dashboard .att-gauge-label, #page-dashboard .att-stale-note { font-size: 12px; }
 }
 @media (max-width: 767px) {
   /* Task rows stay two lines: a long subject is cut, never a third line. */
   #page-dashboard .task-ledger-meta { flex-wrap: nowrap; min-width: 0; }
   #page-dashboard .task-ledger-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #page-dashboard .today-risk-line, #page-dashboard .today-risk-subj { font-size: 14px; }
+  #page-dashboard .today-risk-line, #page-dashboard .today-risk-line .today-risk-subj { font-size: 14px; }
 }
 @media (max-width: 767px) {
+  #page-dashboard .panel-att.has-line { display: none; } /* the overall line under the strip says it on a phone */
   #page-dashboard .panel-title { font-size: 12px; }
   #page-dashboard .filter-chip { font-size: 13px; }
 }
@@ -8705,7 +8707,7 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   #page-dashboard .task-ledger-item, #page-dashboard .rail-row { transition: background-color .15s ease; }
   #page-dashboard .task-ledger-item:hover, #page-dashboard .rail-row:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
   #page-dashboard .quick-add input, #page-dashboard #quick-add-input { height: 44px !important; font-size: var(--text-md) !important; }
-  #page-dashboard #quick-add-input + .btn { height: 44px; font-size: var(--text-base) !important; padding-inline: 18px !important; }
+  #page-dashboard #quick-add-input + .btn { height: 44px; font-size: 0.875rem !important; padding-inline: 18px !important; }
   #page-settings .st-nav-btn:hover { color: var(--text-primary); }
 }
 @media (hover: hover) and (min-width: 1024px) and (prefers-reduced-motion: reduce) {
@@ -8974,9 +8976,9 @@ html body .bottom-nav, html body .sidebar {
 .c2-blk.two { background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgba(0, 0, 0, 0.07) 6px 12px); }
 .c2-nowmark { position: absolute; top: -6px; height: 56px; width: 2px; margin-left: -1px; background: linear-gradient(var(--c2-acc) 0 9px, transparent 9px 47px, var(--c2-acc) 47px); border-radius: 2px; pointer-events: none; }
 .c2-nowmark::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--c2-acc); }
-.c2-ends { position: absolute; left: 0; right: 0; top: 52px; display: flex; justify-content: space-between; font-size: 13px; color: var(--c2-mut); }
+.c2-ends { position: absolute; left: 0; right: 0; top: 52px; display: flex; justify-content: space-between; font-size: 12px; color: var(--c2-mut); }
 
-.c2-att { font-size: 15px; color: var(--c2-mut); margin: 4px 0 0; min-height: 30px; display: flex; align-items: center; }
+.c2-att { font-size: 16px; color: var(--c2-mut); margin: 4px 0 0; min-height: 30px; display: flex; align-items: center; }
 .c2-att b { color: var(--c2-ink); font-weight: 600; }
 
 /* rows */
@@ -8990,8 +8992,8 @@ html body .bottom-nav, html body .sidebar {
 .c2-face:focus-visible, .c2-day button:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: -2px; border-radius: 10px; }
 .c2-face time, .c2-face-static time { font-size: 14px; color: var(--c2-mut); font-variant-numeric: tabular-nums; }
 .c2-nm { min-width: 0; }
-.c2-nm b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 500; line-height: 1.3; font-size: 16px; }
-.c2-nm small { display: block; font-size: 13px; color: var(--c2-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c2-nm b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; line-height: 1.3; font-size: 16px; } /* one line: c2FitNames swaps in the short name */
+.c2-nm small { display: block; font-size: 14px; color: var(--c2-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .c2-st { font-size: 14px; color: var(--c2-mut); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .c2-st svg { width: 15px; height: 15px; stroke-width: 2.6; }
 .c2-st.ok { color: var(--c2-ok); font-weight: 600; }
@@ -9030,8 +9032,8 @@ html body .bottom-nav, html body .sidebar {
 .c2-now .c2-face { display: block; position: relative; background: var(--c2-now); color: var(--c2-now-ink); padding: 18px 18px 12px; cursor: grab; min-height: 0; }
 .c2-now .c2-face.c2-lift { background: var(--c2-now); }
 .c2-now-k { font-size: 14px; font-weight: 600; color: var(--c2-now-ink); margin: 0; } /* the accent is too light on the wine now card (3.1:1); ink passes */
-.c2-now h2 { font-size: 24px; line-height: 1.16; font-weight: 600; margin: 6px 0 2px; letter-spacing: -0.015em; color: inherit; }
-.c2-now-m { font-size: 15px; color: var(--c2-now-mut); margin: 0; }
+.c2-now h2 { font-size: 22px; line-height: 1.16; font-weight: 600; margin: 6px 0 2px; letter-spacing: -0.015em; color: inherit; }
+.c2-now-m { font-size: 14px; color: var(--c2-now-mut); margin: 0; }
 .c2-prog { height: 4px; border-radius: 4px; background: var(--c2-now-line); margin: 14px 0 12px; overflow: hidden; }
 .c2-prog i { display: block; height: 100%; background: var(--c2-acc); border-radius: 4px; }
 .c2-now .c2-acts { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--c2-now-line); padding-top: 6px; margin-top: 4px; }
@@ -9043,7 +9045,7 @@ html body .bottom-nav, html body .sidebar {
 .c2-done .no { color: var(--c2-now-bad); }
 .c2-done svg { width: 18px; height: 18px; }
 .c2-fx { display: flex; align-items: center; gap: 14px; margin: 4px 0 8px; }
-.c2-fx-t { font-size: 15px; }
+.c2-fx-t { font-size: 16px; }
 .c2-fx-t span { display: block; color: var(--c2-mut); font-size: 14px; }
 .c2-now .c2-fx-t span { color: var(--c2-now-mut); }
 .c2-ring { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
@@ -9101,7 +9103,7 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 .c2-tface .c2-tname:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: 2px; }
 .c2-tface .c2-nm { display: flex; flex-direction: column; justify-content: center; }
 .c2-tface .c2-tname b { margin-top: 0; }
-.c2-tface .task-ledger-meta { display: block; margin-top: 0; font-size: 13px; color: var(--c2-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c2-tface .task-ledger-meta { display: block; margin-top: 0; font-size: 14px; color: var(--c2-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .c2-tface .task-checkbox { position: relative; width: 44px; height: 44px; border: 0; border-radius: 0; background: none; animation: none; }
 .c2-tface .task-checkbox::before { content: ""; position: absolute; width: 22px; height: 22px; left: 11px; top: 11px; box-sizing: border-box; border: 2px solid var(--c2-mut); border-radius: 50%; transition: background 0.15s ease, border-color 0.15s ease; }
 .c2-tface .task-checkbox:hover { background: none; }
@@ -9109,7 +9111,7 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 .c2-tface .task-checkbox.checked::before { background: var(--c2-ok); border-color: var(--c2-ok); }
 .c2-tface .task-checkbox svg { position: relative; width: 14px; height: 14px; color: #fff; stroke-width: 3; }
 .c2-tface .task-checkbox:focus-visible { outline: 2.5px solid var(--c2-acc); outline-offset: -2px; border-radius: 10px; }
-.c2-tface .c2-st { font-size: 13px; }
+.c2-tface .c2-st { font-size: 14px; }
 .c2-pick { position: relative; }
 .c2-pick .today-focus-date.is-shown { margin: 0 0 8px; width: 100%; }
 .c2-namerow b { font-weight: 600; }
@@ -9157,8 +9159,12 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 @media (prefers-reduced-motion: reduce) { .c2-markall { transition: none; } }
 
 /* ── Calm Today details (C2): sentence-case section titles, the quiet holiday line ── */
-#page-dashboard .panel-title.is-label { font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-ink); }
-#page-dashboard .panel-title .panel-count { font-size: 13px; font-weight: 400; color: var(--c2-mut); letter-spacing: 0; text-transform: none; }
+#page-dashboard .panel-title.is-label { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-ink); }
+/* Today keeps the type scale at every width (docs/POLISH.md): 12, 14, 16, 20, 34. */
+#page-dashboard .desk-dday, #page-dashboard .panel-title, #page-dashboard .att-stat-label, #page-dashboard .att-stat-message, #page-dashboard .att-stat-message strong { font-size: 0.875rem; }
+#page-dashboard .att-gauge-label { font-size: 0.75rem; }
+#page-dashboard .att-stat-figure { font-size: 2.125rem; }
+#page-dashboard .panel-title .panel-count { font-size: 14px; font-weight: 400; color: var(--c2-mut); letter-spacing: 0; text-transform: none; }
 body.holiday-mode .desk-masthead { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; }
 body.holiday-mode .desk-masthead::after { content: none; }
 @media (max-width: 560px) { body.holiday-mode #page-dashboard .desk-masthead-top { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; } }
@@ -9168,6 +9174,8 @@ body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex
 
 /* ── Greeting as the Today title: a long greeting or name wraps, never clips ── */
 .c2-lt-title, .c2-dtitle { overflow-wrap: anywhere; text-wrap: balance; }
+.c2-largetitle > div { min-width: 0; }
+body:not(.c2-pinned) .c2-lt-title { white-space: nowrap; } /* Today's title: c2SyncShell picks a greeting that fits one line */
 .c2-quip { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--c2-mut); }
 
 /* ── End-Sem at the foot of Today: one quiet line ── */
