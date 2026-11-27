@@ -287,9 +287,9 @@ check('Today: resting tasks leave the list, every real deadline stays, attendanc
   seed({ cos_custom_tasks: ALL_TASKS, ...H('2026-10-19', '2026-10-26') }); at('2026-10-19T09:50:00');
   const a = makeApp(); a.state.currentPage = 'dashboard'; a.renderDashboard();
   const html = domCache['page-dashboard'].innerHTML;
-  // Three rows (overdue and due today never hidden): the rest, including the kept ongoing one, are "+N more".
+  // Late (Old quiz) is one line (#460); due today never hidden; the rest, including the kept ongoing one, are "+N more".
   const ok = !html.includes('Read one paper a week') && /\+\d more in Tasks/.test(html)
-    && /<div class="dashboard-panel(?: panel-day)?" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title"[^>]*>Attendance/.test(html) && html.includes('Lab journal') && html.includes('Old quiz') && html.includes('DBMS assignment')
+    && /<div class="dashboard-panel(?: panel-day)?" style="display:none">\s*<div class="panel-header">\s*<div class="panel-title"[^>]*>Attendance/.test(html) && html.includes('Lab journal') && html.includes('1 Late</strong>') && html.includes('DBMS assignment')
     && html.includes('1 ongoing task is resting');
   return ok ? true : 'Today task list wrong';
 });

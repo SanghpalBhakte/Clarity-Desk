@@ -41,16 +41,10 @@ test('a Today task opens that task on Tasks, past a filter and a fold', async ({
   await expect(card).toBeInViewport();
 });
 
-test('"Why this order?" shows one line and saves nothing', async ({ page }) => {
+test('Due has no order note: late work is its own line, rows go by date (#460)', async ({ page }) => {
   await open(page);
-  const tasksNow = () => page.evaluate(() => [localStorage.getItem('cos_custom_tasks'), localStorage.getItem('cos_assignments')]);
-  const before = await tasksNow();
-  const why = page.getByRole('button', { name: 'Why this order?' });
-  await expect(page.locator('#dash-why-line')).toBeHidden();
-  await why.click();
-  await expect(page.locator('#dash-why-line')).toHaveText('Late first, then by due date, then ongoing work.');
-  await expect(why).toHaveAttribute('aria-expanded', 'true');
-  expect(await tasksNow()).toEqual(before);
+  await expect(page.getByRole('button', { name: 'Why this order?' })).toHaveCount(0);
+  await expect(page.locator('#dash-why-line')).toHaveCount(0);
 });
 
 test('a quiet day offers one calm next step, and the exam line links to Settings', async ({ page }) => {

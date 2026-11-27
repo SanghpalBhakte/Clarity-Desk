@@ -55,12 +55,11 @@ test.describe('lighter rows', () => {
     await expect(page.locator('#c2-sheet').getByRole('button', { name: 'Tomorrow' })).toBeFocused();
   });
 
-  test('Why this order sits at the end of the list', async ({ page }) => {
+  test('late work is one line above the rows, so the list needs no order note; one "more" link', async ({ page }) => {
     const today = await seedBusyToday(page);
-    await expect(today.locator('.panel-header .dash-why')).toHaveCount(0);
-    const foot = today.locator('.due-foot');
-    await expect(foot).toContainText('Why this order?');
-    await expect(foot).toContainText('+3 more in Tasks');
+    await expect(today.locator('.dash-why')).toHaveCount(0);
+    await expect(today.locator('.stale-what')).toHaveText('2 Late · oldest 3 days');
+    await expect(today.locator('.due-foot')).toHaveText('+1 more in Tasks');
   });
 
   test('busy phone day fits the guardrails', async ({ page }) => {
@@ -85,11 +84,11 @@ test.describe('lighter rows', () => {
     }
   });
 
-  test('360px: a long lab name wraps whole and the status stays on screen', async ({ page }) => {
+  test('360px: a long lab name sits on one line (short name if needed) and the status stays on screen', async ({ page }) => {
     const today = await seedBusyToday(page, { width: 360, height: 780, at: '2026-09-24T16:10:00' });
-    const row = today.locator('.c2-row:not(.t).needs-mark').filter({ hasText: 'Database Management Systems Laboratory' });
+    const row = today.locator('.c2-row:not(.t).needs-mark').filter({ has: page.locator('.c2-nm b[data-full="Database Management Systems Laboratory (Combined Batch A+B)"]') });
     await expect(row).toHaveCount(1);
-    await expect(row.locator('.c2-nm b')).not.toContainText('…');
+    expect(await row.locator('.c2-nm b').evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'the name is not cut off').toBe(true);
     const st = (await row.locator('.c2-st').boundingBox())!;
     const nm = (await row.locator('.c2-nm').boundingBox())!;
     expect(st.x + st.width).toBeLessThanOrEqual(360);
@@ -124,7 +123,7 @@ test.describe('come back', () => {
   test('ended and unmarked classes never fold', async ({ page }) => {
     const today = await seedBusyToday(page, { extra: marked('DS_0900') });
     await expect(today.locator('.c2-row:not(.t).needs-mark')).toHaveCount(1);
-    await expect(today.locator('.c2-row:not(.t).needs-mark')).toContainText('Probability and Statistics');
+    await expect(today.locator('.c2-row:not(.t).needs-mark .c2-nm b')).toHaveText(/^(Probability and Statistics|PBST)$/);
     await expect(today.locator('.c2-row:not(.t)').filter({ hasText: 'Data Structures' })).toHaveCount(0);
   });
 
@@ -198,9 +197,11 @@ test.describe('come back', () => {
 
   test('ticking a task still works: the row leaves and the next one comes up', async ({ page }) => {
     const today = await seedBusyToday(page, { install: true });
-    await expect(today.locator('.task-ledger-item').nth(2)).toContainText('End sem prep');
-    await today.locator('.task-ledger-item').nth(2).getByRole('checkbox').click();
-    await expect(today.locator('.task-ledger-item').nth(2)).toContainText('Mini project');
+    await expect(today.locator('.task-ledger-item').nth(0)).toContainText('End sem prep');
+    await expect(today.locator('.task-ledger-item').nth(2)).toContainText('Maths sheet');
+    await today.locator('.task-ledger-item').nth(0).getByRole('checkbox').click();
+    await expect(today.locator('.task-ledger-item').nth(0)).toContainText('Mini project');
+    await expect(today.locator('.task-ledger-item').nth(2)).toContainText('Report draft');
   });
 });
 

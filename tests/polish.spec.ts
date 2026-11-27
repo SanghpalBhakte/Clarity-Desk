@@ -29,7 +29,6 @@ const SIZES = [12, 14, 16, 20, 34, 38, 22];
 
 // Not calm yet: [screen][rule] -> the ticket that makes it pass. Remove an entry when its ticket lands.
 const PENDING: Partial<Record<Screen, Partial<Record<Rule, string>>>> = {
-  today: { 'title-one-line': '#460', 'rows-two-lines': '#460', 'no-clipped-text': '#460', 'font-sizes': '#460' },
   tasks: { 'no-clipped-text': '#461', 'font-sizes': '#461' },
   subjects: { 'font-sizes': '#462' },
   settings: { 'no-clipped-text': '#463', 'no-course-codes': '#463', 'font-sizes': '#463' },
@@ -46,6 +45,7 @@ function collect(args: { sizes: number[]; year: string }): { rule: string; what:
   const page = document.querySelector('.section-page.active') as HTMLElement | null;
   if (!page) return [{ rule: 'no-sideways-scroll', what: 'no active page' }];
   const vis = (el: Element) => {
+    if (el.closest('.c2-ul, .c2-now-ul')) return false;   // swipe underlays: under the row, seen only mid-swipe
     const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return false;
     for (let e: Element | null = el; e; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false; }
     return true;
@@ -56,7 +56,7 @@ function collect(args: { sizes: number[]; year: string }): { rule: string; what:
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     if (!(n.textContent || '').trim()) continue;
     const el = n.parentElement as HTMLElement;
-    if (el && !texts.includes(el) && !el.closest('script,style,svg,[aria-hidden="true"] .sr-only') && vis(el)) texts.push(el);
+    if (el && !texts.includes(el) && !el.closest('script,style,svg,.sr-only') && vis(el)) texts.push(el);
   }
 
   if (document.documentElement.scrollWidth > innerWidth + 1) out.push({ rule: 'no-sideways-scroll', what: `page is ${document.documentElement.scrollWidth}px wide` });
@@ -64,20 +64,33 @@ function collect(args: { sizes: number[]; year: string }): { rule: string; what:
   for (const t of document.querySelectorAll('.c2-lt-title, .c2-dtitle')) {
     if (!vis(t)) continue;
     const lh = parseFloat(getComputedStyle(t).lineHeight) || parseFloat(getComputedStyle(t).fontSize) * 1.2;
-    if (t.getBoundingClientRect().height > lh * 1.5) out.push({ rule: 'title-one-line', what: name(t) });
+    if (t.getBoundingClientRect().height > lh * 1.5 || t.scrollWidth > t.clientWidth + 1) out.push({ rule: 'title-one-line', what: name(t) });
   }
 
-  // Lines in a row: distinct heights at which its text sits (side-by-side columns count once).
+  // Lines in a row: distinct heights at which its text sits, counted per column (text that shares no horizontal
+  // space is a side column, like a time or a status centred beside a name and its second line).
   for (const li of page.querySelectorAll('li, .c2-row, .task-ledger-item')) {
     if (!vis(li) || li.querySelector('li')) continue;
-    const tops: number[] = [];
+    const cols: { l: number; r: number; tops: number[] }[] = [];
     const w = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
     for (let n = w.nextNode(); n; n = w.nextNode()) {
       if (!(n.textContent || '').trim() || !vis(n.parentElement!)) continue;
       const rg = document.createRange(); rg.selectNodeContents(n);
-      for (const r of rg.getClientRects()) if (r.height > 4 && !tops.some((y) => Math.abs(y - r.top) < 6)) tops.push(r.top);
+      // Text cut with "…" only takes the space it is shown in: clip to the nearest box that hides overflow.
+      let clip: Element | null = n.parentElement;
+      while (clip && clip !== li && getComputedStyle(clip).overflowX === 'visible') clip = clip.parentElement;
+      const box = (clip || li).getBoundingClientRect();
+      for (const rr of rg.getClientRects()) {
+        const r = { top: rr.top, left: Math.max(rr.left, box.left), right: Math.min(rr.right, box.right) };
+        if (rr.height <= 4 || r.right <= r.left) continue;
+        let col = cols.find((c) => r.left < c.r && r.right > c.l);
+        if (!col) cols.push(col = { l: r.left, r: r.right, tops: [] });
+        col.l = Math.min(col.l, r.left); col.r = Math.max(col.r, r.right);
+        if (!col.tops.some((y) => Math.abs(y - r.top) < 6)) col.tops.push(r.top);
+      }
     }
-    if (tops.length > 2) out.push({ rule: 'rows-two-lines', what: `${tops.length} lines: ${name(li)}` });
+    const lines = Math.max(0, ...cols.map((c) => c.tops.length));
+    if (lines > 2) out.push({ rule: 'rows-two-lines', what: `${lines} lines: ${name(li)}` });
   }
 
   for (const el of texts) {

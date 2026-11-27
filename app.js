@@ -9190,7 +9190,7 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       const att = getSubjectAttendance(sj);
       if (att.pct === null || att.isSafe) return;
       if (!riskSubject || att.exactPct < riskSubject.exactPct) {
-        riskSubject = { name: sj.name, pct: att.pct, pctLabel: att.pctLabel, exactPct: att.exactPct, targetPct: att.targetPct, classesToAttend: att.classesToAttend };
+        riskSubject = { name: sj.name, code: sj.code, pct: att.pct, pctLabel: att.pctLabel, exactPct: att.exactPct, targetPct: att.targetPct, classesToAttend: att.classesToAttend };
       }
     });
     const f = buildTodayFocus({ dayClasses, attendanceData, dateStr, currentMin, task, riskSubject, dismissed: readDismissedFocus(), skipUnmarked });
@@ -9203,6 +9203,9 @@ function todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayId
       const n = riskSubject.classesToAttend;
       const pct = riskSubject.pctLabel ?? riskSubject.exactPct ?? riskSubject.pct;
       out.markKey = null;
+      // Today's smart line says it in one sentence (short name, whole percent, rounded down like the ring).
+      const floorPct = Math.floor(Number(riskSubject.exactPct ?? riskSubject.pct));
+      out.risk = `<button type="button" class="today-risk-subj" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">${escHtml_cd(subjectShortName(riskSubject.name, riskSubject.code))}</button> is at ${floorPct}%. ${n === 1 ? 'Go to your next class to get back.' : `Go to the next ${n} to get back.`}`;
       return `
     <div class="today-focus is-risk today-risk" role="region" aria-label="Next step">
       <p class="today-risk-line"><button type="button" class="today-risk-subj" data-subject="${attrSafe(f.subject || '')}" onclick="${call}">${escHtml_cd(riskSubject.name)}</button> is at ${escHtml_cd(String(pct))}%, under your ${riskSubject.targetPct}%. Go to the next ${n === 1 ? 'class' : `${n} in a row`} to get back.</p>
@@ -9530,9 +9533,9 @@ function c2NowHTML(x, currentMin) {
     <section class="c2-now${todaySettling(x.key) ? ' is-settling' : ''}" data-row="${key}" aria-label="In class now: ${c2Attr(c.subject)}" aria-current="time">
       <div class="c2-now-ul" aria-hidden="true"><span class="y">Present</span><span class="n">Absent</span></div>
       <div class="c2-face"${x.status === 'unset' ? ' data-swipe="now"' : ''} data-key="${key}">
-        <p class="c2-now-k">In class now</p>
+        <p class="c2-now-k">In class now${x.to !== null ? ` · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : ''}</p>
         <h2>${name}</h2>
-        <p class="c2-now-m">${formatDisplayTime(c.time)}${c.end ? ` to ${formatDisplayTime(c.end)}` : ''}${c.room ? `, ${escHtml_cd(c.room)}` : ''}${x.to !== null ? ` · <span data-beacon-count>${formatCountdown(x.to - currentMin)}</span> left` : ''}</p>
+        <p class="c2-now-m">${formatDisplayTime(c.time)}${c.end ? ` to ${formatDisplayTime(c.end)}` : ''}${c.room ? ` · ${escHtml_cd(c.room)}` : ''}</p>
         ${x.to !== null ? `<div class="c2-prog" role="progressbar" aria-label="Class progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" data-beacon-bar><i style="width:${pct}%"></i></div>` : ''}
         ${st ? `<div class="c2-fx">${c2RingHTML(st)}<div class="c2-fx-t"><b>${st.pct}% in ${escHtml_cd(classShortName(c))}</b><span>${st.attended} of ${st.held} classes so far</span></div></div>` : ''}
         <div class="c2-acts">${x.status === 'unset'
@@ -9596,6 +9599,25 @@ function c2OpenSectionHTML(c) {
   return `<p class="c2-sl">Open</p>${list.map(x => `<button type="button" class="c2-opt c2-res" ${c2ResAttr(x)}><span>${escHtml_cd(x.r.label || 'Untitled')}<small>${escHtml_cd(x.sub)}</small></span><span class="chk" aria-hidden="true">↗</span></button>`).join('')}`;
 }
 
+// A class name on one line (docs/POLISH.md): the full name, plus shorter names best first (the strip's own list)
+// for c2FitNames to try when it does not fit.
+function c2NameHTML(c) {
+  const full = String(c.subject || '');
+  const shorter = stripLabelCandidates(c, loadStripLabels()[stripSubjectKey(c)]).filter(x => x !== full);
+  return `<b${shorter.length ? ` data-full="${c2Attr(full)}" data-short="${c2Attr(JSON.stringify(shorter))}"` : ''}>${escHtml_cd(full)}</b>`;
+}
+// Swaps a class name that would be cut for the longest shorter name that fits, at the width it has now. Display only.
+function c2FitNames() {
+  document.querySelectorAll('#page-dashboard .c2-nm b[data-short]').forEach(b => {
+    let names;
+    try { names = [b.dataset.full, ...JSON.parse(b.dataset.short)]; } catch (e) { return; }
+    for (const n of names) {
+      b.textContent = n;
+      if (!b.clientWidth || b.scrollWidth <= b.clientWidth + 1) break;
+    }
+  });
+}
+
 function c2RowHTML(x, { currentMin, sameTime }) {
   const c = x.c;
   const swipe = (x.state === 'ended' || x.state === 'live') && x.status === 'unset';
@@ -9614,7 +9636,7 @@ function c2RowHTML(x, { currentMin, sameTime }) {
       ${swipe ? `<div class="c2-ul" aria-hidden="true"><span class="c2-ul-l">${icons.check()}Present</span><span class="c2-ul-r"><button type="button" class="ab" tabindex="-1" data-c2-mark="skipped" data-key="${key}">Absent</button><button type="button" class="mo" tabindex="-1" data-c2-open data-key="${key}">More</button></span></div>` : ''}
       <button type="button" class="c2-face"${swipe ? ' data-swipe="class"' : ''} data-key="${key}" aria-haspopup="dialog">
         <time>${formatDisplayTime(c.time)}</time>
-        <span class="c2-nm"><b>${escHtml_cd(c.subject)}</b>${subLine ? `<small>${subLine}</small>` : ''}</span>
+        <span class="c2-nm">${c2NameHTML(c)}${subLine ? `<small>${subLine}</small>` : ''}</span>
         ${status}
       </button>
       ${next ? `<div class="c2-rowlinks"><button type="button" class="c2-skipq" data-c2-open data-key="${key}">Can I skip this?</button>${studyLink}</div>` : ''}
@@ -9757,6 +9779,7 @@ const c2Hhmm = (h) => { const m = Math.round(h * 60); return `${String(Math.floo
 // Lays the strip out at its real width. Blocks are to scale; a label shows only if the whole word fits.
 let c2MeasureCtx = null;
 function c2PaintStrip() {
+  c2FitNames();
   const strip = document.querySelector('#page-dashboard .c2-strip');
   if (!strip || !c2Day || !c2Day.strip) return;
   const width = strip.clientWidth;
@@ -9783,6 +9806,12 @@ function c2PaintStrip() {
   const mark = !c2Day.tomorrow && nowH <= lay.end ? `<span class="c2-nowmark" style="left:${Math.max(1, Math.min(width - 1, x(nowH)))}px"></span>` : '';
   const first = Math.min(...c2Day.strip.map(e => e.from)), last = Math.max(...c2Day.strip.map(e => e.to));
   strip.innerHTML = `<div class="c2-track"></div>${gap}${blocks}${mark}<div class="c2-ends"><span>${formatDisplayTime(c2Hhmm(first))}</span><span>${formatDisplayTime(c2Hhmm(last))}</span></div>`;
+}
+
+// Everything on Today that depends on the width it has: the strip, class names, the large title.
+function c2Refit() {
+  c2PaintStrip();
+  if (typeof window.c2SyncShell === 'function') window.c2SyncShell();
 }
 
 // Tapping a block takes you to its row and flashes it once; a class with no row (the live one) opens its sheet.
@@ -10194,8 +10223,8 @@ function wireRowGestures(root) {
     clearTimeout(c2Hold && c2Hold.t);
     openClassSheet(face.dataset.key);
   });
-  if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => { clearTimeout(wireRowGestures.t); wireRowGestures.t = setTimeout(c2PaintStrip, 120); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(c2PaintStrip).catch(() => {});
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => { clearTimeout(wireRowGestures.t); wireRowGestures.t = setTimeout(c2Refit, 120); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(c2Refit).catch(() => {});
 }
 
 function allTasks() {
@@ -10928,9 +10957,11 @@ window.toggleStaleTasks = function() {
   renderPage(state.currentPage);
   setTimeout(() => document.querySelector('.stale-toggle')?.focus(), 0);
 };
-// "Mark all done": closes every older task of the student's own, one Undo for all.
-window.resolveStaleTasks = function() {
-  const list = state.customTasks.filter(isTaskStale);
+// "Mark all done": closes the student's own older tasks (Tasks), or the late ones Today lists ('today'), one Undo for all.
+let todayLateIds = [];
+window.resolveStaleTasks = function(scope) {
+  const today = scope === 'today';
+  const list = state.customTasks.filter(today ? (t => todayLateIds.includes(t.id) && t.status === 'pending') : isTaskStale);
   if (!list.length) return;
   const before = list.map(t => ({ ...t }));
   list.forEach(t => { t.status = 'submitted'; });
@@ -10939,8 +10970,8 @@ window.resolveStaleTasks = function() {
   haptic();
   renderPage(state.currentPage);
   updateNavBadges();
-  showUndoToast(`${list.length} older task${list.length !== 1 ? 's' : ''} marked done`, () => {
-    // These are past 14 days, so closing them cleared them: put the copies back.
+  showUndoToast(`${list.length} ${today ? 'late' : 'older'} task${list.length !== 1 ? 's' : ''} marked done`, () => {
+    // Closing a task long past its date can clear it: put the copies back.
     before.forEach(c => { const x = state.customTasks.find(y => y.id === c.id); if (x) x.status = c.status; else state.customTasks.push(c); });
     saveCustomTasks();
     renderPage(state.currentPage);
@@ -12436,7 +12467,7 @@ function renderDashboard() {
   })();
   // One line, in words: the overall number and what it allows (every figure is already computed above).
   const c2AttLine = (!hasAttendanceData || attendancePct === null || hideAttendancePanel) ? ''
-    : `Overall <b>${escHtml_cd(attendancePctLabel)}%</b>, ${!dashGuidance.isSafe ? `below the ${attTarget}% rule` : Number.isFinite(dashGuidance.safeSkips) && dashGuidance.safeSkips > 0 ? `you can miss ${dashGuidance.safeSkips} more` : 'right on the line'}`;
+    : `Overall <b>${escHtml_cd(attendancePctLabel)}%</b> · ${!dashGuidance.isSafe ? `below ${attTarget}%` : Number.isFinite(dashGuidance.safeSkips) && dashGuidance.safeSkips > 0 ? `can miss ${dashGuidance.safeSkips}` : 'right on the line'}`;
   // The free row says which task could go there: the first own task that is late or due within 3 days (display only).
   const c2GapTask = (() => {
     const t = allTasks().filter(a => a.status === 'pending' && a.dueDate && !a.noDeadline && dueDaysLeft(a.dueDate) !== null && dueDaysLeft(a.dueDate) <= 3)
@@ -12518,13 +12549,15 @@ function renderDashboard() {
       }
       return (a.dueDate || '').localeCompare(b.dueDate || '');
     });
-  const dueRows = pickDueRows(urgentTasks);
+  // Late work is one line, apart from Due (docs/POLISH.md): every task past its date, oldest first. Due lists the rest.
+  const lateTasks = staleTasks.concat(urgentTasks.filter(isTaskOverdue)).sort((x, y) => String(x.dueDate).localeCompare(String(y.dueDate)));
+  todayLateIds = lateTasks.map(t => t.id);
+  const dueRows = pickDueRows(urgentTasks.filter(a => !isTaskOverdue(a)));
   const dueShown = night ? dueRows.rows.slice(0, 2) : dueRows.rows;
-  const moreTasks = Math.max(0, pending - dueShown.length - staleTasks.length);
+  const moreTasks = Math.max(0, pending - dueShown.length - lateTasks.length);
 
-  // One calm line for tasks long past their date. "Look through" opens them
-  // here, each with Done or Move (the same resolveTask as the next-step row).
-  const staleOwn = staleTasks.filter(t => state.customTasks.some(x => x.id === t.id));
+  // "Look through" opens the late tasks here, each with Done or Move (the same resolveTask as the next-step row).
+  const staleOwn = lateTasks.filter(t => state.customTasks.some(x => x.id === t.id));
   const staleRowHTML = (t) => {
     const own = staleOwn.includes(t);
     return `
@@ -12540,16 +12573,17 @@ function renderDashboard() {
         </span>
       </li>`;
   };
-  const staleHTML = staleTasks.length ? `
-    <div class="stale-tasks${staleTasksOpen ? ' is-open' : ''}${urgentTasks.length ? '' : ' is-alone'}">
+  const lateDays = lateTasks.length ? -dueDaysLeft(lateTasks[0].dueDate) : 0;
+  const staleHTML = lateTasks.length ? `
+    <div class="stale-tasks${staleTasksOpen ? ' is-open' : ''}${dueShown.length ? '' : ' is-alone'}">
       <div class="stale-line">
-        <span class="stale-what"><strong>${staleTasks.length} older task${staleTasks.length !== 1 ? 's' : ''}</strong> ${staleTasksSpan(staleTasks)}</span>
+        <span class="stale-what"><span class="c2-st bad">${icons.alert()}<strong>${lateTasks.length} Late</strong></span> · ${lateTasks.length > 1 ? 'oldest ' : ''}${lateDays} day${lateDays !== 1 ? 's' : ''}</span>
         <span class="stale-acts">
           <button type="button" class="stale-toggle" aria-expanded="${staleTasksOpen}" aria-controls="stale-list" onclick="toggleStaleTasks()">${staleTasksOpen ? 'Hide' : 'Look through'}</button>
         </span>
       </div>
-      <ul id="stale-list" class="stale-list"${staleTasksOpen ? '' : ' hidden'}>${staleTasksOpen ? staleTasks.map(staleRowHTML).join('') : ''}</ul>
-      ${staleTasksOpen && staleOwn.length > 1 ? `<p class="stale-bulk">Finished these already? <button type="button" class="stale-all" onclick="resolveStaleTasks()">Mark these ${staleOwn.length} done</button></p>` : ''}
+      <ul id="stale-list" class="stale-list"${staleTasksOpen ? '' : ' hidden'}>${staleTasksOpen ? lateTasks.map(staleRowHTML).join('') : ''}</ul>
+      ${staleTasksOpen && staleOwn.length > 1 ? `<p class="stale-bulk">Finished these already? <button type="button" class="stale-all" onclick="resolveStaleTasks('today')">Mark these ${staleOwn.length} done</button></p>` : ''}
     </div>` : '';
 
   // Attendance panel: the big number plus ONE sentence (it replaces the
@@ -12589,7 +12623,8 @@ function renderDashboard() {
 
   // The next-step line now only carries the attendance warning for one
   // subject: classes mark on the rail and late tasks sort out in their row.
-  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks: [], skipUnmarked: true });
+  const focusOut = {};
+  const focusHTML = isEmptyDesk ? '' : todayFocusHTML({ dayClasses, attendanceData, dateStr, currentMin, dayIdx, urgentTasks: [], skipUnmarked: true, out: focusOut });
 
   // One banner at a time, by fixed priority. Attendance says itself once: when
   // the risk banner shows, the line under the title moves on to the next thing.
@@ -12618,10 +12653,15 @@ function renderDashboard() {
   const smartText = c2SmartLine({ mode: night ? 'night' : evening ? 'evening' : 'day', dayClasses, tomorrowClasses, activeClass, nextClass, currentMin, unmarkedCount: unmarkedNow, dueTomorrowTitle: dueTom ? dueTom.title : '' });
   // The greeting is the large title by day and in the evening; at night the title stays "Tomorrow" and the greeting takes the date's place.
   const headGreeting = askName ? '' : getDynamicGreeting(firstName, { overdue: recentOverdue, holiday: onHoliday, parts: true, plain: true }).title;
-  if (typeof window !== 'undefined') window.c2Head = headGreeting ? { greeting: headGreeting, night } : null;
+  // Short form for a narrow phone: "Morning, Asha." (the large title never wraps).
+  const greetHour = now.getHours();
+  const headShort = firstName ? `${greetHour >= 5 && greetHour < 12 ? 'Morning' : greetHour >= 12 && greetHour < 17 ? 'Afternoon' : greetHour >= 17 && greetHour < 21 ? 'Evening' : 'Hi'}, ${firstName}.` : '';
+  if (typeof window !== 'undefined') window.c2Head = headGreeting ? { greeting: headGreeting, short: headShort, night } : null;
   const blankSmart = blankDesk ? 'Add your timetable and Today plans the day for you.' : '';
   const holidaySmart = onHoliday && recentOverdue === 0 && !examSoon ? 'Holiday: classes and attendance are paused.' : '';
-  const smartHTML = askName ? '' : holidaySmart ? holidaySmart : ctxFirst ? (greetingSub || blankSmart) : (smartText ? escHtml_cd(smartText) : (greetingSub || blankSmart));
+  // One smart line (docs/POLISH.md): a subject under the aim first, then the rest as before.
+  const riskSmart = banner === 'risk' && focusOut.risk ? focusOut.risk : '';
+  const smartHTML = askName ? '' : riskSmart ? riskSmart : holidaySmart ? holidaySmart : ctxFirst ? (greetingSub || blankSmart) : (smartText ? escHtml_cd(smartText) : (greetingSub || blankSmart));
 
   el.innerHTML = `
     <!-- 1. ARCHITECTURAL MASTHEAD & GREETING -->
@@ -12658,7 +12698,7 @@ function renderDashboard() {
     <!-- 2. PRIMARY FOCUS ANCHOR (CHRONO BEACON) -->
     ${banner === 'welcome' ? welcomeBackHTML : ''}
     ${banner === 'safety' ? beaconHTML : ''}
-    ${banner === 'risk' ? focusHTML : ''}
+    ${banner === 'risk' && !riskSmart ? focusHTML : ''}
     ${banner === 'setup' ? setupBanner : ''}
     ${blankDesk ? setupBanner : ''}
 
@@ -12697,8 +12737,9 @@ function renderDashboard() {
             <span class="c2-hlinks">${hideSchedulePanel ? `<button class="panel-action" onclick="navigateTo('summary')">This week →</button>` : ''}<button class="panel-action" onclick="navigateTo('assignments')">All tasks →</button></span>
           </div>
 
-          <!-- Open task rows -->
+          <!-- Late first, as one line; then the open task rows -->
           <div style="position:relative">
+            ${staleHTML}
             ${dueShown.length > 0 ? `<ol class="c2-rows c2-trows" aria-label="Due soon">` + dueShown.map(a => {
               const isOngoing = !!a.noDeadline || (a.taskType === 'mission' && !a.dueDate);
               const rel = isOngoing ? { label: 'Ongoing', cls: 'ongoing' } : formatRelativeDueDate(a.dueDate);
@@ -12709,7 +12750,7 @@ function renderDashboard() {
               const step = typeof a.firstStep === 'string' ? a.firstStep.trim() : '';
               const daysLeft = isOngoing ? null : dueDaysLeft(a.dueDate);
               const metaBits = [
-                realSubject ? `<span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(realSubject)}</span>` : '',
+                realSubject ? `<span onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" style="color:var(--text-secondary);font-weight:600;cursor:pointer">${escHtml_cd(subjectShortName(realSubject, a.code))}</span>` : '',
                 step && daysLeft !== null && daysLeft <= 2 && daysLeft >= 0 ? `<span>Start: ${escHtml_cd(step)}</span>` : '',
               ].filter(Boolean);
               // Own tasks swipe left for Move; the Move sheet (openMoveSheet) is also behind a tap or hold on the name.
@@ -12729,21 +12770,18 @@ function renderDashboard() {
                     ${when}
                   </div>
                 </li>`;
-            }).join('') + `</ol>` : staleTasks.length || blankDesk ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
+            }).join('') + `</ol>` : lateTasks.length || blankDesk ? '' : `<div style="padding:12px 0;color:var(--text-muted);font-size:var(--text-base)">${iconText(icons.check(), onHoliday ? 'Nothing due. Go enjoy your break.' : allTasks().length ? 'All caught up. No urgent tasks.' : 'No tasks yet.')}</div>
               ${onHoliday || isEmptyDesk ? '' : `<p class="dash-quiet-next">Know what's coming? <button type="button" class="holiday-note-action" onclick="const i=document.getElementById('quick-add-input');if(i){i.focus();i.scrollIntoView({block:'center'})}">Add the next thing that's due</button>${sylTodayPct !== null ? ` or <button type="button" class="holiday-note-action" onclick="navigateTo('subjects')">pick up a syllabus topic</button>` : ''}.</p>`}`}
-            ${dueShown.length > 1 || moreTasks > 0 ? `<div class="due-foot">
-              ${dueShown.length > 1 ? `<button type="button" class="dash-more-link dash-why" aria-expanded="false" aria-controls="dash-why-line" onclick="const l=document.getElementById('dash-why-line');l.hidden=!l.hidden;this.setAttribute('aria-expanded',String(!l.hidden))">Why this order?</button>` : ''}
-              ${moreTasks > 0 ? `<button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more in Tasks</button>` : ''}
+            ${moreTasks > 0 ? `<div class="due-foot">
+              <button type="button" class="dash-more-link" onclick="navigateTo('assignments')">+${moreTasks} more in Tasks</button>
             </div>` : ''}
-            ${dueShown.length > 1 ? `<p id="dash-why-line" class="dash-why-line" hidden>Late first, then by due date, then ongoing work.</p>` : ''}
             ${restingCount > 0 ? `<div class="holiday-rest-note">${icons.sun()} ${restingCount} ongoing task${restingCount !== 1 ? 's are' : ' is'} resting until you're back.</div>` : ''}
-            ${staleHTML}
           </div>
 
           <!-- Inline Task Quick Add -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
             <input type="text" id="quick-add-input" class="form-input" aria-label="Add a task" enterkeyhint="done" placeholder="+ e.g. Lab report due Friday" onkeydown="if(event.key==='Enter' && !event.isComposing){event.preventDefault();handleQuickAdd()}" style="font-size:var(--text-base);padding:7px 12px;height:36px;flex:1">
-            <button class="btn btn-sm ${setupLast && !blankDesk ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;font-size:var(--text-sm);flex-shrink:0">${setupLast && !blankDesk ? 'Add deadline' : 'Add'}</button>
+            <button class="btn btn-sm ${setupLast && !blankDesk ? 'btn-primary' : 'btn-secondary'}" onclick="handleQuickAdd()" style="padding:6px 12px;flex-shrink:0">${setupLast && !blankDesk ? 'Add deadline' : 'Add'}</button>
           </div>
         </div>
 
@@ -12753,7 +12791,7 @@ function renderDashboard() {
       <div class="dashboard-right-panel">
 
         <!-- ATTENDANCE: Redesigned ambient right panel -->
-        <div class="dashboard-panel"${hideAttendancePanel ? ' style="display:none"' : ''}>
+        <div class="dashboard-panel${c2AttLine ? ' panel-att has-line' : ''}"${hideAttendancePanel ? ' style="display:none"' : ''}>
           ${attAsk ? setupBanner : !hasAttendanceData ? `
           <div class="panel-header">
             <div class="panel-title" role="heading" aria-level="2">Attendance</div>
@@ -20664,12 +20702,24 @@ function setupFABDrag() {
     const d = document.getElementById('c2-lt-date');
     const ct = document.getElementById('c2-compact-title');
     const back = document.getElementById('c2-back-btn');
-    if (t && t.textContent !== title) t.textContent = title;
+    // The large title stays on one line (docs/POLISH.md): the greeting, else its short form ("Morning, Asha."),
+    // else Today with the short greeting moved into the date line. Measured where it is shown (not on a laptop).
+    let moved = '';
+    if (t) {
+      const tries = head && !head.night ? [title, head.short, ''].filter((x, i, a) => x !== undefined && a.indexOf(x) === i) : [title];
+      for (const g of tries) {
+        const txt = g || dayLabel();
+        if (t.textContent !== txt) t.textContent = txt;
+        if (!t.clientWidth || t.scrollWidth <= t.clientWidth + 1) break;
+      }
+      if (head && !head.night && t.textContent === dayLabel() && title !== dayLabel()) moved = String(head.short || title).replace(/\.$/, '');
+    }
     if (ct && ct.textContent !== barTitle) ct.textContent = barTitle;
     if (d) {
       const now = new Date();
       if (onToday && dayLabel() === 'Tomorrow') now.setDate(now.getDate() + 1);
-      const txt = head && head.night ? head.greeting : now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      const date = now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      const txt = head && head.night ? head.greeting : moved ? `${moved} · ${date}` : date;
       if (d.textContent !== txt) d.textContent = txt;
     }
     if (back) back.hidden = !hasBack;

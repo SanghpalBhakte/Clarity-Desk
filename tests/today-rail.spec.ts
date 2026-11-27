@@ -143,37 +143,34 @@ test('200% zoom (a 375px phone is 188 CSS px wide): no sideways scroll, rows and
   }
 });
 
-test('a recently late task sorts out in its own Due row; no "General" filler', async ({ page }) => {
+test('a recently late task sorts out from the Late line (Done or Move); no "General" filler', async ({ page }) => {
   const today = await open(page, '2026-09-24T07:00:00', { cos_custom_tasks: [task('late-1', 'OS quiz', '2026-09-22'), task('soon-1', 'CN worksheet', '2026-09-26', 'CN')] });
-  const row = today.locator('.task-ledger-item', { hasText: 'OS quiz' });
-  // The tick is Done; Tomorrow / Pick a day sit in the Move sheet behind the name (the old Done button is gone on purpose).
-  await expect(row.getByRole('button', { name: 'Done', exact: true })).toHaveCount(0);
-  await expect(row.getByRole('checkbox')).toBeVisible();
-  await row.locator('.c2-tname').click();
-  for (const name of ['Tomorrow', 'Pick a day']) {
-    const b = page.locator('#c2-sheet').getByRole('button', { name, exact: true });
+  // Late is one line above the Due rows (#460); Look through opens it with Done and Move.
+  await expect(today.locator('.task-ledger-item', { hasText: 'OS quiz' })).toHaveCount(0);
+  await today.getByRole('button', { name: 'Look through' }).click();
+  const row = today.locator('.stale-row', { hasText: 'OS quiz' });
+  for (const name of ['Done', 'Move']) {
+    const b = row.getByRole('button', { name, exact: true });
     await expect(b).toBeVisible();
     expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
-  await page.keyboard.press('Escape');
   await expect(row).not.toContainText('General');
   await expect(today.locator('.task-ledger-item', { hasText: 'CN worksheet' })).toContainText('CN');
   await expect(today.locator('.today-focus')).toHaveCount(0);
 });
 
-test('a subject under the line is one plain sentence, not a card, and can be put aside', async ({ page }) => {
+test('a subject under the line is the smart line: one plain sentence with its short name, not a card', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 812 });
   const today = await open(page, '2026-09-24T07:00:00', {
     cos_attendance_baseline: { DBMS: { subjectName: 'Database Management Systems', subjectCode: 'DBMS', present: 17, absent: 6, leave: 0, notEntered: 0 } },
     cos_att_v2_state: { mode: 'v2', decidedAt: '2026-09-01T00:00:00Z' },
   });
-  const line = today.locator('.today-risk-line');
-  await expect(line).toHaveText(/^Database Management Systems is at [\d.]+%, under your 75%\. Go to the next (class|\d+ in a row) to get back\.$/);
-  const box = await today.locator('.today-risk').evaluate((e) => getComputedStyle(e).backgroundColor + '|' + getComputedStyle(e).boxShadow);
-  expect(box).toBe('rgba(0, 0, 0, 0)|none');
-  expect(await line.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'the sentence is not cut off').toBe(true);
-  await today.getByRole('button', { name: 'Not now' }).click();
+  // One smart line (#460): the risk leads it; no separate banner.
+  const line = today.locator('.desk-greeting.c2-smart');
+  await expect(line).toHaveText(/^DBMS is at \d+%\. Go to (your next class|the next \d+) to get back\.$/);
   await expect(today.locator('.today-risk')).toHaveCount(0);
+  expect(await line.evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'the sentence is not cut off').toBe(true);
+  await expect(line.getByRole('button', { name: 'DBMS' })).toBeVisible();
 });
 
 test('day over: the next-class sentence reads as one line of text', async ({ page }) => {

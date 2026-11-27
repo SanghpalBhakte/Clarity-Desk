@@ -278,3 +278,14 @@ Each is its own PR, with its own tests and screenshots.
 - **Mark-ended label:** one wording with the count everywhere: "Mark all N present", "Mark the other N present" when some are marked, "I was there" for one (copy PR after ship, with "Late").
 - Grill closed 2026-11-21; next is the PR walk (#368-#393).
 - **Dev Notes:** this ship shows one combined Dev Note, not the 25 per-PR notes (some contradicted each other). `.devnotes-state.json` was moved past them and one commit carries the student note.
+
+## Calm pass (#460, 2026-11-28)
+
+Approved on the #458 board; checked by `tests/polish.spec.ts` with the messy desk (docs/POLISH.md).
+- **Large title on one line:** the greeting, else "Morning, Name.", else "Today" with the short greeting moved into the date line ("Morning, Asha · Tue 24 Nov"). Fitted by `c2SyncShell` on render, resize and font load.
+- **One smart line:** a subject under the aim leads it ("UHV is at 64%. Go to the next 11 to get back."); the separate risk banner and its "Not now" are gone. Otherwise unchanged.
+- **Class names never wrap:** the full name if it fits one line, else the longest of `stripLabelCandidates` that does (`c2FitNames`; the full name stays in `data-full`).
+- **Late is one line above Due:** "3 Late · oldest 104 days · Look through", covering every task past its date (Look through: Done / Move, "Mark these N done" with Undo). Due lists the rest; "Why this order?" is gone.
+- **Now card:** "In class now · 40 min left" on top; time and room on one line.
+- **Overall line:** "Overall 76% · can miss 3". On a phone the large attendance panel is hidden (the line says it); laptops keep it.
+- **Type scale:** 12, 14, 16, 20, 22, 34 at every width.

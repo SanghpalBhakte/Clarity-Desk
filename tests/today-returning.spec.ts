@@ -1,7 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
-// Today for a student coming back: the day leads, tasks long past their date
-// wait in one "older tasks" line (nothing closed or deleted until the student
+// Today for a student coming back: the day leads, every task past its date
+// waits in one "N Late" line (nothing closed or deleted until the student
 // picks), and attendance shows once, in its own section.
 
 const cls = (subject: string, code: string, time: string, end: string) => ({ subject, code, time, end, type: 'lecture', batches: [] });
@@ -32,13 +32,13 @@ async function seed(page: Page, extra: Record<string, unknown> = {}, realClock =
 const statusOf = (page: Page, id: string) => page.evaluate((id) =>
   (JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]').find((t: any) => t.id === id) || {}).status, id);
 
-test('older tasks fold into one line; the day and recent tasks lead', async ({ page }) => {
+test('late tasks fold into one line; the day and the next due task lead', async ({ page }) => {
   await seed(page, { cos_custom_tasks: TASKS });
   const today = page.locator('#page-dashboard');
   await expect(today.locator('.desk-greeting')).toHaveText('1 task slipped. Pick a new day or mark it done.');
-  await expect(today.locator('.task-ledger-item')).toHaveCount(2);
-  await expect(today.locator('.task-ledger-item').first()).toContainText('OS quiz');
-  await expect(today.locator('.stale-line')).toContainText('2 older tasks from August');
+  await expect(today.locator('.task-ledger-item')).toHaveCount(1);
+  await expect(today.locator('.task-ledger-item').first()).toContainText('CN worksheet');
+  await expect(today.locator('.stale-what')).toHaveText('3 Late · oldest 54 days');
   await expect(today).not.toContainText('DBMS assignment');
   await expect(today).not.toContainText(/\d{2,} days overdue/);
   await expect(today.locator('.stale-list')).toBeHidden();
@@ -49,7 +49,7 @@ test('with only older tasks late, the headline talks about the day', async ({ pa
   await expect(page.locator('#page-dashboard .desk-greeting')).toHaveText(/^(Next: .+ at \d{1,2}:\d{2} (AM|PM)\.|.+ at 9:00 AM\.)/);
 });
 
-test('"Look through" lists older tasks; Done closes one, and "Mark these N done" only appears inside the open list, with Undo', async ({ page }) => {
+test('"Look through" lists late tasks; Done closes one, and "Mark these N done" only appears inside the open list, with Undo', async ({ page }) => {
   const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   await seed(page, { cos_custom_tasks: [task('old-1', 'DBMS assignment', inDays(-40)), task('old-2', 'Revise trees', inDays(-39)), task('old-3', 'Read chapter 4', inDays(-38)), task('soon-1', 'CN worksheet', inDays(2))] }, true);
   const today = page.locator('#page-dashboard');
@@ -70,7 +70,7 @@ test('"Look through" lists older tasks; Done closes one, and "Mark these N done"
   await list.locator('.stale-row', { hasText: 'DBMS assignment' }).getByRole('button', { name: 'Done' }).click();
   // Closed; past 14 days, the existing rule also clears it from the list.
   expect(await statusOf(page, 'old-1')).not.toBe('pending');
-  await expect(today.locator('.stale-line')).toContainText('2 older tasks from');
+  await expect(today.locator('.stale-line')).toContainText('2 Late');
 
   await pause();
   await today.getByRole('button', { name: 'Mark these 2 done' }).click();
@@ -78,10 +78,10 @@ test('"Look through" lists older tasks; Done closes one, and "Mark these N done"
   expect(await statusOf(page, 'old-3')).not.toBe('pending');
   await expect(today.locator('.stale-tasks')).toHaveCount(0);
   await pause();
-  await page.locator('.toast', { hasText: '2 older tasks marked done' }).getByRole('button', { name: 'Undo' }).click();
+  await page.locator('.toast', { hasText: '2 late tasks marked done' }).getByRole('button', { name: 'Undo' }).click();
   expect(await statusOf(page, 'old-2')).toBe('pending');
   expect(await statusOf(page, 'old-3')).toBe('pending');
-  await expect(today.locator('.stale-line')).toContainText('2 older tasks');
+  await expect(today.locator('.stale-line')).toContainText('2 Late');
   // Undo brings a cleared task back whole.
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('cos_custom_tasks') || '[]').find((t: any) => t.id === 'old-2')?.title)).toBe('Revise trees');
 });
