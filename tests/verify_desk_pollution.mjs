@@ -192,8 +192,8 @@ check('16. Garbled text on a real class is still removed by the cleanup', () => 
 });
 
 check('17. Subject Hubs shows one clean-up prompt: the banner, no extra dot on Manage', () => {
-  const summary = appSrc.match(/<summary aria-label="Manage subjects">[^\n]*<\/summary>/);
-  if (!summary) return 'Manage subjects button not found';
+  const summary = appSrc.match(/<summary aria-label="Edit subjects">[^\n]*<\/summary>/);
+  if (!summary) return 'Edit subjects button not found';
   if (summary[0].includes('sj-dot')) return 'dot still shown next to the banner';
   return /\$\{hasPollution \? `\s*<button type="button" class="sj-notice"/.test(appSrc) ? true : 'banner missing';
 });

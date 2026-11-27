@@ -130,7 +130,8 @@ check('A lab at risk colours its card red and the line names the lab', () => {
   const el = { innerHTML: '' };
   app.renderSubjectsOverview(el, app.getSubjectList());
   const h = el.innerHTML;
-  return /sj-card risk/.test(h) && /Lab: Attend the next \d+ to reach 75%/.test(h) && h.includes('Lab 33.33%')
+  // One status line on the row (#462): "Lab at risk · need N".
+  return /sj-row risk/.test(h) && /Lab at risk · need \d+/.test(h)
     ? true : 'card not marked at risk by its lab';
 });
 

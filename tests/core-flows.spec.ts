@@ -210,7 +210,8 @@ test.describe('Clarity Desk core flows', () => {
     await open(page, {});
     await page.evaluate(() => (window as any).navigate('subjects'));
     const titles = page.locator('#page-subjects .sj-title');
-    const name = (await titles.first().textContent())!.trim();
+    // A long name shows its short form on a phone (#462); the full name is in data-full.
+    const name = (await titles.first().evaluate((b) => (b as HTMLElement).dataset.full || b.textContent || ''))!.trim();
     const count = await titles.count();
     const dialog = page.locator('#app-confirm-backdrop');
 
@@ -226,7 +227,7 @@ test.describe('Clarity Desk core flows', () => {
     await expect(dialog).toContainText('Skip this warning next time');
     await dialog.locator('[data-act="no"]').click();
     await expect(titles).toHaveCount(count - 1);
-    await expect(page.locator('#page-subjects .sj-title', { hasText: name })).toHaveCount(0);
+    await expect(page.locator(`#page-subjects .sj-title[data-full="${name}"]`).or(page.locator('#page-subjects .sj-title', { hasText: name }))).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('cos_subject_delete_silent'))).toBeNull();
     expect(native, `native dialogs: ${native.join(' | ')}`).toEqual([]);
     expect(errors, errors.join(' | ')).toEqual([]);
