@@ -1,7 +1,7 @@
 name: Weekly checks
 
-# Sunday 22:00 IST (16:30 UTC): security audit plus the fast architecture and
-# storage checks on main. On a failure it opens (or comments on) one issue
+# Sunday 22:00 IST (16:30 UTC): security audit, the fast architecture and
+# storage checks, and the clutter checks (docs/POLISH.md) on main. On a failure it opens (or comments on) one issue
 # labelled "weekly-checks"; a green week stays quiet. The Monday Claude
 # routine reads that issue. Free: GitHub-hosted runner, no API keys.
 
@@ -17,7 +17,7 @@ permissions:
 jobs:
   weekly:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -27,6 +27,16 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # For the clutter checks (docs/POLISH.md). Same retry as live-check.yml.
+      - name: Install Chromium
+        run: |
+          for attempt in 1 2; do
+            timeout 150 npx playwright install --with-deps chromium && exit 0
+            echo "Install attempt $attempt failed or hung; retrying"
+            sleep 15
+          done
+          npx playwright install chromium
 
       - name: Run the checks
         id: checks
@@ -51,6 +61,7 @@ jobs:
           run "Hosting file list" node tests/verify_hosting_files.mjs
           run "ARCHITECTURE.md names" node tests/verify_docs_names.mjs
           run "Full unit suite" npm test
+          run "Clutter checks (messy desk, every screen)" npx playwright test tests/polish.spec.ts --project=chromium-desktop --reporter=line
           {
             echo
             echo "Lint problems still counted in eslint-suppressions.json: $(node -e 'const s=require("./eslint-suppressions.json");let n=0;for(const f of Object.values(s))for(const r of Object.values(f))n+=r.count;console.log(n)')"

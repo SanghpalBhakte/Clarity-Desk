@@ -46,7 +46,9 @@ Filled with information, not wider rows: laptop two columns, PC three. Lines sta
 | Clutter rules on the messy desk (`tests/messy-desk.mjs`) at 360, 393, 412, 1280, 1920, every Theme, Light and Dark at 393 and 1280 | `tests/polish.spec.ts` | `npm run test:visual` (CI) |
 | No new raw hex colours or px font sizes outside tokens | `tests/verify_style_tokens.mjs` | `npm test` |
 | Contrast and labels in every Theme | `tests/a11y.spec.ts` | `npm run test:a11y` (CI) |
-| Board side by side, live site after ship, weekly | #468 | — |
+| The app next to the approved board, same state, 5 screens at 393 and 1280 | `tests/board-side-by-side.mjs` (board copy in `docs/board/`) | `npm run board:compare` → `test-results/board-side-by-side/`; attach to UI PRs |
+| Clutter rules against the live site | `tests/polish.spec.ts` with `SMOKE_BASE_URL` | `npm run test:smoke`: after `npm run ship`, and daily (`live-check.yml`) |
+| Clutter rules on `main`, weekly | `tests/polish.spec.ts` | Sunday `weekly-checks.yml` |
 
 `tests/polish.spec.ts` lists screens that are not calm yet in `PENDING`, each with its ticket.
 Those tests are expected to fail; when a ticket makes one pass, the test fails until its
