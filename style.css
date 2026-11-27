@@ -5646,13 +5646,13 @@ body::before {
 
 .tk-card.done { opacity: 0.72; }
 
-/* Subjects: risk-first rings, one Manage menu */
+/* Subjects: one quiet "Edit" menu (#462) */
 .tk-more.sj-manage > summary {
   width: auto;
-  padding: 0 14px;
+  padding: 0 4px;
   gap: var(--ds-space-2);
-  border: 1px solid var(--color-text-tertiary);
-  background: var(--color-surface);
+  border: 0;
+  background: none;
   color: var(--color-text-primary);
   font-size: var(--ds-text-14);
   font-weight: 700;
@@ -5692,11 +5692,20 @@ body::before {
 
 .sj-notice strong { color: var(--color-action-primary); white-space: nowrap; }
 
-.sj-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 0 var(--ds-space-6, 32px);
-}
+.sj-list { max-width: 760px; }
+/* #462: At risk, then Safe; each row is the %, then the name and one status. */
+.sj-group + .sj-group { margin-top: 20px; }
+.sj-group-h { margin: 0 0 4px; font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.sj-sum { font-size: 0.875rem; }
+.sj-sum b { font-weight: 700; color: var(--text-primary); }
+.sj-sum .sj-bad { font-weight: 600; color: var(--att-risk-ink, var(--color-error)); }
+.sj-row { min-height: 60px; cursor: pointer; }
+.sj-row .sj-pct { flex: none; width: 64px; }
+.sj-nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sj-nm b { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sj-nm small { font-size: 0.875rem; font-weight: 500; line-height: 1.3; color: var(--text-secondary); }
+.sj-chev { flex: none; width: 8px; height: 8px; margin-right: 6px; border-right: 1.5px solid var(--text-secondary); border-top: 1.5px solid var(--text-secondary); transform: rotate(45deg); }
+.sj-row:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
 /* Ruled rows, not cards; the ring is the one status colour. */
 .attendance-subject-card.sj-card {
@@ -8475,10 +8484,9 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 .sj-ring.risk .sj-ring-track { stroke: color-mix(in srgb, var(--att-risk) 18%, transparent); }
 .sj-ring.watch .sj-ring-track { stroke: color-mix(in srgb, var(--att-watch) 20%, transparent); }
 .sj-ring.safe .sj-ring-track { stroke: color-mix(in srgb, var(--att-safe) 20%, transparent); }
-.sj-card .sj-pct { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
-.sj-card.risk .sj-pct { color: var(--att-risk-ink); }
-.sj-card.watch .sj-pct { color: var(--att-watch-ink); }
-.sj-card.safe .sj-pct { color: var(--att-safe-ink); }
+.sj-card .sj-pct { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; color: var(--text-primary); }
+/* Red is the one status colour: under the line. Safe stays ink. */
+.sj-card.risk .sj-pct, .sj-card.watch .sj-pct { color: var(--att-risk-ink); }
 .sj-card .sj-tier { display: inline-flex; align-items: center; gap: 6px; font-size: .8125rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-secondary); }
 .sj-card .sj-tier::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .sj-card.risk .sj-tier { color: var(--att-risk-ink); }

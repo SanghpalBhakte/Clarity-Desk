@@ -8166,15 +8166,10 @@ function updateThemeSelector(setting) {
 const PAGES = ['dashboard', 'timetable', 'subjects', 'assignments', 'calendar', 'resources', 'links', 'summary', 'settings', 'review'];
 const sectionHistory = [];
 
-// Subject rings animate once per view (opening the tab or a hub), not on
-// every background re-render (sync, focus, manage mode).
-let subjectViewSeq = 0;
-let subjectRingsAnimatedSeq = -1;
 
 function navigate(page, isBack = false, keepActiveSubject = false) {
   if (page !== 'assignments' && (taskSelectMode || taskSelection.size)) { taskSelectMode = false; taskSelection.clear(); }
   if (!PAGES.includes(page)) page = 'dashboard';
-  subjectViewSeq++;
 
   // Unless explicitly instructed to keep active subject, clear activeSubject state
   if (!keepActiveSubject) {
@@ -8257,7 +8252,6 @@ window.navigateBack = function() {
   // If currently inside a single subject hub detail view, back action returns to list or previous route
   if (state.currentPage === 'subjects' && state.activeSubject) {
     state.activeSubject = null;
-    subjectViewSeq++;
     if (sectionHistory.length > 0) {
       const prev = sectionHistory.pop();
       if (prev === 'subjects_overview' || prev === 'subjects') {
@@ -9608,7 +9602,7 @@ function c2NameHTML(c) {
 }
 // Swaps a class name that would be cut for the longest shorter name that fits, at the width it has now. Display only.
 function c2FitNames() {
-  document.querySelectorAll('#page-dashboard .c2-nm b[data-short]').forEach(b => {
+  document.querySelectorAll('#page-dashboard .c2-nm b[data-short], #page-subjects .sj-nm b[data-short]').forEach(b => {
     let names;
     try { names = [b.dataset.full, ...JSON.parse(b.dataset.short)]; } catch (e) { return; }
     for (const n of names) {
@@ -13255,7 +13249,6 @@ function renderTimetable() {
 // ── Subject Hub System ─────────────────────────────────────────
 window.openSubjectHub = function(subjName) {
   if (!subjName) return;
-  subjectViewSeq++;
   const current = state.currentPage;
   if (current === 'subjects' && !state.activeSubject) {
     sectionHistory.push('subjects_overview');
@@ -13270,7 +13263,6 @@ window.openSubjectHub = function(subjName) {
 
 window.closeSubjectHub = function() {
   state.activeSubject = null;
-  subjectViewSeq++;
   if (sectionHistory.length > 0 && sectionHistory[sectionHistory.length - 1] === 'subjects_overview') {
     sectionHistory.pop();
   }
@@ -16344,70 +16336,47 @@ function renderSubjectsOverview(el, subjects) {
     .sort((x, y) => (x.att.pct === null) - (y.att.pct === null) || (x.att.exactPct ?? 0) - (y.att.exactPct ?? 0));
   const riskN = ranked.filter(r => r.tier === 'risk').length;
   const watchN = ranked.filter(r => r.tier === 'watch').length;
-  const summaryLine = `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}` +
-    (riskN ? ` · ${riskN} at risk` : '') + (watchN ? ` · ${watchN} to watch` : '') +
-    (!riskN && !watchN && ranked.some(r => r.tier === 'safe') ? ' · all on track' : '');
-  const TIER_WORD = { risk: 'At risk', watch: 'Watch', safe: 'Safe', none: 'No data' };
-  const RING_C = 2 * Math.PI * 20;
-  // The subject's short name sits inside its ring (DS, DEMP, APS), like a label on a gauge.
+  // Numbers first (#462): "77% overall · 3 at risk". Watch and At risk are both under the line, so both count.
+  const overall = getOverallAttendance();
+  const underN = riskN + watchN;
+  const summaryLine = (overall.pct !== null && overall.hasAnyData ? `<b>${Math.floor(overall.exactPct ?? overall.pct)}%</b> overall` : `${subjects.length} subject${subjects.length !== 1 ? 's' : ''}`) +
+    (underN ? ` · <span class="sj-bad">${underN} at risk</span>` : ranked.some(r => r.tier === 'safe') ? ' · all safe' : '');
   const ownShort = loadStripLabels();
-  const shortOf = (s) => subjectShortName(s.name, s.code, ownShort);
-  const ringCode = (s) => shortOf(s).slice(0, 5);
   // Day one (nothing marked anywhere): one line explains the rings instead of
   // every row saying "not set yet".
   const noneYet = !isSelfStudyMode() && ranked.every(r => r.tier === 'none');
-  const animateRings = subjectRingsAnimatedSeq !== subjectViewSeq;
-  subjectRingsAnimatedSeq = subjectViewSeq;
-
-  const sylList = loadSyllabus();
-  const sylLine = (s) => { const e = findSyllabusEntry(sylList, s.name); return e && e.topics.length ? ` · Syllabus ${syllabusStats(e).pct}%` : ''; };
   // Forget picks for cards that are gone (deleted here or on another device).
   const shownNames = new Set(subjects.map(s => s.name));
   subjectSelection.forEach(n => { if (!shownNames.has(n)) subjectSelection.delete(n); });
   const picked = (s) => subjectManageMode && subjectSelection.has(s.name);
-  const cardsHTML = ranked.map(({ s, att, tier }) => {
-    const pending = allTasks().filter(t => t.status === 'pending' && ((t.subject || '').toLowerCase() === s.name.toLowerCase() || (t.subject || '').toLowerCase() === s.code.toLowerCase())).length;
-    const label = att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}%` : '—';
-    const ringPct = att.pct === null ? 0 : Math.max(0, Math.min(100, att.exactPct !== null ? att.exactPct : att.pct));
-    const th = (att.targetPct / 100) * 2 * Math.PI;
-    const tick = [26 + 16 * Math.sin(th), 26 - 16 * Math.cos(th), 26 + 24 * Math.sin(th), 26 - 24 * Math.cos(th)].map(n => n.toFixed(1));
-    const lineFor = (a) => a.pct === null ? 'Attendance not set yet'
-      : a.isSafe ? (a.safeSkips > 0 ? `You can miss ${a.safeSkips} class${a.safeSkips !== 1 ? 'es' : ''}` : 'On target · attend the next class for a buffer')
-      : `Attend the next ${a.classesToAttend} to reach ${a.targetPct}%`;
-    const line = tier === 'none' ? 'Attendance not set yet' : labIsWorse(att) ? `Lab: ${lineFor(att.labPart)}` : lineFor(att);
-    const projection = attV2ProjectionText(labIsWorse(att) ? att.labPart : att);
-
+  // One row per subject, two lines (#462): the percentage first, the name (full if it fits, else
+  // its short name), one status. Ring, next steps, tasks and syllabus are on the subject's page.
+  const nameHTML = (s) => {
+    const shorter = [...stripLabelCandidates({ subject: s.name }, ownShort[stripSubjectKey({ subject: s.name })]), subjectShortName(s.name, s.code, ownShort)]
+      .filter((x, i, l) => x && x !== s.name && l.indexOf(x) === i);
+    return `<b class="sj-title"${shorter.length ? ` data-full="${c2Attr(s.name)}" data-short="${c2Attr(JSON.stringify(shorter))}"` : ''}>${escHtml_cd(s.name)}</b>`;
+  };
+  const statusOf = (a) => a.isSafe ? (a.safeSkips > 0 ? `Safe · can miss ${a.safeSkips}` : 'Safe · on the line') : `At risk · need ${a.classesToAttend}`;
+  const rowHTML = ({ s, att, tier }) => {
+    const shown = labIsWorse(att) ? att.labPart : att;
+    // Whole percent, rounded down, so a row never reads 75% while it is still under the line.
+    const pct = att.pct !== null ? `${Math.floor(att.exactPct !== null ? att.exactPct : att.pct)}%` : '—';
+    const low = tier === 'risk' || tier === 'watch';
+    const status = tier === 'none' ? 'Not marked yet' : (labIsWorse(att) ? 'Lab ' + statusOf(shown).replace(/^A/, 'a').replace(/^S/, 's') : statusOf(shown));
     return `
-      <div class="card attendance-subject-card sj-card ${tier}" role="button" tabindex="0" style="position:relative;cursor:pointer${picked(s) ? ';outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub(${jsArg_cd(s.name)})`}" title="${escAttr_cd(subjectManageMode ? 'Select ' + s.name : 'Open ' + s.name + ' Hub')}">
-        <svg class="sj-ring ${tier}${animateRings ? ' animate' : ''}" width="52" height="52" viewBox="0 0 52 52" role="img" aria-label="${escAttr_cd(s.name)} attendance ${label}, target ${att.targetPct}%">
-          <circle class="sj-ring-track" cx="26" cy="26" r="20"/>
-          <circle class="sj-ring-fill" cx="26" cy="26" r="20" stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${(RING_C * (1 - ringPct / 100)).toFixed(2)}" transform="rotate(-90 26 26)"/>
-          <line class="sj-ring-tick" x1="${tick[0]}" y1="${tick[1]}" x2="${tick[2]}" y2="${tick[3]}"/>
-          ${ringCode(s) ? `<text class="sj-ring-code${ringCode(s).length > 2 ? ' is-long' : ''}" x="26" y="26.5" text-anchor="middle" dominant-baseline="central" aria-hidden="true">${escHtml_cd(ringCode(s))}</text>` : ''}
-        </svg>
-        <div class="sj-body">
-          <div class="card-title sj-title">${escHtml_cd(s.name)}</div>
-          ${tier === 'none' ? '' : `<div class="sj-line">${line}</div>`}
-          ${projection ? `<div class="sj-meta">${projection}</div>` : ''}
-          ${(() => {
-            // The short name is in the ring already; it stays here only when it was too long to fit there.
-            const meta = [ringCode(s) === shortOf(s) ? '' : escHtml_cd(shortOf(s)),
-              att.labPart && att.labPart.pct !== null ? `Lab ${att.labPart.pctLabel}%` : '',
-              pending ? `${pending} pending task${pending !== 1 ? 's' : ''}` : '',
-              sylLine(s).replace(/^ · /, '')].filter(Boolean).join(' · ');
-            return meta ? `<div class="sj-meta">${meta}</div>` : '';
-          })()}
-        </div>
-        <div class="sj-side">
-          ${subjectManageMode ? `
-            <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" aria-label="Select ${s.name.replace(/"/g, '&quot;')}"${picked(s) ? ' checked' : ''} onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))">
-          ` : `
-            ${tier === 'none' ? '' : `<span class="sj-pct">${label}</span>
-            <span class="sj-tier">${TIER_WORD[tier]}</span>`}
-          `}
-        </div>
-      </div>
-    `;
+      <div class="attendance-subject-card sj-card sj-row ${tier}" role="button" tabindex="0" style="${picked(s) ? 'outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub(${jsArg_cd(s.name)})`}" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();this.click()}" title="${escAttr_cd(s.name)}">
+        <span class="sj-pct n${low ? ' low' : ''}">${pct}</span>
+        <span class="sj-nm">${nameHTML(s)}<small class="${low ? 'sj-bad' : tier === 'safe' ? 'sj-ok' : ''}">${escHtml_cd(status)}</small></span>
+        ${subjectManageMode ? `
+          <input type="checkbox" class="subject-select-checkbox" data-subject="${s.name.replace(/"/g, '&quot;')}" aria-label="Select ${s.name.replace(/"/g, '&quot;')}"${picked(s) ? ' checked' : ''} onclick="event.stopPropagation(); toggleSubjectCheckbox(event, this.closest('.attendance-subject-card'))">
+        ` : `<span class="sj-chev" aria-hidden="true"></span>`}
+      </div>`;
+  };
+  // At risk first, then Safe, then subjects not marked yet.
+  const groupOf = (r) => r.tier === 'risk' || r.tier === 'watch' ? 'risk' : r.tier;
+  const cardsHTML = [['risk', 'At risk'], ['safe', 'Safe'], ['none', 'Not marked yet']].map(([k, label]) => {
+    const rows = ranked.filter(r => groupOf(r) === k);
+    return rows.length ? `<section class="sj-group" aria-label="${label}"><h2 class="sj-group-h">${label}</h2>${rows.map(rowHTML).join('')}</section>` : '';
   }).join('');
 
   const hasPollution = detectDeskPollution();
@@ -16415,11 +16384,11 @@ function renderSubjectsOverview(el, subjects) {
   el.innerHTML = `
     <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:nowrap">
       <div style="flex:1;min-width:0">
-        <div class="page-title">Subject Hubs</div>
-        <div class="page-subtitle">${noneYet ? `${summaryLine}. Each ring fills as you mark classes; the notch is your ${getAttendanceTarget()}% line. <button type="button" class="sj-mark-link" onclick="navigateTo('dashboard')">Mark today →</button>` : summaryLine}</div>
+        <div class="page-title">Subjects</div>
+        <div class="page-subtitle sj-sum">${noneYet ? `${summaryLine}. Mark classes and each one shows its %. <button type="button" class="sj-mark-link" onclick="navigateTo('dashboard')">Mark today →</button>` : summaryLine}</div>
       </div>
       <details class="tk-more sj-manage">
-        <summary aria-label="Manage subjects">${svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>', 18)} Manage</summary>
+        <summary aria-label="Edit subjects">Edit</summary>
         <div class="tk-more-menu">
           <button type="button" onclick="showAddSyllabusSubjectModal()">+ Add a subject</button>
           <button type="button" onclick="showBaselineModal(null, 'manual')">${icons.chartLine()} Set attendance baseline</button>
@@ -16467,6 +16436,9 @@ function renderSubjectsOverview(el, subjects) {
       ${cardsHTML}
     </div>
   `;
+  // Long names switch to a short one that fits; again once the page is shown.
+  c2FitNames();
+  requestAnimationFrame(c2FitNames);
 }
 
 function renderSingleSubjectHub(el, subj, allSubjects) {

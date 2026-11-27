@@ -51,8 +51,9 @@ test('Tasks: initials instead of the course code, short names unchanged, own nam
 test('Subjects and Today: initials in the ring and on the class sheet', async ({ page }) => {
   await openDesk(page);
   await go(page, 'subjects');
-  const rings = await page.locator('#page-subjects .sj-ring-code').allTextContents();
-  expect(rings).toEqual(expect.arrayContaining(['APS', 'PBST', 'OS']));
+  // Rows show the full name, or the short one when it would not fit (#462); the short ones are ready on each row.
+  const shorts = await page.locator('#page-subjects .sj-nm b[data-short]').evaluateAll((bs) => bs.flatMap((b) => JSON.parse((b as HTMLElement).dataset.short || '[]')));
+  expect(shorts).toEqual(expect.arrayContaining(['APS', 'PBST', 'OS']));
   await expect(page.locator('#page-subjects')).not.toContainText('MGM51OEL115');
 
   await go(page, 'dashboard');
