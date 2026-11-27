@@ -7392,30 +7392,40 @@ body.holiday-mode .holiday-banner {
 .hub-check.is-on { border-color: var(--status-success); background: var(--status-success); }
 
 /* ── Daily Briefing: the week ahead ───────────────────────────────────
-   Headline about the next class day, its classes as rows, the week as
-   thin day tracks on one time axis, then due / watch / notices on rules. */
+   Headline, a number column (one figure and one line per fact, #463), the
+   rest of the day one line per class, then the week as thin day tracks. */
 .bf { display: flex; flex-direction: column; gap: 26px; max-width: 720px; }
-.bf-kicker { font-size: var(--text-sm); color: var(--text-muted); }
-.bf-title { margin: 6px 0 0; font-family: var(--font-display, var(--font)); font-size: clamp(1.75rem, 1.5rem + 1vw, 2.1rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text-primary); }
+.bf-kicker { font-size: 0.875rem; color: var(--text-muted); }
+#page-resources .page-subtitle { font-size: 0.875rem; }
+.bf-title { margin: 6px 0 0; font-family: var(--font-display, var(--font)); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text-primary); }
 .bf-title em { font-style: normal; color: var(--color-thread, var(--accent)); }
-.bf-sub { margin: 8px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
-.bf-focus { border-top: 2px solid var(--text-primary); }
+.bf-sub { margin: 8px 0 0; font-size: 1rem; color: var(--text-secondary); }
+.bf-nums { border-top: 2px solid var(--text-primary); }
+.bf-num { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--color-rule, var(--border)); }
+.bf-n { flex: none; width: 64px; font-family: var(--font-display, var(--font)); font-size: 1.375rem; font-weight: 600; color: var(--text-primary); }
+.bf-num.is-bad .bf-n { color: var(--status-error, var(--color-error)); }
+.bf-num-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bf-num-main b { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.bf-num-main small { font-size: 0.875rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bf-num .bf-act { flex: none; min-height: 44px; }
+.bf-num.bf-late { margin: 0; font-size: inherit; }
 .bf-class, .bf-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 52px; padding: 12px 0; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--color-rule, var(--border)); background: none; font: inherit; text-align: left; color: var(--text-primary); cursor: pointer; }
 .bf-class { align-items: baseline; }
-.bf-time { flex: none; width: 76px; font-family: var(--font-display, var(--font)); font-weight: 700; font-size: 0.95rem; }
+.bf-time { flex: none; width: 76px; font-family: var(--font-display, var(--font)); font-weight: 700; font-size: 0.875rem; }
 .bf-class-main, .bf-row-main { flex: 1; min-width: 0; }
-.bf-class-name, .bf-row-title { display: block; font-size: 0.95rem; font-weight: 600; }
+.bf-class-name, .bf-row-title { display: block; font-size: 1rem; font-weight: 600; }
+.bf-class-name b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bf-row-title { font-weight: 500; }
 .bf-class-sub, .bf-row-sub { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
 .bf-row-when { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
 .bf-row.is-overdue .bf-row-when { color: var(--status-error); font-weight: 700; }
 .bf-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.bf-h h3 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.bf-h h3 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 .bf-act { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; }
 .bf-ruled { border-top: 1px solid var(--color-rule, var(--border)); padding-top: 14px; }
-.bf-quiet { margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
-.bf-late { display: flex; align-items: center; margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
-.bf-late strong { color: var(--color-thread, var(--accent)); }
+.bf-quiet { margin: 8px 0 0; font-size: 1rem; color: var(--text-secondary); }
+.bf-late { display: flex; align-items: center; margin: 4px 0 0; font-size: 1rem; color: var(--text-secondary); }
+.bf-late strong { color: var(--status-error, var(--color-error)); }
 .bf-note { margin: 10px 0 0; font-size: var(--text-sm); color: var(--text-secondary); }
 .bw { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .bw-day { display: flex; align-items: center; gap: 10px; }
@@ -7426,12 +7436,12 @@ body.holiday-mode .holiday-banner {
 .bw-track { position: relative; flex: 1; height: 26px; border-bottom: 1px solid var(--color-rule, var(--border)); }
 .bw-block { position: absolute; top: 3px; height: 20px; min-width: 6px; border-radius: 6px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 .bw-block.is-lab { background: var(--text-primary); }
-.bw-count { flex: none; width: 18px; text-align: right; font-size: var(--text-xs); color: var(--text-muted); }
+.bw-count { flex: none; width: 18px; text-align: right; font-size: 0.75rem; color: var(--text-muted); }
 .bw-axis { margin-top: -4px; }
-.bw-hours { position: relative; flex: 1; height: 14px; font-size: 0.7rem; color: var(--text-muted); }
+.bw-hours { position: relative; flex: 1; height: 14px; font-size: 0.75rem; color: var(--text-muted); }
 .bw-hours span { position: absolute; transform: translateX(-50%); }
 .bw-hours span:first-child { transform: none; }
-.bw-key { font-size: var(--text-xs); color: var(--text-muted); }
+.bw-key { font-size: 0.75rem; color: var(--text-muted); }
 .bw-key i { display: inline-block; width: 10px; height: 10px; margin: 0 2px -1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 .bw-key i.is-lab { background: var(--text-primary); }
 
@@ -7618,7 +7628,6 @@ body.holiday-mode .holiday-banner {
   white-space: nowrap;
   cursor: pointer;
 }
-#page-settings .st-nav-btn .st-num,
 #page-settings .st-nav-long { display: none; }
 #page-settings .st-nav-btn[aria-current] { color: var(--text-primary); font-weight: 700; box-shadow: inset 0 -2px 0 var(--color-thread, var(--accent)); }
 #page-settings .st-nav-btn.is-danger { color: var(--color-thread, var(--accent)); }
@@ -7631,12 +7640,6 @@ body.holiday-mode .holiday-banner {
   gap: 10px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--text-primary);
-}
-#page-settings .st-num {
-  font-family: var(--font-display, sans-serif);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--color-thread, var(--accent));
 }
 #page-settings .st-title {
   flex: 1;
@@ -7693,7 +7696,7 @@ body.holiday-mode .holiday-banner {
 #page-settings .st-link.is-danger { color: var(--status-error); }
 #page-settings .st-danger { margin: 40px 0 32px; }
 #page-settings .st-danger .st-head { border-bottom-color: var(--status-error); }
-#page-settings .st-danger .st-title { font-size: 1.15rem; color: var(--status-error); }
+#page-settings .st-danger .st-title { font-size: 1.25rem; color: var(--status-error); }
 #page-settings .st-head-note { font-size: var(--text-sm); color: var(--text-muted); }
 
 @media (min-width: 1024px) {
@@ -7709,7 +7712,6 @@ body.holiday-mode .holiday-banner {
     border-bottom: 0;
   }
   #page-settings .st-nav-btn { min-height: 40px; padding-left: 12px; border-left: 2px solid transparent; }
-  #page-settings .st-nav-btn .st-num,
   #page-settings .st-nav-long { display: inline; }
   #page-settings .st-nav-short { display: none; }
   #page-settings .st-nav-btn[aria-current] { box-shadow: none; border-left-color: var(--color-thread, var(--accent)); }
@@ -7721,8 +7723,8 @@ body.holiday-mode .holiday-banner {
 .st-aim-subjects summary { min-height: 44px; display: flex; align-items: center; font-size: var(--text-sm); font-weight: 700; color: var(--text-primary); cursor: pointer; }
 .st-aim-hint { margin: 0 0 6px; font-size: var(--text-sm); color: var(--text-muted); }
 .st-aim-row { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--color-rule); }
-.st-aim-code { flex: none; width: 56px; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-aim-name { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-aim-code { flex: 1; min-width: 0; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; }
+.st-aim-name { display: block; font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary); overflow-wrap: anywhere; }
 .st-aim-row .s-aim-subj { flex: none; width: 76px; }
 
 /* ── Tasks in the Briefing's voice ─────────────────────────────────────
@@ -8390,7 +8392,6 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    class bars are one step brighter so the week reads. */
 .cd-hello-title span, .cd-hello-setup button { color: var(--text-primary); }
 #page-calendar .cal-today-btn, #page-calendar .cal-quick-add, #page-subjects .sj-mark-link { color: var(--text-primary); }
-#page-settings .st-num { color: var(--text-muted); }
 :root[data-theme="midnight-ink"] .bw-block { background: color-mix(in srgb, var(--text-muted) 55%, transparent); }
 
 /* ── Phone chrome: frosted, page-coloured ──
@@ -8726,22 +8727,26 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 }
 
 /* Settings: every option reads at a comfortable size on every screen. Re-pointing the tokens here
-   also lifts the inline sizes inside Settings. Floor is 14px; fields are 16px (no zoom on iOS). */
+   also lifts the inline sizes inside Settings. On the app's scale (#463): 14 for notes, 16 for
+   options and fields (no zoom on iOS), 20 for section titles. */
 #page-settings {
   --text-2xs: 0.875rem;
   --text-xs:  0.875rem;
-  --text-sm:  0.9375rem;
+  --text-sm:  0.875rem;
   --text-base: 1rem;
-  --text-md:  1.0625rem;
+  --text-md:  1rem;
+  --text-lg:  1.25rem;
 }
-#page-settings .form-label { font-size: 0.9375rem; }
+#page-settings .form-label { font-size: 0.875rem; }
 #page-settings .form-input, #page-settings .form-select, #page-settings textarea { font-size: 1rem; min-height: 44px; }
-#page-settings .st-row-title { font-size: 1.0625rem; }
-#page-settings .st-row-sub, #page-settings .st-head-note, #page-settings .st-saved { font-size: 0.9375rem; }
+#page-settings .st-row-title { font-size: 1rem; }
+#page-settings .st-row-sub, #page-settings .st-head-note, #page-settings .st-saved { font-size: 0.875rem; }
 #page-settings .st-sub { font-size: 0.875rem; }
 #page-settings .st-link, #page-settings .st-nav-btn { font-size: 1rem; }
 #page-settings .swatch-name { font-size: 0.875rem; }
-#page-settings .btn { font-size: 0.9375rem; }
+#page-settings .btn, #page-settings .btn-secondary, #page-settings .btn-primary, #page-settings .np-preset { font-size: 0.875rem; }
+#page-settings .page-subtitle { font-size: 0.875rem; }
+#page-settings .st-aim-row { font-size: 1rem; }
 /* Inline width:170px cut the longer options ("Day Before (Morning)") at the bigger size. */
 #page-settings .st-row select.form-select, #page-settings select[id^="np-"] { width: auto !important; min-width: 190px; max-width: 100%; padding: 5px 30px 5px 12px !important; }
 

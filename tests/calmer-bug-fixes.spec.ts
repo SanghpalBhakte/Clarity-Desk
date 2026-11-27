@@ -61,12 +61,13 @@ test('On a holiday, Late tasks are one line, not break deadlines', async ({ page
 test('Late tasks are one line, not under Due this week', async ({ page }) => {
   await openDesk(page);
   await go(page, 'summary');
-  const due = page.locator('section[aria-label="Due this week"]');
+  // The number column (#463): Late is its own row; no late title shows anywhere in it.
+  const due = page.locator('.bf-nums');
   await expect(due).not.toContainText('DS lab record');
   await expect(due).not.toContainText('OS quiz');
   await expect(due).not.toContainText('overdue');
   const late = page.locator('.bf-late');
-  await expect(late).toHaveText(/2 Late\s*·?\s*Look through/);
+  await expect(late).toHaveText(/^\s*2\s*Late\s*oldest \d+ days?\s*Look through\s*$/);
   await late.getByRole('button', { name: 'Look through' }).click();
   await expect(page.locator('#page-assignments')).toBeVisible();
 });

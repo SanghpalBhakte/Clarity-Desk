@@ -9602,7 +9602,7 @@ function c2NameHTML(c) {
 }
 // Swaps a class name that would be cut for the longest shorter name that fits, at the width it has now. Display only.
 function c2FitNames() {
-  document.querySelectorAll('#page-dashboard .c2-nm b[data-short], #page-subjects .sj-nm b[data-short]').forEach(b => {
+  document.querySelectorAll('#page-dashboard .c2-nm b[data-short], #page-subjects .sj-nm b[data-short], #page-resources .bf-class-name b[data-short]').forEach(b => {
     let names;
     try { names = [b.dataset.full, ...JSON.parse(b.dataset.short)]; } catch (e) { return; }
     for (const n of names) {
@@ -17796,6 +17796,9 @@ function renderResources() {
     renderVaultTab(contentEl);
   } else {
     renderSummaryContent(contentEl);
+    // Long class names switch to a short one that fits (#463); again once the page is shown.
+    c2FitNames();
+    requestAnimationFrame(c2FitNames);
   }
 }
 
@@ -17983,7 +17986,7 @@ function renderSummaryContent(container) {
     const d = dueDaysLeft(a.dueDate);
     return d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due ${DAY_NAMES[new Date(a.dueDate + 'T12:00:00').getDay()]}`;
   };
-  const watch = briefingWatch();
+  const nums = briefingNumbersHTML({ late, due, ongoing, dueText });
 
   // The week: every day on one time axis, lectures light, labs dark.
   const shown = week.filter(d => d.day !== 0 || d.classes.length);
@@ -18013,13 +18016,19 @@ function renderSummaryContent(container) {
         ${head.sub ? `<p class="bf-sub">${escHtml_cd(head.sub)}</p>` : ''}
       </header>
 
+      ${nums}
+
       ${focus ? `
-      <section class="bf-focus" aria-label="${escAttr_cd(focus.label)}">
-        ${focus.classes.map(c => `
+      <section class="bf-focus bf-section" aria-label="${escAttr_cd(focus.label)}">
+        <div class="bf-h"><h3>${escHtml_cd(focus.isToday ? 'Rest of today' : focus.label)}</h3><button type="button" class="bf-act" onclick="navigateTo('timetable')">Timetable</button></div>
+        ${focus.classes.map(c => {
+          // One line per class (#463): the name (short when the full one won't fit), then the room only if there is one.
+          const where = [c.room, c.teacher ? formatTeacherName(c.teacher) : ''].filter(v => v && v !== '—').join(' · ');
+          return `
           <button type="button" class="bf-class" onclick="navigateTo('timetable'); setTTDay(${focus.day})">
             <span class="bf-time">${escHtml_cd(formatDisplayTime(c.time))}</span>
-            <span class="bf-class-main"><span class="bf-class-name">${escHtml_cd(c.subject)}${c.type === 'lab' && !/lab/i.test(c.subject) ? ' lab' : ''}</span><span class="bf-class-sub">${escHtml_cd([c.room, c.teacher ? formatTeacherName(c.teacher) : ''].filter(v => v && v !== '—').join(' · ') || (c.type === 'lab' ? 'Lab' : 'Lecture'))}</span></span>
-          </button>`).join('')}
+            <span class="bf-class-main"><span class="bf-class-name">${c2NameHTML(c)}</span>${where ? `<span class="bf-class-sub">${escHtml_cd(where)}</span>` : ''}</span>
+          </button>`; }).join('')}
       </section>` : ''}
 
       ${all.length ? `
@@ -18028,27 +18037,6 @@ function renderSummaryContent(container) {
         <div class="bw">${weekRows}<div class="bw-day bw-axis" aria-hidden="true"><span class="bw-name"></span><span class="bw-hours">${hours.join('')}</span><span class="bw-count"></span></div></div>
         ${longLine ? `<p class="bf-note">${escHtml_cd(longLine)}</p>` : ''}
       </section>` : ''}
-
-      <section class="bf-section bf-ruled" aria-label="Due this week">
-        <div class="bf-h"><h3>Due this week</h3>${pending.length ? `<button type="button" class="bf-act" onclick="navigateTo('assignments')">All tasks →</button>` : ''}</div>
-        ${briefingLateLine(late)}
-        ${due.length ? due.map(a => `
-          <button type="button" class="bf-row" onclick="navigateTo('assignments')">
-            <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
-            <span class="bf-row-when">${dueText(a)}</span>
-          </button>`).join('') : (late.length ? '' : `<p class="bf-quiet">${ongoing.length ? 'No deadlines this week.' : 'Nothing. Rare. Enjoy it.'}</p>`)}
-        ${ongoing.map(a => `
-          <button type="button" class="bf-row" onclick="navigateTo('assignments')">
-            <span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(a.title)}</span><span class="bf-row-sub">${escHtml_cd(a.subject || 'General')}</span></span>
-            <span class="bf-row-when">Ongoing</span>
-          </button>`).join('')}
-      </section>
-
-      <section class="bf-section bf-ruled" aria-label="Watch">
-        <div class="bf-h"><h3>Watch</h3></div>
-        ${watch ? `<button type="button" class="bf-row" onclick="openSubjectHub(${jsArg_cd(watch.name)})"><span class="bf-row-main"><span class="bf-row-title">${escHtml_cd(watch.line)}</span></span><span class="bf-row-when">${escHtml_cd(watch.pct)}</span></button>`
-          : `<p class="bf-quiet">Once you mark a few classes, the subject closest to the ${getAttendanceTarget()}% line shows here.</p>`}
-      </section>
 
     </div>
   `;
@@ -18124,17 +18112,47 @@ function briefingFocusHeadline(focus, openTasks) {
 
 // The subject nearest the attendance line (lowest first). Null until
 // something has been marked.
-function briefingWatch() {
-  if (isSelfStudyMode()) return null;
-  const rows = getSubjectList().map(s => ({ s, a: getSubjectAttendance(s) })).filter(r => r.a.pct !== null);
-  if (!rows.length) return null;
-  rows.sort((x, y) => (x.a.exactPct ?? x.a.pct) - (y.a.exactPct ?? y.a.pct));
-  const { s, a } = rows[0];
-  const name = s.code || s.name;
-  const line = a.isSafe
-    ? (a.safeSkips > 0 ? `${name} is your lowest. You can miss ${a.safeSkips} and stay above ${a.targetPct}%.` : `${name} is right on the line. Go to the next one.`)
-    : `${name} is below the line. Attend the next ${a.classesToAttend} to get back to ${a.targetPct}%.`;
-  return { name: s.name, line, pct: `${a.pctLabel ?? a.pct}%` };
+// The Briefing's number column (#463): one figure and one short line per fact, from the same
+// numbers Today and Subjects use. Late keeps its own row and its "Look through". Reads only.
+function briefingNumbersHTML({ late, due, ongoing, dueText }) {
+  const rows = [];
+  const row = (n, label, sub, opts = {}) => rows.push(`
+    <div class="bf-num${opts.bad ? ' is-bad' : ''}${opts.cls ? ' ' + opts.cls : ''}"${opts.aria ? ` aria-label="${escAttr_cd(opts.aria)}"` : ''}>
+      <span class="bf-n n">${n}</span>
+      <span class="bf-num-main"><b>${label}</b>${sub ? `<small>${escHtml_cd(sub)}</small>` : ''}</span>
+      ${opts.act || ''}
+    </div>`);
+  const target = getAttendanceTarget();
+  const o = isSelfStudyMode() ? null : getOverallAttendance();
+  if (o && o.pct !== null && o.hasAnyData) {
+    const g = calculateSmartAttendanceGuidance(o.attended, o.skipped, target);
+    // Rounded down, so the column never shows the line while still under it.
+    row(`${Math.floor(o.exactPct ?? o.pct)}%`, 'Overall', !g.isSafe ? `below ${target}%` : Number.isFinite(g.safeSkips) && g.safeSkips > 0 ? `can miss ${g.safeSkips}` : 'right on the line');
+    const risk = getSubjectList().map(s => ({ s, a: getSubjectAttendance(s) })).filter(r => r.a.pct !== null && !r.a.isSafe)
+      .sort((x, y) => (x.a.exactPct ?? x.a.pct) - (y.a.exactPct ?? y.a.pct));
+    if (risk.length) {
+      const names = risk.map(r => subjectShortName(r.s.name, r.s.code));
+      row(risk.length, 'At risk', names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : ''), { bad: true, act: `<button type="button" class="bf-act" onclick="navigateTo('subjects')">Subjects</button>` });
+    }
+  }
+  if (late.length) {
+    // Like Today's Late line: how old, not the titles (they are one tap away).
+    const oldest = late.slice().sort((x, y) => x.dueDate.localeCompare(y.dueDate))[0];
+    const days = Math.abs(dueDaysLeft(oldest.dueDate) || 0);
+    row(late.length, 'Late', `${late.length > 1 ? 'oldest ' : ''}${days} ${days === 1 ? 'day' : 'days'}`, { bad: true, cls: 'bf-late', act: `<button type="button" class="bf-act" onclick="navigateTo('assignments')">Look through</button>` });
+  }
+  const taskName = (a) => { const c = String(a.code || '').toUpperCase(); return a.subject && !['GEN', 'MIS'].includes(c) && !/^(general|other)$/i.test(a.subject) ? subjectShortName(a.subject, ['OTH'].includes(c) ? '' : a.code) : a.title; };
+  if (due.length) row(due.length, 'Due this week', `next: ${taskName(due[0])}, ${dueText(due[0]).replace(/^Due /, '').toLowerCase()}`, { aria: 'Due this week' });
+  if (ongoing.length) row(ongoing.length, ongoing.length === 1 ? 'Goal' : 'Goals', ongoing.map(a => a.title).join(', '));
+  const prof = loadProfile() || {};
+  const examLeft = prof.examDate ? dueDaysLeft(prof.examDate) : null;
+  if (examLeft !== null && examLeft >= 0) {
+    const d = new Date(prof.examDate + 'T12:00:00');
+    row(examLeft, `${examLeft === 1 ? 'Day' : 'Days'} to ${escHtml_cd(prof.examLabel || 'exams')}`, `first paper ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`);
+  }
+  const quiet = !late.length && !due.length ? `<p class="bf-quiet">${ongoing.length ? 'No deadlines this week.' : 'Nothing. Rare. Enjoy it.'}</p>` : '';
+  const noAtt = !o || o.pct === null || !o.hasAnyData ? `<p class="bf-quiet">Once you mark a few classes, your % and the subjects closest to the ${target}% line show here.</p>` : '';
+  return `<section class="bf-nums bf-section" aria-label="Your numbers">${rows.join('')}${quiet}${noAtt}</section>`;
 }
 
 // ── Settings ────────────────────────────────────────────────
@@ -18159,44 +18177,44 @@ function renderSettings() {
 
     <div class="st-layout">
     <nav class="st-nav" aria-label="Settings sections">
-      <button type="button" class="st-nav-btn" data-st="profile" onclick="settingsJump('profile')"><span class="st-num" aria-hidden="true">01</span><span class="st-nav-long">Profile</span><span class="st-nav-short">Profile</span></button>
-      <button type="button" class="st-nav-btn" data-st="classes" onclick="settingsJump('classes')"><span class="st-num" aria-hidden="true">02</span><span class="st-nav-long">Classes &amp; attendance</span><span class="st-nav-short">Classes</span></button>
-      <button type="button" class="st-nav-btn" data-st="reminders" onclick="settingsJump('reminders')"><span class="st-num" aria-hidden="true">03</span><span class="st-nav-long">Reminders</span><span class="st-nav-short">Reminders</span></button>
-      <button type="button" class="st-nav-btn" data-st="look" onclick="settingsJump('look')"><span class="st-num" aria-hidden="true">04</span><span class="st-nav-long">Look</span><span class="st-nav-short">Look</span></button>
-      <button type="button" class="st-nav-btn" data-st="data" onclick="settingsJump('data')"><span class="st-num" aria-hidden="true">05</span><span class="st-nav-long">Data &amp; account</span><span class="st-nav-short">Data</span></button>
-      <button type="button" class="st-nav-btn" data-st="about" onclick="settingsJump('about')"><span class="st-num" aria-hidden="true">06</span><span class="st-nav-long">About</span><span class="st-nav-short">About</span></button>
+      <button type="button" class="st-nav-btn" data-st="profile" onclick="settingsJump('profile')"><span class="st-nav-long">Profile</span><span class="st-nav-short">Profile</span></button>
+      <button type="button" class="st-nav-btn" data-st="classes" onclick="settingsJump('classes')"><span class="st-nav-long">Classes &amp; attendance</span><span class="st-nav-short">Classes</span></button>
+      <button type="button" class="st-nav-btn" data-st="reminders" onclick="settingsJump('reminders')"><span class="st-nav-long">Reminders</span><span class="st-nav-short">Reminders</span></button>
+      <button type="button" class="st-nav-btn" data-st="look" onclick="settingsJump('look')"><span class="st-nav-long">Look</span><span class="st-nav-short">Look</span></button>
+      <button type="button" class="st-nav-btn" data-st="data" onclick="settingsJump('data')"><span class="st-nav-long">Data &amp; account</span><span class="st-nav-short">Data</span></button>
+      <button type="button" class="st-nav-btn" data-st="about" onclick="settingsJump('about')"><span class="st-nav-long">About</span><span class="st-nav-short">About</span></button>
       <button type="button" class="st-nav-btn is-danger" data-st="danger" onclick="settingsJump('danger')"><span class="st-nav-long">Danger zone</span><span class="st-nav-short">Danger zone</span></button>
     </nav>
     <div class="st-body">
     <section class="st-sec" id="st-profile" aria-labelledby="st-profile-h">
-      <div class="st-head"><span class="st-num" aria-hidden="true">01</span><h2 class="st-title" id="st-profile-h">Profile</h2><span class="st-saved" role="status"></span></div>
+      <div class="st-head"><h2 class="st-title" id="st-profile-h">Profile</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px">Used to personalize your dashboard greeting, timetable headers, and course schedule.</div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label" for="s-name">Full Name</label>
+          <label class="form-label" for="s-name">Name</label>
           <input type="text" class="form-input" id="s-name" value="${(p.name || '').replace(/"/g, '&quot;')}" placeholder="Full name (e.g. Alex Morgan)">
         </div>
         <div class="form-group">
-          <label class="form-label" for="s-roll">Student ID / Roll Number</label>
+          <label class="form-label" for="s-roll">Roll no.</label>
           <input type="text" class="form-input" id="s-roll" value="${(p.rollNo || '').replace(/"/g, '&quot;')}" placeholder="Student ID or Roll number (e.g. 2026/CS/042)">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="s-college">College / University / School</label>
+        <label class="form-label" for="s-college">College</label>
         <input type="text" class="form-input" id="s-college" value="${(p.college || '').replace(/"/g, '&quot;')}" placeholder="College or University name">
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label" for="s-branch">Major / Branch / Department</label>
+          <label class="form-label" for="s-branch">Branch</label>
           <input type="text" class="form-input" id="s-branch" value="${(p.branch || '').replace(/"/g, '&quot;')}" placeholder="e.g. Computer Science, Mechanical, Biology">
         </div>
         <div class="form-group">
-          <label class="form-label" for="s-year">Year / Semester / Term</label>
+          <label class="form-label" for="s-year">Year</label>
           <input type="text" class="form-input" id="s-year" value="${(p.year || '').replace(/"/g, '&quot;')}" placeholder="e.g. 3rd Semester, Year 2, Fall 2026">
         </div>
         <div class="form-group">
-          <label class="form-label" for="s-batch">Practical Batch / Section</label>
+          <label class="form-label" for="s-batch">Batch</label>
           <input type="text" class="form-input" id="s-batch" value="${(p.batch || '').replace(/"/g, '&quot;')}" placeholder="e.g. A1, A2, B2, D1">
         </div>
       </div>
@@ -18225,7 +18243,7 @@ function renderSettings() {
     </section>
 
     <section class="st-sec" id="st-classes" aria-labelledby="st-classes-h">
-      <div class="st-head"><span class="st-num" aria-hidden="true">02</span><h2 class="st-title" id="st-classes-h">Classes &amp; attendance</h2><span class="st-saved" role="status"></span></div>
+      <div class="st-head"><h2 class="st-title" id="st-classes-h">Classes &amp; attendance</h2><span class="st-saved" role="status"></span></div>
     <div class="st-row">
       <div><div class="st-row-title">Timetable</div><div class="st-row-sub">Add, scan or edit your classes</div></div>
       <button type="button" class="st-link" onclick="navigateTo('timetable')">Open →</button>
@@ -18294,7 +18312,7 @@ function renderSettings() {
             return `<details class="st-aim-subjects"${setN ? ' open' : ''}>
               <summary>A different line for one subject${setN ? ` (${setN} set)` : ''}</summary>
               <p class="st-aim-hint">Leave a box empty to use your ${aims.line}% line.</p>
-              ${subs.map((sj, i) => { const k = aimKeyFor(sj); return `<label class="st-aim-row" for="s-aim-${i}"><span class="st-aim-code">${escHtml_cd(k)}</span><span class="st-aim-name">${escHtml_cd(sj.name || '')}</span><input type="number" class="form-input s-aim-subj" id="s-aim-${i}" data-code="${escAttr_cd(sj.code || '')}" data-name="${escAttr_cd(sj.name || '')}" value="${subjectOwnLine(sj, aims.subjects) || ''}" placeholder="${aims.line}" min="50" max="100" step="1" inputmode="numeric" aria-label="${escAttr_cd(`Line for ${sj.name || k}`)}"></label>`; }).join('')}
+              ${subs.map((sj, i) => { const k = aimKeyFor(sj); const short = subjectShortName(sj.name || k, sj.code || ''); return `<label class="st-aim-row" for="s-aim-${i}"><span class="st-aim-code">${escHtml_cd(short)}${short !== sj.name && sj.name ? `<span class="st-aim-name">${escHtml_cd(sj.name)}</span>` : ''}</span><input type="number" class="form-input s-aim-subj" id="s-aim-${i}" data-code="${escAttr_cd(sj.code || '')}" data-name="${escAttr_cd(sj.name || '')}" value="${subjectOwnLine(sj, aims.subjects) || ''}" placeholder="${aims.line}" min="50" max="100" step="1" inputmode="numeric" aria-label="${escAttr_cd(`Line for ${sj.name || k}`)}"></label>`; }).join('')}
             </details>`;
           })()}
         </div>
@@ -18363,7 +18381,7 @@ function renderSettings() {
     </section>
 
     <section class="st-sec" id="st-reminders" aria-labelledby="st-reminders-h">
-      <div class="st-head"><span class="st-num" aria-hidden="true">03</span><h2 class="st-title" id="st-reminders-h">Reminders</h2><span class="st-saved" role="status"></span></div>
+      <div class="st-head"><h2 class="st-title" id="st-reminders-h">Reminders</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div>
@@ -18512,7 +18530,7 @@ function renderSettings() {
     </section>
 
     <section class="st-sec" id="st-look" aria-labelledby="st-look-h">
-      <div class="st-head"><span class="st-num" aria-hidden="true">04</span><h2 class="st-title" id="st-look-h">Look</h2><span class="st-saved" role="status"></span></div>
+      <div class="st-head"><h2 class="st-title" id="st-look-h">Look</h2><span class="st-saved" role="status"></span></div>
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="form-group" style="margin-bottom:20px">
         <label class="form-label" style="margin-bottom:6px">Light / Dark / Auto</label>
@@ -18578,7 +18596,7 @@ function renderSettings() {
     </section>
 
     <section class="st-sec" id="st-data" aria-labelledby="st-data-h">
-      <div class="st-head"><span class="st-num" aria-hidden="true">05</span><h2 class="st-title" id="st-data-h">Data &amp; account</h2><span class="st-saved" role="status"></span></div>
+      <div class="st-head"><h2 class="st-title" id="st-data-h">Data &amp; account</h2><span class="st-saved" role="status"></span></div>
     <h3 class="st-sub">Account and sync</h3>
     <div class="card" style="padding:20px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -18636,7 +18654,7 @@ function renderSettings() {
     </section>
 
     <section class="st-sec" id="st-about" aria-labelledby="st-about-h">
-      <div class="st-head"><span class="st-num" aria-hidden="true">06</span><h2 class="st-title" id="st-about-h">About</h2><span class="st-saved" role="status"></span></div>
+      <div class="st-head"><h2 class="st-title" id="st-about-h">About</h2><span class="st-saved" role="status"></span></div>
     <h3 class="st-sub">What's new</h3>
     <div class="card" style="padding:18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div style="font-size:var(--text-base);color:var(--text-secondary)">Dev Notes: what changed in each update.</div>
