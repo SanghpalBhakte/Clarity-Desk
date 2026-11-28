@@ -262,3 +262,58 @@ test.describe('Settings on a laptop (#479)', () => {
     }
   });
 });
+
+test.describe('Daily Briefing on a laptop (#480)', () => {
+  test.beforeEach(({}, info) => { test.skip(info.project.name !== 'chromium-desktop', 'sets its own widths'); });
+  const cols = async (page: Page) => ({
+    facts: await box(page, '.bf-facts'),
+    today: await box(page, '.bf-section[aria-label="Today"]'),
+    week: await box(page, '.bf-section[aria-label="The week"]'),
+  });
+  // Widest run of text in the Briefing, in characters (half the font size per character, a fair average).
+  const longestLine = (page: Page) => page.locator('#page-resources .bf').evaluate((root) => Math.max(...[...root.querySelectorAll('*')]
+    .filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim()))
+    .map((el) => { const r = document.createRange(); r.selectNodeContents(el); return Math.max(0, ...[...r.getClientRects()].map((x) => x.width)) / (parseFloat(getComputedStyle(el).fontSize) * 0.5); })));
+
+  test('1280px: the facts on the left, Rest of today and The week under each other on the right', async ({ browser, baseURL }) => {
+    const { ctx, page } = await open(browser, baseURL, 1280, 'summary');
+    const c = await cols(page);
+    expect(c.today.x).toBeGreaterThanOrEqual(c.facts.x + c.facts.width);
+    expect(Math.abs(c.today.y - c.facts.y)).toBeLessThan(4);
+    expect(c.week.x).toBe(c.today.x);
+    expect(c.week.y).toBeGreaterThanOrEqual(c.today.y + c.today.height);
+    expect(await longestLine(page)).toBeLessThan(70);
+    await ctx.close();
+  });
+
+  test('1920px: facts, Rest of today and The week in three columns, tops in line', async ({ browser, baseURL }) => {
+    const { ctx, page } = await open(browser, baseURL, 1920, 'summary');
+    const c = await cols(page);
+    expect(c.today.x).toBeGreaterThanOrEqual(c.facts.x + c.facts.width);
+    expect(c.week.x).toBeGreaterThanOrEqual(c.today.x + c.today.width);
+    expect(Math.abs(c.week.y - c.today.y)).toBeLessThan(4);
+    expect(Math.abs(c.today.y - c.facts.y)).toBeLessThan(4);
+    expect(await longestLine(page)).toBeLessThan(70);
+    await ctx.close();
+  });
+
+  test('393px and 1024px: one column, facts then Rest of today then The week', async ({ browser, baseURL }) => {
+    for (const width of [393, 1024]) {
+      const { ctx, page } = await open(browser, baseURL, width, 'summary');
+      const c = await cols(page);
+      expect(c.today.x).toBe(c.facts.x);
+      expect(c.today.y).toBeGreaterThanOrEqual(c.facts.y + c.facts.height);
+      expect(c.week.y).toBeGreaterThanOrEqual(c.today.y + c.today.height);
+      await ctx.close();
+    }
+  });
+
+  test('1280px on a holiday: the holiday briefing shows, with no columns', async ({ browser, baseURL }) => {
+    const { ctx, page } = await open(browser, baseURL, 1280, 'dashboard');
+    await page.evaluate(() => { localStorage.setItem('cos_holiday', JSON.stringify({ on: true, since: '2026-11-20', until: '2026-12-05' })); (window as any).navigate('summary'); });
+    await expect(page.getByRole('region', { name: 'Holiday briefing' })).toBeVisible();
+    await expect(page.getByText('Deadlines during your break')).toBeVisible();
+    await expect(page.locator('#page-resources .bf')).toHaveCount(0);
+    await ctx.close();
+  });
+});

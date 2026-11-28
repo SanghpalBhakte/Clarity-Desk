@@ -203,7 +203,10 @@ async function runShots(browser, cfg) {
         const name = `${state}-${theme}-${size}`;
         checks[name] = await page.evaluate(measure, { pageId: cfg.page, isMobile: size === 'mobile' });
         if (cfg.crop) {
-          await page.locator(cfg.crop).first().screenshot({ path: `${cfg.out}/${name}.png` });
+          // Some elements only exist at one size (a laptop sheet, a phone bar): skip the sizes without it.
+          const el = page.locator(cfg.crop).first();
+          if (!(await el.isVisible())) { console.log(`--crop ${cfg.crop}: not shown at ${size}, skipped`); await context.close(); continue; }
+          await el.screenshot({ path: `${cfg.out}/${name}.png` });
         } else if (size === 'mobile') {
           // A full-page capture draws the fixed nav and sticky add bar at
           // their scroll-0 spots over a taller page, which looks broken when

@@ -50,6 +50,11 @@ const server = http.createServer((req, res) => {
     } else {
       fs.createReadStream(filePath).pipe(res);
     }
+  } else if (reqPath === '/firebase-config.local.js') {
+    // Optional local cloud config (index.html asks for it on localhost only):
+    // an empty file when it isn't there, so tests see no 404 in the console.
+    res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end('');
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');

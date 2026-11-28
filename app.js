@@ -18174,8 +18174,11 @@ function renderSummaryContent(container) {
   const longLine = longest[0] && longest[0].classes.length >= 3 && (!longest[1] || longest[1].classes.length < longest[0].classes.length)
     ? `${DAY_NAMES[longest[0].day]} is your long day: ${longest[0].classes.length} classes, ${formatDisplayTime(longest[0].classes[0].time)} to ${formatDisplayTime(longest[0].classes[longest[0].classes.length - 1].end)}.` : '';
 
+  // Two groups (#480): the facts, then the day. A laptop puts them side by side; a PC splits the day in two.
+  const hasDay = !!(focus || all.length);
   container.innerHTML = `
-    <div class="bf">
+    <div class="bf${hasDay ? ' has-day' : ''}">
+      <div class="bf-facts">
       <header class="bf-head">
         <div class="bf-kicker" data-part="${part}">This ${part}</div>
         <h2 class="bf-title">${head.html}</h2>
@@ -18183,7 +18186,9 @@ function renderSummaryContent(container) {
       </header>
 
       ${nums}
+      </div>
 
+      ${hasDay ? '<div class="bf-day">' : ''}
       ${focus ? `
       <section class="bf-focus bf-section" aria-label="${escAttr_cd(focus.label)}">
         <div class="bf-h"><h3>${escHtml_cd(focus.isToday ? 'Rest of today' : focus.label)}</h3><button type="button" class="bf-act" onclick="navigateTo('timetable')">Timetable</button></div>
@@ -18203,6 +18208,7 @@ function renderSummaryContent(container) {
         <div class="bw">${weekRows}<div class="bw-day bw-axis" aria-hidden="true"><span class="bw-name"></span><span class="bw-hours">${hours.join('')}</span><span class="bw-count"></span></div></div>
         ${longLine ? `<p class="bf-note">${escHtml_cd(longLine)}</p>` : ''}
       </section>` : ''}
+      ${hasDay ? '</div>' : ''}
 
     </div>
   `;
