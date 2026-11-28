@@ -200,3 +200,65 @@ test.describe('Subjects on a laptop (#478)', () => {
     }
   });
 });
+
+test.describe('Settings on a laptop (#479)', () => {
+  test.beforeEach(({}, info) => { test.skip(info.project.name !== 'chromium-desktop', 'sets its own widths'); });
+  const nowBg = (page: Page, sel: string) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).backgroundColor);
+
+  for (const width of [1280, 1920]) {
+    test(`${width}px: a preview of Today sits to the right of the form`, async ({ browser, baseURL }) => {
+      const { ctx, page } = await open(browser, baseURL, width, 'settings');
+      const preview = page.getByTestId('today-preview');
+      await expect(preview).toBeVisible();
+      const body = await box(page, '#page-settings .st-body');
+      const side = await box(page, '[data-testid="today-preview"]');
+      expect(side.x).toBeGreaterThanOrEqual(body.x + body.width);
+      // A picture: nothing in it can be reached, and it repeats no id or test id from the real page.
+      expect(await preview.evaluate((el) => (el as HTMLElement).inert && el.getAttribute('aria-hidden'))).toBe('true');
+      expect(await preview.locator('[id], [data-testid]').count()).toBe(0);
+      await expect(preview).toContainText('Digital Electronics');
+      await ctx.close();
+    });
+  }
+
+  test('the preview looks like the real Today, and follows the Theme and Light / Dark', async ({ browser, baseURL }) => {
+    const { ctx, page } = await open(browser, baseURL, 1280, 'settings');
+    const sel = '[data-testid="today-preview"] .c2-now';
+    // A Theme sets the page colour, which the picture sits on.
+    const canvas = await nowBg(page, '.st-preview');
+    await page.getByRole('button', { name: /Campus Sunset/ }).click();
+    await expect.poll(() => nowBg(page, '.st-preview')).not.toBe(canvas);
+    // Light / Dark changes the cards in it.
+    const light = await nowBg(page, sel);
+    await page.getByRole('button', { name: /^Dark/ }).click();
+    await expect.poll(() => nowBg(page, sel)).not.toBe(light);
+    await page.waitForTimeout(450); // the colour change fades in
+    const inPreview = await nowBg(page, sel);
+    await page.evaluate(() => (window as any).navigate('dashboard'));
+    await page.waitForTimeout(450);
+    expect(await nowBg(page, '#page-dashboard .c2-now')).toBe(inPreview);
+    await ctx.close();
+  });
+
+  test('drawing the picture changes nothing: no countdown card, nothing saved', async ({ browser, baseURL }) => {
+    // Straight to Settings, so Today itself is never drawn (opening Today shows the card, as before).
+    const ctx = await browser.newContext({ baseURL, viewport: { width: 1280, height: 900 }, timezoneId: 'Asia/Kolkata' });
+    const page = await ctx.newPage();
+    await page.clock.install({ time: new Date(MESSY_AT) });
+    await page.addInitScript((d) => { for (const [k, v] of Object.entries(d)) localStorage.setItem(k, v as string); }, { ...MESSY_DESK, ...MESSY_FLAGS });
+    await page.goto('/#settings');
+    await expect(page.getByTestId('today-preview')).toContainText('Digital Electronics');
+    await page.waitForTimeout(900); // the countdown card would show after 600 ms
+    await expect(page.getByText('7 days to End-Sem')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('cos_notified_history') || '')).not.toContain('card_countdown');
+    await ctx.close();
+  });
+
+  test('393px and 1024px: no preview', async ({ browser, baseURL }) => {
+    for (const width of [393, 1024]) {
+      const { ctx, page } = await open(browser, baseURL, width, 'settings');
+      await expect(page.getByTestId('today-preview')).toHaveCount(0);
+      await ctx.close();
+    }
+  });
+});
