@@ -25,12 +25,18 @@ const go = (page: Page, where: string) => page.evaluate((w) => (window as any).n
 test('Settings tabs sit in the middle of their bar', async ({ page }) => {
   await openDesk(page);
   await go(page, 'settings');
-  const nav = await page.locator('#page-settings .st-nav').boundingBox();
-  for (const name of ['Profile', 'Classes', 'Reminders']) {
-    const text = await page.locator('#page-settings .st-nav-btn .st-nav-short', { hasText: name }).boundingBox();
-    const mid = text!.y + text!.height / 2;
-    expect(Math.abs(mid - (nav!.y + nav!.height / 2))).toBeLessThan(3);
-  }
+  // Bar and labels measured in one go: the page slides in by 8 px, so separate measurements
+  // taken mid-slide disagreed by up to 4 px (a 1-in-5 flake).
+  const gaps = await page.evaluate(() => {
+    const mid = (el: Element) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+    const nav = document.querySelector('#page-settings .st-nav')!;
+    const labels = [...document.querySelectorAll('#page-settings .st-nav-btn .st-nav-short')];
+    return ['Profile', 'Classes', 'Reminders'].map((name) => {
+      const label = labels.find((l) => l.textContent!.trim() === name)!;
+      return Math.abs(mid(label) - mid(nav));
+    });
+  });
+  for (const gap of gaps) expect(gap).toBeLessThan(3);
 });
 
 test('Daily Briefing is titled Daily Briefing', async ({ page }) => {
