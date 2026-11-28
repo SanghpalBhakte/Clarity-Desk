@@ -20,6 +20,9 @@
 //
 //   --crop <selector>   shoot only that element (e.g. .tk-strip) instead of the
 //                       page: fewer pixels for a reviewer to read.
+//   --desk messy        the messy desk from docs/POLISH.md (tests/messy-desk.mjs)
+//                       at its own clock, instead of the busy task list.
+//   --scale <n>         phone pixel ratio (default 2); 1 halves the image size.
 //   Direct runs are cached in test-results/ui-council-cache/<hash>/, keyed on
 //   index.html, app.js, style.css, data.js, this script, the screen and --crop.
 //   Same hash = files copied back, no browser. --fresh skips the cache.
@@ -33,6 +36,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { MESSY_DESK, MESSY_FLAGS, MESSY_AT } from '../../tests/messy-desk.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = {};
@@ -68,6 +72,9 @@ const SCREENS = {
   tasks: { page: 'assignments', states: { busy: BUSY_TASKS, empty: [] } },
   today: { page: 'dashboard', states: { busy: BUSY_TASKS, empty: [] } },
   calendar: { page: 'calendar', states: { busy: BUSY_TASKS } },
+  subjects: { page: 'subjects', states: { busy: BUSY_TASKS } },
+  settings: { page: 'settings', states: { busy: BUSY_TASKS } },
+  briefing: { page: 'summary', states: { busy: BUSY_TASKS } },
 };
 
 // Self-contained on purpose: it is also serialised into mcp-job.js, so it
@@ -79,7 +86,11 @@ async function runShots(browser, cfg) {
       const c = [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
       return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     };
-    const rgba = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+    // rgb()/rgba() give 0-255; color-mix() comes back as color(srgb r g b [/ a]) with 0-1 channels.
+    const rgba = (s) => {
+      const n = (s.match(/[\d.]+/g) || []).map(Number);
+      return /^color\(srgb\s/.test(s) ? [n[0] * 255, n[1] * 255, n[2] * 255, ...n.slice(3)] : n;
+    };
     const bgOf = (el) => {
       for (let n = el; n; n = n.parentElement) {
         const cs = getComputedStyle(n);
@@ -174,13 +185,17 @@ async function runShots(browser, cfg) {
         const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.scale, reducedMotion: 'reduce' });
         const page = await context.newPage();
         await page.clock.setFixedTime(new Date(cfg.now));
-        await page.addInitScript(({ profile, tasks, theme }) => {
-          localStorage.setItem('cos_onboarding_dismissed', 'true');
-          localStorage.setItem('cos_onboarding_done', '1');
-          localStorage.setItem('cos_profile', JSON.stringify(profile));
-          localStorage.setItem('cos_custom_tasks', JSON.stringify(tasks));
+        await page.addInitScript(({ profile, tasks, theme, desk }) => {
+          if (desk) {
+            for (const [k, v] of Object.entries(desk)) localStorage.setItem(k, v);
+          } else {
+            localStorage.setItem('cos_onboarding_dismissed', 'true');
+            localStorage.setItem('cos_onboarding_done', '1');
+            localStorage.setItem('cos_profile', JSON.stringify(profile));
+            localStorage.setItem('cos_custom_tasks', JSON.stringify(tasks));
+          }
           localStorage.setItem('cos_theme', theme);
-        }, { profile: cfg.profile, tasks, theme });
+        }, { profile: cfg.profile, tasks, theme, desk: cfg.desk });
         await page.goto(cfg.base + '/', { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => typeof window.navigateTo === 'function');
         await page.evaluate((p) => window.navigateTo(p), cfg.page);
@@ -229,7 +244,10 @@ async function main() {
   const screen = SCREENS[SCREEN];
   if (!screen) throw new Error(`Unknown screen "${SCREEN}". Known: ${Object.keys(SCREENS).join(', ')}`);
   fs.mkdirSync(OUT, { recursive: true });
-  const cfg = { base: BASE, out: OUT, page: screen.page, states: screen.states, themes: THEMES, sizes: SIZES, now: FIXED_NOW, profile: PROFILE, crop: typeof args.crop === 'string' ? args.crop : null };
+  const messy = args.desk === 'messy';
+  if (args.desk && !messy) throw new Error(`Unknown desk "${args.desk}". Known: messy`);
+  const sizes = args.scale ? { ...SIZES, mobile: { ...SIZES.mobile, scale: Number(args.scale) } } : SIZES;
+  const cfg = { base: BASE, out: OUT, page: screen.page, states: messy ? { messy: [] } : screen.states, themes: THEMES, sizes, now: messy ? MESSY_AT : FIXED_NOW, profile: PROFILE, desk: messy ? { ...MESSY_FLAGS, ...MESSY_DESK } : null, crop: typeof args.crop === 'string' ? args.crop : null };
 
   if (args.mcp) {
     const job = path.join(OUT, 'mcp-job.js');

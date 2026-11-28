@@ -112,7 +112,7 @@ check('rendered briefing: focus class, the week, due, watch, no emoji', () => {
   if (!h.includes('10:00 AM') || !h.includes('Data Structures')) return 'focus class missing';
   if (!h.includes('The week') || !h.includes('bw-block')) return 'week missing';
   if (!h.includes('Nothing. Rare. Enjoy it.')) return 'empty due line missing';
-  if (!h.includes('closest to the 75% line')) return 'watch line missing';
+  if (!h.includes('closest to the 75% line')) return 'no-attendance line missing';
   if (/[\u{1F300}-\u{1FAFF}]/u.test(h)) return 'emoji left in briefing';
   return true;
 });

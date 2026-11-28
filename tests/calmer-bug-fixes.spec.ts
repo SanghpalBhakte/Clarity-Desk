@@ -25,12 +25,18 @@ const go = (page: Page, where: string) => page.evaluate((w) => (window as any).n
 test('Settings tabs sit in the middle of their bar', async ({ page }) => {
   await openDesk(page);
   await go(page, 'settings');
-  const nav = await page.locator('#page-settings .st-nav').boundingBox();
-  for (const name of ['Profile', 'Classes', 'Reminders']) {
-    const text = await page.locator('#page-settings .st-nav-btn .st-nav-short', { hasText: name }).boundingBox();
-    const mid = text!.y + text!.height / 2;
-    expect(Math.abs(mid - (nav!.y + nav!.height / 2))).toBeLessThan(3);
-  }
+  // Bar and labels measured in one go: the page slides in by 8 px, so separate measurements
+  // taken mid-slide disagreed by up to 4 px (a 1-in-5 flake).
+  const gaps = await page.evaluate(() => {
+    const mid = (el: Element) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+    const nav = document.querySelector('#page-settings .st-nav')!;
+    const labels = [...document.querySelectorAll('#page-settings .st-nav-btn .st-nav-short')];
+    return ['Profile', 'Classes', 'Reminders'].map((name) => {
+      const label = labels.find((l) => l.textContent!.trim() === name)!;
+      return Math.abs(mid(label) - mid(nav));
+    });
+  });
+  for (const gap of gaps) expect(gap).toBeLessThan(3);
 });
 
 test('Daily Briefing is titled Daily Briefing', async ({ page }) => {
@@ -61,12 +67,13 @@ test('On a holiday, Late tasks are one line, not break deadlines', async ({ page
 test('Late tasks are one line, not under Due this week', async ({ page }) => {
   await openDesk(page);
   await go(page, 'summary');
-  const due = page.locator('section[aria-label="Due this week"]');
+  // The number column (#463): Late is its own row; no late title shows anywhere in it.
+  const due = page.locator('.bf-nums');
   await expect(due).not.toContainText('DS lab record');
   await expect(due).not.toContainText('OS quiz');
   await expect(due).not.toContainText('overdue');
   const late = page.locator('.bf-late');
-  await expect(late).toHaveText(/2 Late\s*·?\s*Look through/);
+  await expect(late).toHaveText(/^\s*2\s*Late\s*oldest \d+ days?\s*Look through\s*$/);
   await late.getByRole('button', { name: 'Look through' }).click();
   await expect(page.locator('#page-assignments')).toBeVisible();
 });

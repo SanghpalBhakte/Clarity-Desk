@@ -2614,7 +2614,7 @@ a.card:hover,
 /* First Today: the timetable is one quiet line under the work, no card. */
 .desk-setup-guide.setup-first { background: none; border: 0; box-shadow: none; padding: 0; margin: 20px 0 0; }
 /* Phones reorder Today with flex order; the timetable line stays last. */
-#page-dashboard .desk-setup-guide.setup-first { order: 99; }
+:is(#page-dashboard, .today-preview) .desk-setup-guide.setup-first { order: 99; }
 .setup-first-line { margin: 0; font-size: var(--text-md); color: var(--text-secondary); }
 .setup-first-btn { min-height: 44px; padding: 0 2px; font-size: var(--text-md); font-weight: 700; color: var(--color-thread, var(--accent)); }
 .setup-first-btn:hover, .setup-first-btn:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
@@ -5084,7 +5084,7 @@ body::before {
   /* The rest-day empty state sits right above the floating Add
      Task button on short mobile viewports — trim its padding so
      the two never touch. */
-  #page-dashboard .empty-state-card {
+  :is(#page-dashboard, .today-preview) .empty-state-card {
     padding: 22px 16px;
     margin-bottom: 4px;
   }
@@ -5410,21 +5410,21 @@ body::before {
    `display: contents` lets the masthead's two children be ordered
    separately without moving anything in the DOM (desktop is untouched). */
 @media (max-width: 560px) {
-  #page-dashboard.active { display: flex; flex-direction: column; }
-  #page-dashboard > * { order: 4; }
-  #page-dashboard .desk-masthead { display: contents; }
-  #page-dashboard .desk-masthead-top { order: 0; padding-top: 20px; margin-bottom: 16px; }
-  #page-dashboard .desk-masthead:not(.is-settled) .desk-masthead-top {
+  :is(#page-dashboard, .today-preview).active { display: flex; flex-direction: column; }
+  :is(#page-dashboard, .today-preview) > * { order: 4; }
+  :is(#page-dashboard, .today-preview) .desk-masthead { display: contents; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top { order: 0; padding-top: 20px; margin-bottom: 16px; }
+  :is(#page-dashboard, .today-preview) .desk-masthead:not(.is-settled) .desk-masthead-top {
     animation: deskSettleIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  #page-dashboard .chrono-beacon { order: 1; }
-  #page-dashboard .desk-setup-guide { order: 2; }
-  #page-dashboard .vitals-strip { order: 3; margin-top: 0 !important; }   /* beats the inline 14px */
+  :is(#page-dashboard, .today-preview) .chrono-beacon { order: 1; }
+  :is(#page-dashboard, .today-preview) .desk-setup-guide { order: 2; }
+  :is(#page-dashboard, .today-preview) .vitals-strip { order: 3; margin-top: 0 !important; }   /* beats the inline 14px */
   /* three tiles in a two-column grid left the last one alone with an empty half row */
-  #page-dashboard .vitals-strip .vitals-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  :is(#page-dashboard, .today-preview) .vitals-strip .vitals-tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) and (prefers-reduced-motion: reduce) {
-  #page-dashboard .desk-masthead:not(.is-settled) .desk-masthead-top { animation: none; }
+  :is(#page-dashboard, .today-preview) .desk-masthead:not(.is-settled) .desk-masthead-top { animation: none; }
 }
 
 /* ── Design pass (v170): tokens, contrast, Tasks ──────────────────────
@@ -6019,12 +6019,12 @@ body::before {
 
   /* three stat tiles share one row; a fourth (End-Sem) makes it two by two.
      The stat card now sits right under the class card; setup moves below it. */
-  #page-dashboard .vitals-strip { grid-auto-flow: column; order: 2; margin-bottom: var(--ds-space-4); }
-  #page-dashboard .desk-setup-guide { order: 3; }
-  #page-dashboard .vitals-strip .vitals-tile:last-child:nth-child(odd) { grid-column: auto; }
-  #page-dashboard .vitals-strip.is-four { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #page-dashboard .vitals-strip.is-four .vitals-tile:nth-child(odd) { border-left: 0; }
-  #page-dashboard .vitals-strip.is-four .vitals-tile:nth-child(n+3) { border-top: 1px solid var(--color-rule); }
+  :is(#page-dashboard, .today-preview) .vitals-strip { grid-auto-flow: column; order: 2; margin-bottom: var(--ds-space-4); }
+  :is(#page-dashboard, .today-preview) .desk-setup-guide { order: 3; }
+  :is(#page-dashboard, .today-preview) .vitals-strip .vitals-tile:last-child:nth-child(odd) { grid-column: auto; }
+  :is(#page-dashboard, .today-preview) .vitals-strip.is-four { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :is(#page-dashboard, .today-preview) .vitals-strip.is-four .vitals-tile:nth-child(odd) { border-left: 0; }
+  :is(#page-dashboard, .today-preview) .vitals-strip.is-four .vitals-tile:nth-child(n+3) { border-top: 1px solid var(--color-rule); }
   .vitals-tile { padding: var(--ds-space-3); }
   .vitals-value { font-size: var(--ds-text-20); }
 }
@@ -6103,7 +6103,7 @@ body::before {
 .today-focus-x svg { width: 16px; height: 16px; }
 
 @media (max-width: 560px) {
-  #page-dashboard .today-focus { order: 1; }
+  :is(#page-dashboard, .today-preview) .today-focus { order: 1; }
 }
 
 /* One class unmarked: the next-step row marks it in place (Present / Absent
@@ -6124,9 +6124,9 @@ body::before {
    Extra room at the end so the floating + never sits on the last item. */
 .schedule-hero-note { display: none; }
 @media (max-width: 767px) {
-  #page-dashboard .schedule-slot.is-in-hero { display: none; }
-  #page-dashboard .schedule-hero-note { display: block; padding: 6px 0; font-size: var(--text-sm); color: var(--text-muted); }
-  #page-dashboard { padding-bottom: 24px; }
+  :is(#page-dashboard, .today-preview) .schedule-slot.is-in-hero { display: none; }
+  :is(#page-dashboard, .today-preview) .schedule-hero-note { display: block; padding: 6px 0; font-size: var(--text-sm); color: var(--text-muted); }
+  :is(#page-dashboard, .today-preview) { padding-bottom: 24px; }
 }
 
 /* Live feel: two short, quiet motions, switched off for reduced motion. */
@@ -6664,8 +6664,8 @@ body.holiday-mode .holiday-banner {
 /* Phones lay the masthead out with display: contents (no box to paint), so
    the sunset goes on its greeting block instead. */
 @media (max-width: 560px) {
-  body.holiday-mode #page-dashboard .desk-masthead::after { content: none; }
-  body.holiday-mode #page-dashboard .desk-masthead-top {
+  body.holiday-mode :is(#page-dashboard, .today-preview) .desk-masthead::after { content: none; }
+  body.holiday-mode :is(#page-dashboard, .today-preview) .desk-masthead-top {
     position: relative; overflow: hidden;
     padding: 20px 16px 18px;
     border-radius: var(--radius);
@@ -7002,39 +7002,39 @@ body.holiday-mode .holiday-banner {
 /* ── Calm Today: one loud thing, quiet rows ─────────────────────────────
    The live class card and its "mark the class before" prompt read as one
    surface; task labels and later due dates go grey so only what needs you keeps colour. */
-#page-dashboard .chrono-beacon:has(+ .today-focus[data-mark]) {
+:is(#page-dashboard, .today-preview) .chrono-beacon:has(+ .today-focus[data-mark]) {
   margin-bottom: 0;
   border-bottom: 0;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
-#page-dashboard .chrono-beacon + .today-focus[data-mark] {
+:is(#page-dashboard, .today-preview) .chrono-beacon + .today-focus[data-mark] {
   margin-top: 0;
   border-top: 1px solid var(--color-rule);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   box-shadow: var(--shadow-sm);
 }
-#page-dashboard .today-focus[data-mark] .today-focus-title { color: var(--color-action-primary); }
+:is(#page-dashboard, .today-preview) .today-focus[data-mark] .today-focus-title { color: var(--color-action-primary); }
 
-#page-dashboard .task-ledger-item::before { display: none; }
+:is(#page-dashboard, .today-preview) .task-ledger-item::before { display: none; }
 /* Due dates read as words, not pills. Overdue keeps red; due today takes the
    brand colour (the amber failed 4.5:1 as small text); the rest go grey. */
-#page-dashboard .due-badge { background: transparent; border: 0; color: var(--text-muted); }
-#page-dashboard .due-badge.overdue { color: var(--status-error); font-weight: 700; }
-#page-dashboard .due-badge.today { color: var(--color-action-primary); font-weight: 700; }
+:is(#page-dashboard, .today-preview) .due-badge { background: transparent; border: 0; color: var(--text-muted); }
+:is(#page-dashboard, .today-preview) .due-badge.overdue { color: var(--status-error); font-weight: 700; }
+:is(#page-dashboard, .today-preview) .due-badge.today { color: var(--color-action-primary); font-weight: 700; }
 
 /* Present is the expected answer, so it carries the sage; Absent stays neutral. */
-#page-dashboard .chrono-beacon .beacon-att.is-present:not([aria-pressed="true"]),
-#page-dashboard .today-focus-mark .beacon-att:first-child,
-#page-dashboard .slot-att.is-present:not([aria-pressed="true"]) {
+:is(#page-dashboard, .today-preview) .chrono-beacon .beacon-att.is-present:not([aria-pressed="true"]),
+:is(#page-dashboard, .today-preview) .today-focus-mark .beacon-att:first-child,
+:is(#page-dashboard, .today-preview) .slot-att.is-present:not([aria-pressed="true"]) {
   border-color: var(--status-success);
   color: var(--status-success);
 }
 
 /* Quick add: a quiet line under the tasks instead of a boxed field. */
-#page-dashboard #quick-add-input { background: transparent; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; }
-#page-dashboard #quick-add-input:focus { border-bottom-color: var(--text-primary); }
+:is(#page-dashboard, .today-preview) #quick-add-input { background: transparent; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; }
+:is(#page-dashboard, .today-preview) #quick-add-input:focus { border-bottom-color: var(--text-primary); }
 
 
 
@@ -7043,34 +7043,34 @@ body.holiday-mode .holiday-banner {
 .att-stat-figure, .setup-guide-count, .sj-pct, .tt-tab-n {
   font-variant-numeric: tabular-nums;
 }
-#page-dashboard .chrono-beacon-count-num { font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
-#page-dashboard .chrono-beacon-title { font-size: clamp(1.3rem, 1.05rem + 0.9vw, 1.7rem); font-weight: 700; letter-spacing: -0.01em; }
-#page-dashboard .chrono-beacon-badge,
-#page-dashboard .chrono-beacon-meta,
-#page-dashboard .chrono-beacon-count-label { font-size: 0.8125rem; color: var(--text-secondary); }
+:is(#page-dashboard, .today-preview) .chrono-beacon-count-num { font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
+:is(#page-dashboard, .today-preview) .chrono-beacon-title { font-size: clamp(1.3rem, 1.05rem + 0.9vw, 1.7rem); font-weight: 700; letter-spacing: -0.01em; }
+:is(#page-dashboard, .today-preview) .chrono-beacon-badge,
+:is(#page-dashboard, .today-preview) .chrono-beacon-meta,
+:is(#page-dashboard, .today-preview) .chrono-beacon-count-label { font-size: 0.8125rem; color: var(--text-secondary); }
 /* The class progress reads as a small meter, not a broken divider. */
-#page-dashboard .chrono-beacon-progress { height: 3px; left: 20px; right: 20px; bottom: 12px; border-radius: 3px; background: var(--color-rule); overflow: hidden; }
-#page-dashboard .chrono-beacon[data-beacon="live"] { padding-bottom: 30px; }
+:is(#page-dashboard, .today-preview) .chrono-beacon-progress { height: 3px; left: 20px; right: 20px; bottom: 12px; border-radius: 3px; background: var(--color-rule); overflow: hidden; }
+:is(#page-dashboard, .today-preview) .chrono-beacon[data-beacon="live"] { padding-bottom: 30px; }
 /* The "mark the class before" prompt is secondary: compact buttons, so the
    live class keeps the only full-size pair. */
-#page-dashboard .chrono-beacon + .today-focus[data-mark] .today-focus-mark .btn {
+:is(#page-dashboard, .today-preview) .chrono-beacon + .today-focus[data-mark] .today-focus-mark .btn {
   flex: 0 0 auto;
   min-height: 36px;
   padding: 0 14px;
   font-size: var(--text-sm);
 }
 /* Past rows stay readable; the unmarked one still needs reading. */
-#page-dashboard .schedule-slot.is-past .schedule-slot-time,
-#page-dashboard .schedule-slot.is-past .schedule-slot-info { opacity: 0.62; }
+:is(#page-dashboard, .today-preview) .schedule-slot.is-past .schedule-slot-time,
+:is(#page-dashboard, .today-preview) .schedule-slot.is-past .schedule-slot-info { opacity: 0.62; }
 /* Ledger rows are ruled lines; a radius bent the row divider into a box. */
-#page-dashboard .schedule-slot { border-radius: 0; }
+:is(#page-dashboard, .today-preview) .schedule-slot { border-radius: 0; }
 
 /* Attendance figure in ink; the verdict word carries the colour. */
-#page-dashboard .att-stat-figure.is-safe { color: var(--text-primary); }
-#page-dashboard .att-stat-figure { font-weight: 700; letter-spacing: -0.02em; }
-#page-dashboard .att-stat-figure .att-dec { font-size: 0.59em; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
-#page-dashboard .att-stat-figure.is-safe + .att-stat-label { color: var(--status-success); }
-#page-dashboard .att-stat-figure.at-risk + .att-stat-label { color: var(--status-error); }
+:is(#page-dashboard, .today-preview) .att-stat-figure.is-safe { color: var(--text-primary); }
+:is(#page-dashboard, .today-preview) .att-stat-figure { font-weight: 700; letter-spacing: -0.02em; }
+:is(#page-dashboard, .today-preview) .att-stat-figure .att-dec { font-size: 0.59em; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; }
+:is(#page-dashboard, .today-preview) .att-stat-figure.is-safe + .att-stat-label { color: var(--status-success); }
+:is(#page-dashboard, .today-preview) .att-stat-figure.at-risk + .att-stat-label { color: var(--status-error); }
 
 /* ── Calm app pass: quiet headings, ink selection ───────────────────────
    Terracotta is kept for each screen's one main action; selected days and
@@ -7299,7 +7299,7 @@ body.holiday-mode .holiday-banner {
 /* ── Today: day bar after the last class ─────────────────────────────
    The day's classes as blocks on the ruler, the "now" needle in the thread
    colour. Tap a block to mark it; unmarked blocks are hatched. */
-#page-dashboard .chrono-beacon.day-bar { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+:is(#page-dashboard, .today-preview) .chrono-beacon.day-bar { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
 .day-bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .day-bar-title { font-family: var(--font-display, var(--font)); font-size: 1.15rem; font-weight: 700; color: var(--text-primary); }
 .day-bar-hint { font-size: 0.78rem; color: var(--text-muted); }
@@ -7355,6 +7355,7 @@ body.holiday-mode .holiday-banner {
 .hub-short b { color: var(--text-secondary); }
 .hub-short .hub-act { margin-left: 6px; }
 .hub-short-field { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.hub-short-field[hidden] { display: none; }
 .hub-short-field .form-input { width: 9.5em; min-height: 40px; }
 .hub-section { min-width: 0; }
 .hub-story { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.45; color: var(--text-primary); }
@@ -7392,30 +7393,40 @@ body.holiday-mode .holiday-banner {
 .hub-check.is-on { border-color: var(--status-success); background: var(--status-success); }
 
 /* ── Daily Briefing: the week ahead ───────────────────────────────────
-   Headline about the next class day, its classes as rows, the week as
-   thin day tracks on one time axis, then due / watch / notices on rules. */
+   Headline, a number column (one figure and one line per fact, #463), the
+   rest of the day one line per class, then the week as thin day tracks. */
 .bf { display: flex; flex-direction: column; gap: 26px; max-width: 720px; }
-.bf-kicker { font-size: var(--text-sm); color: var(--text-muted); }
-.bf-title { margin: 6px 0 0; font-family: var(--font-display, var(--font)); font-size: clamp(1.75rem, 1.5rem + 1vw, 2.1rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text-primary); }
+.bf-kicker { font-size: 0.875rem; color: var(--text-muted); }
+#page-resources .page-subtitle { font-size: 0.875rem; }
+.bf-title { margin: 6px 0 0; font-family: var(--font-display, var(--font)); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text-primary); }
 .bf-title em { font-style: normal; color: var(--color-thread, var(--accent)); }
-.bf-sub { margin: 8px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
-.bf-focus { border-top: 2px solid var(--text-primary); }
+.bf-sub { margin: 8px 0 0; font-size: 1rem; color: var(--text-secondary); }
+.bf-nums { border-top: 2px solid var(--text-primary); }
+.bf-num { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--color-rule, var(--border)); }
+.bf-n { flex: none; width: 64px; font-family: var(--font-display, var(--font)); font-size: 1.375rem; font-weight: 600; color: var(--text-primary); }
+.bf-num.is-bad .bf-n { color: var(--status-error, var(--color-error)); }
+.bf-num-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bf-num-main b { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.bf-num-main small { font-size: 0.875rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bf-num .bf-act { flex: none; min-height: 44px; }
+.bf-num.bf-late { margin: 0; font-size: inherit; }
 .bf-class, .bf-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 52px; padding: 12px 0; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--color-rule, var(--border)); background: none; font: inherit; text-align: left; color: var(--text-primary); cursor: pointer; }
 .bf-class { align-items: baseline; }
-.bf-time { flex: none; width: 76px; font-family: var(--font-display, var(--font)); font-weight: 700; font-size: 0.95rem; }
+.bf-time { flex: none; width: 76px; font-family: var(--font-display, var(--font)); font-weight: 700; font-size: 0.875rem; }
 .bf-class-main, .bf-row-main { flex: 1; min-width: 0; }
-.bf-class-name, .bf-row-title { display: block; font-size: 0.95rem; font-weight: 600; }
+.bf-class-name, .bf-row-title { display: block; font-size: 1rem; font-weight: 600; }
+.bf-class-name b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bf-row-title { font-weight: 500; }
 .bf-class-sub, .bf-row-sub { display: block; margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
 .bf-row-when { flex: none; font-size: var(--text-sm); color: var(--text-muted); }
 .bf-row.is-overdue .bf-row-when { color: var(--status-error); font-weight: 700; }
 .bf-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.bf-h h3 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.bf-h h3 { margin: 0; font-family: var(--font-display, var(--font)); font-size: 1rem; font-weight: 700; color: var(--text-primary); }
 .bf-act { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: 700; color: var(--color-thread, var(--accent)); cursor: pointer; }
 .bf-ruled { border-top: 1px solid var(--color-rule, var(--border)); padding-top: 14px; }
-.bf-quiet { margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
-.bf-late { display: flex; align-items: center; margin: 4px 0 0; font-size: 0.95rem; color: var(--text-secondary); }
-.bf-late strong { color: var(--color-thread, var(--accent)); }
+.bf-quiet { margin: 8px 0 0; font-size: 1rem; color: var(--text-secondary); }
+.bf-late { display: flex; align-items: center; margin: 4px 0 0; font-size: 1rem; color: var(--text-secondary); }
+.bf-late strong { color: var(--status-error, var(--color-error)); }
 .bf-note { margin: 10px 0 0; font-size: var(--text-sm); color: var(--text-secondary); }
 .bw { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .bw-day { display: flex; align-items: center; gap: 10px; }
@@ -7426,12 +7437,12 @@ body.holiday-mode .holiday-banner {
 .bw-track { position: relative; flex: 1; height: 26px; border-bottom: 1px solid var(--color-rule, var(--border)); }
 .bw-block { position: absolute; top: 3px; height: 20px; min-width: 6px; border-radius: 6px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 .bw-block.is-lab { background: var(--text-primary); }
-.bw-count { flex: none; width: 18px; text-align: right; font-size: var(--text-xs); color: var(--text-muted); }
+.bw-count { flex: none; width: 18px; text-align: right; font-size: 0.75rem; color: var(--text-muted); }
 .bw-axis { margin-top: -4px; }
-.bw-hours { position: relative; flex: 1; height: 14px; font-size: 0.7rem; color: var(--text-muted); }
+.bw-hours { position: relative; flex: 1; height: 14px; font-size: 0.75rem; color: var(--text-muted); }
 .bw-hours span { position: absolute; transform: translateX(-50%); }
 .bw-hours span:first-child { transform: none; }
-.bw-key { font-size: var(--text-xs); color: var(--text-muted); }
+.bw-key { font-size: 0.75rem; color: var(--text-muted); }
 .bw-key i { display: inline-block; width: 10px; height: 10px; margin: 0 2px -1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 .bw-key i.is-lab { background: var(--text-primary); }
 
@@ -7618,7 +7629,6 @@ body.holiday-mode .holiday-banner {
   white-space: nowrap;
   cursor: pointer;
 }
-#page-settings .st-nav-btn .st-num,
 #page-settings .st-nav-long { display: none; }
 #page-settings .st-nav-btn[aria-current] { color: var(--text-primary); font-weight: 700; box-shadow: inset 0 -2px 0 var(--color-thread, var(--accent)); }
 #page-settings .st-nav-btn.is-danger { color: var(--color-thread, var(--accent)); }
@@ -7631,12 +7641,6 @@ body.holiday-mode .holiday-banner {
   gap: 10px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--text-primary);
-}
-#page-settings .st-num {
-  font-family: var(--font-display, sans-serif);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--color-thread, var(--accent));
 }
 #page-settings .st-title {
   flex: 1;
@@ -7693,7 +7697,7 @@ body.holiday-mode .holiday-banner {
 #page-settings .st-link.is-danger { color: var(--status-error); }
 #page-settings .st-danger { margin: 40px 0 32px; }
 #page-settings .st-danger .st-head { border-bottom-color: var(--status-error); }
-#page-settings .st-danger .st-title { font-size: 1.15rem; color: var(--status-error); }
+#page-settings .st-danger .st-title { font-size: 1.25rem; color: var(--status-error); }
 #page-settings .st-head-note { font-size: var(--text-sm); color: var(--text-muted); }
 
 @media (min-width: 1024px) {
@@ -7709,7 +7713,6 @@ body.holiday-mode .holiday-banner {
     border-bottom: 0;
   }
   #page-settings .st-nav-btn { min-height: 40px; padding-left: 12px; border-left: 2px solid transparent; }
-  #page-settings .st-nav-btn .st-num,
   #page-settings .st-nav-long { display: inline; }
   #page-settings .st-nav-short { display: none; }
   #page-settings .st-nav-btn[aria-current] { box-shadow: none; border-left-color: var(--color-thread, var(--accent)); }
@@ -7721,8 +7724,8 @@ body.holiday-mode .holiday-banner {
 .st-aim-subjects summary { min-height: 44px; display: flex; align-items: center; font-size: var(--text-sm); font-weight: 700; color: var(--text-primary); cursor: pointer; }
 .st-aim-hint { margin: 0 0 6px; font-size: var(--text-sm); color: var(--text-muted); }
 .st-aim-row { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--color-rule); }
-.st-aim-code { flex: none; width: 56px; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-aim-name { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-aim-code { flex: 1; min-width: 0; font-family: var(--font-display); font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; }
+.st-aim-name { display: block; font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary); overflow-wrap: anywhere; }
 .st-aim-row .s-aim-subj { flex: none; width: 76px; }
 
 /* ── Tasks in the Briefing's voice ─────────────────────────────────────
@@ -7865,6 +7868,45 @@ body.holiday-mode .holiday-banner {
   .tk-subjects { margin: 0 0 14px; padding: 0; }
 }
 
+/* Laptops 1280px+: the open item sits in a sheet beside the list (Tasks #477, Subjects #478). */
+@media (min-width: 1280px) {
+  #page-assignments .tk-page.has-pane { grid-template-areas: "head add" "main pane"; }
+  #page-assignments .tk-page.has-pane.has-strip { grid-template-areas: "head add" "strip strip" "main pane"; }
+  #page-assignments .tk-pane { grid-area: pane; }
+  .side-pane { align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; min-width: 0; padding: 20px; border-radius: 20px; background: var(--color-surface, var(--color-canvas)); box-shadow: 0 0 0 1px var(--color-rule); }
+  .side-pane-kicker { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
+  .side-pane h2 { margin: 4px 0; font-size: 1.375rem; line-height: 1.25; font-weight: var(--th-tw, 600); color: var(--text-primary); text-wrap: balance; outline-offset: 4px; }
+  .side-pane-facts { margin: 12px 0 0; }
+  .side-pane-facts > div { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
+  .side-pane-facts dt { font-size: 0.875rem; color: var(--text-secondary); }
+  .side-pane-facts dd { margin: 0; font-size: 1rem; color: var(--text-primary); }
+  .side-pane-note { margin: 12px 0 0; font-size: 0.875rem; color: var(--text-secondary); }
+  .side-pane-main { display: flex; gap: 8px; margin-top: 16px; }
+  .side-pane-main button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 99px; font: inherit; font-size: 1rem; font-weight: 600; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); cursor: pointer; }
+  .side-pane-main .side-pane-primary { background: var(--text-primary); color: var(--color-canvas); }
+  .side-pane-quiet { margin: 0; font-size: 1rem; color: var(--text-secondary); }
+  .tk-pane-when { margin: 0; font-size: 1rem; }
+  .tk-pane-more { margin-top: 8px; padding-left: 0; }
+  /* The row shown in the sheet: a soft tint that reaches past the row, so nothing in it moves. */
+  #page-assignments .tk-card.is-paned, #page-subjects .sj-row.is-paned { border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 5%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--text-primary) 5%, transparent); }
+  #page-subjects .sj-body.has-pane { display: grid; grid-template-columns: minmax(0, 760px) minmax(300px, 380px); column-gap: 48px; align-items: start; }
+  .sj-pane-pct { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 0; font-size: 1rem; }
+  .sj-pane-pct .n { font-size: 2.375rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .sj-pane-pct .n.low { color: var(--status-error, var(--color-error)); }
+  .side-pane-facts .hub-short-field { margin-top: 8px; }
+  .sj-week { display: none; }
+}
+/* PC 1600px+: the open subject's week as a third column. */
+@media (min-width: 1600px) {
+  #page-subjects .sj-body.has-pane { grid-template-columns: minmax(0, 640px) minmax(300px, 380px) minmax(240px, 320px); }
+  .sj-week { display: block; position: sticky; top: 16px; padding-top: 20px; }
+  .sj-week h3 { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); }
+  /* The Subject page's week, at the sizes Subjects allows (docs/POLISH.md): 12 and 14. */
+  .sj-week .hub-day-name, .sj-week .hub-day-sub { font-size: 0.75rem; }
+  .sj-week .hub-day-time { font-size: 0.875rem; }
+  .sj-week .hub-quiet { font-size: 0.875rem; }
+}
+
 /* Laptop sidebar: small quiet group labels and space instead of rules; the
    current page is bold with the thread bar. The collapsed icon rail keeps its
    own rules. */
@@ -8001,7 +8043,7 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 
 /* ── Today first look: one surface. The class beacon is the only raised block;
    the attendance ask is an open ruled step (type + hairlines), not a second card. ── */
-#page-dashboard .desk-setup-guide.setup-ask {
+:is(#page-dashboard, .today-preview) .desk-setup-guide.setup-ask {
   background: none;
   border: 0;
   border-top: 1px solid var(--color-rule);
@@ -8010,7 +8052,7 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
   padding: var(--ds-space-4) 0 0;
   margin-top: var(--ds-space-2);
 }
-#page-dashboard .setup-ask-title { font-family: var(--font-display); font-size: var(--text-md); font-weight: 700; }
+:is(#page-dashboard, .today-preview) .setup-ask-title { font-family: var(--font-display); font-size: var(--text-md); font-weight: 700; }
 
 /* ── Today on PC (1100px+): the attendance question sits in the right column,
    above the Attendance panel, so the schedule and tasks stay on the first screen.
@@ -8019,28 +8061,28 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
    items above (masthead, welcome-back, class card, focus row) so a missing or an
    extra one cannot shift the columns; unused rows have no height. ── */
 @media (min-width: 1100px) {
-  #page-dashboard.active {
+  :is(#page-dashboard, .today-preview).active {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 280px;
     grid-template-rows: repeat(9, auto) auto 1fr;
     column-gap: 32px;
     align-items: start;
   }
-  #page-dashboard.active > * { grid-column: 1 / -1; }
-  #page-dashboard.active > .dashboard-layout { display: contents; }
-  #page-dashboard.active .dashboard-left { grid-column: 1; grid-row: 10 / span 2; }
-  #page-dashboard.active .desk-setup-guide:not(.setup-first) {
+  :is(#page-dashboard, .today-preview).active > * { grid-column: 1 / -1; }
+  :is(#page-dashboard, .today-preview).active > .dashboard-layout { display: contents; }
+  :is(#page-dashboard, .today-preview).active .dashboard-left { grid-column: 1; grid-row: 10 / span 2; }
+  :is(#page-dashboard, .today-preview).active .desk-setup-guide:not(.setup-first) {
     grid-column: 2;
     grid-row: 10;
     margin: 0 0 var(--ds-space-5, 20px);
   }
-  #page-dashboard.active .dashboard-right-panel { grid-column: 2; grid-row: 11; }
-  #page-dashboard.active .desk-setup-guide.setup-first { grid-row: 12; }
+  :is(#page-dashboard, .today-preview).active .dashboard-right-panel { grid-column: 2; grid-row: 11; }
+  :is(#page-dashboard, .today-preview).active .desk-setup-guide.setup-first { grid-row: 12; }
   /* Nothing to guide yet: keep one primary action in the column. */
-  #page-dashboard.active .dashboard-panel:has(.att-stat-figure.is-target) .panel-action { display: none; }
+  :is(#page-dashboard, .today-preview).active .dashboard-panel:has(.att-stat-figure.is-target) .panel-action { display: none; }
 }
 @media (min-width: 1280px) {
-  #page-dashboard.active { grid-template-columns: minmax(0, 1fr) 300px; column-gap: 40px; }
+  :is(#page-dashboard, .today-preview).active { grid-template-columns: minmax(0, 1fr) 300px; column-gap: 40px; }
 }
 
 /* Today: quiet date line above the greeting (same voice as the welcome's .ob-date). */
@@ -8051,9 +8093,9 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 
 /* Today on PC: a tighter masthead so the third task row is not clipped at 1440x900. */
 @media (min-width: 1100px) {
-  #page-dashboard .desk-masthead { padding: 18px 0 14px; margin-bottom: 14px; }
+  :is(#page-dashboard, .today-preview) .desk-masthead { padding: 18px 0 14px; margin-bottom: 14px; }
   /* The one-line status sentence stays on one line in the wide column, so the greeting never grows. */
-  #page-dashboard .desk-greeting-sub { max-width: none; }
+  :is(#page-dashboard, .today-preview) .desk-greeting-sub { max-width: none; }
 }
 
 /* Phones: toasts sit above the bottom bar and the add button, centred. */
@@ -8180,7 +8222,7 @@ body:has(#page-timetable.active .tt-open) .fab { display: none !important; }
 .rail-row.show-marks .rail-marks.is-folded { display: flex; }
 .rail-change { grid-column: 3; grid-row: 1 / span 2; align-self: center; justify-self: end; min-height: 44px; min-width: 44px; padding: 0 2px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .rail-change:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
-#page-dashboard .today-focus.today-risk { align-items: flex-start; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; background: none; box-shadow: none; padding: 0 0 6px; }
+:is(#page-dashboard, .today-preview) .today-focus.today-risk { align-items: flex-start; border: 0; border-bottom: 1px solid var(--color-rule); border-radius: 0; background: none; box-shadow: none; padding: 0 0 6px; }
 .today-risk-line { flex: 1; min-width: 0; margin: 0; padding-top: 11px; font-size: var(--text-sm); line-height: 1.45; color: var(--color-text-primary); }
 .today-risk-subj { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
 .today-risk-subj:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 3px; }
@@ -8390,7 +8432,6 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    class bars are one step brighter so the week reads. */
 .cd-hello-title span, .cd-hello-setup button { color: var(--text-primary); }
 #page-calendar .cal-today-btn, #page-calendar .cal-quick-add, #page-subjects .sj-mark-link { color: var(--text-primary); }
-#page-settings .st-num { color: var(--text-muted); }
 :root[data-theme="midnight-ink"] .bw-block { background: color-mix(in srgb, var(--text-muted) 55%, transparent); }
 
 /* ── Phone chrome: frosted, page-coloured ──
@@ -8441,25 +8482,25 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    headline, the name is no longer a second colour (red and the signal colour
    keep their meanings), and the italic is gone. Markup is unchanged. */
 @media (max-width: 767px) {
-  #page-dashboard .desk-masthead-top { padding-top: 18px; margin-bottom: 18px; }
-  #page-dashboard .desk-masthead-top > div:first-child { display: block; }
-  #page-dashboard .desk-masthead-top > div:first-child > .desk-date { display: flex; align-items: baseline; gap: .38em; margin: 0 0 8px; }
-  #page-dashboard .desk-dday, #page-dashboard .desk-dnum {
+  :is(#page-dashboard, .today-preview) .desk-masthead-top { padding-top: 18px; margin-bottom: 18px; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child { display: block; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child > .desk-date { display: flex; align-items: baseline; gap: .38em; margin: 0 0 8px; }
+  :is(#page-dashboard, .today-preview) .desk-dday, :is(#page-dashboard, .today-preview) .desk-dnum {
     padding: 0; font-family: var(--font-sans); font-size: .8125rem; font-weight: 600; line-height: 1.2;
     letter-spacing: .07em; text-transform: uppercase; color: var(--text-secondary);
   }
-  #page-dashboard .desk-dday { order: 1; }
-  #page-dashboard .desk-dnum { order: 2; }
-  #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting {
+  :is(#page-dashboard, .today-preview) .desk-dday { order: 1; }
+  :is(#page-dashboard, .today-preview) .desk-dnum { order: 2; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child > .desk-greeting {
     margin: 0; font-size: clamp(1.875rem, 8.2vw, 2.375rem); font-weight: 700; line-height: 1.08;
     letter-spacing: -.03em; font-variation-settings: 'opsz' 48; text-shadow: none; text-wrap: balance;
   }
-  #page-dashboard .desk-greeting .desk-greeting-name { color: inherit; font-weight: inherit; }
-  #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting-sub {
+  :is(#page-dashboard, .today-preview) .desk-greeting .desk-greeting-name { color: inherit; font-weight: inherit; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child > .desk-greeting-sub {
     margin-top: 10px; max-width: 32ch; font-family: var(--font-sans); font-variation-settings: normal; font-style: normal;
     font-weight: 400; font-size: 1.0625rem; line-height: 1.4; letter-spacing: -.011em; color: var(--text-secondary); text-wrap: pretty;
   }
-  #page-dashboard .desk-greeting-sub strong, #page-dashboard .desk-greeting-sub b { font-weight: 600; color: var(--text-primary); }
+  :is(#page-dashboard, .today-preview) .desk-greeting-sub strong, :is(#page-dashboard, .today-preview) .desk-greeting-sub b { font-weight: 600; color: var(--text-primary); }
 }
 
 /* ── Attendance colours: clear, not muted ──
@@ -8497,9 +8538,9 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    The figure, the "Aim" line and the bar use the attendance pair from Subjects
    (--att-*), so one state is one colour on every screen. The unfilled part of
    the bar is a pale tint of that colour. */
-#page-dashboard .att-stat-figure.at-risk, #page-dashboard .att-stat-figure.at-risk + .att-stat-label { color: var(--att-risk-ink); }
-#page-dashboard .att-stat-figure.is-safe, #page-dashboard .att-stat-figure.is-safe + .att-stat-label { color: var(--att-safe-ink); }
-#page-dashboard .att-stat-figure.at-risk .att-dec, #page-dashboard .att-stat-figure.is-safe .att-dec { color: inherit; opacity: .75; }
+:is(#page-dashboard, .today-preview) .att-stat-figure.at-risk, :is(#page-dashboard, .today-preview) .att-stat-figure.at-risk + .att-stat-label { color: var(--att-risk-ink); }
+:is(#page-dashboard, .today-preview) .att-stat-figure.is-safe, :is(#page-dashboard, .today-preview) .att-stat-figure.is-safe + .att-stat-label { color: var(--att-safe-ink); }
+:is(#page-dashboard, .today-preview) .att-stat-figure.at-risk .att-dec, :is(#page-dashboard, .today-preview) .att-stat-figure.is-safe .att-dec { color: inherit; opacity: .75; }
 .dashboard-panel:has(.att-stat-figure.at-risk) .att-gauge .att-seg-present { background: var(--att-risk); }
 .dashboard-panel:has(.att-stat-figure.at-risk) .att-gauge .att-bar-wrap { background: color-mix(in srgb, var(--att-risk) 18%, transparent); }
 .dashboard-panel:has(.att-stat-figure.is-safe) .att-gauge .att-seg-present { background: var(--att-safe); }
@@ -8543,46 +8584,46 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    Title ~30 (2 lines max), class now/next 18, rows 16, meta 14, labels 12 caps.
    Nothing else under 13px. Spacing steps: 8, 12, 16, 24, 32. */
 @media (max-width: 767px) {
-  #page-dashboard .desk-greeting { font-size: clamp(1.5rem, 7.4vw, 1.875rem); line-height: 1.12; text-wrap: balance; }
-  #page-dashboard .desk-greeting-sub { font-size: 1rem; line-height: 1.45; max-width: 34ch; }
-  #page-dashboard .desk-quip { font-weight: 600; color: var(--text-primary); }
-  #page-dashboard .panel-title.is-label { font-size: 14px; font-weight: 600; letter-spacing: .07em; }
-  #page-dashboard .panel-action { font-size: 14px; }
-  #page-dashboard .rail-time { font-size: 14px; }
-  #page-dashboard .rail-time small { font-size: 13px; }
-  #page-dashboard .rail-name { font-size: 1rem; font-weight: 600; }
-  #page-dashboard .rail-meta { font-size: 14px; }
-  #page-dashboard .rail-count span { font-size: 13px; }
-  #page-dashboard .rail-row { padding-block: 12px; }
-  #page-dashboard .task-ledger-item { padding-block: 12px; }
-  #page-dashboard .task-ledger-meta { font-size: 14px !important; margin-top: 4px !important; }
-  #page-dashboard .task-ledger-item .due-badge { font-size: 14px !important; padding: 3px 8px !important; }
-  #page-dashboard .dash-why { font-size: 13px; font-weight: 500; color: var(--text-muted); }
-  #page-dashboard .dash-why-line { font-size: 14px; }
-  #page-dashboard .dash-more-link { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .desk-greeting { font-size: clamp(1.5rem, 7.4vw, 1.875rem); line-height: 1.12; text-wrap: balance; }
+  :is(#page-dashboard, .today-preview) .desk-greeting-sub { font-size: 1rem; line-height: 1.45; max-width: 34ch; }
+  :is(#page-dashboard, .today-preview) .desk-quip { font-weight: 600; color: var(--text-primary); }
+  :is(#page-dashboard, .today-preview) .panel-title.is-label { font-size: 14px; font-weight: 600; letter-spacing: .07em; }
+  :is(#page-dashboard, .today-preview) .panel-action { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .rail-time { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .rail-time small { font-size: 13px; }
+  :is(#page-dashboard, .today-preview) .rail-name { font-size: 1rem; font-weight: 600; }
+  :is(#page-dashboard, .today-preview) .rail-meta { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .rail-count span { font-size: 13px; }
+  :is(#page-dashboard, .today-preview) .rail-row { padding-block: 12px; }
+  :is(#page-dashboard, .today-preview) .task-ledger-item { padding-block: 12px; }
+  :is(#page-dashboard, .today-preview) .task-ledger-meta { font-size: 14px !important; margin-top: 4px !important; }
+  :is(#page-dashboard, .today-preview) .task-ledger-item .due-badge { font-size: 14px !important; padding: 3px 8px !important; }
+  :is(#page-dashboard, .today-preview) .dash-why { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+  :is(#page-dashboard, .today-preview) .dash-why-line { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .dash-more-link { font-size: 14px; }
 }
 @media (max-width: 767px) {
-  #page-dashboard .today-risk-line, #page-dashboard .today-risk-line .today-risk-subj { font-size: 15px; line-height: 1.4; }
-  #page-dashboard .stale-tasks, #page-dashboard .stale-tasks button { font-size: 14px; }
-  #page-dashboard .dashboard-panel .att-stat-label, #page-dashboard .dashboard-panel .att-note, #page-dashboard .dashboard-panel .att-stat-sub { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .today-risk-line, :is(#page-dashboard, .today-preview) .today-risk-line .today-risk-subj { font-size: 15px; line-height: 1.4; }
+  :is(#page-dashboard, .today-preview) .stale-tasks, :is(#page-dashboard, .today-preview) .stale-tasks button { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .dashboard-panel .att-stat-label, :is(#page-dashboard, .today-preview) .dashboard-panel .att-note, :is(#page-dashboard, .today-preview) .dashboard-panel .att-stat-sub { font-size: 14px; }
 }
 @media (max-width: 767px) {
-  #page-dashboard .rail-now span { font-size: 13px; }
-  #page-dashboard .stale-tasks strong, #page-dashboard .stale-tasks span { font-size: 14px !important; }
-  #page-dashboard .dashboard-panel strong { font-size: max(1em, 13px); }
-  #page-dashboard .quick-add .btn-sm, #page-dashboard .dashboard-panel .btn-sm { font-size: 14px !important; }
-  #page-dashboard .att-gauge-label, #page-dashboard .att-stale-note { font-size: 12px; }
+  :is(#page-dashboard, .today-preview) .rail-now span { font-size: 13px; }
+  :is(#page-dashboard, .today-preview) .stale-tasks strong, :is(#page-dashboard, .today-preview) .stale-tasks span { font-size: 14px !important; }
+  :is(#page-dashboard, .today-preview) .dashboard-panel strong { font-size: max(1em, 13px); }
+  :is(#page-dashboard, .today-preview) .quick-add .btn-sm, :is(#page-dashboard, .today-preview) .dashboard-panel .btn-sm { font-size: 14px !important; }
+  :is(#page-dashboard, .today-preview) .att-gauge-label, :is(#page-dashboard, .today-preview) .att-stale-note { font-size: 12px; }
 }
 @media (max-width: 767px) {
   /* Task rows stay two lines: a long subject is cut, never a third line. */
-  #page-dashboard .task-ledger-meta { flex-wrap: nowrap; min-width: 0; }
-  #page-dashboard .task-ledger-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #page-dashboard .today-risk-line, #page-dashboard .today-risk-line .today-risk-subj { font-size: 14px; }
+  :is(#page-dashboard, .today-preview) .task-ledger-meta { flex-wrap: nowrap; min-width: 0; }
+  :is(#page-dashboard, .today-preview) .task-ledger-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :is(#page-dashboard, .today-preview) .today-risk-line, :is(#page-dashboard, .today-preview) .today-risk-line .today-risk-subj { font-size: 14px; }
 }
 @media (max-width: 767px) {
-  #page-dashboard .panel-att.has-line { display: none; } /* the overall line under the strip says it on a phone */
-  #page-dashboard .panel-title { font-size: 12px; }
-  #page-dashboard .filter-chip { font-size: 13px; }
+  :is(#page-dashboard, .today-preview) .panel-att.has-line { display: none; } /* the overall line under the strip says it on a phone */
+  :is(#page-dashboard, .today-preview) .panel-title { font-size: 12px; }
+  :is(#page-dashboard, .today-preview) .filter-chip { font-size: 13px; }
 }
 
 /* Reduced motion: the top bar's line stays put (visible) instead of fading in as you scroll. */
@@ -8592,39 +8633,39 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 
 /* ── Today, lighter (rows): marks on the status line, late tasks fold their choices behind Move ──
    Display only. Scoped to #page-dashboard; older .rail-marks / .due-fix rules are overridden here. */
-#page-dashboard .rail-line { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; }
-#page-dashboard .rail-line .rail-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#page-dashboard .rail-line .rail-marks { flex: 0 0 auto; grid-column: auto; margin: 0; gap: 2px; flex-wrap: nowrap; }
-#page-dashboard .rail-line .rail-marks.is-folded { display: none; }
-#page-dashboard .rail-row.show-marks .rail-line .rail-marks.is-folded { display: flex; }
-#page-dashboard .rail-line .rail-att { position: relative; isolation: isolate; min-height: 44px; min-width: 44px; margin-block: -8px; padding: 0 8px; border: 0; background: none; border-radius: 999px; }
-#page-dashboard .rail-line .rail-att::before { content: ""; position: absolute; inset: 7px 0; z-index: -1; border: 1px solid var(--text-primary); border-radius: 999px; }
-#page-dashboard .rail-line .rail-att.is-on { background: none; color: var(--color-canvas, var(--bg)); }
-#page-dashboard .rail-line .rail-att.is-on::before { background: var(--text-primary); }
-#page-dashboard .rail-line .rail-change { grid-column: auto; grid-row: auto; align-self: auto; justify-self: auto; flex: 0 0 auto; margin-block: -8px; }
-#page-dashboard .rail-body { gap: 0; }
-#page-dashboard .rail-row.needs-mark, #page-dashboard .rail-row.is-live { padding-block: 10px; }
-#page-dashboard .task-ledger-item .due-fix[hidden] { display: none; }
-#page-dashboard .task-ledger-meta .due-move { flex: 0 0 auto; position: relative; box-sizing: border-box; height: 44px; min-height: 44px; min-width: 44px; margin-block: -13px; padding: 0 6px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-#page-dashboard .due-move:focus-visible, #page-dashboard .rail-line .rail-att:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-#page-dashboard .due-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
-#page-dashboard .due-foot .dash-more-link { min-height: 44px; margin-block: -8px; display: inline-flex; align-items: center; }
+:is(#page-dashboard, .today-preview) .rail-line { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-marks { flex: 0 0 auto; grid-column: auto; margin: 0; gap: 2px; flex-wrap: nowrap; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-marks.is-folded { display: none; }
+:is(#page-dashboard, .today-preview) .rail-row.show-marks .rail-line .rail-marks.is-folded { display: flex; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-att { position: relative; isolation: isolate; min-height: 44px; min-width: 44px; margin-block: -8px; padding: 0 8px; border: 0; background: none; border-radius: 999px; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-att::before { content: ""; position: absolute; inset: 7px 0; z-index: -1; border: 1px solid var(--text-primary); border-radius: 999px; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-att.is-on { background: none; color: var(--color-canvas, var(--bg)); }
+:is(#page-dashboard, .today-preview) .rail-line .rail-att.is-on::before { background: var(--text-primary); }
+:is(#page-dashboard, .today-preview) .rail-line .rail-change { grid-column: auto; grid-row: auto; align-self: auto; justify-self: auto; flex: 0 0 auto; margin-block: -8px; }
+:is(#page-dashboard, .today-preview) .rail-body { gap: 0; }
+:is(#page-dashboard, .today-preview) .rail-row.needs-mark, :is(#page-dashboard, .today-preview) .rail-row.is-live { padding-block: 10px; }
+:is(#page-dashboard, .today-preview) .task-ledger-item .due-fix[hidden] { display: none; }
+:is(#page-dashboard, .today-preview) .task-ledger-meta .due-move { flex: 0 0 auto; position: relative; box-sizing: border-box; height: 44px; min-height: 44px; min-width: 44px; margin-block: -13px; padding: 0 6px; border: 0; background: none; color: var(--color-action-primary); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+:is(#page-dashboard, .today-preview) .due-move:focus-visible, :is(#page-dashboard, .today-preview) .rail-line .rail-att:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+:is(#page-dashboard, .today-preview) .due-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
+:is(#page-dashboard, .today-preview) .due-foot .dash-more-link { min-height: 44px; margin-block: -8px; display: inline-flex; align-items: center; }
 /* At 200% text zoom (about 300 CSS px or less) the marks may drop under the status words, never off screen. */
 @media (max-width: 300px) {
-  #page-dashboard .rail-line { flex-wrap: wrap; row-gap: 0; }
-  #page-dashboard .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
-  #page-dashboard .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
+  :is(#page-dashboard, .today-preview) .rail-line { flex-wrap: wrap; row-gap: 0; }
+  :is(#page-dashboard, .today-preview) .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
+  :is(#page-dashboard, .today-preview) .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
 }
 
 /* ── Today, lighter (come back): earlier classes fold, a count in words, rows settle once ── */
-#page-dashboard .rail-earlier { list-style: none; padding: 0; border-top: 0; }
-#page-dashboard .rail-earlier-toggle { display: inline-flex; align-items: center; min-height: 44px; margin: -4px 0; padding: 0; border: 0; background: none; color: var(--text-secondary); font: inherit; font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
-#page-dashboard .rail-earlier-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
-#page-dashboard .rail-earlier + .rail-row { border-top: 0; }
-#page-dashboard .panel-count { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
+:is(#page-dashboard, .today-preview) .rail-earlier { list-style: none; padding: 0; border-top: 0; }
+:is(#page-dashboard, .today-preview) .rail-earlier-toggle { display: inline-flex; align-items: center; min-height: 44px; margin: -4px 0; padding: 0; border: 0; background: none; color: var(--text-secondary); font: inherit; font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+:is(#page-dashboard, .today-preview) .rail-earlier-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+:is(#page-dashboard, .today-preview) .rail-earlier + .rail-row { border-top: 0; }
+:is(#page-dashboard, .today-preview) .panel-count { margin-left: 8px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
 @media (prefers-reduced-motion: no-preference) {
-  #page-dashboard .rail-row.is-settling, #page-dashboard .task-ledger-item.is-settling { animation: cd-settle 200ms ease-out; }
-  #page-dashboard .is-settling .task-checkbox svg, #page-dashboard .rail-row.is-settling .att-chip { animation: cd-tick 200ms ease-out; }
+  :is(#page-dashboard, .today-preview) .rail-row.is-settling, :is(#page-dashboard, .today-preview) .task-ledger-item.is-settling { animation: cd-settle 200ms ease-out; }
+  :is(#page-dashboard, .today-preview) .is-settling .task-checkbox svg, :is(#page-dashboard, .today-preview) .rail-row.is-settling .att-chip { animation: cd-tick 200ms ease-out; }
 }
 @keyframes cd-settle { from { background-color: color-mix(in srgb, var(--color-success) 16%, transparent); } to { background-color: transparent; } }
 @keyframes cd-tick { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
@@ -8634,29 +8675,29 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
    DOM order is unchanged (day, due, attendance), so Tab follows the reading order. Overrides the
    1100px grid above without editing it; rows 1-9 stay reserved for the full-width items. */
 @media (min-width: 1100px) {
-  #page-dashboard.active { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr); grid-template-rows: repeat(9, auto) repeat(4, auto) 1fr; }
-  #page-dashboard.active .dashboard-left { display: contents; }
+  :is(#page-dashboard, .today-preview).active { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr); grid-template-rows: repeat(9, auto) repeat(4, auto) 1fr; }
+  :is(#page-dashboard, .today-preview).active .dashboard-left { display: contents; }
   /* The day panel spans down to the flexible last row, so it never stretches the rows the right column sets. */
-  #page-dashboard.active .panel-day { grid-column: 1; grid-row: 10 / -1; }
-  #page-dashboard.active .panel-due { grid-column: 2; grid-row: 11; }
-  #page-dashboard.active .dashboard-right-panel { grid-column: 2; grid-row: 12; }
-  #page-dashboard.active .desk-setup-guide.setup-first { grid-row: 13; }
+  :is(#page-dashboard, .today-preview).active .panel-day { grid-column: 1; grid-row: 10 / -1; }
+  :is(#page-dashboard, .today-preview).active .panel-due { grid-column: 2; grid-row: 11; }
+  :is(#page-dashboard, .today-preview).active .dashboard-right-panel { grid-column: 2; grid-row: 12; }
+  :is(#page-dashboard, .today-preview).active .desk-setup-guide.setup-first { grid-row: 13; }
   /* No day panel (no timetable, or on a break): Due keeps column 1 as before, nothing sits beside an empty column. */
-  #page-dashboard.active:has(.panel-day[style*="display:none"]) .panel-due { grid-column: 1; grid-row: 10 / 12; }
-  #page-dashboard.active:has(.panel-day[style*="display:none"]) .dashboard-right-panel { grid-row: 11; }
-  #page-dashboard.active:has(.panel-day[style*="display:none"]) .desk-setup-guide.setup-first { grid-row: 12; }
+  :is(#page-dashboard, .today-preview).active:has(.panel-day[style*="display:none"]) .panel-due { grid-column: 1; grid-row: 10 / 12; }
+  :is(#page-dashboard, .today-preview).active:has(.panel-day[style*="display:none"]) .dashboard-right-panel { grid-row: 11; }
+  :is(#page-dashboard, .today-preview).active:has(.panel-day[style*="display:none"]) .desk-setup-guide.setup-first { grid-row: 12; }
   /* The right column is plain flow here, not the old sticky scroll box (no stray scrollbar). */
-  #page-dashboard.active .dashboard-right-panel { position: static; max-height: none; overflow: visible; }
+  :is(#page-dashboard, .today-preview).active .dashboard-right-panel { position: static; max-height: none; overflow: visible; }
 }
 @media (min-width: 1280px) {
-  #page-dashboard.active { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr); }
+  :is(#page-dashboard, .today-preview).active { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr); }
 }
 /* Short laptop screens (up to 800px tall): tighter vertical spacing only, so the busy day fits one
    screen. No type or tap-area change. Taller monitors keep the roomier spacing above. */
 @media (min-width: 1100px) and (max-height: 800px) {
-  .content-area:has(#page-dashboard.active) { padding-bottom: 20px; }
-  #page-dashboard .desk-masthead { padding: 10px 0 8px; margin-bottom: 10px; }
-  #page-dashboard.active .panel-due .task-ledger-item { padding-block: 8px; }
+  .content-area:has(:is(#page-dashboard, .today-preview).active) { padding-bottom: 20px; }
+  :is(#page-dashboard, .today-preview) .desk-masthead { padding: 10px 0 8px; margin-bottom: 10px; }
+  :is(#page-dashboard, .today-preview).active .panel-due .task-ledger-item { padding-block: 8px; }
 }
 
 /* ── App shell: in the installed app only, a page change is a short opacity-only cross-fade.
@@ -8711,37 +8752,49 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
   .page-subtitle { font-size: var(--text-md); }
   #page-settings .form-input, #page-settings .form-select { min-height: 44px; font-size: var(--text-md); }
 }
+
+/* Laptop Settings 1280px+ (#479): a narrower section list, the form, and a picture of Today on the right.
+   After the laptop Settings grid above, which it narrows. */
+@media (min-width: 1280px) {
+  #page-settings .st-layout { grid-template-columns: 160px minmax(0, 720px) 260px; gap: 40px; }
+  #page-settings .st-preview { position: sticky; top: 24px; margin-top: 32px; overflow: hidden; border-radius: 24px; background: var(--color-canvas); box-shadow: 0 0 0 1px var(--color-rule); }
+  #page-settings .st-preview .today-preview { display: block; max-width: none; margin: 0; box-sizing: border-box; transform-origin: 0 0; animation: none; pointer-events: none; }
+}
 @media (min-width: 1400px) {
   .section-page { max-width: 1240px; }
 }
 @media (hover: hover) and (min-width: 1024px) {
-  #page-dashboard .task-ledger-item, #page-dashboard .rail-row { transition: background-color .15s ease; }
-  #page-dashboard .task-ledger-item:hover, #page-dashboard .rail-row:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
-  #page-dashboard .quick-add input, #page-dashboard #quick-add-input { height: 44px !important; font-size: var(--text-md) !important; }
-  #page-dashboard #quick-add-input + .btn { height: 44px; font-size: 0.875rem !important; padding-inline: 18px !important; }
+  :is(#page-dashboard, .today-preview) .task-ledger-item, :is(#page-dashboard, .today-preview) .rail-row { transition: background-color .15s ease; }
+  :is(#page-dashboard, .today-preview) .task-ledger-item:hover, :is(#page-dashboard, .today-preview) .rail-row:hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+  :is(#page-dashboard, .today-preview) .quick-add input, :is(#page-dashboard, .today-preview) #quick-add-input { height: 44px !important; font-size: var(--text-md) !important; }
+  :is(#page-dashboard, .today-preview) #quick-add-input + .btn { height: 44px; font-size: 0.875rem !important; padding-inline: 18px !important; }
   #page-settings .st-nav-btn:hover { color: var(--text-primary); }
 }
 @media (hover: hover) and (min-width: 1024px) and (prefers-reduced-motion: reduce) {
-  #page-dashboard .task-ledger-item, #page-dashboard .rail-row { transition: none; }
+  :is(#page-dashboard, .today-preview) .task-ledger-item, :is(#page-dashboard, .today-preview) .rail-row { transition: none; }
 }
 
 /* Settings: every option reads at a comfortable size on every screen. Re-pointing the tokens here
-   also lifts the inline sizes inside Settings. Floor is 14px; fields are 16px (no zoom on iOS). */
+   also lifts the inline sizes inside Settings. On the app's scale (#463): 14 for notes, 16 for
+   options and fields (no zoom on iOS), 20 for section titles. */
 #page-settings {
   --text-2xs: 0.875rem;
   --text-xs:  0.875rem;
-  --text-sm:  0.9375rem;
+  --text-sm:  0.875rem;
   --text-base: 1rem;
-  --text-md:  1.0625rem;
+  --text-md:  1rem;
+  --text-lg:  1.25rem;
 }
-#page-settings .form-label { font-size: 0.9375rem; }
+#page-settings .form-label { font-size: 0.875rem; }
 #page-settings .form-input, #page-settings .form-select, #page-settings textarea { font-size: 1rem; min-height: 44px; }
-#page-settings .st-row-title { font-size: 1.0625rem; }
-#page-settings .st-row-sub, #page-settings .st-head-note, #page-settings .st-saved { font-size: 0.9375rem; }
+#page-settings .st-row-title { font-size: 1rem; }
+#page-settings .st-row-sub, #page-settings .st-head-note, #page-settings .st-saved { font-size: 0.875rem; }
 #page-settings .st-sub { font-size: 0.875rem; }
 #page-settings .st-link, #page-settings .st-nav-btn { font-size: 1rem; }
 #page-settings .swatch-name { font-size: 0.875rem; }
-#page-settings .btn { font-size: 0.9375rem; }
+#page-settings .btn, #page-settings .btn-secondary, #page-settings .btn-primary, #page-settings .np-preset { font-size: 0.875rem; }
+#page-settings .page-subtitle { font-size: 0.875rem; }
+#page-settings .st-aim-row { font-size: 1rem; }
 /* Inline width:170px cut the longer options ("Day Before (Morning)") at the bigger size. */
 #page-settings .st-row select.form-select, #page-settings select[id^="np-"] { width: auto !important; min-width: 190px; max-width: 100%; padding: 5px 30px 5px 12px !important; }
 
@@ -8750,13 +8803,13 @@ html { scroll-padding-top: calc(var(--topbar-h) + 12px); scroll-padding-bottom: 
 .rail-more:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
 .rail-more-marks { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; }
 .rail-more-marks[hidden] { display: none; }
-#page-dashboard .rail-line .rail-more { flex: 0 0 auto; margin-block: -8px; }
-#page-dashboard .rail-line .rail-more-marks { gap: 2px; }
-#page-dashboard .rail-line:has(.rail-marks:not(.is-folded)), #page-dashboard .rail-row.show-marks .rail-line { flex-wrap: wrap; row-gap: 0; }
-#page-dashboard .rail-line:has(.rail-marks:not(.is-folded)) .rail-meta, #page-dashboard .rail-row.show-marks .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
-#page-dashboard .rail-line:has(.rail-marks:not(.is-folded)) .rail-marks, #page-dashboard .rail-row.show-marks .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
-#page-dashboard .rail-line .rail-more { margin-block: -8px; margin-inline-start: 6px; }
-#page-dashboard .rail-line .rail-more-marks { flex: 1 1 100%; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-more { flex: 0 0 auto; margin-block: -8px; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-more-marks { gap: 2px; }
+:is(#page-dashboard, .today-preview) .rail-line:has(.rail-marks:not(.is-folded)), :is(#page-dashboard, .today-preview) .rail-row.show-marks .rail-line { flex-wrap: wrap; row-gap: 0; }
+:is(#page-dashboard, .today-preview) .rail-line:has(.rail-marks:not(.is-folded)) .rail-meta, :is(#page-dashboard, .today-preview) .rail-row.show-marks .rail-line .rail-meta { flex-basis: 100%; white-space: normal; }
+:is(#page-dashboard, .today-preview) .rail-line:has(.rail-marks:not(.is-folded)) .rail-marks, :is(#page-dashboard, .today-preview) .rail-row.show-marks .rail-line .rail-marks { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; margin-top: 8px; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-more { margin-block: -8px; margin-inline-start: 6px; }
+:is(#page-dashboard, .today-preview) .rail-line .rail-more-marks { flex: 1 1 100%; }
 
 /* ═══ C2 tokens (owns colour/type; keep last) ═══
    Today C2 token layer. Later tasks read only these --c2-* tokens. Status colours (ok / bad) never change per palette.
@@ -9103,11 +9156,11 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  #page-dashboard .c2-row.is-settling .c2-face, #page-dashboard .c2-now.is-settling { animation: cd-settle 200ms ease-out; }
+  :is(#page-dashboard, .today-preview) .c2-row.is-settling .c2-face, :is(#page-dashboard, .today-preview) .c2-now.is-settling { animation: cd-settle 200ms ease-out; }
 }
 
 /* Today task rows: the same row, swipe underlay and sheet as the class rows (plan Task 6) */
-#page-dashboard .panel-due .c2-row.t.task-ledger-item { display: block; padding: 0; gap: 0; background: none; }
+:is(#page-dashboard, .today-preview) .panel-due .c2-row.t.task-ledger-item { display: block; padding: 0; gap: 0; background: none; }
 .c2-trows { margin-top: 0; }
 .c2-face.c2-tface { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 6px; cursor: default; }
 .c2-tface .c2-tname { display: block; width: 100%; min-height: 24px; margin: 0; padding: 0; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -9143,22 +9196,22 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 /* ── Laptop Today (C2): two calm columns 1.15fr / 1fr, gap 64, capped at 980 and left-aligned beside the sidebar.
    Same 1100 px switch as the grid above; below it Today stays one column. ── */
 @media (min-width: 1100px) {
-  #page-dashboard.active { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 64px; max-width: 980px; margin-right: auto; }
+  :is(#page-dashboard, .today-preview).active { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 64px; max-width: 980px; margin-right: auto; }
 }
 
 /* ── Smart line (C2): one line under the title. The title itself is the large title on a phone, and .c2-dtitle on a laptop.
    The older masthead grid (date number beside the greeting) is switched off for it. ── */
 .c2-dtitle { display: none; }
-#page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) { display: block; }
-#page-dashboard .desk-masthead-top > div:first-child > .desk-greeting.c2-smart { font-size: 20px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; color: var(--c2-ink); margin: 4px 0 0; text-shadow: none; font-variation-settings: normal; }
+:is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) { display: block; }
+:is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child > .desk-greeting.c2-smart { font-size: 20px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; color: var(--c2-ink); margin: 4px 0 0; text-shadow: none; font-variation-settings: normal; }
 @media (max-width: 767px) {
-  #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { display: none; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { display: none; }
 }
 @media (min-width: 768px) {
-  #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { display: block; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--c2-mut); margin: 0; }
-  #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) .desk-dnum { display: none; }
-  #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle { display: block; font-size: 38px; line-height: 1.05; font-weight: 700; letter-spacing: -0.025em; color: var(--c2-ink); margin: 2px 0 0; }
-  #page-dashboard .desk-masthead-top > div:first-child > .desk-greeting.c2-smart { font-size: 22px; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { display: block; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--c2-mut); margin: 0; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) .desk-dnum { display: none; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle { display: block; font-size: 38px; line-height: 1.05; font-weight: 700; letter-spacing: -0.025em; color: var(--c2-ink); margin: 2px 0 0; }
+  :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child > .desk-greeting.c2-smart { font-size: 22px; }
 }
 
 /* ── Evening and night (C2): the one-tap button, and the quiet tip lines ── */
@@ -9170,15 +9223,15 @@ body.c2-sheeted .c2-sheet { transform: none; visibility: visible; transition: tr
 @media (prefers-reduced-motion: reduce) { .c2-markall { transition: none; } }
 
 /* ── Calm Today details (C2): sentence-case section titles, the quiet holiday line ── */
-#page-dashboard .panel-title.is-label { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-ink); }
+:is(#page-dashboard, .today-preview) .panel-title.is-label { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--c2-ink); }
 /* Today keeps the type scale at every width (docs/POLISH.md): 12, 14, 16, 20, 34. */
-#page-dashboard .desk-dday, #page-dashboard .panel-title, #page-dashboard .att-stat-label, #page-dashboard .att-stat-message, #page-dashboard .att-stat-message strong { font-size: 0.875rem; }
-#page-dashboard .att-gauge-label { font-size: 0.75rem; }
-#page-dashboard .att-stat-figure { font-size: 2.125rem; }
-#page-dashboard .panel-title .panel-count { font-size: 14px; font-weight: 400; color: var(--c2-mut); letter-spacing: 0; text-transform: none; }
+:is(#page-dashboard, .today-preview) .desk-dday, :is(#page-dashboard, .today-preview) .panel-title, :is(#page-dashboard, .today-preview) .att-stat-label, :is(#page-dashboard, .today-preview) .att-stat-message, :is(#page-dashboard, .today-preview) .att-stat-message strong { font-size: 0.875rem; }
+:is(#page-dashboard, .today-preview) .att-gauge-label { font-size: 0.75rem; }
+:is(#page-dashboard, .today-preview) .att-stat-figure { font-size: 2.125rem; }
+:is(#page-dashboard, .today-preview) .panel-title .panel-count { font-size: 14px; font-weight: 400; color: var(--c2-mut); letter-spacing: 0; text-transform: none; }
 body.holiday-mode .desk-masthead { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; }
 body.holiday-mode .desk-masthead::after { content: none; }
-@media (max-width: 560px) { body.holiday-mode #page-dashboard .desk-masthead-top { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; } }
+@media (max-width: 560px) { body.holiday-mode :is(#page-dashboard, .today-preview) .desk-masthead-top { background: none; border: 0; padding: 0; overflow: visible; border-radius: 0; } }
 body.holiday-mode .holiday-banner.c2-hol, .holiday-banner.c2-hol { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; margin: 6px 0 14px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
 .c2-hol-t { margin: 0; font-size: 14px; color: var(--c2-mut); }
 .holiday-banner.c2-hol .c2-all { margin-top: 0; }
@@ -9272,7 +9325,7 @@ body:not(.c2-pinned) .c2-lt-title { white-space: nowrap; } /* Today's title: c2S
 :root[data-accent="terracotta"] { --th-tw: 700; --th-tls: -0.03em; }
 :root[data-accent="lavender"] { --th-tw: 650; --th-tls: -0.022em; }
 :root[data-accent="apricot"] { --th-tw: 500; --th-tls: -0.01em; }
-.c2-lt-title, #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle, .c2-now h2 { font-weight: var(--th-tw); letter-spacing: var(--th-tls); }
+.c2-lt-title, :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle, .c2-now h2 { font-weight: var(--th-tw); letter-spacing: var(--th-tls); }
 
 /* Free gap: hatched outline in every Theme */
 :root .c2-blk.gap, :root[data-theme] .c2-blk.gap { background-color: transparent; color: var(--c2-mut); box-shadow: inset 0 0 0 1.5px var(--c2-line); background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--c2-blk-end) 6px 8px); }
@@ -9291,9 +9344,9 @@ body:not(.c2-pinned) .c2-lt-title { white-space: nowrap; } /* Today's title: c2S
 :root[data-theme="midnight-ink"][data-accent="rose"] { --th-margin: #d98a92; }
 :root[data-theme="midnight-ink"][data-accent="rose"] .c2-largetitle::before, :root[data-theme="midnight-ink"][data-accent="rose"] .c2-dtitle::before { background: color-mix(in srgb, var(--th-margin) 45%, transparent); }
 /* The date line is 22px in every Theme, so Old Campus can rule it without moving anything. */
-.c2-lt-date, #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { line-height: 22px; }
-:root[data-accent="rose"] .c2-lt-date, :root[data-accent="rose"] #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { background: linear-gradient(var(--th-rule), var(--th-rule)) no-repeat left 0 bottom calc((22px - 1.25em) / 2 + 0.25em - 2px) / 100% 1px; }
-:root[data-accent="rose"] .c2-lt-title, :root[data-accent="rose"] #page-dashboard .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle {
+.c2-lt-date, :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { line-height: 22px; }
+:root[data-accent="rose"] .c2-lt-date, :root[data-accent="rose"] :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .desk-date { background: linear-gradient(var(--th-rule), var(--th-rule)) no-repeat left 0 bottom calc((22px - 1.25em) / 2 + 0.25em - 2px) / 100% 1px; }
+:root[data-accent="rose"] .c2-lt-title, :root[data-accent="rose"] :is(#page-dashboard, .today-preview) .desk-masthead-top > div:first-child:has(> .c2-smart) > .c2-dtitle {
   /* one 1.05em tile per line, the rule 0.15em - 2px above each line's bottom: just under its baseline, on every line of a wrapped title */
   position: relative; background: linear-gradient(to top, transparent 0 calc(0.15em - 2px), var(--th-rule) calc(0.15em - 2px) calc(0.15em - 1px), transparent calc(0.15em - 1px)) repeat-y 0 0 / 100% 1.05em;
 }

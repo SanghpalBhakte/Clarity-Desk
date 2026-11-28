@@ -190,9 +190,10 @@ test.describe('Clarity Desk core flows', () => {
     for (const p of ['dashboard', 'summary', 'assignments']) await page.evaluate((n) => (window as any).navigate(n), p);
     const card = page.locator('#page-assignments .assignment-card', { hasText: 'Read' });
     await expect(card.locator('.assignment-title')).toHaveText(title);
-    await card.locator('.assignment-body').click();  // the note shows in the opened row (#461)
-    await expect(card.locator('.assignment-desc')).toHaveText('<b>bold?</b>');
-    expect(await card.locator('.assignment-title img, .assignment-desc b').count()).toBe(0);
+    await card.locator('.assignment-body').click();  // the note shows in the opened row (#461), or in the sheet beside the list on a laptop (#477)
+    const note = page.locator('#page-assignments .assignment-desc, [data-testid="task-pane"] .tk-pane-note, [data-testid="task-pane"] .side-pane-note');
+    await expect(note).toHaveText('<b>bold?</b>');
+    expect(await page.locator('#page-assignments .assignment-title img, #page-assignments .assignment-desc b, [data-testid="task-pane"] img, [data-testid="task-pane"] b').count()).toBe(0);
     expect(await page.evaluate(() => (window as any).__xss)).toBeUndefined();
 
     await page.evaluate(() => { const w = window as any; w.__hub = []; w.openSubjectHub = (s: string) => w.__hub.push(s); });
