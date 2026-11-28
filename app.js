@@ -16859,6 +16859,28 @@ window.toggleTaskRow = (id) => {
   if (taskSelectMode) return;
   taskOpenId = taskOpenId === id ? null : id;
   renderAssignments();
+  // Laptops: the task opened in the sheet beside the list, so focus goes there; closing it gives focus back to the row.
+  if (taskPaneWide()) focusTaskPaneOrRow(taskOpenId ? null : id);
+};
+
+// Laptop sheet (1280px+, #477). Below that width an open task shows under its row instead.
+const TASK_PANE_MQ = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 1280px)') : null;
+function taskPaneWide() { return !!(TASK_PANE_MQ && TASK_PANE_MQ.matches); }
+if (TASK_PANE_MQ && TASK_PANE_MQ.addEventListener) TASK_PANE_MQ.addEventListener('change', () => { if (state.currentPage === 'assignments') renderAssignments(); });
+
+// Focus the row with this id (after a close), else the sheet's title.
+function focusTaskPaneOrRow(rowId) {
+  const row = rowId && document.querySelector(`#ac-${CSS.escape(rowId)} .assignment-body`);
+  const el = row || document.getElementById('tk-pane-title');
+  if (el) el.focus({ preventScroll: true });
+}
+
+// Esc in the sheet: back to the first Late task, with focus on the row that was open.
+window.closeTaskPane = () => {
+  const id = taskOpenId;
+  taskOpenId = null;
+  renderAssignments();
+  focusTaskPaneOrRow(id);
 };
 
 // A task tapped on Today opens on Tasks with its row open and in view. A
@@ -16882,6 +16904,7 @@ window.openTaskFromToday = (id) => {
     }
     const row = document.getElementById(`ac-${id}`);
     if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (taskPaneWide()) focusTaskPaneOrRow(null);
   }, 80);
 };
 
@@ -17133,17 +17156,13 @@ function renderAssignments() {
 
   // One row per task: a day column, the title and one meta line, the check
   // on the right. Tapping the row shows Edit · Open page · Delete under it.
-  const renderTaskCard = (a) => {
-    const isMission = a.taskType === 'mission';
+
+  // What a row and the laptop sheet both say about a task: its date in words and its subject's short name.
+  const taskFacts = (a) => {
     const isOngoing = isOngoingTaskRow(a);
     const days = isOngoing ? null : dueDaysLeft(a.dueDate);
     const done = a.status === 'submitted';
-    const isCustom = !!a.isCustom;
     const taskType = a.taskType || 'assignment';
-    const late = !done && days !== null && days < 0;
-    // Rows to tick first: late, due today or tomorrow, exams and quizzes.
-    const isKey = !done && !isOngoing && (taskType === 'exam' || taskType === 'quiz' || (days !== null && days <= 1));
-
     let when = '', whenCls = '';
     if (done) when = 'done';
     else if (isOngoing) { const wk = goalCheckinsThisWeek(a); when = isTaskPausedForHoliday(a) ? 'resting for the holiday' : wk ? `${wk} this week` : 'keeps going'; whenCls = 'ongoing'; }
@@ -17155,6 +17174,33 @@ function renderAssignments() {
     // OTH is a real subject stored without a code: it gets its short name too (initials, #457).
     const codeUp = String(a.code || '').toUpperCase();
     const subjectText = codeUp === 'MIS' ? 'General' : codeUp === 'GEN' || (codeUp === 'OTH' && /^(other|general)$/i.test(String(a.subject || ''))) ? a.subject : subjectShortName(a.subject, isCategory ? '' : (a.code || '').trim(), ownShort);
+    return { isOngoing, days, done, taskType, when, whenCls, isCategory, subjectText, hubName: isCategory ? '' : subjectText };
+  };
+
+  // Edit · Open page · Delete (and "Did it today" for a goal): under an open row on phones, in the sheet on laptops.
+  const taskActions = (a, f) => {
+    const isCustom = !!a.isCustom;
+    return `${isCustom && f.isOngoing && !f.done ? `<button type="button" onclick="goalCheckIn('${a.id}')">${(a.checkins || []).includes(todayStr()) ? 'Not today after all' : 'Did it today'}</button>` : ''}
+        ${isCustom ? `<button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">Edit</button>` : ''}
+        ${f.hubName ? `<button type="button" onclick="openSubjectHub(${jsArg_cd(a.subject)})">Open ${escHtml_cd(f.hubName)} page</button>` : ''}
+        ${isCustom ? `<button type="button" class="task-delete-btn" onclick="deleteCustomTask('${a.id}')">Delete</button>` : ''}`;
+  };
+
+  // Laptops (1280px+): the open task sits in a sheet beside the list, not under its row (#477).
+  const paneWide = taskPaneWide() && !taskSelectMode;
+  const paneTask = !paneWide ? null
+    : filtered.find(a => a.id === taskOpenId)
+      || filtered.find(a => a.status === 'pending' && isTaskOverdue(a) && !isTaskStale(a) && !isOngoingTaskRow(a))
+      || null;
+
+  const renderTaskCard = (a) => {
+    const isMission = a.taskType === 'mission';
+    const f = taskFacts(a);
+    const { isOngoing, days, done, taskType, when, whenCls, subjectText } = f;
+    const isCustom = !!a.isCustom;
+    const late = !done && days !== null && days < 0;
+    // Rows to tick first: late, due today or tomorrow, exams and quizzes.
+    const isKey = !done && !isOngoing && (taskType === 'exam' || taskType === 'quiz' || (days !== null && days <= 1));
 
     // "General" is filler: a task with no subject just shows its date.
     const bits = subjectText === 'General' ? [] : [`<span class="tk-subj" onclick="event.stopPropagation(); openSubjectHub(${jsArg_cd(a.subject)})" title="Open ${escAttr_cd(a.subject)} page"><span class="tk-subj-text">${escHtml_cd(subjectText)}</span></span>`];
@@ -17164,6 +17210,7 @@ function renderAssignments() {
 
     const picked = taskSelectMode && taskSelection.has(a.id);
     const rowOpen = !taskSelectMode && taskOpenId === a.id;
+    const paned = !!paneTask && paneTask.id === a.id;
     const tail = taskSelectMode
       ? (isCustom
           ? `<div class="tk-pick ${picked ? 'on' : ''}" role="checkbox" aria-checked="${picked}" aria-label="Select task">${picked ? icons.check() : ''}</div>`
@@ -17171,18 +17218,14 @@ function renderAssignments() {
       : `<div class="assignment-checkbox" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}">
           ${done ? icons.check() : ''}
         </div>`;
-    const hubName = isCategory ? '' : subjectText;
-    const actions = rowOpen ? `
+    const actions = rowOpen && !paneWide ? `
       ${shouldShowTaskNote(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
       <div class="tk-row-actions">
-        ${isCustom && isOngoing && !done ? `<button type="button" onclick="goalCheckIn('${a.id}')">${(a.checkins || []).includes(todayStr()) ? 'Not today after all' : 'Did it today'}</button>` : ''}
-        ${isCustom ? `<button type="button" class="task-edit-btn" onclick="showAddTaskModal('${a.id}')">Edit</button>` : ''}
-        ${hubName ? `<button type="button" onclick="openSubjectHub(${jsArg_cd(a.subject)})">Open ${escHtml_cd(hubName)} page</button>` : ''}
-        ${isCustom ? `<button type="button" class="task-delete-btn" onclick="deleteCustomTask('${a.id}')">Delete</button>` : ''}
+        ${taskActions(a, f)}
       </div>` : '';
     const bodyAttrs = taskSelectMode ? '' : ` role="button" tabindex="0" aria-expanded="${rowOpen}" onclick="toggleTaskRow('${a.id}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();toggleTaskRow('${a.id}')}"`;
     return `
-      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${late ? 'is-late' : ''} ${isKey ? 'is-key' : ''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
+      <div class="assignment-card tk-card ${isMission ? 'is-mission' : ''} priority-${a.priority} ${done?'done':''} ${late ? 'is-late' : ''} ${isKey ? 'is-key' : ''} ${taskSelectMode ? 'tk-selecting' : ''} ${picked ? 'picked' : ''}${paned ? ' is-paned' : ''}" id="ac-${a.id}"${taskSelectMode ? ` onclick="taskCardClick(event,'${a.id}')"` : ''}>
         ${tail}
         <div class="assignment-body"${bodyAttrs}>
           <div class="assignment-title">${escHtml_cd(a.title)}</div>
@@ -17275,9 +17318,34 @@ function renderAssignments() {
     ? `<p class="tk-none">No ongoing goals yet. <button type="button" class="tk-link" onclick="showAddTaskModal(null, null, 'mission')">Add one</button></p>`
     : `<p class="tk-none">Nothing here. <button type="button" class="tk-link" onclick="resetAssignmentFilters()">Show all tasks</button></p>`);
 
+  // The laptop sheet: the open task, else the first Late one, so the space beside the list is never blank.
+  const paneHTML = (() => {
+    if (!paneWide) return '';
+    if (!paneTask) return `<section class="tk-pane is-empty" data-testid="task-pane" aria-label="Task"><p class="tk-pane-quiet">Pick a task to see it here.</p></section>`;
+    const a = paneTask, f = taskFacts(a);
+    const facts = [
+      ['Subject', f.subjectText === 'General' ? '' : (a.subject || '')],
+      ['Type', typeLabel(f.taskType)],
+      ['Marks', a.marks > 0 ? String(a.marks) : ''],
+    ].filter(([, v]) => v);
+    const canMove = !!a.isCustom && !f.done && !f.isOngoing;
+    return `<section class="tk-pane" data-testid="task-pane" aria-labelledby="tk-pane-title" onkeydown="if(event.key==='Escape'){event.preventDefault();closeTaskPane()}">
+      <p class="tk-pane-kicker">Task</p>
+      <h2 id="tk-pane-title" tabindex="-1">${escHtml_cd(a.title)}</h2>
+      ${f.when ? `<p class="tk-pane-when tk-due ${f.whenCls}">${f.when}</p>` : ''}
+      <dl class="tk-pane-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${escHtml_cd(v)}</dd></div>`).join('')}</dl>
+      ${shouldShowTaskNote(a) ? `<p class="tk-pane-note">${escHtml_cd(a.description)}</p>` : ''}
+      <div class="tk-pane-main">
+        <button type="button" class="tk-pane-done" onclick="toggleAssignment('${a.id}')">${f.done ? 'Not done' : 'Done'}</button>
+        ${canMove ? `<button type="button" onclick="openMoveSheet('${a.id}')">Move</button>` : ''}
+      </div>
+      <div class="tk-row-actions tk-pane-more">${taskActions(a, f)}</div>
+    </section>`;
+  })();
+
   const selN = [...taskSelection].filter(id => taskVisible.some(t => t.id === id)).length;
   el.innerHTML = `
-    <div class="tk-page${stripHTML ? ' has-strip' : ''}">
+    <div class="tk-page${stripHTML ? ' has-strip' : ''}${paneHTML ? ' has-pane' : ''}">
       <header class="tk-head">
         <div class="tk-kicker"><span>${DAY_NAMES[new Date().getDay()]} · your tasks</span>
           ${all.some(a => a.isCustom) && !taskSelectMode ? `<button type="button" class="tk-link" data-testid="select-tasks-button" onclick="enterTaskSelect()" title="Pick several tasks to delete (or press and hold a task)">Select</button>` : ''}
@@ -17299,6 +17367,7 @@ function renderAssignments() {
         ${narrowing.length ? `<p class="tk-narrow">Showing only ${narrowing.join(', ')}. <button type="button" class="tk-link" onclick="resetAssignmentFilters()">Show all</button></p>` : ''}
         ${cards}
       </div>
+      ${paneHTML}
       <form class="tk-add" onsubmit="event.preventDefault(); tkQuickAdd(this.elements.q)">
         <button type="submit" class="tk-add-plus" data-testid="add-task-button" aria-label="Add a task" title="Add a task">+</button>
         <input name="q" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" aria-label="Type a task and press Enter" placeholder="e.g. CN quiz on 13 Nov">
