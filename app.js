@@ -12208,14 +12208,16 @@ window.handleAssistantQuestion = function() {
 // is what made the top of Today look like it kept refreshing.
 let dashboardSettled = false;
 
-function renderDashboard() {
+function renderDashboard(opts) {
   const el       = document.getElementById('page-dashboard');
   if (!el) return;
   // Never rebuild Today under a swipe in progress; it redraws when the finger lifts.
   if (c2Drag && c2Drag.moved) { c2RerenderPending = true; return; }
   liveProfile    = loadProfile();
-  if (usageActive() && hasAnyTimetable()) trackUsageOnce('firstClass', 'first_class_saved');
-  maybeShowCountdownCelebration();
+  // quiet: drawn only for the Settings picture (#479), so no usage count and no countdown card.
+  const quiet = !!(opts && opts.quiet === true);
+  if (!quiet && usageActive() && hasAnyTimetable()) trackUsageOnce('firstClass', 'first_class_saved');
+  if (!quiet) maybeShowCountdownCelebration();
   const now      = new Date();
   const dateStr  = todayStr();
   const currentMin = currentTimeMinutes();
@@ -16953,13 +16955,14 @@ window.toggleTaskRow = (id) => {
   if (paneWide()) focusTaskPaneOrRow(taskOpenId ? null : id);
 };
 
-// Laptop sheets (1280px+): Tasks (#477) and Subjects (#478) show the open item beside the list.
+// Laptops (1280px+): Tasks (#477) and Subjects (#478) show the open item beside the list; Settings (#479) a picture of Today.
 // Below that width a task opens under its row and a subject opens its own page instead.
 const PANE_MQ = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 1280px)') : null;
 function paneWide() { return !!(PANE_MQ && PANE_MQ.matches); }
 if (PANE_MQ && PANE_MQ.addEventListener) PANE_MQ.addEventListener('change', () => {
   if (state.currentPage === 'assignments') renderAssignments();
   else if (state.currentPage === 'subjects' && !state.activeSubject) renderSubjects();
+  else if (state.currentPage === 'settings') renderSettings();
 });
 
 // Focus the row with this id (after a close), else the sheet's title.
@@ -18861,9 +18864,42 @@ function renderSettings() {
       </div>
     </section>
     </div>
+    ${paneWide() ? '<aside class="st-preview" data-testid="today-preview" aria-hidden="true" inert></aside>' : ''}
     </div>
   `;
   settingsWire(el);
+  paintTodayPreview(el);
+}
+
+// Laptop Settings (#479): a picture of Today beside the form, in the chosen Theme and Light / Dark. It is a copy
+// of the real Today with every id and test id taken out and nothing reachable, so it never drifts from Today; a
+// Theme or Light / Dark pick is page-wide CSS, so the picture follows it at once.
+function paintTodayPreview(el) {
+  const slot = el.querySelector('.st-preview');
+  if (!slot) return;
+  const today = document.getElementById('page-dashboard');
+  if (today && !today.children.length) { try { renderDashboard({ quiet: true }); } catch (_) { /* no picture then */ } }
+  if (!today || !today.children.length) { slot.remove(); return; }
+  const copy = today.cloneNode(true);
+  copy.removeAttribute('id');
+  copy.classList.add('today-preview');
+  const DROP = ['id', 'data-testid', 'name', 'for', 'data-beacon', 'data-beacon-bar', 'data-beacon-count'];
+  [copy, ...copy.querySelectorAll('*')].forEach(n => DROP.forEach(a => n.removeAttribute(a)));
+  copy.removeAttribute('data-page');
+  copy.removeAttribute('aria-label');
+  // Today's own width and the content area's padding, scaled down to the side column.
+  const area = getComputedStyle(document.getElementById('main-content') || document.body);
+  copy.style.padding = `${area.paddingTop} ${area.paddingRight} ${area.paddingBottom} ${area.paddingLeft}`;
+  slot.replaceChildren(copy);
+  // Settings is drawn before it is shown, so measure on the next frame.
+  requestAnimationFrame(() => {
+    const w = el.getBoundingClientRect().width;
+    if (!w || !slot.isConnected) return;
+    copy.style.width = `${w}px`;
+    const scale = slot.clientWidth / w;
+    copy.style.transform = `scale(${scale})`;
+    slot.style.height = `${Math.min(copy.offsetHeight * scale, 560)}px`;
+  });
 }
 
 // Settings save as you go: a field saves when it changes (text fields

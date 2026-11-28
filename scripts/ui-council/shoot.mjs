@@ -86,7 +86,11 @@ async function runShots(browser, cfg) {
       const c = [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
       return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     };
-    const rgba = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+    // rgb()/rgba() give 0-255; color-mix() comes back as color(srgb r g b [/ a]) with 0-1 channels.
+    const rgba = (s) => {
+      const n = (s.match(/[\d.]+/g) || []).map(Number);
+      return /^color\(srgb\s/.test(s) ? [n[0] * 255, n[1] * 255, n[2] * 255, ...n.slice(3)] : n;
+    };
     const bgOf = (el) => {
       for (let n = el; n; n = n.parentElement) {
         const cs = getComputedStyle(n);
