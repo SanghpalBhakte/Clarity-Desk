@@ -7396,6 +7396,7 @@ body.holiday-mode .holiday-banner {
    Headline, a number column (one figure and one line per fact, #463), the
    rest of the day one line per class, then the week as thin day tracks. */
 .bf { display: flex; flex-direction: column; gap: 26px; max-width: 720px; }
+.bf-facts, .bf-day { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
 .bf-kicker { font-size: 0.875rem; color: var(--text-muted); }
 #page-resources .page-subtitle { font-size: 0.875rem; }
 .bf-title { margin: 6px 0 0; font-family: var(--font-display, var(--font)); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text-primary); }
@@ -7896,8 +7897,16 @@ body.holiday-mode .holiday-banner {
   .side-pane-facts .hub-short-field { margin-top: 8px; }
   .sj-week { display: none; }
 }
-/* PC 1600px+: the open subject's week as a third column. */
+/* Laptops 1280px+: the Briefing's facts on the left, Rest of today and The week on the right (#480). */
+@media (min-width: 1280px) {
+  .bf.has-day { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 48px; align-items: start; max-width: 1120px; }
+}
+/* PC 1600px+: the open subject's week as a third column; the Briefing in three columns. */
 @media (min-width: 1600px) {
+  .bf.has-day { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); max-width: none; }
+  .bf.has-day .bf-day { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 48px; align-items: start; }
+  /* Both day headings as tall as the Timetable link, so the two column tops line up. */
+  .bf.has-day .bf-day .bf-h { min-height: 40px; align-items: center; }
   #page-subjects .sj-body.has-pane { grid-template-columns: minmax(0, 640px) minmax(300px, 380px) minmax(240px, 320px); }
   .sj-week { display: block; position: sticky; top: 16px; padding-top: 20px; }
   .sj-week h3 { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); }
