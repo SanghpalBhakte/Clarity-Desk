@@ -13285,6 +13285,9 @@ window.hubEditShortName = function(btn) {
 window.hubSaveShortName = function(subjectName, value) {
   saveStripLabel(stripSubjectKey({ subject: subjectName }), value);
   renderSubjects();
+  // In the laptop sheet the page is rebuilt: keep focus on its title, not lost.
+  const paneTitle = document.getElementById('sj-pane-title');
+  if (paneTitle) paneTitle.focus({ preventScroll: true });
   showToast(String(value || '').trim() ? 'Short name saved' : 'Back to the automatic name', 'done');
 };
 
@@ -15965,6 +15968,32 @@ let subjectManageMode = false;
 // other background re-renders rebuild the Subjects page, which used to
 // untick everything the student had selected. renderSubjects() reads this.
 const subjectSelection = new Set();
+let subjectPaneName = null;    // laptops: the subject shown in the sheet beside the list (#478)
+
+// A row on Subjects: on a laptop it fills the sheet beside the list (clicking the open row again puts
+// the first At risk subject back, with focus on that row); elsewhere it opens the subject's own page, as before.
+window.openSubjectRow = (name) => {
+  if (!paneWide()) { openSubjectHub(name); return; }
+  const was = subjectPaneName;
+  subjectPaneName = was === name ? null : name;
+  renderSubjects();
+  focusSubjectPaneOrRow(subjectPaneName ? null : was);
+};
+
+// Focus the row with this name (after a close), else the sheet's title.
+function focusSubjectPaneOrRow(rowName) {
+  const row = rowName && document.querySelector(`#page-subjects .sj-row[title="${CSS.escape(rowName)}"]`);
+  const el = row || document.getElementById('sj-pane-title');
+  if (el) el.focus({ preventScroll: true });
+}
+
+// Esc in the sheet: back to the first At risk subject, with focus on the row that was open.
+window.closeSubjectPane = () => {
+  const name = subjectPaneName;
+  subjectPaneName = null;
+  renderSubjects();
+  focusSubjectPaneOrRow(name);
+};
 
 window.toggleSubjectManageMode = function() {
   subjectManageMode = !subjectManageMode;
@@ -16356,6 +16385,9 @@ function renderSubjectsOverview(el, subjects) {
       .filter((x, i, l) => x && x !== s.name && l.indexOf(x) === i);
     return `<b class="sj-title"${shorter.length ? ` data-full="${c2Attr(s.name)}" data-short="${c2Attr(JSON.stringify(shorter))}"` : ''}>${escHtml_cd(s.name)}</b>`;
   };
+  // Laptops: the open subject (else the first At risk one) sits in a sheet beside the list.
+  const paneSubject = !paneWide() || subjectManageMode ? null
+    : ranked.find(r => r.s.name === subjectPaneName) || ranked.find(r => r.tier === 'risk' || r.tier === 'watch') || ranked[0] || null;
   const statusOf = (a) => a.isSafe ? (a.safeSkips > 0 ? `Safe · can miss ${a.safeSkips}` : 'Safe · on the line') : `At risk · need ${a.classesToAttend}`;
   const rowHTML = ({ s, att, tier }) => {
     const shown = labIsWorse(att) ? att.labPart : att;
@@ -16364,7 +16396,7 @@ function renderSubjectsOverview(el, subjects) {
     const low = tier === 'risk' || tier === 'watch';
     const status = tier === 'none' ? 'Not marked yet' : (labIsWorse(att) ? 'Lab ' + statusOf(shown).replace(/^A/, 'a').replace(/^S/, 's') : statusOf(shown));
     return `
-      <div class="attendance-subject-card sj-card sj-row ${tier}" role="button" tabindex="0" style="${picked(s) ? 'outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectHub(${jsArg_cd(s.name)})`}" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();this.click()}" title="${escAttr_cd(s.name)}">
+      <div class="attendance-subject-card sj-card sj-row ${tier}${paneSubject && paneSubject.s.name === s.name ? ' is-paned' : ''}" role="button" tabindex="0" style="${picked(s) ? 'outline:2px solid var(--accent);outline-offset:-2px' : ''}" onclick="${subjectManageMode ? 'toggleSubjectCheckbox(event, this)' : `openSubjectRow(${jsArg_cd(s.name)})`}" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();this.click()}" title="${escAttr_cd(s.name)}">
         <span class="sj-pct n${low ? ' low' : ''}">${pct}</span>
         <span class="sj-nm">${nameHTML(s)}<small class="${low ? 'sj-bad' : tier === 'safe' ? 'sj-ok' : ''}">${escHtml_cd(status)}</small></span>
         ${subjectManageMode ? `
@@ -16432,8 +16464,11 @@ function renderSubjectsOverview(el, subjects) {
       </div>
     ` : ''}
 
-    <div class="sj-list">
-      ${cardsHTML}
+    <div class="sj-body${paneSubject ? ' has-pane' : ''}">
+      <div class="sj-list">
+        ${cardsHTML}
+      </div>
+      ${paneSubject ? subjectPaneHTML(paneSubject.s, paneSubject.att) : ''}
     </div>
   `;
   // Long names switch to a short one that fits; again once the page is shown.
@@ -16441,9 +16476,95 @@ function renderSubjectsOverview(el, subjects) {
   requestAnimationFrame(c2FitNames);
 }
 
+// A subject's week as one cell per day, a dashed cell when there is no class, and one line with the next class.
+// Used by the Subject page and the laptop subject sheet's third column (#478).
+function subjectWeek(subj) {
+  const today = new Date().getDay();
+  const nowMin = currentTimeMinutes();
+  const byDay = {};
+  subj.slots.forEach(sl => { (byDay[sl.day] = byDay[sl.day] || []).push(sl); });
+  Object.values(byDay).forEach(list => list.sort((x, y) => timeToMinutes(x.time) - timeToMinutes(y.time)));
+  const days = byDay[0] ? [1, 2, 3, 4, 5, 6, 0] : [1, 2, 3, 4, 5, 6];
+  const weekHTML = days.map(d => {
+    const list = byDay[d] || [];
+    const first = list[0];
+    const isLab = first && first.type === 'lab';
+    const [hm, ap] = first ? formatDisplayTime(first.time || '').split(' ') : ['', ''];
+    const label = list.map(sl => `${formatDisplayTime(sl.time)} ${sl.type || 'lecture'}${sl.room ? ', ' + sl.room : ''}`).join('; ');
+    return `
+      <div class="hub-day${d === today ? ' is-today' : ''}">
+        <span class="hub-day-name">${DAY_SHORT[d]}</span>
+        ${first ? `<button type="button" class="hub-day-cell${isLab ? ' is-lab' : ''}" onclick="navigateTo('timetable'); setTTDay(${d})" aria-label="${escAttr_cd(`${DAY_NAMES[d]}: ${label}. Open timetable`)}">
+          <span class="hub-day-time">${isLab ? 'Lab' : escHtml_cd(hm)}</span>
+          <span class="hub-day-sub">${isLab ? escHtml_cd(hm + ' ' + (ap || '')) : escHtml_cd(ap || '')}${list.length > 1 ? ` +${list.length - 1}` : ''}</span>
+        </button>` : `<span class="hub-day-cell is-empty" aria-label="${DAY_NAMES[d]}: no class"></span>`}
+      </div>`;
+  }).join('');
+  const nextSlot = (() => {
+    for (let k = 0; k < 7; k++) {
+      const d = (today + k) % 7;
+      const hit = (byDay[d] || []).find(sl => k > 0 || timeToMinutes(sl.time) > nowMin);
+      if (hit) return { d, k, sl: hit };
+    }
+    return null;
+  })();
+  const weekLine = subj.slots.length
+    ? `${subj.slots.length} class${subj.slots.length !== 1 ? 'es' : ''} a week.${nextSlot ? ` Next: ${nextSlot.k === 0 ? 'today' : nextSlot.k === 1 ? 'tomorrow' : DAY_NAMES[nextSlot.d]} ${formatDisplayTime(nextSlot.sl.time)} ${escHtml_cd(nextSlot.sl.type || 'lecture')}.` : ''}`
+    : 'No weekly timetable slots assigned to this subject yet.';
+  return { days, weekHTML, weekLine };
+}
+
+// The laptop subject sheet (#478): the numbers the Subject page shows, its short name (with Rename) and its tasks,
+// and on a PC its week as a third column. Everything else stays on the full page, one tap away.
+function subjectPaneHTML(subj, att) {
+  const short = subjectShortName(subj.name, subj.code);
+  const own = loadStripLabels()[stripSubjectKey({ subject: subj.name })] || '';
+  const nameArg = jsArg_cd(subj.name);
+  const low = att.pct !== null && !att.isSafe;
+  const pctText = att.pct !== null ? `${att.pctLabel ?? (att.exactPct !== null ? att.exactPct : att.pct)}%` : '—';
+  const status = att.pct === null ? 'Not marked yet' : att.isSafe ? 'Safe' : 'At risk';
+  const due = subjectTasks(subj).filter(t => t.status === 'pending')
+    .sort((x, y) => (x.dueDate || '9').localeCompare(y.dueDate || '9'));
+  const next = due.find(t => t.dueDate);
+  const nextDays = next ? dueDaysLeft(next.dueDate) : null;
+  const nextWhen = nextDays === null ? '' : nextDays < 0 ? `${-nextDays} ${nextDays === -1 ? 'day' : 'days'} late` : `next ${formatRelativeDueDate(next.dueDate).label}`;
+  const tasksLine = due.length ? `${due.length} to do${nextWhen ? ` · ${nextWhen}` : ''}` : 'Nothing due';
+  const facts = [
+    ['Attended', att.pct !== null ? `${att.attended} of ${att.total}` : '—'],
+    att.pct === null ? null : att.isSafe ? ['Can miss', String(att.safeSkips || 0)] : ['To get back', `${att.classesToAttend} in a row`],
+    att.labPart && att.labPart.pct !== null ? ['Lab', `${att.labPart.pctLabel}% · ${att.labPart.isSafe ? 'Safe' : 'At risk'}`] : null,
+    ['Tasks', tasksLine],
+  ].filter(Boolean);
+  const { days, weekHTML, weekLine } = subjectWeek(subj);
+  return `<section class="sj-pane side-pane" data-testid="subject-pane" aria-labelledby="sj-pane-title" onkeydown="if(event.key==='Escape'){event.preventDefault();if(event.target.closest('.hub-short-field')){const b=this.querySelector('[aria-controls=hub-short-field]');hubEditShortName(b);b.focus()}else closeSubjectPane()}">
+      <p class="side-pane-kicker">Subject</p>
+      <h2 id="sj-pane-title" tabindex="-1">${escHtml_cd(subj.name)}</h2>
+      <p class="sj-pane-pct"><span class="n${low ? ' low' : ''}" data-testid="subject-pane-pct">${escHtml_cd(pctText)}</span><span class="${low ? 'sj-bad' : att.isSafe ? 'sj-ok' : ''}">${status}</span></p>
+      <dl class="side-pane-facts">
+        ${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${escHtml_cd(v)}</dd></div>`).join('')}
+        <div><dt>Short name</dt><dd>${escHtml_cd(short)} <button type="button" class="hub-act" onclick="hubEditShortName(this)" aria-expanded="false" aria-controls="hub-short-field">Rename</button>
+          <form class="hub-short-field" id="hub-short-field" hidden onsubmit="event.preventDefault(); hubSaveShortName(${nameArg}, this.elements[0].value)">
+            <input type="text" class="form-input" maxlength="${STRIP_LABEL_MAX}" autocomplete="off" spellcheck="false" value="${escAttr_cd(own)}" placeholder="${escAttr_cd(subjectShortName(subj.name, subj.code, {}))}" aria-label="${escAttr_cd(`Short name for ${subj.name}, up to ${STRIP_LABEL_MAX} characters. Leave empty for the automatic name.`)}">
+            <button type="submit" class="hub-act">Save</button>
+          </form></dd></div>
+      </dl>
+      <div class="side-pane-main"><button type="button" onclick="openSubjectHub(${nameArg})">Open the full page</button></div>
+    </section>
+    <section class="sj-week" data-testid="subject-week" aria-label="${escAttr_cd(short)} this week">
+      <h3>${escHtml_cd(short)} this week</h3>
+      ${subj.slots.length ? `<div class="hub-week" style="grid-template-columns:repeat(${days.length}, minmax(0, 1fr))">${weekHTML}</div>` : ''}
+      <p class="hub-quiet">${weekLine}</p>
+    </section>`;
+}
+
+// A subject's tasks, matched by its name or code: the Subject page and the laptop subject sheet list the same ones.
+function subjectTasks(subj) {
+  return allTasks().filter(t => (t.subject || '').toLowerCase() === subj.name.toLowerCase() || (t.subject || '').toLowerCase() === subj.code.toLowerCase());
+}
+
 function renderSingleSubjectHub(el, subj, allSubjects) {
   const att = getSubjectAttendance(subj);
-  const tasks = allTasks().filter(t => (t.subject || '').toLowerCase() === subj.name.toLowerCase() || (t.subject || '').toLowerCase() === subj.code.toLowerCase());
+  const tasks = subjectTasks(subj);
 
   const subjectVaults = loadCustomLinks().filter(l => 
     (l.subject || '').toLowerCase() === subj.name.toLowerCase() || 
@@ -16487,39 +16608,8 @@ function renderSingleSubjectHub(el, subj, allSubjects) {
   const batches = [...new Set(subj.slots.flatMap(sl => sl.batches || []))];
   const meta2 = [kinds, batches.length ? `batch ${batches.join(', ')}` : ''].filter(Boolean).join(' · ');
 
-  // This week: one cell per day, a dashed cell when there is no class.
-  const today = new Date().getDay();
-  const nowMin = currentTimeMinutes();
-  const byDay = {};
-  subj.slots.forEach(sl => { (byDay[sl.day] = byDay[sl.day] || []).push(sl); });
-  Object.values(byDay).forEach(list => list.sort((x, y) => timeToMinutes(x.time) - timeToMinutes(y.time)));
-  const days = byDay[0] ? [1, 2, 3, 4, 5, 6, 0] : [1, 2, 3, 4, 5, 6];
-  const weekHTML = days.map(d => {
-    const list = byDay[d] || [];
-    const first = list[0];
-    const isLab = first && first.type === 'lab';
-    const [hm, ap] = first ? formatDisplayTime(first.time || '').split(' ') : ['', ''];
-    const label = list.map(sl => `${formatDisplayTime(sl.time)} ${sl.type || 'lecture'}${sl.room ? ', ' + sl.room : ''}`).join('; ');
-    return `
-      <div class="hub-day${d === today ? ' is-today' : ''}">
-        <span class="hub-day-name">${DAY_SHORT[d]}</span>
-        ${first ? `<button type="button" class="hub-day-cell${isLab ? ' is-lab' : ''}" onclick="navigateTo('timetable'); setTTDay(${d})" aria-label="${escAttr_cd(`${DAY_NAMES[d]}: ${label}. Open timetable`)}">
-          <span class="hub-day-time">${isLab ? 'Lab' : escHtml_cd(hm)}</span>
-          <span class="hub-day-sub">${isLab ? escHtml_cd(hm + ' ' + (ap || '')) : escHtml_cd(ap || '')}${list.length > 1 ? ` +${list.length - 1}` : ''}</span>
-        </button>` : `<span class="hub-day-cell is-empty" aria-label="${DAY_NAMES[d]}: no class"></span>`}
-      </div>`;
-  }).join('');
-  const nextSlot = (() => {
-    for (let k = 0; k < 7; k++) {
-      const d = (today + k) % 7;
-      const hit = (byDay[d] || []).find(sl => k > 0 || timeToMinutes(sl.time) > nowMin);
-      if (hit) return { d, k, sl: hit };
-    }
-    return null;
-  })();
-  const weekLine = subj.slots.length
-    ? `${subj.slots.length} class${subj.slots.length !== 1 ? 'es' : ''} a week.${nextSlot ? ` Next: ${nextSlot.k === 0 ? 'today' : nextSlot.k === 1 ? 'tomorrow' : DAY_NAMES[nextSlot.d]} ${formatDisplayTime(nextSlot.sl.time)} ${escHtml_cd(nextSlot.sl.type || 'lecture')}.` : ''}`
-    : 'No weekly timetable slots assigned to this subject yet.';
+  // This week: one cell per day (shared with the laptop subject sheet).
+  const { days, weekHTML, weekLine } = subjectWeek(subj);
 
   // Tasks as rows on rules, not cards.
   const tasksHTML = tasks.length > 0 ? tasks.map(a => {
@@ -16860,13 +16950,17 @@ window.toggleTaskRow = (id) => {
   taskOpenId = taskOpenId === id ? null : id;
   renderAssignments();
   // Laptops: the task opened in the sheet beside the list, so focus goes there; closing it gives focus back to the row.
-  if (taskPaneWide()) focusTaskPaneOrRow(taskOpenId ? null : id);
+  if (paneWide()) focusTaskPaneOrRow(taskOpenId ? null : id);
 };
 
-// Laptop sheet (1280px+, #477). Below that width an open task shows under its row instead.
-const TASK_PANE_MQ = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 1280px)') : null;
-function taskPaneWide() { return !!(TASK_PANE_MQ && TASK_PANE_MQ.matches); }
-if (TASK_PANE_MQ && TASK_PANE_MQ.addEventListener) TASK_PANE_MQ.addEventListener('change', () => { if (state.currentPage === 'assignments') renderAssignments(); });
+// Laptop sheets (1280px+): Tasks (#477) and Subjects (#478) show the open item beside the list.
+// Below that width a task opens under its row and a subject opens its own page instead.
+const PANE_MQ = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 1280px)') : null;
+function paneWide() { return !!(PANE_MQ && PANE_MQ.matches); }
+if (PANE_MQ && PANE_MQ.addEventListener) PANE_MQ.addEventListener('change', () => {
+  if (state.currentPage === 'assignments') renderAssignments();
+  else if (state.currentPage === 'subjects' && !state.activeSubject) renderSubjects();
+});
 
 // Focus the row with this id (after a close), else the sheet's title.
 function focusTaskPaneOrRow(rowId) {
@@ -16904,7 +16998,7 @@ window.openTaskFromToday = (id) => {
     }
     const row = document.getElementById(`ac-${id}`);
     if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
-    if (taskPaneWide()) focusTaskPaneOrRow(null);
+    if (paneWide()) focusTaskPaneOrRow(null);
   }, 80);
 };
 
@@ -17187,8 +17281,8 @@ function renderAssignments() {
   };
 
   // Laptops (1280px+): the open task sits in a sheet beside the list, not under its row (#477).
-  const paneWide = taskPaneWide() && !taskSelectMode;
-  const paneTask = !paneWide ? null
+  const sheetOn = paneWide() && !taskSelectMode;
+  const paneTask = !sheetOn ? null
     : filtered.find(a => a.id === taskOpenId)
       || filtered.find(a => a.status === 'pending' && isTaskOverdue(a) && !isTaskStale(a) && !isOngoingTaskRow(a))
       || null;
@@ -17218,7 +17312,7 @@ function renderAssignments() {
       : `<div class="assignment-checkbox" role="checkbox" tabindex="0" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${escAttr_cd(a.title)}" onclick="toggleAssignment('${a.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAssignment('${a.id}')}">
           ${done ? icons.check() : ''}
         </div>`;
-    const actions = rowOpen && !paneWide ? `
+    const actions = rowOpen && !sheetOn ? `
       ${shouldShowTaskNote(a) ? `<div class="assignment-desc">${escHtml_cd(a.description)}</div>` : ''}
       <div class="tk-row-actions">
         ${taskActions(a, f)}
@@ -17320,8 +17414,8 @@ function renderAssignments() {
 
   // The laptop sheet: the open task, else the first Late one, so the space beside the list is never blank.
   const paneHTML = (() => {
-    if (!paneWide) return '';
-    if (!paneTask) return `<section class="tk-pane is-empty" data-testid="task-pane" aria-label="Task"><p class="tk-pane-quiet">Pick a task to see it here.</p></section>`;
+    if (!sheetOn) return '';
+    if (!paneTask) return `<section class="tk-pane side-pane is-empty" data-testid="task-pane" aria-label="Task"><p class="side-pane-quiet">Pick a task to see it here.</p></section>`;
     const a = paneTask, f = taskFacts(a);
     const facts = [
       ['Subject', f.subjectText === 'General' ? '' : (a.subject || '')],
@@ -17329,14 +17423,14 @@ function renderAssignments() {
       ['Marks', a.marks > 0 ? String(a.marks) : ''],
     ].filter(([, v]) => v);
     const canMove = !!a.isCustom && !f.done && !f.isOngoing;
-    return `<section class="tk-pane" data-testid="task-pane" aria-labelledby="tk-pane-title" onkeydown="if(event.key==='Escape'){event.preventDefault();closeTaskPane()}">
-      <p class="tk-pane-kicker">Task</p>
+    return `<section class="tk-pane side-pane" data-testid="task-pane" aria-labelledby="tk-pane-title" onkeydown="if(event.key==='Escape'){event.preventDefault();closeTaskPane()}">
+      <p class="side-pane-kicker">Task</p>
       <h2 id="tk-pane-title" tabindex="-1">${escHtml_cd(a.title)}</h2>
       ${f.when ? `<p class="tk-pane-when tk-due ${f.whenCls}">${f.when}</p>` : ''}
-      <dl class="tk-pane-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${escHtml_cd(v)}</dd></div>`).join('')}</dl>
-      ${shouldShowTaskNote(a) ? `<p class="tk-pane-note">${escHtml_cd(a.description)}</p>` : ''}
-      <div class="tk-pane-main">
-        <button type="button" class="tk-pane-done" onclick="toggleAssignment('${a.id}')">${f.done ? 'Not done' : 'Done'}</button>
+      <dl class="side-pane-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${escHtml_cd(v)}</dd></div>`).join('')}</dl>
+      ${shouldShowTaskNote(a) ? `<p class="side-pane-note">${escHtml_cd(a.description)}</p>` : ''}
+      <div class="side-pane-main">
+        <button type="button" class="side-pane-primary" onclick="toggleAssignment('${a.id}')">${f.done ? 'Not done' : 'Done'}</button>
         ${canMove ? `<button type="button" onclick="openMoveSheet('${a.id}')">Move</button>` : ''}
       </div>
       <div class="tk-row-actions tk-pane-more">${taskActions(a, f)}</div>

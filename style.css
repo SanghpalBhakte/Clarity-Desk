@@ -7355,6 +7355,7 @@ body.holiday-mode .holiday-banner {
 .hub-short b { color: var(--text-secondary); }
 .hub-short .hub-act { margin-left: 6px; }
 .hub-short-field { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.hub-short-field[hidden] { display: none; }
 .hub-short-field .form-input { width: 9.5em; min-height: 40px; }
 .hub-section { min-width: 0; }
 .hub-story { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.45; color: var(--text-primary); }
@@ -7867,26 +7868,43 @@ body.holiday-mode .holiday-banner {
   .tk-subjects { margin: 0 0 14px; padding: 0; }
 }
 
-/* Laptops 1280px+ (#477): the open task sits in a sheet beside the list, under the add line. */
+/* Laptops 1280px+: the open item sits in a sheet beside the list (Tasks #477, Subjects #478). */
 @media (min-width: 1280px) {
   #page-assignments .tk-page.has-pane { grid-template-areas: "head add" "main pane"; }
   #page-assignments .tk-page.has-pane.has-strip { grid-template-areas: "head add" "strip strip" "main pane"; }
-  #page-assignments .tk-pane { grid-area: pane; align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; min-width: 0; padding: 20px; border-radius: 20px; background: var(--color-surface, var(--color-canvas)); box-shadow: 0 0 0 1px var(--color-rule); }
-  .tk-pane-kicker { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
-  .tk-pane h2 { margin: 4px 0; font-size: 1.375rem; line-height: 1.25; font-weight: var(--th-tw, 600); color: var(--text-primary); text-wrap: balance; outline-offset: 4px; }
+  #page-assignments .tk-pane { grid-area: pane; }
+  .side-pane { align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; min-width: 0; padding: 20px; border-radius: 20px; background: var(--color-surface, var(--color-canvas)); box-shadow: 0 0 0 1px var(--color-rule); }
+  .side-pane-kicker { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
+  .side-pane h2 { margin: 4px 0; font-size: 1.375rem; line-height: 1.25; font-weight: var(--th-tw, 600); color: var(--text-primary); text-wrap: balance; outline-offset: 4px; }
+  .side-pane-facts { margin: 12px 0 0; }
+  .side-pane-facts > div { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
+  .side-pane-facts dt { font-size: 0.875rem; color: var(--text-secondary); }
+  .side-pane-facts dd { margin: 0; font-size: 1rem; color: var(--text-primary); }
+  .side-pane-note { margin: 12px 0 0; font-size: 0.875rem; color: var(--text-secondary); }
+  .side-pane-main { display: flex; gap: 8px; margin-top: 16px; }
+  .side-pane-main button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 99px; font: inherit; font-size: 1rem; font-weight: 600; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); cursor: pointer; }
+  .side-pane-main .side-pane-primary { background: var(--text-primary); color: var(--color-canvas); }
+  .side-pane-quiet { margin: 0; font-size: 1rem; color: var(--text-secondary); }
   .tk-pane-when { margin: 0; font-size: 1rem; }
-  .tk-pane-facts { margin: 12px 0 0; }
-  .tk-pane-facts div { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
-  .tk-pane-facts dt { font-size: 0.875rem; color: var(--text-secondary); }
-  .tk-pane-facts dd { margin: 0; font-size: 1rem; color: var(--text-primary); }
-  .tk-pane-note { margin: 12px 0 0; font-size: 0.875rem; color: var(--text-secondary); }
-  .tk-pane-main { display: flex; gap: 8px; margin-top: 16px; }
-  .tk-pane-main button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 99px; font: inherit; font-size: 1rem; font-weight: 600; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); cursor: pointer; }
-  .tk-pane-main .tk-pane-done { background: var(--text-primary); color: var(--color-canvas); }
   .tk-pane-more { margin-top: 8px; padding-left: 0; }
-  .tk-pane-quiet { margin: 0; font-size: 1rem; color: var(--text-secondary); }
   /* The row shown in the sheet: a soft tint that reaches past the row, so nothing in it moves. */
-  #page-assignments .tk-card.is-paned { border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 5%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--text-primary) 5%, transparent); }
+  #page-assignments .tk-card.is-paned, #page-subjects .sj-row.is-paned { border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 5%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--text-primary) 5%, transparent); }
+  #page-subjects .sj-body.has-pane { display: grid; grid-template-columns: minmax(0, 760px) minmax(300px, 380px); column-gap: 48px; align-items: start; }
+  .sj-pane-pct { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 0; font-size: 1rem; }
+  .sj-pane-pct .n { font-size: 2.375rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .sj-pane-pct .n.low { color: var(--status-error, var(--color-error)); }
+  .side-pane-facts .hub-short-field { margin-top: 8px; }
+  .sj-week { display: none; }
+}
+/* PC 1600px+: the open subject's week as a third column. */
+@media (min-width: 1600px) {
+  #page-subjects .sj-body.has-pane { grid-template-columns: minmax(0, 640px) minmax(300px, 380px) minmax(240px, 320px); }
+  .sj-week { display: block; position: sticky; top: 16px; padding-top: 20px; }
+  .sj-week h3 { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); }
+  /* The Subject page's week, at the sizes Subjects allows (docs/POLISH.md): 12 and 14. */
+  .sj-week .hub-day-name, .sj-week .hub-day-sub { font-size: 0.75rem; }
+  .sj-week .hub-day-time { font-size: 0.875rem; }
+  .sj-week .hub-quiet { font-size: 0.875rem; }
 }
 
 /* Laptop sidebar: small quiet group labels and space instead of rules; the
