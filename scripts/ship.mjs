@@ -15,14 +15,15 @@
 // computer's network can't reach the site quickly
 // -> point index.html/404.html/sw.js at the jsDelivr copy of HEAD's app files
 // (own "chore:" commit, only if they changed) -> push -> check jsDelivr serves
-// exactly those files -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> live smoke
-// test (npm run test:smoke against each of SITES; a failure warns in red and exits 1,
+// exactly those files -> firebase deploy (+ AI proxy if ai-proxy/ changed) -> wait until each
+// of SITES serves the new index.html and sw.js -> live smoke test (npm run test:smoke against
+// each of SITES, output also in .ship-smoke.log; a failure warns in red and exits 1,
 // but the deploy stays live -- nothing is rolled back). Stops at the
 // first failure. Never resets, cleans or force-pushes. "Claude outputs/" is
 // never committed. The commit message becomes a Dev Note in the app unless it
 // starts with chore:, test:, wip: or bump.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -312,11 +313,53 @@ if (workerChanged) {
   if (sh('npx wrangler@latest deploy', 'ai-proxy').status !== 0) fail('AI proxy deploy failed. Hosting is live.');
 }
 
+// Firebase Hosting can serve the old files for a few minutes after a deploy, and a smoke test
+// then checks the old version (v314: 11 false failures on one site). Wait until the site serves
+// exactly the index.html and sw.js just deployed. true = live, false = still old after 5 minutes.
+async function waitForLive(site) {
+  const want = ['index.html', 'sw.js'].map((f) => [f, fs.readFileSync(f)]);
+  for (let i = 0; i < 30; i++) {
+    try {
+      let same = true;
+      for (const [f, local] of want) {
+        const r = await fetch(`${site}/${f}`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+        if (!r.ok || !Buffer.from(await r.arrayBuffer()).equals(local)) { same = false; break; }
+      }
+      if (same) return true;
+    } catch { /* not reachable this time: try again */ }
+    await new Promise((res) => setTimeout(res, 10000));
+  }
+  return false;
+}
+
+// Runs the smoke test against one site: output goes to the screen and to SMOKE_LOG (gitignored as
+// *.log), so the failures can still be read after the screen has scrolled past them.
+const SMOKE_LOG = '.ship-smoke.log';   // a dotfile: Firebase never publishes it (**/.* in firebase.json)
+fs.writeFileSync(SMOKE_LOG, `npm run ship v${ver}, ${new Date().toISOString()}\n`);
+function smoke(site) {
+  fs.appendFileSync(SMOKE_LOG, `\n=== ${site} ===\n`);
+  return new Promise((resolve) => {
+    // SMOKE_BASE_URL is read by playwright.config.ts; works the same on Windows.
+    const child = spawn('npm run test:smoke', { shell: true, env: { ...process.env, SMOKE_BASE_URL: site }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    const tee = (from, to) => from.on('data', (d) => { to.write(d); out += d; fs.appendFileSync(SMOKE_LOG, d); });
+    tee(child.stdout, process.stdout);
+    tee(child.stderr, process.stderr);
+    child.on('close', (code) => resolve({ ok: code === 0, out }));
+    child.on('error', (err) => resolve({ ok: false, out: err.message }));
+  });
+}
+// Network trouble, as opposed to a check that ran and found something wrong.
+const NETWORK_FAILURE = /net::ERR_|page\.goto: Timeout|Test timeout of \d+ms exceeded/;
+
 const smokeFailed = [];
+let realFailures = false;
 for (const site of SITES) {
+  step(`Waiting for ${site} to serve v${ver}`);
+  if (!(await waitForLive(site))) console.warn(`\x1b[33m! ${site} still serves older files after 5 minutes. Testing it anyway.\x1b[0m`);
   step(`Live smoke test against ${site}`);
-  process.env.SMOKE_BASE_URL = site;          // read by playwright.config.ts; works the same on Windows
-  if (sh('npm run test:smoke').status !== 0) smokeFailed.push(site);
+  const r = await smoke(site);
+  if (!r.ok) { smokeFailed.push(site); if (!NETWORK_FAILURE.test(r.out)) realFailures = true; }
 }
 step("Live smoke test from GitHub's servers (live-check.yml)");
 const remoteOk = await remoteLiveCheck();
@@ -327,13 +370,16 @@ if (remoteOk === false) {
 }
 if (smokeFailed.length && remoteOk !== true) {
   console.error(`\n\x1b[31m✗ v${ver} is LIVE, but the live smoke test FAILED on ${smokeFailed.join(' and ')}.\n` +
-    '  Nothing was rolled back. Open the site and check it now, then read the failures above.\n' +
+    `  Nothing was rolled back. Open the site and check it now, then read the failures in ${SMOKE_LOG}.\n` +
     '  If Playwright could not start a browser, run: npx playwright install chromium\x1b[0m');
   process.exit(1);
 }
-if (smokeFailed.length) {
-  console.warn(`\n\x1b[33m! The smoke test from this computer failed on ${smokeFailed.join(' and ')}, but it passed on GitHub's servers for both sites.\n` +
-    "  The site works; this computer's network reaches Firebase Hosting slowly. Read the failures above if they aren't timeouts.\x1b[0m");
+if (smokeFailed.length && realFailures) {
+  console.warn(`\n\x1b[33m! The smoke test from this computer FAILED checks on ${smokeFailed.join(' and ')} (not timeouts), but passed on GitHub's servers.\n` +
+    `  Read the failures in ${SMOKE_LOG}, then run it again: SMOKE_BASE_URL=<site> npm run test:smoke\x1b[0m`);
+} else if (smokeFailed.length) {
+  console.warn(`\n\x1b[33m! The smoke test from this computer timed out on ${smokeFailed.join(' and ')}, but it passed on GitHub's servers for both sites.\n` +
+    `  The site works; this computer's network reaches Firebase Hosting slowly. Details: ${SMOKE_LOG}.\x1b[0m`);
 }
 
 console.log(`\n✓ Shipped v${ver}: ${SITES.join(' and ')}`);
