@@ -170,6 +170,109 @@ export const QUICK_LINKS = [
 // new ones are inserted above them.
 export const DEV_UPDATES = [
   {
+    id: "u375",
+    date: "2026-11-28",
+    title: "Settings on a laptop: a small picture of your Today sits beside the form and shows the Theme you pick",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Closes #479",
+    points: [
+
+    ]
+  },
+  {
+    id: "u374",
+    date: "2026-11-28",
+    title: "Subjects on a laptop: the subject you open now sits beside the list",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Closes #478",
+    points: [
+
+    ]
+  },
+  {
+    id: "u373",
+    date: "2026-11-28",
+    title: "Tasks on a laptop: the task you open now sits beside the list, with Done and Move",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Closes #477",
+    points: [
+
+    ]
+  },
+  {
+    id: "u372",
+    date: "2026-11-28",
+    title: "Settings and Daily Briefing are calmer: short labels, and the Briefing as a column of numbers",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Settings: field names are short (\"Roll no.\", \"College\", \"Branch\", \"Year\", \"Batch\"), the \"01\" to \"06\" numbers are gone, and the per-subject aim list shows short subject names instead of course codes.",
+    points: [
+      "Text sizes follow the same scale as the rest of the app. Backup and restore work as before.",
+      "Daily Briefing: under the headline, one number and one line per fact: Overall %, subjects at risk, Late (with Look through), due this week, goals, and days to your exam. Then the rest of today, one line per class with short names, and the week chart.",
+      "Closes #463"
+    ]
+  },
+  {
+    id: "u371",
+    date: "2026-11-28",
+    title: "Subjects is calmer: your % first, At risk then Safe, one line of status",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Subjects now opens with \"76% overall · 5 at risk\".",
+    points: [
+      "Subjects under your aim are listed first under At risk, then Safe. Each row shows the percentage first, the name (a short name when the full one doesn't fit), and one status like \"At risk · need 8\" or \"Safe · can miss 3\". Tap a subject for its ring, exact percentage, tasks and notes. \"Manage\" is now a quiet \"Edit\" with the same options. Your attendance numbers are unchanged.",
+      "Closes #462"
+    ]
+  },
+  {
+    id: "u370",
+    date: "2026-11-28",
+    title: "Tasks is calmer: \"12 to do · 3 Late\", one date per task, short subject names",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The top of Tasks now says how many are left and how many are late, instead of a sentence.",
+    points: [
+      "Each task is two lines: the tick, the title on one line, then the subject and one date in words (Today, Tomorrow, Fri, 2 Dec, or \"3 days late\"). The separate day column is gone. Subjects without a code now show their short name (UHV) in the filter and on rows. A task's note shows when you open the row. Text sizes follow the same scale as Today.",
+      "Closes #461"
+    ]
+  },
+  {
+    id: "u369",
+    date: "2026-11-28",
+    title: "Today is calmer: one line per thing, late work in one line, names that never wrap",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "The big title always fits on one line (on a small phone it says Today, with \"Morning, Name\" above it).",
+    points: [
+      "A subject under your aim is now the line under the title instead of a separate box. Long class names switch to their short name instead of wrapping. Every late task sits in one line, \"3 Late · oldest 104 days · Look through\", above Due. The class card shows the time left at the top. On a phone the big attendance box is gone: the \"Overall 76% · can miss 3\" line under the strip says it. Text sizes follow one scale everywhere.",
+      "Closes #460"
+    ]
+  },
+  {
+    id: "u368",
+    date: "2026-11-24",
+    title: "The four Themes now look clearly different, and Settings says Theme and Light / Dark / Auto",
+    category: "Update",
+    tag: "Update",
+    tagColor: "var(--blue)",
+    summary: "Highlighter marks the class you're in with a see-through marker stroke, Old Campus rules the title like a notebook page, Campus Sunset marks now with a setting sun, and Lo-fi uses dotted tape and square ticks.",
+    points: [
+      "\"Last Bench\" is now called Campus Sunset. The app loads one font (Lexend) instead of three. Free time on Today is a plain hatched gap in every Theme.",
+      "Also adds the polish checks from #459: a messy test desk, clutter checks on five screen sizes in every Theme, a check that keeps loose colours and sizes out of style.css, accessibility checks for every Theme, and docs/POLISH.md.",
+      "Closes #459"
+    ]
+  },
+  {
     id: "u367",
     date: "2026-11-24",
     title: "Subjects without a short name show initials from their full name (like APS) instead of a long course code, and you can rename them",
