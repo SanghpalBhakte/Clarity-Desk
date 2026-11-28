@@ -64,7 +64,7 @@ Vanilla JS, no build step. `localStorage` is the source of truth; Firebase is op
 - Before pull/merge/rebase, report `git status`, branch, and remotes first.
 
 ## Shipping (batched: only when the user says "ship")
-- After every change, once CI (`Tests`) is green, there's no conflict and no review thread is unresolved: merge the `claude/*` PR, pull `main` (`git pull --ff-only`), and confirm the folder matches `origin/main` (same `HEAD`, clean `git status`). Do not run `npm run ship` then: merged PRs wait on `main` (nothing goes live until ship).
+- After every change, once CI (`Tests`) is green, there's no conflict and no review thread is unresolved: merge the `claude/*` PR with `npm run merge-pr -- <n>` (waits for CI, checks these rules, merges, pulls `main`), and confirm the folder matches `origin/main` (same `HEAD`, clean `git status`). Do not run `npm run ship` then: merged PRs wait on `main` (nothing goes live until ship).
 - Run `npm run ship` only when the user says to ship, so several PRs go out as one version: follow the `ship` skill. Exception: an urgent fix for something broken for students ships right away.
 - Commit messages and PR commit subjects: plain words for students, because they become Dev Notes. Start with `chore:` for tooling/test-only changes. Never add a version label like `(vN)`: Dev Notes show the date, and the cache number stays internal.
 - Git commands run from the Cowork VM on this folder (e.g. `git status`) can leave a `.git/index.lock` the VM cannot delete, which blocks the user's commit. If one appears, move it aside (`mv .git/index.lock .git/index.lock.stale`).

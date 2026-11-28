@@ -13,8 +13,8 @@ Merged PRs wait on `main`; nothing goes live until this runs. One ship sends sev
    - bumps the cache version if app files changed;
    - runs `npm test`, commits, and adds Dev Notes;
    - pushes, then runs `firebase deploy --only hosting` (plus the AI proxy if `ai-proxy/` changed);
-   - runs the live smoke test (`npm run test:smoke` against the live site, and `live-check.yml` from GitHub's servers).
-   A smoke failure prints a red warning and exits 1. The deploy stays live and nothing is rolled back.
+   - waits until each site serves the new files, then runs the live smoke test (`npm run test:smoke` against each site, and `live-check.yml` from GitHub's servers).
+   A smoke failure prints a red warning and exits 1. The deploy stays live and nothing is rolled back. The full smoke output is in `.ship-smoke.log`: read the failures there, since the screen output scrolls past them.
 4. Done when `main` matches `origin/main` (same `HEAD`) and `git status` is clean.
 
 Dev Notes come from commit subjects. A change that arrives through a merged PR leaves ship nothing to commit, so the PR's commit subject becomes the Dev Note.
