@@ -7867,6 +7867,28 @@ body.holiday-mode .holiday-banner {
   .tk-subjects { margin: 0 0 14px; padding: 0; }
 }
 
+/* Laptops 1280px+ (#477): the open task sits in a sheet beside the list, under the add line. */
+@media (min-width: 1280px) {
+  #page-assignments .tk-page.has-pane { grid-template-areas: "head add" "main pane"; }
+  #page-assignments .tk-page.has-pane.has-strip { grid-template-areas: "head add" "strip strip" "main pane"; }
+  #page-assignments .tk-pane { grid-area: pane; align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; min-width: 0; padding: 20px; border-radius: 20px; background: var(--color-surface, var(--color-canvas)); box-shadow: 0 0 0 1px var(--color-rule); }
+  .tk-pane-kicker { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
+  .tk-pane h2 { margin: 4px 0; font-size: 1.375rem; line-height: 1.25; font-weight: var(--th-tw, 600); color: var(--text-primary); text-wrap: balance; outline-offset: 4px; }
+  .tk-pane-when { margin: 0; font-size: 1rem; }
+  .tk-pane-facts { margin: 12px 0 0; }
+  .tk-pane-facts div { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--color-rule); }
+  .tk-pane-facts dt { font-size: 0.875rem; color: var(--text-secondary); }
+  .tk-pane-facts dd { margin: 0; font-size: 1rem; color: var(--text-primary); }
+  .tk-pane-note { margin: 12px 0 0; font-size: 0.875rem; color: var(--text-secondary); }
+  .tk-pane-main { display: flex; gap: 8px; margin-top: 16px; }
+  .tk-pane-main button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 99px; font: inherit; font-size: 1rem; font-weight: 600; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); cursor: pointer; }
+  .tk-pane-main .tk-pane-done { background: var(--text-primary); color: var(--color-canvas); }
+  .tk-pane-more { margin-top: 8px; padding-left: 0; }
+  .tk-pane-quiet { margin: 0; font-size: 1rem; color: var(--text-secondary); }
+  /* The row shown in the sheet: a soft tint that reaches past the row, so nothing in it moves. */
+  #page-assignments .tk-card.is-paned { border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 5%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--text-primary) 5%, transparent); }
+}
+
 /* Laptop sidebar: small quiet group labels and space instead of rules; the
    current page is bold with the thread bar. The collapsed icon rail keeps its
    own rules. */
